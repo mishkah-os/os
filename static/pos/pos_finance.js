@@ -328,7 +328,8 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
       setUiState({
         resetStatus: 'cancelled',
         resetMessage: 'تم إلغاء إعادة ضبط الطلبات (رمز غير صحيح).',
-        lastResetResponse: null
+        lastResetResponse: null,
+        lastResetHistoryEntry: null
       });
       return;
     }
@@ -345,7 +346,8 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     setUiState({
       resetStatus: 'pending',
       resetMessage: 'جاري إعادة ضبط بيانات الحركات...',
-      lastResetResponse: null
+      lastResetResponse: null,
+      lastResetHistoryEntry: null
     });
     const attemptAt = new Date().toISOString();
     try {
@@ -363,18 +365,28 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
           resetStatus: 'error',
           resetMessage: message,
           lastResetAt: attemptAt,
-          lastResetResponse: body || { ok: false, status: response.status }
+          lastResetResponse: body || { ok: false, status: response.status },
+          lastResetHistoryEntry: null
         });
         console.warn('[POS Finance] Reset orders failed', { payload, response: body, status: response.status });
         return;
       }
       const removed = Number(body?.totalRemoved ?? 0);
-      const message = `تمت إعادة ضبط بيانات الحركات بنجاح (${removed} سجل).`;
+      const historySummary = body?.historyEntry && typeof body.historyEntry === 'object' ? body.historyEntry : null;
+      const tablesSummary = Array.isArray(historySummary?.tables)
+        ? historySummary.tables
+            .filter((table) => table && table.name)
+            .map((table) => `${table.name}: ${Number(table.count || 0)}`)
+            .join('، ')
+        : '';
+      const messageBase = `تمت إعادة ضبط بيانات الحركات بنجاح (${removed} سجل).`;
+      const message = tablesSummary ? `${messageBase} التفاصيل: ${tablesSummary}.` : messageBase;
       setUiState({
         resetStatus: 'success',
         resetMessage: message,
         lastResetAt: attemptAt,
-        lastResetResponse: body
+        lastResetResponse: body,
+        lastResetHistoryEntry: historySummary
       });
       updateData();
       console.log('[POS Finance] Reset orders completed', { payload, response: body });
@@ -383,7 +395,8 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
         resetStatus: 'error',
         resetMessage: 'تعذر الاتصال بخادم إعادة الضبط.',
         lastResetAt: attemptAt,
-        lastResetResponse: { ok: false, status: 'network-error', error: error?.message }
+        lastResetResponse: { ok: false, status: 'network-error', error: error?.message },
+        lastResetHistoryEntry: null
       });
       console.error('[POS Finance] Reset orders request failed', error);
     }

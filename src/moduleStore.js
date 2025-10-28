@@ -247,6 +247,80 @@ export default class ModuleStore {
     return { cleared, totalRemoved, changed };
   }
 
+  restoreTables(tableRecords = {}, options = {}) {
+    if (!tableRecords || typeof tableRecords !== 'object') {
+      return { restored: [], totalRestored: 0, changed: false, mode: options.mode || 'append' };
+    }
+    const mode = options.mode === 'replace' ? 'replace' : 'append';
+    const restored = [];
+    let totalRestored = 0;
+    let changed = false;
+
+    const entries = Array.isArray(tableRecords)
+      ? tableRecords
+      : Object.entries(tableRecords).map(([table, records]) => ({ table, records }));
+
+    for (const entry of entries) {
+      const tableName = entry?.table || entry?.name;
+      if (typeof tableName !== 'string' || !tableName.trim()) continue;
+      const normalizedName = tableName.trim();
+      if (!this.tables.includes(normalizedName)) {
+        restored.push({ table: normalizedName, restored: 0, skipped: true, reason: 'table-not-registered', mode });
+        continue;
+      }
+      const incoming = Array.isArray(entry?.records) ? entry.records : [];
+      const target = Array.isArray(this.data[normalizedName]) ? this.data[normalizedName] : (this.data[normalizedName] = []);
+      const result = { table: normalizedName, mode, restored: 0, duplicates: 0, skipped: false };
+
+      if (mode === 'replace') {
+        const clones = [];
+        for (const record of incoming) {
+          if (!record || typeof record !== 'object') continue;
+          clones.push(deepClone(record));
+        }
+        result.restored = clones.length;
+        totalRestored += clones.length;
+        if (clones.length || target.length) {
+          target.splice(0, target.length, ...clones);
+          changed = changed || Boolean(clones.length || target.length);
+        }
+        restored.push(result);
+        continue;
+      }
+
+      const existingKeys = new Set();
+      for (const row of target) {
+        const { key } = this.resolveRecordKey(normalizedName, row, { require: false });
+        if (key) existingKeys.add(key);
+      }
+
+      for (const record of incoming) {
+        if (!record || typeof record !== 'object') continue;
+        const clone = deepClone(record);
+        const { key } = this.resolveRecordKey(normalizedName, clone, { require: false });
+        if (key && existingKeys.has(key)) {
+          result.duplicates += 1;
+          continue;
+        }
+        if (key) existingKeys.add(key);
+        target.push(clone);
+        result.restored += 1;
+      }
+      if (result.restored) {
+        totalRestored += result.restored;
+        changed = true;
+      }
+      restored.push(result);
+    }
+
+    if (changed) {
+      this.version += 1;
+      this.touchMeta({ recount: true });
+    }
+
+    return { restored, totalRestored, changed, mode };
+  }
+
   getRecordReference(tableName, record = {}) {
     const { key, fields, primary } = this.resolveRecordKey(tableName, record, { require: false });
     const ref = {

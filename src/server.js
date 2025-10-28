@@ -212,6 +212,10 @@ function getModuleHistoryDir(branchId, moduleId) {
   return path.join(getBranchModuleDir(branchId, moduleId), relative);
 }
 
+function getModulePurgeHistoryDir(branchId, moduleId) {
+  return path.join(getModuleHistoryDir(branchId, moduleId), 'purge');
+}
+
 function getModuleArchivePath(branchId, moduleId, timestamp) {
   const historyDir = getModuleHistoryDir(branchId, moduleId);
   return path.join(historyDir, `${timestamp}.json`);
@@ -362,6 +366,7 @@ async function ensureBranchModuleLayout(branchId, moduleId) {
   await mkdir(path.dirname(getModuleLivePath(branchId, moduleId)), { recursive: true });
   await mkdir(getModuleHistoryDir(branchId, moduleId), { recursive: true });
   await mkdir(path.join(getModuleHistoryDir(branchId, moduleId), 'events'), { recursive: true });
+  await mkdir(getModulePurgeHistoryDir(branchId, moduleId), { recursive: true });
 }
 
 async function readJsonSafe(filePath, fallback = null) {
@@ -3442,8 +3447,99 @@ async function handleManagementApi(req, res, url) {
       totalRemoved: result.totalRemoved,
       changed: result.changed,
       tables: result.cleared,
-      eventMeta: result.eventMeta
+      eventMeta: result.eventMeta,
+      historyEntry: result.historyEntry ? summarizePurgeHistoryEntry(result.historyEntry) : null
     });
+    return true;
+  }
+
+  if (resource === 'purge-history') {
+    if (req.method === 'GET') {
+      const branchParam = url.searchParams.get('branch') || url.searchParams.get('branchId');
+      const moduleParam =
+        url.searchParams.get('module') ||
+        url.searchParams.get('moduleId') ||
+        url.searchParams.get('targetModule') ||
+        'pos';
+      const entryId = url.searchParams.get('entryId') || url.searchParams.get('id') || null;
+      const branchId = branchParam && branchParam.trim() ? branchParam.trim() : null;
+      if (!branchId) {
+        jsonResponse(res, 400, { error: 'missing-branch-id' });
+        return true;
+      }
+      const moduleId = moduleParam && moduleParam.trim() ? moduleParam.trim() : 'pos';
+      try {
+        if (entryId) {
+          const entry = await readPurgeHistoryEntry(branchId, moduleId, entryId);
+          if (!entry) {
+            jsonResponse(res, 404, { error: 'history-entry-not-found', entryId });
+            return true;
+          }
+          jsonResponse(res, 200, {
+            branchId,
+            moduleId,
+            entryId,
+            entry,
+            summary: summarizePurgeHistoryEntry(entry)
+          });
+          return true;
+        }
+        const entries = await listPurgeHistorySummaries(branchId, moduleId);
+        jsonResponse(res, 200, { branchId, moduleId, entries });
+      } catch (error) {
+        logger.warn({ err: error, branchId, moduleId }, 'Failed to list purge history entries');
+        jsonResponse(res, 500, { error: 'history-unavailable', message: error.message });
+      }
+      return true;
+    }
+
+    if (req.method === 'POST') {
+      let body = {};
+      try {
+        body = await readBody(req);
+      } catch (error) {
+        jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+        return true;
+      }
+      const branchRaw = body.branchId || body.branch;
+      const branchId = typeof branchRaw === 'string' && branchRaw.trim() ? branchRaw.trim() : null;
+      if (!branchId) {
+        jsonResponse(res, 400, { error: 'missing-branch-id' });
+        return true;
+      }
+      const moduleRaw = body.moduleId || body.module || body.targetModule;
+      const moduleId = typeof moduleRaw === 'string' && moduleRaw.trim() ? moduleRaw.trim() : 'pos';
+      const entryId =
+        body.entryId ||
+        body.id ||
+        body.historyId ||
+        body.historyEntryId ||
+        null;
+      if (!entryId) {
+        jsonResponse(res, 400, { error: 'missing-entry-id' });
+        return true;
+      }
+      const mode = body.mode === 'replace' ? 'replace' : 'append';
+      const broadcast = body.broadcast !== false;
+      const requestedBy = typeof body.requestedBy === 'string' && body.requestedBy.trim() ? body.requestedBy.trim() : null;
+      const reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'restore-purge-history';
+      try {
+        const result = await restorePurgeHistoryEntry(branchId, moduleId, entryId, {
+          mode,
+          broadcast,
+          requestedBy,
+          reason
+        });
+        jsonResponse(res, 200, { ...result, mode });
+      } catch (error) {
+        const status = error?.code === 'HISTORY_NOT_FOUND' ? 404 : 500;
+        logger.warn({ err: error, branchId, moduleId, entryId }, 'Failed to restore purge history entry');
+        jsonResponse(res, status, { error: 'history-restore-failed', message: error.message, entryId });
+      }
+      return true;
+    }
+
+    jsonResponse(res, 405, { error: 'method-not-allowed' });
     return true;
   }
 
@@ -4113,9 +4209,186 @@ async function clearModuleEventState(branchId, moduleId, tables = [], options = 
   return patch;
 }
 
+function summarizePurgeHistoryEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const tables = Array.isArray(entry.summary)
+    ? entry.summary
+    : Array.isArray(entry.tables)
+      ? entry.tables.map((table) => ({
+          name: table.name || table.table || null,
+          count: table.count ?? (Array.isArray(table.records) ? table.records.length : 0),
+          sample: table.sample || table.samples || []
+        }))
+      : [];
+  return {
+    id: entry.id || null,
+    branchId: entry.branchId || null,
+    moduleId: entry.moduleId || null,
+    createdAt: entry.createdAt || null,
+    reason: entry.reason || null,
+    requestedBy: entry.requestedBy || null,
+    totalRecords: entry.totalRecords ?? tables.reduce((sum, table) => sum + Number(table.count || 0), 0),
+    tables
+  };
+}
+
+async function recordPurgeHistoryEntry(store, tableNames = [], options = {}) {
+  if (!store) return null;
+  const tables = Array.isArray(tableNames) ? tableNames.slice() : [];
+  const recognized = [];
+  let totalRecords = 0;
+  for (const tableName of tables) {
+    if (typeof tableName !== 'string') continue;
+    const normalized = tableName.trim();
+    if (!normalized || !store.tables.includes(normalized)) continue;
+    const records = store.listTable(normalized);
+    const sample = records.slice(0, 5).map((record) => store.getRecordReference(normalized, record));
+    const entry = {
+      name: normalized,
+      count: records.length,
+      records,
+      primaryKeyFields: store.resolvePrimaryKeyFields(normalized),
+      sample
+    };
+    totalRecords += records.length;
+    recognized.push(entry);
+  }
+  if (!recognized.length) return null;
+
+  const createdAt = nowIso();
+  const id = createId('purge');
+  const payload = {
+    id,
+    type: 'purge',
+    branchId: store.branchId,
+    moduleId: store.moduleId,
+    createdAt,
+    reason: options.reason || null,
+    requestedBy: options.requestedBy || null,
+    clearedTables: tables,
+    originalVersion: store.version,
+    totalRecords,
+    tables: recognized,
+    summary: recognized.map((entry) => ({ name: entry.name, count: entry.count, sample: entry.sample }))
+  };
+
+  const fileName = `${createdAt.replace(/[:.]/g, '-')}_${id}.json`;
+  const filePath = path.join(getModulePurgeHistoryDir(store.branchId, store.moduleId), fileName);
+  await writeJson(filePath, payload);
+  return { ...summarizePurgeHistoryEntry(payload), filePath };
+}
+
+async function listPurgeHistorySummaries(branchId, moduleId) {
+  const dir = getModulePurgeHistoryDir(branchId, moduleId);
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  const summaries = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const filePath = path.join(dir, entry.name);
+    const payload = await readJsonSafe(filePath, null);
+    if (!payload) continue;
+    const summary = summarizePurgeHistoryEntry(payload);
+    if (!summary) continue;
+    summaries.push(summary);
+  }
+  summaries.sort((a, b) => {
+    const aTime = a?.createdAt ? Date.parse(a.createdAt) : 0;
+    const bTime = b?.createdAt ? Date.parse(b.createdAt) : 0;
+    return bTime - aTime;
+  });
+  return summaries;
+}
+
+async function findPurgeHistoryFile(branchId, moduleId, entryId) {
+  if (!entryId) return null;
+  const dir = getModulePurgeHistoryDir(branchId, moduleId);
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    if (entry.name.includes(entryId)) {
+      return path.join(dir, entry.name);
+    }
+  }
+  return null;
+}
+
+async function readPurgeHistoryEntry(branchId, moduleId, entryId) {
+  const filePath = await findPurgeHistoryFile(branchId, moduleId, entryId);
+  if (!filePath) return null;
+  const payload = await readJsonSafe(filePath, null);
+  if (!payload) return null;
+  return payload;
+}
+
+async function restorePurgeHistoryEntry(branchId, moduleId, entryId, options = {}) {
+  const payload = await readPurgeHistoryEntry(branchId, moduleId, entryId);
+  if (!payload) {
+    const error = new Error('History entry not found');
+    error.code = 'HISTORY_NOT_FOUND';
+    throw error;
+  }
+  const store = await ensureModuleStore(branchId, moduleId);
+  const tableMap = new Map();
+  for (const tableEntry of payload.tables || []) {
+    const tableName = tableEntry?.name || tableEntry?.table;
+    if (typeof tableName !== 'string' || !tableName.trim()) continue;
+    tableMap.set(tableName.trim(), Array.isArray(tableEntry.records) ? tableEntry.records : []);
+  }
+  const restoreResult = store.restoreTables(tableMap, { mode: options.mode });
+  await persistModuleStore(store);
+
+  const meta = {
+    reason: options.reason || 'restore-purge-history',
+    requestedBy: options.requestedBy || null,
+    historyEntryId: payload.id,
+    mode: restoreResult.mode
+  };
+
+  if (options.broadcast !== false) {
+    for (const entry of restoreResult.restored) {
+      if (!entry || !entry.table || entry.skipped) continue;
+      try {
+        await broadcastTableNotice(branchId, moduleId, entry.table, {
+          action: 'table:restore',
+          restored: entry.restored,
+          duplicates: entry.duplicates || 0,
+          mode: restoreResult.mode,
+          meta
+        });
+      } catch (error) {
+        logger.warn({ err: error, branchId, moduleId, table: entry.table }, 'Failed to broadcast restore notice');
+      }
+    }
+    broadcastToBranch(branchId, {
+      type: 'server:event',
+      action: 'module:restore',
+      branchId,
+      moduleId,
+      version: store.version,
+      restored: restoreResult.restored,
+      totalRestored: restoreResult.totalRestored,
+      meta
+    });
+  }
+
+  return {
+    branchId,
+    moduleId,
+    entryId: payload.id,
+    restored: restoreResult.restored,
+    totalRestored: restoreResult.totalRestored,
+    changed: restoreResult.changed,
+    historyEntry: summarizePurgeHistoryEntry(payload)
+  };
+}
+
 async function purgeModuleLiveData(branchId, moduleId, tableNames = [], options = {}) {
   const store = await ensureModuleStore(branchId, moduleId);
   const tables = Array.isArray(tableNames) ? tableNames.slice() : [];
+  const historyEntry = await recordPurgeHistoryEntry(store, tables, {
+    reason: options.reason,
+    requestedBy: options.requestedBy
+  });
   const { cleared, totalRemoved, changed } = store.clearTables(tables);
   await persistModuleStore(store);
 
@@ -4125,7 +4398,8 @@ async function purgeModuleLiveData(branchId, moduleId, tableNames = [], options 
     reason: options.reason || 'purge-live-data',
     requestedBy: options.requestedBy || null,
     serverId: SERVER_ID,
-    resetEvents: options.resetEvents !== false
+    resetEvents: options.resetEvents !== false,
+    historyEntryId: historyEntry?.id || null
   };
 
   if (options.broadcast !== false) {
@@ -4178,7 +4452,8 @@ async function purgeModuleLiveData(branchId, moduleId, tableNames = [], options 
     cleared,
     totalRemoved,
     changed,
-    eventMeta: eventMetaPatch
+    eventMeta: eventMetaPatch,
+    historyEntry
   };
 }
 
