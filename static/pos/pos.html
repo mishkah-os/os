@@ -42,6 +42,9 @@
 
     const params = new URLSearchParams(window.location.search || '');
     const BRANCH_ID = (params.get('brname') || '').trim();
+    if (BRANCH_ID) {
+      window.__POS_BRANCH_ID__ = BRANCH_ID;
+    }
 
     if (!BRANCH_ID) {
       document.body.innerHTML = `

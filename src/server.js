@@ -21,6 +21,7 @@ import {
 import { createId, nowIso, safeJsonParse, deepClone } from './utils.js';
 import SchemaEngine from './schema/engine.js';
 import ModuleStore from './moduleStore.js';
+import SequenceManager from './sequenceManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +43,11 @@ const ENV_SCHEMA_PATH = process.env.WS_SCHEMA_PATH
 const MODULES_CONFIG_PATH = process.env.MODULES_CONFIG_PATH || path.join(ROOT_DIR, 'data', 'modules.json');
 const BRANCHES_CONFIG_PATH = process.env.BRANCHES_CONFIG_PATH || path.join(ROOT_DIR, 'data', 'branches.config.json');
 const HISTORY_DIR = process.env.HISTORY_DIR || path.join(ROOT_DIR, 'data', 'history');
+const SEQUENCE_RULES_PATH = process.env.SEQUENCE_RULES_PATH
+  ? path.isAbsolute(process.env.SEQUENCE_RULES_PATH)
+    ? process.env.SEQUENCE_RULES_PATH
+    : path.join(ROOT_DIR, process.env.SEQUENCE_RULES_PATH)
+  : path.join(ROOT_DIR, 'data', 'sequence-rules.json');
 const EVENT_ARCHIVE_INTERVAL_MS = Math.max(60000, Number(process.env.WS2_EVENT_ARCHIVE_INTERVAL_MS || process.env.EVENT_ARCHIVE_INTERVAL_MS) || 5 * 60 * 1000);
 const EVENTS_PG_URL = process.env.WS2_EVENTS_PG_URL || process.env.EVENTS_PG_URL || process.env.WS2_PG_URL || process.env.DATABASE_URL || null;
 const EVENT_ARCHIVER_DISABLED = ['1', 'true', 'yes'].includes(
@@ -116,6 +122,12 @@ const CONTENT_TYPES = {
 };
 
 const DEFAULT_TRANSACTION_TABLES = ['order_header', 'order_line', 'order_payment', 'pos_shift'];
+
+const sequenceManager = new SequenceManager({
+  rulesPath: SEQUENCE_RULES_PATH,
+  branchesDir: BRANCHES_DIR,
+  logger
+});
 
 const STATIC_CACHE_HEADERS = DEV_MODE
   ? {
@@ -1657,6 +1669,239 @@ function buildAckOrder(normalized) {
     notes: normalized.notes.map((note) => deepClone(note)),
     statusLogs: normalized.statusLogs.map((log) => deepClone(log))
   };
+}
+
+async function applyModuleMutation(branchId, moduleId, table, action, record, options = {}) {
+  return handleModuleEvent(
+    branchId,
+    moduleId,
+    { action, table, record, source: options.source || 'pos-order-api', includeRecord: true },
+    null,
+    { source: options.source || 'pos-order-api', includeSnapshot: false }
+  );
+}
+
+function ensureArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizePaymentRecord(orderId, shiftId, payment, fallbackTimestamp) {
+  if (!payment) return null;
+  const id = payment.id || createId(`pay-${orderId}`);
+  const amount = Number(payment.amount);
+  const timestamp = payment.capturedAt || payment.captured_at || fallbackTimestamp || nowIso();
+  const paymentMethodId = payment.paymentMethodId || payment.method || payment.methodId || payment.id || 'cash';
+  return {
+    id,
+    orderId,
+    shiftId,
+    paymentMethodId,
+    amount: Number.isFinite(amount) ? amount : 0,
+    capturedAt: timestamp,
+    reference: payment.reference || payment.ref || null
+  };
+}
+
+async function syncOrderLines(branchId, moduleId, store, orderId, lines, options = {}) {
+  const existing = store
+    .listTable('order_line')
+    .filter((entry) => entry && entry.orderId === orderId);
+  const existingIds = new Set(existing.map((entry) => entry.id));
+  const retained = new Set();
+  const results = [];
+  for (const line of lines) {
+    if (!line) continue;
+    const payload = { ...line, orderId };
+    const result = await applyModuleMutation(branchId, moduleId, 'order_line', 'module:save', payload, options);
+    if (result?.record?.id) {
+      retained.add(result.record.id);
+      results.push({ record: result.record, source: payload });
+    }
+  }
+  for (const entry of existing) {
+    if (!entry || !entry.id) continue;
+    if (retained.has(entry.id)) continue;
+    await applyModuleMutation(branchId, moduleId, 'order_line', 'module:delete', { id: entry.id, orderId }, options);
+  }
+  return results;
+}
+
+async function syncOrderPayments(branchId, moduleId, store, orderId, payments, shiftId, options = {}) {
+  const existing = store
+    .listTable('order_payment')
+    .filter((entry) => entry && entry.orderId === orderId);
+  const retained = new Set();
+  const results = [];
+  const now = nowIso();
+  for (const payment of payments) {
+    const record = normalizePaymentRecord(orderId, shiftId, payment, now);
+    if (!record) continue;
+    const result = await applyModuleMutation(branchId, moduleId, 'order_payment', 'module:save', record, options);
+    if (result?.record?.id) {
+      retained.add(result.record.id);
+      results.push(result.record);
+    }
+  }
+  for (const entry of existing) {
+    if (!entry || !entry.id) continue;
+    if (retained.has(entry.id)) continue;
+    await applyModuleMutation(branchId, moduleId, 'order_payment', 'module:delete', { id: entry.id, orderId }, options);
+  }
+  return results;
+}
+
+async function syncOrderStatusLogs(branchId, moduleId, store, orderId, statusLogs, options = {}) {
+  const existing = store
+    .listTable('order_status_log')
+    .filter((entry) => entry && entry.orderId === orderId);
+  const retained = new Set();
+  for (const log of statusLogs) {
+    if (!log) continue;
+    const payload = { ...log, orderId };
+    const result = await applyModuleMutation(branchId, moduleId, 'order_status_log', 'module:save', payload, options);
+    if (result?.record?.id) retained.add(result.record.id);
+  }
+  for (const entry of existing) {
+    if (!entry || !entry.id) continue;
+    if (retained.has(entry.id)) continue;
+    await applyModuleMutation(branchId, moduleId, 'order_status_log', 'module:delete', { id: entry.id, orderId }, options);
+  }
+}
+
+async function syncOrderLineStatusLogs(branchId, moduleId, store, orderId, lineResults, options = {}) {
+  const existing = store
+    .listTable('order_line_status_log')
+    .filter((entry) => entry && entry.orderId === orderId);
+  const retained = new Set();
+  for (const { record, source } of lineResults) {
+    if (!record || !record.id) continue;
+    const logs = ensureArray(source?.statusLogs);
+    for (const log of logs) {
+      if (!log) continue;
+      const payload = { ...log, orderId, lineId: record.id };
+      const result = await applyModuleMutation(
+        branchId,
+        moduleId,
+        'order_line_status_log',
+        'module:save',
+        payload,
+        options
+      );
+      if (result?.record?.id) retained.add(result.record.id);
+    }
+  }
+  for (const entry of existing) {
+    if (!entry || !entry.id) continue;
+    if (retained.has(entry.id)) continue;
+    await applyModuleMutation(branchId, moduleId, 'order_line_status_log', 'module:delete', { id: entry.id, orderId }, options);
+  }
+}
+
+async function savePosOrder(branchId, moduleId, orderPayload, options = {}) {
+  if (!orderPayload || typeof orderPayload !== 'object') {
+    throw new Error('Order payload is required');
+  }
+  const baseOrder = deepClone(orderPayload);
+  if (!baseOrder.id) {
+    const allocation = await sequenceManager.nextValue(branchId, moduleId, 'order_header', 'id', { record: baseOrder });
+    if (allocation?.formatted) {
+      baseOrder.id = allocation.formatted;
+      if (!baseOrder.metadata || typeof baseOrder.metadata !== 'object') baseOrder.metadata = {};
+      baseOrder.metadata.invoiceSequence = allocation.value;
+      baseOrder.metadata.sequenceRule = allocation.rule || null;
+    }
+  }
+  const actorId = options.actorId || baseOrder.updatedBy || baseOrder.closedBy || baseOrder.openedBy || null;
+  const normalized = normalizeIncomingOrder(baseOrder, { actorId });
+  const headerResult = await applyModuleMutation(
+    branchId,
+    moduleId,
+    'order_header',
+    'module:save',
+    normalized.header,
+    { source: options.source || 'pos-order-api' }
+  );
+  const store = await ensureModuleStore(branchId, moduleId);
+  const orderId = headerResult?.record?.id || normalized.header.id;
+  const lineResults = await syncOrderLines(
+    branchId,
+    moduleId,
+    store,
+    orderId,
+    normalized.lines,
+    { source: options.source || 'pos-order-api' }
+  );
+  await syncOrderPayments(
+    branchId,
+    moduleId,
+    store,
+    orderId,
+    normalized.header.payments || [],
+    normalized.header.shiftId,
+    { source: options.source || 'pos-order-api' }
+  );
+  await syncOrderStatusLogs(
+    branchId,
+    moduleId,
+    store,
+    orderId,
+    normalized.statusLogs,
+    { source: options.source || 'pos-order-api' }
+  );
+  await syncOrderLineStatusLogs(
+    branchId,
+    moduleId,
+    store,
+    orderId,
+    lineResults,
+    { source: options.source || 'pos-order-api' }
+  );
+  return { orderId, normalized, header: headerResult?.record };
+}
+
+function buildPosOrderSnapshot(store, orderId) {
+  const header = store.listTable('order_header').find((entry) => entry && entry.id === orderId);
+  if (!header) return null;
+  const lines = store
+    .listTable('order_line')
+    .filter((entry) => entry && entry.orderId === orderId)
+    .map((entry) => ({ ...entry }));
+  const payments = store
+    .listTable('order_payment')
+    .filter((entry) => entry && entry.orderId === orderId)
+    .map((entry) => ({ ...entry }));
+  const statusLogs = store
+    .listTable('order_status_log')
+    .filter((entry) => entry && entry.orderId === orderId)
+    .map((entry) => ({ ...entry }));
+  const lineStatusLogs = store
+    .listTable('order_line_status_log')
+    .filter((entry) => entry && entry.orderId === orderId)
+    .map((entry) => ({ ...entry }));
+
+  const lineStatusMap = new Map();
+  for (const log of lineStatusLogs) {
+    const key = log.lineId || log.line_id;
+    if (!key) continue;
+    if (!lineStatusMap.has(key)) lineStatusMap.set(key, []);
+    lineStatusMap.get(key).push(log);
+  }
+  const linesWithStatus = lines.map((entry) => ({
+    ...entry,
+    statusLogs: lineStatusMap.get(entry.id) || []
+  }));
+
+  return {
+    ...header,
+    lines: linesWithStatus,
+    payments,
+    statusLogs
+  };
+}
+
+async function fetchPosOrderSnapshot(branchId, moduleId, orderId) {
+  const store = await ensureModuleStore(branchId, moduleId);
+  return buildPosOrderSnapshot(store, orderId);
 }
 
 async function applyPosOrderCreate(branchId, moduleId, frameData, context = {}) {
@@ -3604,6 +3849,107 @@ async function handleBranchesApi(req, res, url) {
   }
 
   const tail = segments.slice(5);
+  if (tail.length === 1 && tail[0] === 'sequences') {
+    if (req.method !== 'POST') {
+      jsonResponse(res, 405, { error: 'method-not-allowed' });
+      return;
+    }
+    let body = {};
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+      return;
+    }
+    const tableName =
+      (typeof body.table === 'string' && body.table.trim()) ||
+      (typeof body.tableName === 'string' && body.tableName.trim()) ||
+      null;
+    const fieldName =
+      (typeof body.field === 'string' && body.field.trim()) ||
+      (typeof body.fieldName === 'string' && body.fieldName.trim()) ||
+      null;
+    if (!tableName || !fieldName) {
+      jsonResponse(res, 400, { error: 'missing-table-or-field' });
+      return;
+    }
+    if (!store.tables.includes(tableName)) {
+      jsonResponse(res, 404, { error: 'table-not-found', table: tableName });
+      return;
+    }
+    try {
+      const allocation = await sequenceManager.nextValue(branchId, moduleId, tableName, fieldName, {
+        record: body.record || null
+      });
+      if (!allocation) {
+        jsonResponse(res, 404, { error: 'sequence-not-configured', table: tableName, field: fieldName });
+        return;
+      }
+      jsonResponse(res, 200, {
+        branchId,
+        moduleId,
+        table: tableName,
+        field: fieldName,
+        value: allocation.value,
+        id: allocation.formatted,
+        rule: allocation.rule || null
+      });
+    } catch (error) {
+      logger.warn({ err: error, branchId, moduleId, table: tableName, field: fieldName }, 'Failed to allocate sequence');
+      jsonResponse(res, 500, { error: 'sequence-allocation-failed', message: error.message });
+    }
+    return;
+  }
+
+  if (moduleId === 'pos' && tail.length >= 1 && tail[0] === 'orders') {
+    if (tail.length === 1 && req.method === 'POST') {
+      let body = {};
+      try {
+        body = await readBody(req);
+      } catch (error) {
+        jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+        return;
+      }
+      const orderPayload = body.order || body.data || body.record || null;
+      if (!orderPayload || typeof orderPayload !== 'object') {
+        jsonResponse(res, 400, { error: 'missing-order-payload' });
+        return;
+      }
+      try {
+        const result = await savePosOrder(branchId, moduleId, orderPayload, {
+          source: 'pos-order-api',
+          actorId: body.actorId || body.userId || orderPayload.updatedBy || null
+        });
+        const snapshot = await fetchPosOrderSnapshot(branchId, moduleId, result.orderId);
+        jsonResponse(res, 201, {
+          branchId,
+          moduleId,
+          orderId: result.orderId,
+          order: snapshot,
+          normalized: buildAckOrder(result.normalized)
+        });
+      } catch (error) {
+        logger.warn({ err: error, branchId, moduleId }, 'Failed to persist POS order via API');
+        jsonResponse(res, 500, { error: 'order-persist-failed', message: error.message });
+      }
+      return;
+    }
+    if (tail.length === 2 && req.method === 'GET') {
+      const orderId = tail[1];
+      try {
+        const snapshot = await fetchPosOrderSnapshot(branchId, moduleId, orderId);
+        if (!snapshot) {
+          jsonResponse(res, 404, { error: 'order-not-found', orderId });
+          return;
+        }
+        jsonResponse(res, 200, { branchId, moduleId, orderId, order: snapshot });
+      } catch (error) {
+        logger.warn({ err: error, branchId, moduleId, orderId }, 'Failed to load order snapshot');
+        jsonResponse(res, 500, { error: 'order-fetch-failed', message: error.message });
+      }
+      return;
+    }
+  }
   if (tail.length === 1 && tail[0] === 'save') {
     if (req.method !== 'POST') {
       jsonResponse(res, 405, { error: 'method-not-allowed' });
@@ -4484,7 +4830,14 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
   const action = typeof payload.action === 'string' ? payload.action : 'module:insert';
   const tableName = payload.table || payload.tableName || payload.targetTable;
   if (!tableName) throw new Error('Missing table name for module event');
-  const recordPayload = payload.record || payload.data || {};
+  let recordPayload = payload.record || payload.data || {};
+  if (['module:insert', 'module:merge', 'module:save'].includes(action)) {
+    try {
+      recordPayload = await sequenceManager.applyAutoSequences(branchId, moduleId, tableName, recordPayload);
+    } catch (error) {
+      logger.warn({ err: error, branchId, moduleId, table: tableName }, 'Failed to apply sequence manager to record payload');
+    }
+  }
   const store = await ensureModuleStore(branchId, moduleId);
   const contextInfo = {
     clientId: client?.id || null,
