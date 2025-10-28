@@ -138,24 +138,6 @@
         : DEFAULT_PAYMENT_METHODS_SOURCE;
       return list.map(sanitizePaymentMethod);
     };
-    const REMOTE_CONFIG = { endpoint:'/r/j', payload:{ tb:'pos_database_view' }, timeout:12000 };
-    const extractRemotePayload = (response)=>{
-      if(!response || typeof response !== 'object') return null;
-      if(response.result && typeof response.result === 'object') return response.result;
-      if(response.payload && typeof response.payload === 'object') return response.payload;
-      if(response.data && typeof response.data === 'object' && !Array.isArray(response.data)) return response.data;
-      const pure = Mishkah.utils.helpers.getPureJson(response);
-      if(!pure) return null;
-      let payload = pure;
-      if(Array.isArray(pure)){
-        payload = pure.find(entry=> entry && typeof entry === 'object' && !Array.isArray(entry)) || null;
-      }
-      if(payload && typeof payload === 'object' && !Array.isArray(payload)){
-        console.log("ajax pos data", payload);
-        return payload;
-      }
-      return null;
-    };
     const snapshotRemoteStatus = (status)=>({
       status: status?.status || 'idle',
       error: status?.error ? (status.error.message || String(status.error)) : null,
@@ -163,63 +145,22 @@
       finishedAt: status?.finishedAt || null,
       keys: Array.isArray(status?.keys) ? status.keys.slice() : []
     });
-    function createRemoteHydrator(){
-      const status = { status:'idle', error:null, startedAt:null, finishedAt:null, keys:[] };
-      const { Net } = U;
-      const promise = (async()=>{
-        status.status = 'loading';
-        status.startedAt = Date.now();
-        try{
-          let response = null;
-          if(Net && typeof Net.post === 'function'){
-            response = await Net.post(REMOTE_CONFIG.endpoint, {
-              body: REMOTE_CONFIG.payload,
-              headers:{ 'Content-Type':'application/json' },
-              timeout: REMOTE_CONFIG.timeout,
-              responseType:'json'
-            });
-          } else if(Net && typeof Net.ajax === 'function'){
-            response = await Net.ajax(REMOTE_CONFIG.endpoint, {
-              method:'POST',
-              headers:{ 'Content-Type':'application/json' },
-              body: REMOTE_CONFIG.payload,
-              responseType:'json',
-              timeout: REMOTE_CONFIG.timeout
-            });
-          } else if(typeof fetch === 'function'){
-            const res = await fetch(REMOTE_CONFIG.endpoint, {
-              method:'POST',
-              headers:{ 'Content-Type':'application/json' },
-              body: JSON.stringify(REMOTE_CONFIG.payload)
-            });
-            if(!res.ok) throw new Error(`HTTP ${res.status}`);
-            response = await res.json();
-          } else {
-            throw new Error('Networking unavailable');
-          }
-          const data = extractRemotePayload(response);
-          status.finishedAt = Date.now();
-          if(data && typeof data === 'object'){
-            status.status = 'ready';
-            status.keys = Object.keys(data);
-            return { data, status };
-          }
-          status.status = 'ready';
-          return { data:null, status };
-        } catch(error){
-          status.status = 'error';
-          status.error = error;
-          status.finishedAt = Date.now();
-          return { data:null, error, status };
-        }
-      })();
-      return { status, promise };
-    }
     const MOCK_BASE = cloneDeep(typeof window !== 'undefined' ? (window.database || {}) : {});
     let MOCK = cloneDeep(MOCK_BASE);
     let PAYMENT_METHODS = derivePaymentMethods(MOCK);
-    const remoteHydrator = createRemoteHydrator();
-    const remoteStatus = remoteHydrator.status;
+    const initialDataStatus = typeof window !== 'undefined' ? (window.__POS_DATA_STATUS__ || {}) : {};
+    const remoteStatus = {
+      status: initialDataStatus.status || (Object.keys(MOCK).length ? 'ready' : 'idle'),
+      error: initialDataStatus.error || null,
+      startedAt: initialDataStatus.startedAt || (Object.keys(MOCK).length ? Date.now() : null),
+      finishedAt: initialDataStatus.finishedAt || null,
+      keys: Array.isArray(initialDataStatus.keys) && initialDataStatus.keys.length
+        ? initialDataStatus.keys.slice()
+        : Object.keys(MOCK || {})
+    };
+    if(remoteStatus.status === 'ready' && !remoteStatus.finishedAt){
+      remoteStatus.finishedAt = remoteStatus.startedAt || Date.now();
+    }
     const initialRemoteSnapshot = snapshotRemoteStatus(remoteStatus);
     let appRef = null;
     const settings = MOCK.settings || {};
@@ -3201,34 +3142,6 @@
         kds: nextKds
       };
     };
-
-    remoteHydrator.promise.then(result=>{
-      if(result && result.data){
-        MOCK = mergePreferRemote(MOCK_BASE, result.data);
-        PAYMENT_METHODS = derivePaymentMethods(MOCK);
-        const menuDerived = applyMenuDataset(MOCK);
-        applyKdsDataset(MOCK, menuDerived);
-      }
-      if(result && result.error){
-        console.warn('[Mishkah][POS] remote catalog hydration error', result.error);
-      }
-      pendingRemoteResult = {
-        derived: cloneMenuDerived(),
-        remote: snapshotRemoteStatus(remoteStatus)
-      };
-      if(appRef){
-        flushRemoteUpdate();
-      }
-    }).catch(error=>{
-      console.warn('[Mishkah][POS] remote catalog hydration failed', error);
-      pendingRemoteResult = {
-        derived: cloneMenuDerived(),
-        remote: snapshotRemoteStatus(remoteStatus)
-      };
-      if(appRef){
-        flushRemoteUpdate();
-      }
-    });
 
     const orderStages = (Array.isArray(MOCK.order_stages) && MOCK.order_stages.length ? MOCK.order_stages : [
       { id:'new', stage_name:{ ar:'جديد', en:'New' }, sequence:1, lock_line_edits:false },
