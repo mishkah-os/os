@@ -115,6 +115,8 @@ const CONTENT_TYPES = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
+const DEFAULT_TRANSACTION_TABLES = ['order_header', 'order_line', 'order_payment', 'pos_shift'];
+
 const STATIC_CACHE_HEADERS = DEV_MODE
   ? {
       'cache-control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -208,6 +210,10 @@ function getModuleHistoryDir(branchId, moduleId) {
   const def = getModuleConfig(moduleId);
   const relative = def.historyPath || 'history';
   return path.join(getBranchModuleDir(branchId, moduleId), relative);
+}
+
+function getModulePurgeHistoryDir(branchId, moduleId) {
+  return path.join(getModuleHistoryDir(branchId, moduleId), 'purge');
 }
 
 function getModuleArchivePath(branchId, moduleId, timestamp) {
@@ -360,6 +366,7 @@ async function ensureBranchModuleLayout(branchId, moduleId) {
   await mkdir(path.dirname(getModuleLivePath(branchId, moduleId)), { recursive: true });
   await mkdir(getModuleHistoryDir(branchId, moduleId), { recursive: true });
   await mkdir(path.join(getModuleHistoryDir(branchId, moduleId), 'events'), { recursive: true });
+  await mkdir(getModulePurgeHistoryDir(branchId, moduleId), { recursive: true });
 }
 
 async function readJsonSafe(filePath, fallback = null) {
@@ -2116,6 +2123,94 @@ function normalizeTableIdentifier(value) {
     .replace(/^_+|_+$/g, '');
 }
 
+const TRANSACTION_TABLE_ALIAS_ENTRIES = [
+  ['order_header', 'order_header'],
+  ['orders', 'order_header'],
+  ['order', 'order_header'],
+  ['order_headers', 'order_header'],
+  ['orderheader', 'order_header'],
+  ['order_line', 'order_line'],
+  ['order_lines', 'order_line'],
+  ['orders_lines', 'order_line'],
+  ['orderline', 'order_line'],
+  ['orderlines', 'order_line'],
+  ['line_items', 'order_line'],
+  ['payments', 'order_payment'],
+  ['payment', 'order_payment'],
+  ['order_payments', 'order_payment'],
+  ['pos_payments', 'order_payment'],
+  ['pos_payment', 'order_payment'],
+  ['pos_shift', 'pos_shift'],
+  ['pos_shifts', 'pos_shift'],
+  ['shifts', 'pos_shift'],
+  ['shift', 'pos_shift']
+];
+
+const TRANSACTION_TABLE_ALIAS_MAP = new Map(
+  TRANSACTION_TABLE_ALIAS_ENTRIES.map(([alias, target]) => [normalizeTableIdentifier(alias), target])
+);
+
+function resolveTransactionTableName(input) {
+  if (input === undefined || input === null) return null;
+  const normalized = normalizeTableIdentifier(input);
+  if (!normalized) return null;
+  if (TRANSACTION_TABLE_ALIAS_MAP.has(normalized)) {
+    return TRANSACTION_TABLE_ALIAS_MAP.get(normalized);
+  }
+  return String(input).trim();
+}
+
+function normalizeTransactionTableList(input, { fallbackToDefaults = true } = {}) {
+  const values = [];
+  const seen = new Set();
+  let includeDefaults = false;
+  let sawExplicit = false;
+
+  const addValue = (raw) => {
+    if (raw === undefined || raw === null) return;
+    const trimmed = String(raw).trim();
+    if (!trimmed) return;
+    sawExplicit = true;
+    if (trimmed === '*') {
+      includeDefaults = true;
+      return;
+    }
+    const resolved = resolveTransactionTableName(trimmed);
+    if (!resolved) return;
+    const name = String(resolved).trim();
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    values.push(name);
+  };
+
+  if (Array.isArray(input)) {
+    for (const entry of input) addValue(entry);
+  } else if (typeof input === 'string') {
+    input
+      .split(/[,;\s]+/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => addValue(part));
+  } else if (input && typeof input === 'object') {
+    for (const value of Object.values(input)) addValue(value);
+  }
+
+  if (!sawExplicit && fallbackToDefaults) {
+    includeDefaults = true;
+  }
+
+  if (includeDefaults || (values.length === 0 && fallbackToDefaults)) {
+    for (const table of DEFAULT_TRANSACTION_TABLES) {
+      if (!seen.has(table)) {
+        seen.add(table);
+        values.push(table);
+      }
+    }
+  }
+
+  return values;
+}
+
 function resolveBranchTopicSuffixFromTable(tableName) {
   const normalized = normalizeTableIdentifier(tableName);
   if (!normalized) return null;
@@ -3282,6 +3377,172 @@ async function handleManagementApi(req, res, url) {
     return true;
   }
 
+  if (resource === 'purge-live-data' || resource === 'purge-transactions' || resource === 'reset-live') {
+    if (req.method !== 'POST') {
+      jsonResponse(res, 405, { error: 'method-not-allowed' });
+      return true;
+    }
+    let body = {};
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+      return true;
+    }
+    const branchRaw = body.branchId || body.branch;
+    const branchId = typeof branchRaw === 'string' && branchRaw.trim() ? branchRaw.trim() : null;
+    if (!branchId) {
+      jsonResponse(res, 400, { error: 'missing-branch-id' });
+      return true;
+    }
+    const requestedBy = typeof body.requestedBy === 'string' && body.requestedBy.trim() ? body.requestedBy.trim() : null;
+    const reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'purge-live-data';
+    const moduleRaw = body.moduleId || body.module || body.targetModule;
+    const moduleId = typeof moduleRaw === 'string' && moduleRaw.trim() ? moduleRaw.trim() : 'pos';
+    const tablesInput =
+      body.tables ??
+      body.table ??
+      body.tableNames ??
+      body.targetTables ??
+      body.transactionTables ??
+      body.purgeTables ??
+      null;
+    const hasExplicitTables =
+      Object.prototype.hasOwnProperty.call(body, 'tables') ||
+      Object.prototype.hasOwnProperty.call(body, 'table') ||
+      Object.prototype.hasOwnProperty.call(body, 'tableNames') ||
+      Object.prototype.hasOwnProperty.call(body, 'targetTables') ||
+      Object.prototype.hasOwnProperty.call(body, 'transactionTables') ||
+      Object.prototype.hasOwnProperty.call(body, 'purgeTables');
+    const tables = normalizeTransactionTableList(tablesInput, { fallbackToDefaults: !hasExplicitTables });
+    if (!tables.length) {
+      jsonResponse(res, 400, { error: 'no-tables-resolved', message: 'No tables matched the purge criteria.' });
+      return true;
+    }
+    const resetEvents = body.resetEvents !== false;
+    const broadcast = body.broadcast !== false;
+    let result;
+    try {
+      result = await purgeModuleLiveData(branchId, moduleId, tables, {
+        requestedBy,
+        reason,
+        resetEvents,
+        broadcast
+      });
+    } catch (error) {
+      const status = error?.code === 'MODULE_STORE_NOT_FOUND' ? 404 : 500;
+      logger.warn({ err: error, branchId, moduleId }, 'Failed to purge module live data');
+      jsonResponse(res, status, { error: 'purge-failed', message: error.message });
+      return true;
+    }
+    jsonResponse(res, 200, {
+      status: 'ok',
+      branchId,
+      moduleId,
+      requestedBy,
+      reason,
+      resetEvents,
+      broadcast,
+      version: result.version,
+      totalRemoved: result.totalRemoved,
+      changed: result.changed,
+      tables: result.cleared,
+      eventMeta: result.eventMeta,
+      historyEntry: result.historyEntry ? summarizePurgeHistoryEntry(result.historyEntry) : null
+    });
+    return true;
+  }
+
+  if (resource === 'purge-history') {
+    if (req.method === 'GET') {
+      const branchParam = url.searchParams.get('branch') || url.searchParams.get('branchId');
+      const moduleParam =
+        url.searchParams.get('module') ||
+        url.searchParams.get('moduleId') ||
+        url.searchParams.get('targetModule') ||
+        'pos';
+      const entryId = url.searchParams.get('entryId') || url.searchParams.get('id') || null;
+      const branchId = branchParam && branchParam.trim() ? branchParam.trim() : null;
+      if (!branchId) {
+        jsonResponse(res, 400, { error: 'missing-branch-id' });
+        return true;
+      }
+      const moduleId = moduleParam && moduleParam.trim() ? moduleParam.trim() : 'pos';
+      try {
+        if (entryId) {
+          const entry = await readPurgeHistoryEntry(branchId, moduleId, entryId);
+          if (!entry) {
+            jsonResponse(res, 404, { error: 'history-entry-not-found', entryId });
+            return true;
+          }
+          jsonResponse(res, 200, {
+            branchId,
+            moduleId,
+            entryId,
+            entry,
+            summary: summarizePurgeHistoryEntry(entry)
+          });
+          return true;
+        }
+        const entries = await listPurgeHistorySummaries(branchId, moduleId);
+        jsonResponse(res, 200, { branchId, moduleId, entries });
+      } catch (error) {
+        logger.warn({ err: error, branchId, moduleId }, 'Failed to list purge history entries');
+        jsonResponse(res, 500, { error: 'history-unavailable', message: error.message });
+      }
+      return true;
+    }
+
+    if (req.method === 'POST') {
+      let body = {};
+      try {
+        body = await readBody(req);
+      } catch (error) {
+        jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+        return true;
+      }
+      const branchRaw = body.branchId || body.branch;
+      const branchId = typeof branchRaw === 'string' && branchRaw.trim() ? branchRaw.trim() : null;
+      if (!branchId) {
+        jsonResponse(res, 400, { error: 'missing-branch-id' });
+        return true;
+      }
+      const moduleRaw = body.moduleId || body.module || body.targetModule;
+      const moduleId = typeof moduleRaw === 'string' && moduleRaw.trim() ? moduleRaw.trim() : 'pos';
+      const entryId =
+        body.entryId ||
+        body.id ||
+        body.historyId ||
+        body.historyEntryId ||
+        null;
+      if (!entryId) {
+        jsonResponse(res, 400, { error: 'missing-entry-id' });
+        return true;
+      }
+      const mode = body.mode === 'replace' ? 'replace' : 'append';
+      const broadcast = body.broadcast !== false;
+      const requestedBy = typeof body.requestedBy === 'string' && body.requestedBy.trim() ? body.requestedBy.trim() : null;
+      const reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'restore-purge-history';
+      try {
+        const result = await restorePurgeHistoryEntry(branchId, moduleId, entryId, {
+          mode,
+          broadcast,
+          requestedBy,
+          reason
+        });
+        jsonResponse(res, 200, { ...result, mode });
+      } catch (error) {
+        const status = error?.code === 'HISTORY_NOT_FOUND' ? 404 : 500;
+        logger.warn({ err: error, branchId, moduleId, entryId }, 'Failed to restore purge history entry');
+        jsonResponse(res, status, { error: 'history-restore-failed', message: error.message, entryId });
+      }
+      return true;
+    }
+
+    jsonResponse(res, 405, { error: 'method-not-allowed' });
+    return true;
+  }
+
   jsonResponse(res, 404, { error: 'management-endpoint-not-found', path: url.pathname });
   return true;
 }
@@ -3888,6 +4149,312 @@ async function handleBranchesApi(req, res, url) {
   }
 
   jsonResponse(res, 405, { error: 'method-not-allowed' });
+}
+
+async function clearModuleEventState(branchId, moduleId, tables = [], options = {}) {
+  const context = getModuleEventStoreContext(branchId, moduleId);
+  let meta = null;
+  try {
+    meta = await loadEventMeta(context);
+  } catch (error) {
+    logger.warn({ err: error, branchId, moduleId }, 'Failed to load event meta before purge');
+  }
+  const tableSet = new Set();
+  if (Array.isArray(tables)) {
+    for (const name of tables) {
+      if (typeof name !== 'string') continue;
+      const trimmed = name.trim();
+      if (trimmed) tableSet.add(trimmed);
+    }
+  }
+  const preserveEntries = (source = {}) => {
+    const result = {};
+    for (const [key, value] of Object.entries(source)) {
+      if (tableSet.size && tableSet.has(key)) continue;
+      result[key] = value;
+    }
+    return result;
+  };
+  const now = nowIso();
+  const patch = {
+    lastEventId: null,
+    lastEventAt: null,
+    lastAckId: null,
+    totalEvents: 0,
+    tableCursors: preserveEntries(meta?.tableCursors),
+    lastServedTableIds: preserveEntries(meta?.lastServedTableIds),
+    lastClientTableIds: preserveEntries(meta?.lastClientTableIds),
+    lastSnapshotMarker: null,
+    lastClientSnapshotMarker: null,
+    lastClientSyncAt: null,
+    liveCreatedAt: now,
+    updatedAt: now
+  };
+  if (options.reason || options.requestedBy) {
+    patch.purgeState = {
+      at: now,
+      reason: options.reason || null,
+      requestedBy: options.requestedBy || null,
+      tables: Array.from(tableSet)
+    };
+  }
+  try {
+    await updateEventMeta(context, patch);
+  } catch (error) {
+    logger.warn({ err: error, branchId, moduleId }, 'Failed to update event meta after purge');
+    throw error;
+  }
+  await discardLogFile(context.logPath).catch(() => {});
+  await discardLogFile(context.rejectionLogPath).catch(() => {});
+  return patch;
+}
+
+function summarizePurgeHistoryEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const tables = Array.isArray(entry.summary)
+    ? entry.summary
+    : Array.isArray(entry.tables)
+      ? entry.tables.map((table) => ({
+          name: table.name || table.table || null,
+          count: table.count ?? (Array.isArray(table.records) ? table.records.length : 0),
+          sample: table.sample || table.samples || []
+        }))
+      : [];
+  return {
+    id: entry.id || null,
+    branchId: entry.branchId || null,
+    moduleId: entry.moduleId || null,
+    createdAt: entry.createdAt || null,
+    reason: entry.reason || null,
+    requestedBy: entry.requestedBy || null,
+    totalRecords: entry.totalRecords ?? tables.reduce((sum, table) => sum + Number(table.count || 0), 0),
+    tables
+  };
+}
+
+async function recordPurgeHistoryEntry(store, tableNames = [], options = {}) {
+  if (!store) return null;
+  const tables = Array.isArray(tableNames) ? tableNames.slice() : [];
+  const recognized = [];
+  let totalRecords = 0;
+  for (const tableName of tables) {
+    if (typeof tableName !== 'string') continue;
+    const normalized = tableName.trim();
+    if (!normalized || !store.tables.includes(normalized)) continue;
+    const records = store.listTable(normalized);
+    const sample = records.slice(0, 5).map((record) => store.getRecordReference(normalized, record));
+    const entry = {
+      name: normalized,
+      count: records.length,
+      records,
+      primaryKeyFields: store.resolvePrimaryKeyFields(normalized),
+      sample
+    };
+    totalRecords += records.length;
+    recognized.push(entry);
+  }
+  if (!recognized.length) return null;
+
+  const createdAt = nowIso();
+  const id = createId('purge');
+  const payload = {
+    id,
+    type: 'purge',
+    branchId: store.branchId,
+    moduleId: store.moduleId,
+    createdAt,
+    reason: options.reason || null,
+    requestedBy: options.requestedBy || null,
+    clearedTables: tables,
+    originalVersion: store.version,
+    totalRecords,
+    tables: recognized,
+    summary: recognized.map((entry) => ({ name: entry.name, count: entry.count, sample: entry.sample }))
+  };
+
+  const fileName = `${createdAt.replace(/[:.]/g, '-')}_${id}.json`;
+  const filePath = path.join(getModulePurgeHistoryDir(store.branchId, store.moduleId), fileName);
+  await writeJson(filePath, payload);
+  return { ...summarizePurgeHistoryEntry(payload), filePath };
+}
+
+async function listPurgeHistorySummaries(branchId, moduleId) {
+  const dir = getModulePurgeHistoryDir(branchId, moduleId);
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  const summaries = [];
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const filePath = path.join(dir, entry.name);
+    const payload = await readJsonSafe(filePath, null);
+    if (!payload) continue;
+    const summary = summarizePurgeHistoryEntry(payload);
+    if (!summary) continue;
+    summaries.push(summary);
+  }
+  summaries.sort((a, b) => {
+    const aTime = a?.createdAt ? Date.parse(a.createdAt) : 0;
+    const bTime = b?.createdAt ? Date.parse(b.createdAt) : 0;
+    return bTime - aTime;
+  });
+  return summaries;
+}
+
+async function findPurgeHistoryFile(branchId, moduleId, entryId) {
+  if (!entryId) return null;
+  const dir = getModulePurgeHistoryDir(branchId, moduleId);
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    if (entry.name.includes(entryId)) {
+      return path.join(dir, entry.name);
+    }
+  }
+  return null;
+}
+
+async function readPurgeHistoryEntry(branchId, moduleId, entryId) {
+  const filePath = await findPurgeHistoryFile(branchId, moduleId, entryId);
+  if (!filePath) return null;
+  const payload = await readJsonSafe(filePath, null);
+  if (!payload) return null;
+  return payload;
+}
+
+async function restorePurgeHistoryEntry(branchId, moduleId, entryId, options = {}) {
+  const payload = await readPurgeHistoryEntry(branchId, moduleId, entryId);
+  if (!payload) {
+    const error = new Error('History entry not found');
+    error.code = 'HISTORY_NOT_FOUND';
+    throw error;
+  }
+  const store = await ensureModuleStore(branchId, moduleId);
+  const tableMap = new Map();
+  for (const tableEntry of payload.tables || []) {
+    const tableName = tableEntry?.name || tableEntry?.table;
+    if (typeof tableName !== 'string' || !tableName.trim()) continue;
+    tableMap.set(tableName.trim(), Array.isArray(tableEntry.records) ? tableEntry.records : []);
+  }
+  const restoreResult = store.restoreTables(tableMap, { mode: options.mode });
+  await persistModuleStore(store);
+
+  const meta = {
+    reason: options.reason || 'restore-purge-history',
+    requestedBy: options.requestedBy || null,
+    historyEntryId: payload.id,
+    mode: restoreResult.mode
+  };
+
+  if (options.broadcast !== false) {
+    for (const entry of restoreResult.restored) {
+      if (!entry || !entry.table || entry.skipped) continue;
+      try {
+        await broadcastTableNotice(branchId, moduleId, entry.table, {
+          action: 'table:restore',
+          restored: entry.restored,
+          duplicates: entry.duplicates || 0,
+          mode: restoreResult.mode,
+          meta
+        });
+      } catch (error) {
+        logger.warn({ err: error, branchId, moduleId, table: entry.table }, 'Failed to broadcast restore notice');
+      }
+    }
+    broadcastToBranch(branchId, {
+      type: 'server:event',
+      action: 'module:restore',
+      branchId,
+      moduleId,
+      version: store.version,
+      restored: restoreResult.restored,
+      totalRestored: restoreResult.totalRestored,
+      meta
+    });
+  }
+
+  return {
+    branchId,
+    moduleId,
+    entryId: payload.id,
+    restored: restoreResult.restored,
+    totalRestored: restoreResult.totalRestored,
+    changed: restoreResult.changed,
+    historyEntry: summarizePurgeHistoryEntry(payload)
+  };
+}
+
+async function purgeModuleLiveData(branchId, moduleId, tableNames = [], options = {}) {
+  const store = await ensureModuleStore(branchId, moduleId);
+  const tables = Array.isArray(tableNames) ? tableNames.slice() : [];
+  const historyEntry = await recordPurgeHistoryEntry(store, tables, {
+    reason: options.reason,
+    requestedBy: options.requestedBy
+  });
+  const { cleared, totalRemoved, changed } = store.clearTables(tables);
+  await persistModuleStore(store);
+
+  const recognized = cleared.filter((entry) => entry && entry.status !== 'skipped');
+  const targetTables = recognized.map((entry) => entry.table).filter(Boolean);
+  const noticeMeta = {
+    reason: options.reason || 'purge-live-data',
+    requestedBy: options.requestedBy || null,
+    serverId: SERVER_ID,
+    resetEvents: options.resetEvents !== false,
+    historyEntryId: historyEntry?.id || null
+  };
+
+  if (options.broadcast !== false) {
+    for (const entry of recognized) {
+      try {
+        await broadcastTableNotice(branchId, moduleId, entry.table, {
+          action: 'table:purge',
+          removed: entry.removed || 0,
+          status: entry.status,
+          meta: noticeMeta
+        });
+      } catch (error) {
+        logger.warn({ err: error, branchId, moduleId, table: entry.table }, 'Failed to broadcast purge notice');
+      }
+    }
+  }
+
+  let eventMetaPatch = null;
+  if (options.resetEvents !== false && targetTables.length) {
+    eventMetaPatch = await clearModuleEventState(branchId, moduleId, targetTables, options);
+  }
+
+  if (options.broadcast !== false) {
+    const eventPayload = {
+      type: 'server:event',
+      action: 'module:purge',
+      branchId,
+      moduleId,
+      version: store.version,
+      tables: cleared,
+      totalRemoved,
+      meta: {
+        ...noticeMeta,
+        eventMetaReset: Boolean(eventMetaPatch)
+      }
+    };
+    broadcastToBranch(branchId, eventPayload);
+  }
+
+  if (changed) {
+    logger.info({ branchId, moduleId, tables: cleared, totalRemoved }, 'Purged module transaction tables');
+  } else {
+    logger.debug({ branchId, moduleId, tables: cleared }, 'No transaction records removed during purge');
+  }
+
+  return {
+    branchId,
+    moduleId,
+    version: store.version,
+    cleared,
+    totalRemoved,
+    changed,
+    eventMeta: eventMetaPatch,
+    historyEntry
+  };
 }
 
 async function resetModule(branchId, moduleId) {

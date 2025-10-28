@@ -15,6 +15,8 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
 
   const initialPayload = typeof global.database === 'object' && global.database ? global.database : {};
 
+  const DEFAULT_PURGE_TABLES = ['order_header', 'order_line', 'order_payment', 'pos_shift'];
+
   const defaultLang = (initialPayload.settings && initialPayload.settings.lang) || 'ar';
 
   const normalizeMap = (entries = []) => {
@@ -208,6 +210,7 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
       closingStatus: 'idle',
       closingMessage: '',
       lastResetAt: null,
+      lastResetResponse: null,
       lastClosingResponse: null
     }
   });
@@ -319,19 +322,84 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     }));
   };
 
-  const handleResetOrders = () => {
+  const handleResetOrders = async () => {
     const code = global.prompt('أدخل رمز إعادة ضبط الطلبات');
     if (code !== '114477') {
-      setUiState({ resetStatus: 'cancelled', resetMessage: 'تم إلغاء إعادة ضبط الطلبات (رمز غير صحيح).' });
+      setUiState({
+        resetStatus: 'cancelled',
+        resetMessage: 'تم إلغاء إعادة ضبط الطلبات (رمز غير صحيح).',
+        lastResetResponse: null,
+        lastResetHistoryEntry: null
+      });
       return;
     }
-    const orders = db ? ensureArray(db.list('order_header')) : [];
+    const state = app.getState ? app.getState() : app.state;
+    const branchId = state?.data?.branch?.id || branch.id;
+    const payload = {
+      branchId,
+      moduleId: 'pos',
+      tables: DEFAULT_PURGE_TABLES,
+      reason: 'finance-reset',
+      requestedBy: 'finance-ui',
+      resetEvents: true
+    };
     setUiState({
-      resetStatus: 'success',
-      resetMessage: `تمت إعادة ضبط الطلبات تجريبيًا (${orders.length} طلبًا).`,
-      lastResetAt: new Date().toISOString()
+      resetStatus: 'pending',
+      resetMessage: 'جاري إعادة ضبط بيانات الحركات...',
+      lastResetResponse: null,
+      lastResetHistoryEntry: null
     });
-    console.log('[POS Finance] Reset orders (simulation)', { totalOrders: orders.length, at: new Date().toISOString() });
+    const attemptAt = new Date().toISOString();
+    try {
+      const response = await fetch('/api/manage/purge-live-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = body?.message
+          ? `تعذر إعادة ضبط بيانات الطلبات: ${body.message}`
+          : 'تعذر إعادة ضبط بيانات الطلبات.';
+        setUiState({
+          resetStatus: 'error',
+          resetMessage: message,
+          lastResetAt: attemptAt,
+          lastResetResponse: body || { ok: false, status: response.status },
+          lastResetHistoryEntry: null
+        });
+        console.warn('[POS Finance] Reset orders failed', { payload, response: body, status: response.status });
+        return;
+      }
+      const removed = Number(body?.totalRemoved ?? 0);
+      const historySummary = body?.historyEntry && typeof body.historyEntry === 'object' ? body.historyEntry : null;
+      const tablesSummary = Array.isArray(historySummary?.tables)
+        ? historySummary.tables
+            .filter((table) => table && table.name)
+            .map((table) => `${table.name}: ${Number(table.count || 0)}`)
+            .join('، ')
+        : '';
+      const messageBase = `تمت إعادة ضبط بيانات الحركات بنجاح (${removed} سجل).`;
+      const message = tablesSummary ? `${messageBase} التفاصيل: ${tablesSummary}.` : messageBase;
+      setUiState({
+        resetStatus: 'success',
+        resetMessage: message,
+        lastResetAt: attemptAt,
+        lastResetResponse: body,
+        lastResetHistoryEntry: historySummary
+      });
+      updateData();
+      console.log('[POS Finance] Reset orders completed', { payload, response: body });
+    } catch (error) {
+      setUiState({
+        resetStatus: 'error',
+        resetMessage: 'تعذر الاتصال بخادم إعادة الضبط.',
+        lastResetAt: attemptAt,
+        lastResetResponse: { ok: false, status: 'network-error', error: error?.message },
+        lastResetHistoryEntry: null
+      });
+      console.error('[POS Finance] Reset orders request failed', error);
+    }
   };
 
   const handleCloseDay = async () => {
