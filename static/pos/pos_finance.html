@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mishkah POS — الإغلاق المالي</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    html,
+    body {
+      height: 100%;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at top, #0f172a 0%, #020617 65%);
+      font-family: "Tajawal", "Cairo", system-ui, sans-serif;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      color: #e2e8f0;
+    }
+    #app {
+      flex: 1 1 auto;
+      display: flex;
+      min-height: 100vh;
+    }
+  </style>
+  <script src="../lib/mishkah-utils.js"></script>
+  <script src="../lib/mishkah.core.js"></script>
+  <script src="../lib/mishkah-ui.js"></script>
+  <script src="../lib/mishkah-schema.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module">
+    import { createPosDb } from './pos-mini-db.js';
+
+    const params = new URLSearchParams(window.location.search || '');
+    const BRANCH_ID =
+      params.get('branch') ||
+      params.get('branchId') ||
+      params.get('brname') ||
+      window.POS_BRANCH_PARAM ||
+      'dar';
+
+    const status = {
+      status: 'loading',
+      startedAt: Date.now(),
+      finishedAt: null,
+      error: null,
+      keys: [],
+      branchId: BRANCH_ID
+    };
+
+    window.__POS_DATA_STATUS__ = status;
+
+    try {
+      const { db, moduleEntry } = await createPosDb({ branchId: BRANCH_ID, role: 'finance-shell' });
+      window.__POS_DB__ = db;
+      window.__POS_MODULE_ENTRY__ = moduleEntry;
+      await db.ready();
+      const records = db.list('pos_database');
+      const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
+      const payload = latest && latest.payload ? latest.payload : {};
+      window.database = payload;
+      status.status = latest ? 'ready' : 'idle';
+      status.keys = Object.keys(payload || {});
+      status.finishedAt = Date.now();
+    } catch (error) {
+      console.error('[POS Finance] Failed to hydrate dataset from /api/schema', error);
+      window.database = {};
+      status.status = 'error';
+      status.error = error;
+      status.finishedAt = Date.now();
+    }
+
+    await import('./pos_finance.js');
+  </script>
+</body>
+</html>
