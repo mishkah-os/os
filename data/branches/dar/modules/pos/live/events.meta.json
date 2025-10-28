@@ -1,0 +1,40 @@
+{
+  "branchId": "dar",
+  "moduleId": "pos",
+  "liveCreatedAt": "2025-10-22T08:17:22.791Z",
+  "currentDay": "2025-10-22",
+  "lastClosedDate": null,
+  "lastEventId": "evt-94b5d0c9-4405-4902-a274-c291ed7257e8",
+  "lastEventAt": "2025-10-27T12:23:47.663Z",
+  "lastAckId": "evt-94b5d0c9-4405-4902-a274-c291ed7257e8",
+  "totalEvents": 48,
+  "updatedAt": "2025-10-27T12:23:47.665Z",
+  "tableCursors": {
+    "order_header": {
+      "key": "P001-1",
+      "id": "P001-1",
+      "eventId": "evt-920bca9f-f661-49b6-8e0b-45a45eebee58",
+      "sequence": 44,
+      "updatedAt": "2025-10-27T12:22:43.677Z"
+    },
+    "order_line": {
+      "key": "ln-31A7A1D70788433B87D47CE9BE09BAD0-mh93y77f-38a9",
+      "id": "ln-31A7A1D70788433B87D47CE9BE09BAD0-mh93y77f-38a9",
+      "eventId": "evt-94b5d0c9-4405-4902-a274-c291ed7257e8",
+      "sequence": 48,
+      "updatedAt": "2025-10-27T12:23:47.663Z"
+    },
+    "pos_shift": {
+      "key": "P001-SMH93YALD",
+      "id": "P001-SMH93YALD",
+      "eventId": "evt-fd533192-5562-412c-8b44-302a817e2253",
+      "sequence": 43,
+      "updatedAt": "2025-10-27T12:22:27.666Z"
+    }
+  },
+  "lastServedTableIds": {},
+  "lastClientTableIds": {},
+  "lastSnapshotMarker": null,
+  "lastClientSnapshotMarker": null,
+  "lastClientSyncAt": null
+}
