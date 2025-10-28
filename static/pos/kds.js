@@ -29,6 +29,22 @@
     return raw.replace(/[^A-Za-z0-9:_-]+/g, '-').toLowerCase();
   };
 
+  const safeText = (value)=> (value == null ? '' : String(value).trim());
+
+  const resolveOrderNumber = (rawNumber, fallbackId)=>{
+    const raw = safeText(rawNumber);
+    const fallback = safeText(fallbackId);
+    if(!raw) return fallback || raw;
+    const numeric = /^#?\d+$/.test(raw);
+    if(!fallback) return raw;
+    if(raw === fallback) return raw;
+    const fallbackHasLetters = /[A-Za-z]/.test(fallback);
+    const fallbackHasSymbol = /[-_]/.test(fallback);
+    if(numeric && (fallbackHasLetters || fallbackHasSymbol)) return fallback;
+    if(numeric && fallback.length > raw.replace(/^#/, '').length) return fallback;
+    return raw;
+  };
+
   const TEXT_DICT = {
     "title": {
       "ar": " شاشة المطبخ",
@@ -2630,11 +2646,12 @@
       orders.set(orderId, {
         orderId,
         header,
-        orderNumber:
+        orderNumber: resolveOrderNumber(
           header?.orderNumber ||
-          header?.order_number ||
-          header?.posNumber ||
-          orderId,
+            header?.order_number ||
+            header?.posNumber,
+          orderId
+        ),
         serviceMode: resolveServiceMode(header, posPayload),
         tableLabel: resolveTableLabel(header, posPayload),
         customerName: resolveCustomerName(header, posPayload),
@@ -2654,7 +2671,7 @@
         orders.set(orderId, {
           orderId,
           header: {},
-          orderNumber: orderId,
+          orderNumber: resolveOrderNumber(null, orderId),
           serviceMode: 'dine_in',
           tableLabel: '',
           customerName: '',
