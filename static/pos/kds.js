@@ -829,7 +829,7 @@
     const stationText = lang === 'ar' ? t.labels.station.ar : t.labels.station.en;
     return D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
-        D.Text.Strong({ attrs:{ class: tw`text-sm text-slate-100` }}, [`${detail.quantity}× ${lang === 'ar' ? (detail.itemNameAr || detail.itemNameEn || detail.itemId) : (detail.itemNameEn || detail.itemNameAr || detail.itemId)}`]),
+        D.Text.Strong({ attrs:{ class: tw`text-base font-semibold leading-tight text-slate-100 sm:text-lg` }}, [`${detail.quantity}× ${lang === 'ar' ? (detail.itemNameAr || detail.itemNameEn || detail.itemId) : (detail.itemNameEn || detail.itemNameAr || detail.itemId)}`]),
         createBadge(statusLabel, STATUS_CLASS[detail.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
       ]),
       stationLabel ? createBadge(`${stationText}: ${stationLabel}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
@@ -1177,10 +1177,20 @@
     const lang = db.env.lang || 'ar';
     const t = getTexts(db);
     const now = db.data.now || Date.now();
+    const theme = db.env.theme || 'dark';
+    const shellClass = cx(
+      'kds-shell',
+      tw`flex min-h-screen w-full flex-col bg-slate-950/95 text-slate-100`,
+      theme === 'light' ? tw`bg-slate-100 text-slate-900` : null
+    );
+    const mainClass = cx(
+      'kds-scroll-region',
+      tw`flex-1 min-h-0 w-full overflow-y-auto px-6 pb-6 [scrollbar-gutter:stable]`
+    );
     return UI.AppRoot({
-      shell: D.Containers.Div({ attrs:{ class: tw`flex min-h-screen w-full flex-col bg-slate-950/95 text-slate-100` }}, [
+      shell: D.Containers.Div({ attrs:{ class: shellClass, 'data-theme': theme }}, [
         renderHeader(db, t),
-        D.Containers.Main({ attrs:{ class: tw`flex-1 min-h-0 w-full px-6 pb-6` }}, [
+        D.Containers.Main({ attrs:{ class: mainClass }}, [
           db.data.filters.lockedSection ? null : renderTabs(db, t),
           renderActivePanel(db, t, lang, now)
         ].filter(Boolean))
