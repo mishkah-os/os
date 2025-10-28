@@ -115,6 +115,8 @@ const CONTENT_TYPES = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
+const DEFAULT_TRANSACTION_TABLES = ['order_header', 'order_line', 'order_payment', 'pos_shift'];
+
 const STATIC_CACHE_HEADERS = DEV_MODE
   ? {
       'cache-control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -2116,6 +2118,94 @@ function normalizeTableIdentifier(value) {
     .replace(/^_+|_+$/g, '');
 }
 
+const TRANSACTION_TABLE_ALIAS_ENTRIES = [
+  ['order_header', 'order_header'],
+  ['orders', 'order_header'],
+  ['order', 'order_header'],
+  ['order_headers', 'order_header'],
+  ['orderheader', 'order_header'],
+  ['order_line', 'order_line'],
+  ['order_lines', 'order_line'],
+  ['orders_lines', 'order_line'],
+  ['orderline', 'order_line'],
+  ['orderlines', 'order_line'],
+  ['line_items', 'order_line'],
+  ['payments', 'order_payment'],
+  ['payment', 'order_payment'],
+  ['order_payments', 'order_payment'],
+  ['pos_payments', 'order_payment'],
+  ['pos_payment', 'order_payment'],
+  ['pos_shift', 'pos_shift'],
+  ['pos_shifts', 'pos_shift'],
+  ['shifts', 'pos_shift'],
+  ['shift', 'pos_shift']
+];
+
+const TRANSACTION_TABLE_ALIAS_MAP = new Map(
+  TRANSACTION_TABLE_ALIAS_ENTRIES.map(([alias, target]) => [normalizeTableIdentifier(alias), target])
+);
+
+function resolveTransactionTableName(input) {
+  if (input === undefined || input === null) return null;
+  const normalized = normalizeTableIdentifier(input);
+  if (!normalized) return null;
+  if (TRANSACTION_TABLE_ALIAS_MAP.has(normalized)) {
+    return TRANSACTION_TABLE_ALIAS_MAP.get(normalized);
+  }
+  return String(input).trim();
+}
+
+function normalizeTransactionTableList(input, { fallbackToDefaults = true } = {}) {
+  const values = [];
+  const seen = new Set();
+  let includeDefaults = false;
+  let sawExplicit = false;
+
+  const addValue = (raw) => {
+    if (raw === undefined || raw === null) return;
+    const trimmed = String(raw).trim();
+    if (!trimmed) return;
+    sawExplicit = true;
+    if (trimmed === '*') {
+      includeDefaults = true;
+      return;
+    }
+    const resolved = resolveTransactionTableName(trimmed);
+    if (!resolved) return;
+    const name = String(resolved).trim();
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    values.push(name);
+  };
+
+  if (Array.isArray(input)) {
+    for (const entry of input) addValue(entry);
+  } else if (typeof input === 'string') {
+    input
+      .split(/[,;\s]+/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .forEach((part) => addValue(part));
+  } else if (input && typeof input === 'object') {
+    for (const value of Object.values(input)) addValue(value);
+  }
+
+  if (!sawExplicit && fallbackToDefaults) {
+    includeDefaults = true;
+  }
+
+  if (includeDefaults || (values.length === 0 && fallbackToDefaults)) {
+    for (const table of DEFAULT_TRANSACTION_TABLES) {
+      if (!seen.has(table)) {
+        seen.add(table);
+        values.push(table);
+      }
+    }
+  }
+
+  return values;
+}
+
 function resolveBranchTopicSuffixFromTable(tableName) {
   const normalized = normalizeTableIdentifier(tableName);
   if (!normalized) return null;
@@ -3282,6 +3372,81 @@ async function handleManagementApi(req, res, url) {
     return true;
   }
 
+  if (resource === 'purge-live-data' || resource === 'purge-transactions' || resource === 'reset-live') {
+    if (req.method !== 'POST') {
+      jsonResponse(res, 405, { error: 'method-not-allowed' });
+      return true;
+    }
+    let body = {};
+    try {
+      body = await readBody(req);
+    } catch (error) {
+      jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+      return true;
+    }
+    const branchRaw = body.branchId || body.branch;
+    const branchId = typeof branchRaw === 'string' && branchRaw.trim() ? branchRaw.trim() : null;
+    if (!branchId) {
+      jsonResponse(res, 400, { error: 'missing-branch-id' });
+      return true;
+    }
+    const requestedBy = typeof body.requestedBy === 'string' && body.requestedBy.trim() ? body.requestedBy.trim() : null;
+    const reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'purge-live-data';
+    const moduleRaw = body.moduleId || body.module || body.targetModule;
+    const moduleId = typeof moduleRaw === 'string' && moduleRaw.trim() ? moduleRaw.trim() : 'pos';
+    const tablesInput =
+      body.tables ??
+      body.table ??
+      body.tableNames ??
+      body.targetTables ??
+      body.transactionTables ??
+      body.purgeTables ??
+      null;
+    const hasExplicitTables =
+      Object.prototype.hasOwnProperty.call(body, 'tables') ||
+      Object.prototype.hasOwnProperty.call(body, 'table') ||
+      Object.prototype.hasOwnProperty.call(body, 'tableNames') ||
+      Object.prototype.hasOwnProperty.call(body, 'targetTables') ||
+      Object.prototype.hasOwnProperty.call(body, 'transactionTables') ||
+      Object.prototype.hasOwnProperty.call(body, 'purgeTables');
+    const tables = normalizeTransactionTableList(tablesInput, { fallbackToDefaults: !hasExplicitTables });
+    if (!tables.length) {
+      jsonResponse(res, 400, { error: 'no-tables-resolved', message: 'No tables matched the purge criteria.' });
+      return true;
+    }
+    const resetEvents = body.resetEvents !== false;
+    const broadcast = body.broadcast !== false;
+    let result;
+    try {
+      result = await purgeModuleLiveData(branchId, moduleId, tables, {
+        requestedBy,
+        reason,
+        resetEvents,
+        broadcast
+      });
+    } catch (error) {
+      const status = error?.code === 'MODULE_STORE_NOT_FOUND' ? 404 : 500;
+      logger.warn({ err: error, branchId, moduleId }, 'Failed to purge module live data');
+      jsonResponse(res, status, { error: 'purge-failed', message: error.message });
+      return true;
+    }
+    jsonResponse(res, 200, {
+      status: 'ok',
+      branchId,
+      moduleId,
+      requestedBy,
+      reason,
+      resetEvents,
+      broadcast,
+      version: result.version,
+      totalRemoved: result.totalRemoved,
+      changed: result.changed,
+      tables: result.cleared,
+      eventMeta: result.eventMeta
+    });
+    return true;
+  }
+
   jsonResponse(res, 404, { error: 'management-endpoint-not-found', path: url.pathname });
   return true;
 }
@@ -3888,6 +4053,133 @@ async function handleBranchesApi(req, res, url) {
   }
 
   jsonResponse(res, 405, { error: 'method-not-allowed' });
+}
+
+async function clearModuleEventState(branchId, moduleId, tables = [], options = {}) {
+  const context = getModuleEventStoreContext(branchId, moduleId);
+  let meta = null;
+  try {
+    meta = await loadEventMeta(context);
+  } catch (error) {
+    logger.warn({ err: error, branchId, moduleId }, 'Failed to load event meta before purge');
+  }
+  const tableSet = new Set();
+  if (Array.isArray(tables)) {
+    for (const name of tables) {
+      if (typeof name !== 'string') continue;
+      const trimmed = name.trim();
+      if (trimmed) tableSet.add(trimmed);
+    }
+  }
+  const preserveEntries = (source = {}) => {
+    const result = {};
+    for (const [key, value] of Object.entries(source)) {
+      if (tableSet.size && tableSet.has(key)) continue;
+      result[key] = value;
+    }
+    return result;
+  };
+  const now = nowIso();
+  const patch = {
+    lastEventId: null,
+    lastEventAt: null,
+    lastAckId: null,
+    totalEvents: 0,
+    tableCursors: preserveEntries(meta?.tableCursors),
+    lastServedTableIds: preserveEntries(meta?.lastServedTableIds),
+    lastClientTableIds: preserveEntries(meta?.lastClientTableIds),
+    lastSnapshotMarker: null,
+    lastClientSnapshotMarker: null,
+    lastClientSyncAt: null,
+    liveCreatedAt: now,
+    updatedAt: now
+  };
+  if (options.reason || options.requestedBy) {
+    patch.purgeState = {
+      at: now,
+      reason: options.reason || null,
+      requestedBy: options.requestedBy || null,
+      tables: Array.from(tableSet)
+    };
+  }
+  try {
+    await updateEventMeta(context, patch);
+  } catch (error) {
+    logger.warn({ err: error, branchId, moduleId }, 'Failed to update event meta after purge');
+    throw error;
+  }
+  await discardLogFile(context.logPath).catch(() => {});
+  await discardLogFile(context.rejectionLogPath).catch(() => {});
+  return patch;
+}
+
+async function purgeModuleLiveData(branchId, moduleId, tableNames = [], options = {}) {
+  const store = await ensureModuleStore(branchId, moduleId);
+  const tables = Array.isArray(tableNames) ? tableNames.slice() : [];
+  const { cleared, totalRemoved, changed } = store.clearTables(tables);
+  await persistModuleStore(store);
+
+  const recognized = cleared.filter((entry) => entry && entry.status !== 'skipped');
+  const targetTables = recognized.map((entry) => entry.table).filter(Boolean);
+  const noticeMeta = {
+    reason: options.reason || 'purge-live-data',
+    requestedBy: options.requestedBy || null,
+    serverId: SERVER_ID,
+    resetEvents: options.resetEvents !== false
+  };
+
+  if (options.broadcast !== false) {
+    for (const entry of recognized) {
+      try {
+        await broadcastTableNotice(branchId, moduleId, entry.table, {
+          action: 'table:purge',
+          removed: entry.removed || 0,
+          status: entry.status,
+          meta: noticeMeta
+        });
+      } catch (error) {
+        logger.warn({ err: error, branchId, moduleId, table: entry.table }, 'Failed to broadcast purge notice');
+      }
+    }
+  }
+
+  let eventMetaPatch = null;
+  if (options.resetEvents !== false && targetTables.length) {
+    eventMetaPatch = await clearModuleEventState(branchId, moduleId, targetTables, options);
+  }
+
+  if (options.broadcast !== false) {
+    const eventPayload = {
+      type: 'server:event',
+      action: 'module:purge',
+      branchId,
+      moduleId,
+      version: store.version,
+      tables: cleared,
+      totalRemoved,
+      meta: {
+        ...noticeMeta,
+        eventMetaReset: Boolean(eventMetaPatch)
+      }
+    };
+    broadcastToBranch(branchId, eventPayload);
+  }
+
+  if (changed) {
+    logger.info({ branchId, moduleId, tables: cleared, totalRemoved }, 'Purged module transaction tables');
+  } else {
+    logger.debug({ branchId, moduleId, tables: cleared }, 'No transaction records removed during purge');
+  }
+
+  return {
+    branchId,
+    moduleId,
+    version: store.version,
+    cleared,
+    totalRemoved,
+    changed,
+    eventMeta: eventMetaPatch
+  };
 }
 
 async function resetModule(branchId, moduleId) {
