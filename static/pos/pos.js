@@ -3916,7 +3916,7 @@
     const initialTheme = 'dark';
 
     const posState = {
-      head:{ title:'مشكاة — نقطة بيع حية' },
+      head:{ title:' نقطة بيع حية' },
       env:{ theme:initialTheme, lang:'ar', dir:'rtl' },
       data:{
         settings,
