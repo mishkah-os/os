@@ -236,6 +236,10 @@
           "ar": "تيك أواي",
           "en": "Takeaway"
         },
+        "drive_thru": {
+          "ar": "درايف ثرو",
+          "en": "Drive-thru"
+        },
         "pickup": {
           "ar": "استلام",
           "en": "Pickup"
@@ -417,7 +421,363 @@
     served: tw`border-slate-500/40 bg-slate-800/70 text-slate-100`
   };
 
-  const SERVICE_ICONS = { dine_in:'🍽️', delivery:'🚚', takeaway:'🧾', pickup:'🛍️' };
+  const SERVICE_ICONS = { dine_in:'🍽️', delivery:'🚚', takeaway:'🧾', pickup:'🛍️', drive_thru:'🚗' };
+  const SERVICE_MODE_FALLBACK = 'dine_in';
+
+  const SERVICE_ALIASES = {
+    dine_in: [
+      'dine',
+      'dine in',
+      'dine-in',
+      'dine_in',
+      'eat in',
+      'eat-in',
+      'eat_in',
+      'hall',
+      'inhouse',
+      'in-house',
+      'in house',
+      'inside',
+      'internal',
+      'restaurant',
+      'table',
+      'صالة',
+      'صاله',
+      'داخل',
+      'داخلي',
+      'جلسة',
+      'مجلس'
+    ],
+    delivery: [
+      'delivery',
+      'deliver',
+      'del',
+      'deliv',
+      'delevery',
+      'dilivery',
+      'courier',
+      'express',
+      'خارجي',
+      'التوصيل',
+      'توصيل',
+      'خارجية',
+      'دليفري',
+      'ديليفري',
+      'ديلفري',
+      'ديليفري'
+    ],
+    takeaway: [
+      'takeaway',
+      'take away',
+      'take-away',
+      'take_away',
+      'carryout',
+      'carry out',
+      'carry-out',
+      'counter',
+      'walk in',
+      'walk-in',
+      'walkin',
+      'سفري',
+      'سفريه',
+      'تيك',
+      'تيك اوي',
+      'تيك أوي',
+      'تيكاوي',
+      'تيك-اوي'
+    ],
+    pickup: [
+      'pickup',
+      'pick up',
+      'pick-up',
+      'collection',
+      'collect',
+      'self pickup',
+      'self-pickup',
+      'self_pickup',
+      'استلام',
+      'استلام ذاتي',
+      'استلام شخصي',
+      'استلم'
+    ],
+    drive_thru: [
+      'drive',
+      'drive thru',
+      'drive-thru',
+      'drive_thru',
+      'drive through',
+      'car',
+      'سيارة',
+      'سياره',
+      'درايف'
+    ]
+  };
+
+  const normalizeServiceToken = (value) => {
+    const text = safeText(value);
+    if (!text) return '';
+    return text
+      .replace(/[\u064B-\u065F]/g, '')
+      .replace(/[()]/g, ' ')
+      .replace(/[_-]+/g, ' ')
+      .replace(/[^A-Za-z0-9\u0600-\u06FF]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  };
+
+  const SERVICE_ALIAS_LOOKUP = new Map();
+  Object.keys(SERVICE_ALIASES).forEach((service) => {
+    const aliases = SERVICE_ALIASES[service] || [];
+    const tokens = new Set();
+    tokens.add(service);
+    aliases.forEach((alias) => tokens.add(alias));
+    tokens.forEach((token) => {
+      const normalized = normalizeServiceToken(token);
+      if (!normalized) return;
+      SERVICE_ALIAS_LOOKUP.set(normalized, service);
+      const collapsed = normalized.replace(/\s+/g, '');
+      if (collapsed) SERVICE_ALIAS_LOOKUP.set(collapsed, service);
+    });
+  });
+
+  const detectServiceModeFromValue = (value) => {
+    if (!value && value !== 0) return '';
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const detected = detectServiceModeFromValue(entry);
+        if (detected) return detected;
+      }
+      return '';
+    }
+    if (typeof value === 'object') {
+      if (!value) return '';
+      const fields = [
+        value.serviceMode,
+        value.service_mode,
+        value.orderType,
+        value.order_type,
+        value.orderTypeId,
+        value.order_type_id,
+        value.orderTypeCode,
+        value.order_type_code,
+        value.orderTypeName,
+        value.order_type_name,
+        value.type,
+        value.typeName,
+        value.type_name,
+        value.slug,
+        value.code,
+        value.value,
+        value.name,
+        value.label,
+        value.title,
+        value.text,
+        value.nameAr,
+        value.nameAR,
+        value.name_ar,
+        value.nameEn,
+        value.nameEN,
+        value.name_en,
+        value.labelAr,
+        value.labelAR,
+        value.label_ar,
+        value.labelEn,
+        value.labelEN,
+        value.label_en,
+        value.type_name?.ar,
+        value.type_name?.en,
+        value.name?.ar,
+        value.name?.en,
+        value.label?.ar,
+        value.label?.en
+      ];
+      for (const field of fields) {
+        const detected = detectServiceModeFromValue(field);
+        if (detected) return detected;
+      }
+      return '';
+    }
+    const normalized = normalizeServiceToken(value);
+    if (!normalized) return '';
+    if (SERVICE_ALIAS_LOOKUP.has(normalized)) {
+      return SERVICE_ALIAS_LOOKUP.get(normalized);
+    }
+    const collapsed = normalized.replace(/\s+/g, '');
+    if (SERVICE_ALIAS_LOOKUP.has(collapsed)) {
+      return SERVICE_ALIAS_LOOKUP.get(collapsed);
+    }
+    return '';
+  };
+
+  const registerServiceLookup = (lookup, key, service) => {
+    if (!lookup || !service) return;
+    const raw = safeText(key);
+    if (!raw) return;
+    const lowered = raw.toLowerCase();
+    if (lowered) lookup.set(lowered, service);
+    const collapsedId = lowered.replace(/\s+/g, '');
+    if (collapsedId) lookup.set(collapsedId, service);
+    const normalized = normalizeServiceToken(raw);
+    if (normalized) {
+      lookup.set(normalized, service);
+      const collapsed = normalized.replace(/\s+/g, '');
+      if (collapsed) lookup.set(collapsed, service);
+    }
+  };
+
+  const buildOrderTypeMapLookup = (payload) => {
+    const lookup = new Map();
+    const sources = [
+      payload?.orderTypeMap,
+      payload?.order_type_map,
+      payload?.orderTypesMap,
+      payload?.order_types_map,
+      payload?.orderTypeLookup,
+      payload?.order_type_lookup,
+      payload?.meta?.orderTypeMap,
+      payload?.meta?.order_type_map,
+      payload?.meta?.orderTypeLookup,
+      payload?.meta?.order_type_lookup,
+      payload?.settings?.orderTypeMap,
+      payload?.settings?.order_type_map,
+      payload?.settings?.orderTypeLookup,
+      payload?.settings?.order_type_lookup,
+      payload?.kds?.orderTypeMap,
+      payload?.kds?.order_type_map,
+      payload?.kds?.orderTypeLookup,
+      payload?.kds?.order_type_lookup,
+      payload?.master?.orderTypeMap,
+      payload?.master?.order_type_map,
+      payload?.master?.orderTypeLookup,
+      payload?.master?.order_type_lookup
+    ];
+    sources.forEach((source) => {
+      if (!source) return;
+      if (Array.isArray(source)) {
+        source.forEach((entry) => {
+          if (!entry) return;
+          if (Array.isArray(entry) && entry.length >= 2) {
+            const service = detectServiceModeFromValue(entry[1]);
+            if (service) registerServiceLookup(lookup, entry[0], service);
+          } else if (typeof entry === 'object') {
+            const key = entry.key || entry.id || entry.code || entry.value;
+            const value =
+              entry.serviceMode ||
+              entry.service_mode ||
+              entry.value ||
+              entry.type ||
+              entry.slug ||
+              entry.code ||
+              entry.name ||
+              entry.label;
+            const service = detectServiceModeFromValue(value);
+            if (service) registerServiceLookup(lookup, key, service);
+          }
+        });
+      } else if (typeof source === 'object') {
+        Object.entries(source).forEach(([key, value]) => {
+          const service = detectServiceModeFromValue(value);
+          if (service) registerServiceLookup(lookup, key, service);
+        });
+      }
+    });
+    return lookup;
+  };
+
+  const buildOrderTypeTypeLookup = (payload, mapLookup) => {
+    const lookup = new Map();
+    const types = ensureArray(
+      payload?.order_types || payload?.orderTypes || payload?.master?.orderTypes
+    );
+    types.forEach((type) => {
+      if (!type) return;
+      const candidates = new Set();
+      [
+        type.id,
+        type.orderTypeId,
+        type.order_type_id,
+        type.orderTypeCode,
+        type.order_type_code,
+        type.code,
+        type.slug,
+        type.type,
+        type.value,
+        type.name,
+        type.label,
+        type.type_name?.ar,
+        type.type_name?.en,
+        type.name?.ar,
+        type.name?.en,
+        type.label?.ar,
+        type.label?.en
+      ].forEach((field) => {
+        const text = safeText(field);
+        if (text) candidates.add(text);
+      });
+      let resolved = '';
+      for (const candidate of candidates) {
+        resolved = resolved || detectServiceModeFromValue(candidate);
+        if (resolved) break;
+      }
+      if (!resolved) {
+        resolved = detectServiceModeFromValue(type);
+      }
+      if (!resolved) {
+        for (const candidate of candidates) {
+          const mapMatch = (key) => mapLookup.get(key) || '';
+          const lowered = safeText(candidate).toLowerCase();
+          resolved = mapMatch(lowered);
+          if (!resolved) {
+            const collapsed = lowered.replace(/\s+/g, '');
+            resolved = mapMatch(collapsed);
+          }
+          if (!resolved) {
+            const normalized = normalizeServiceToken(candidate);
+            resolved = mapMatch(normalized);
+            if (!resolved) {
+              const collapsedNorm = normalized.replace(/\s+/g, '');
+              resolved = mapMatch(collapsedNorm);
+            }
+          }
+          if (resolved) break;
+        }
+      }
+      const service = resolved || SERVICE_MODE_FALLBACK;
+      candidates.forEach((candidate) => {
+        registerServiceLookup(lookup, candidate, service);
+      });
+    });
+    return lookup;
+  };
+
+  let lastServiceLookupPayload = null;
+  let lastServiceLookup = null;
+  const getOrderTypeLookups = (payload) => {
+    if (payload && payload === lastServiceLookupPayload && lastServiceLookup) {
+      return lastServiceLookup;
+    }
+    const mapLookup = buildOrderTypeMapLookup(payload || {});
+    const typeLookup = buildOrderTypeTypeLookup(payload || {}, mapLookup);
+    lastServiceLookupPayload = payload;
+    lastServiceLookup = { mapLookup, typeLookup };
+    return lastServiceLookup;
+  };
+
+  const lookupServiceCandidate = (lookup, candidate) => {
+    if (!lookup) return '';
+    const text = safeText(candidate);
+    if (!text) return '';
+    const lowered = text.toLowerCase();
+    if (lookup.has(lowered)) return lookup.get(lowered);
+    const collapsedId = lowered.replace(/\s+/g, '');
+    if (lookup.has(collapsedId)) return lookup.get(collapsedId);
+    const normalized = normalizeServiceToken(text);
+    if (lookup.has(normalized)) return lookup.get(normalized);
+    const collapsed = normalized.replace(/\s+/g, '');
+    if (lookup.has(collapsed)) return lookup.get(collapsed);
+    return '';
+  };
 
   const parseTime = (value)=>{
     if(!value) return null;
@@ -845,20 +1205,33 @@
 
   const buildTabs = (db, t)=>{
     const tabs = [];
+    const toLabelKey = (value)=> (value == null ? '' : String(value).toLowerCase().replace(/\s+/g, ''));
+    const labelKeys = new Set();
+    const registerLabel = (value)=>{
+      const key = toLabelKey(value);
+      if(key) labelKeys.add(key);
+    };
     const { filters, jobs } = db.data;
     const locked = filters.lockedSection;
     if(!locked){
       tabs.push({ id:'prep', label:t.tabs.prep, count: jobs.orders.length });
+      registerLabel(t.tabs.prep);
     }
     const stationOrder = (db.data.stations || []).slice().sort((a, b)=> (a.sequence || 0) - (b.sequence || 0));
     stationOrder.forEach(station=>{
       if(locked && station.id !== filters.activeTab) return;
+      const label = db.env.lang === 'ar'
+        ? (station.nameAr || station.nameEn || station.id)
+        : (station.nameEn || station.nameAr || station.id);
       tabs.push({
         id: station.id,
-        label: db.env.lang === 'ar' ? (station.nameAr || station.nameEn || station.id) : (station.nameEn || station.nameAr || station.id),
+        label,
         count: (jobs.byStation[station.id] || []).length,
         color: station.themeColor || null
       });
+      registerLabel(label);
+      registerLabel(station.id);
+      registerLabel(station.code);
     });
     if(!locked){
       const existingIds = new Set(tabs.map(tab=> tab.id));
@@ -870,8 +1243,20 @@
       ];
       stageTabs.forEach(tab=>{
         if(existingIds.has(tab.id)) return;
+        const labelKey = toLabelKey(tab.label);
+        if(labelKey && labelKeys.has(labelKey)) return;
+        if(tab.id === 'expo'){
+          const hasExpoStation = stationOrder.some(station=>{
+            const stationType = (station.stationType || '').toLowerCase();
+            if(stationType === 'expo') return true;
+            const stationKeys = [station.id, station.code, station.nameAr, station.nameEn].map(toLabelKey);
+            return stationKeys.some(key=> key && (key === 'expo' || key === labelKey));
+          });
+          if(hasExpoStation) return;
+        }
         existingIds.add(tab.id);
         tabs.push(tab);
+        if(labelKey) labelKeys.add(labelKey);
       });
     }
     return tabs;
@@ -2229,6 +2614,13 @@
     if (dashIndex > 0) return trimmed.slice(0, dashIndex);
     return trimmed || null;
   };
+  const extractBaseOrderId = (value) => {
+    const id = canonicalId(value);
+    if (!id) return null;
+    const colonIndex = id.indexOf(':');
+    if (colonIndex > 0) return id.slice(0, colonIndex);
+    return id;
+  };
   const toNumber = (value, fallback = 0) => {
     const num = Number(value);
     return Number.isFinite(num) ? num : fallback;
@@ -2502,26 +2894,110 @@
     return 'queued';
   };
 
-  const resolveServiceMode = (header, payload) => {
-    const raw =
-      normalizeId(header?.orderTypeId) ||
-      normalizeId(header?.order_type_id) ||
-      normalizeId(header?.serviceMode);
-    const types = ensureArray(payload?.order_types);
-    const match = types.find(
-      (type) => normalizeId(type?.id || type?.orderTypeId) === raw
-    );
-    const slug = (match?.slug || raw || '').toLowerCase();
-    if (slug.includes('delivery')) return 'delivery';
-    if (
-      slug.includes('pickup') ||
-      slug.includes('takeaway') ||
-      slug.includes('take_away') ||
-      slug.includes('take-away')
-    )
-      return 'takeaway';
-    if (slug.includes('drive')) return 'drive_thru';
-    return 'dine_in';
+  const resolveServiceMode = (entry, payload) => {
+    const source = entry || {};
+    const { mapLookup, typeLookup } = getOrderTypeLookups(payload || {});
+    let immediateService = '';
+    const candidates = [];
+    const seen = new Set();
+    const enqueue = (value) => {
+      if (immediateService || (!value && value !== 0)) return;
+      const detected = detectServiceModeFromValue(value);
+      if (detected) {
+        immediateService = detected;
+      }
+      if (typeof value === 'object') {
+        if (Array.isArray(value)) {
+          value.forEach(enqueue);
+        }
+        return;
+      }
+      const text = safeText(value);
+      if (!text || seen.has(text)) return;
+      seen.add(text);
+      candidates.push(text);
+    };
+
+    [
+      source.serviceMode,
+      source.service_mode,
+      source.orderType,
+      source.order_type,
+      source.orderTypeId,
+      source.order_type_id,
+      source.orderTypeCode,
+      source.order_type_code,
+      source.orderTypeName,
+      source.order_type_name,
+      source.orderTypeLabel,
+      source.order_type_label,
+      source.orderTypeValue,
+      source.order_type_value,
+      source.orderTypeSlug,
+      source.order_type_slug,
+      source.type,
+      source.typeName,
+      source.type_name,
+      source.typeId,
+      source.type_id,
+      source.typeCode,
+      source.type_code,
+      source.channel,
+      source.stationType,
+      source.station_type,
+      source.service,
+      source.serviceType,
+      source.service_type,
+      source.orderCategory,
+      source.order_category,
+      source.deliveryMode,
+      source.delivery_mode
+    ].forEach(enqueue);
+
+    if (source?.metadata && typeof source.metadata === 'object') {
+      const meta = source.metadata;
+      [
+        meta.serviceMode,
+        meta.service_mode,
+        meta.orderType,
+        meta.order_type,
+        meta.orderTypeId,
+        meta.order_type_id,
+        meta.orderTypeCode,
+        meta.order_type_code,
+        meta.orderTypeName,
+        meta.order_type_name,
+        meta.type,
+        meta.typeName,
+        meta.type_name,
+        meta.channel
+      ].forEach(enqueue);
+    }
+
+    if (Array.isArray(source?.tags)) {
+      source.tags.forEach(enqueue);
+    }
+
+    if (immediateService) return immediateService;
+
+    for (const candidate of candidates) {
+      const mapped = lookupServiceCandidate(mapLookup, candidate);
+      if (mapped) return mapped;
+    }
+
+    for (const candidate of candidates) {
+      const typed = lookupServiceCandidate(typeLookup, candidate);
+      if (typed) return typed;
+    }
+
+    if (immediateService) return immediateService;
+
+    for (const candidate of candidates) {
+      const detected = detectServiceModeFromValue(candidate);
+      if (detected) return detected;
+    }
+
+    return SERVICE_MODE_FALLBACK;
   };
 
   const resolveTableLabel = (header, payload) => {
@@ -2641,17 +3117,31 @@
 
     const orders = new Map();
     ensureArray(watcherState.headers).forEach((header) => {
-      const orderId = normalizeId(header?.id || header?.orderId);
-      if (!orderId) return;
-      orders.set(orderId, {
-        orderId,
+      const jobOrderId = canonicalId(
+        header?.id ||
+          header?.jobOrderId ||
+          header?.job_order_id ||
+          header?.orderJobId ||
+          header?.job_id ||
+          header?.orderId ||
+          header?.order_id
+      );
+      if (!jobOrderId) return;
+      const displayOrderId =
+        canonicalId(header?.orderId || header?.order_id) ||
+        extractBaseOrderId(jobOrderId);
+      const orderNumber = resolveOrderNumber(
+        header?.orderNumber ||
+          header?.order_number ||
+          header?.posNumber ||
+          header?.ticketNumber,
+        displayOrderId || jobOrderId
+      );
+      orders.set(jobOrderId, {
+        jobOrderId,
+        orderId: displayOrderId || jobOrderId,
         header,
-        orderNumber: resolveOrderNumber(
-          header?.orderNumber ||
-            header?.order_number ||
-            header?.posNumber,
-          orderId
-        ),
+        orderNumber,
         serviceMode: resolveServiceMode(header, posPayload),
         tableLabel: resolveTableLabel(header, posPayload),
         customerName: resolveCustomerName(header, posPayload),
@@ -2665,14 +3155,27 @@
     const jobHeaders = [];
 
     ensureArray(watcherState.lines).forEach((line) => {
-      const orderId = normalizeId(line?.orderId || line?.order_id);
-      if (!orderId) return;
-      if (!orders.has(orderId)) {
-        orders.set(orderId, {
-          orderId,
+      const jobOrderId = canonicalId(
+        line?.jobOrderId ||
+          line?.job_order_id ||
+          line?.orderId ||
+          line?.order_id
+      );
+      if (!jobOrderId) return;
+      if (!orders.has(jobOrderId)) {
+        const fallbackDisplayId =
+          canonicalId(line?.orderNumber || line?.order_number) ||
+          extractBaseOrderId(jobOrderId);
+        const derivedService = resolveServiceMode(line, posPayload);
+        orders.set(jobOrderId, {
+          jobOrderId,
+          orderId: fallbackDisplayId || jobOrderId,
           header: {},
-          orderNumber: resolveOrderNumber(null, orderId),
-          serviceMode: 'dine_in',
+          orderNumber: resolveOrderNumber(
+            line?.orderNumber || line?.order_number,
+            fallbackDisplayId || jobOrderId
+          ),
+          serviceMode: derivedService || SERVICE_MODE_FALLBACK,
           tableLabel: '',
           customerName: '',
           openedAt: line?.createdAt || null,
@@ -2680,7 +3183,31 @@
           jobs: new Map()
         });
       }
-      const order = orders.get(orderId);
+      const order = orders.get(jobOrderId);
+      if (!order) return;
+      const lineService = resolveServiceMode(line, posPayload);
+      if (
+        lineService &&
+        lineService !== order.serviceMode &&
+        (order.serviceMode === SERVICE_MODE_FALLBACK || lineService !== SERVICE_MODE_FALLBACK)
+      ) {
+        order.serviceMode = lineService;
+        order.jobs.forEach((existingJob) => {
+          if (existingJob && typeof existingJob === 'object') {
+            existingJob.serviceMode = lineService;
+          }
+        });
+      }
+      const lineDisplayId =
+        canonicalId(line?.orderNumber || line?.order_number) ||
+        extractBaseOrderId(jobOrderId);
+      if (lineDisplayId && lineDisplayId !== order.orderId) {
+        order.orderId = lineDisplayId;
+        order.orderNumber = resolveOrderNumber(
+          order.orderNumber,
+          lineDisplayId
+        );
+      }
       const metadata =
         line && typeof line.metadata === 'object' && !Array.isArray(line.metadata)
           ? line.metadata
@@ -2760,12 +3287,20 @@
         sectionId = resolveStationForCategory(categoryId) || 'general';
       }
       const jobItemId = resolvedItemId || derivedItemId;
-      const jobId = `${orderId}:${sectionId}`;
+      const jobOrderRef = order.jobOrderId || jobOrderId;
+      let jobId = jobOrderRef;
+      if (sectionId && jobId && !jobId.includes(':')) {
+        jobId = `${jobId}:${sectionId}`;
+      }
+      if (!jobId) {
+        jobId = sectionId ? `${order.orderId}:${sectionId}` : order.orderId;
+      }
       if (!order.jobs.has(jobId)) {
         const station = stationMap[sectionId] || {};
         order.jobs.set(jobId, {
           id: jobId,
-          orderId,
+          jobOrderId: jobOrderRef || jobId,
+          orderId: order.orderId,
           orderNumber: order.orderNumber,
           stationId: sectionId,
           stationCode: station?.code || sectionId,
@@ -2785,6 +3320,10 @@
         });
       }
       const job = order.jobs.get(jobId);
+      job.jobOrderId = job.jobOrderId || jobOrderRef || jobId;
+      job.id = job.jobOrderId || jobId;
+      job.orderId = order.orderId;
+      job.orderNumber = order.orderNumber;
       const station = stationMap[sectionId] || {};
       if (station?.code && job.stationCode !== station.code) {
         job.stationCode = station.code;
@@ -2800,12 +3339,12 @@
         normalizeId(line?.id) || `${jobId}-detail-${job.details.length + 1}`;
       job.details.push({
         id: detailId,
-        jobOrderId: jobId,
+        jobOrderId: job.jobOrderId || jobId,
         orderLineId: normalizeId(line?.id) || detailId,
         itemId: jobItemId,
         itemCode:
           metadata?.itemCode ||
-          metadata?.code ||
+            metadata?.code ||
           resolvedItemCode ||
           rawItemCode ||
           jobItemId ||
@@ -2865,7 +3404,8 @@
         const progressState =
           status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting';
         jobHeaders.push({
-          id: job.id,
+          id: job.jobOrderId || job.id,
+          jobOrderId: job.jobOrderId || job.id,
           orderId: job.orderId,
           orderNumber: job.orderNumber,
           stationId: job.stationId,
@@ -2889,7 +3429,7 @@
         job.details.forEach((detail) => {
           jobDetails.push({
             id: detail.id,
-            jobOrderId: job.id,
+            jobOrderId: job.jobOrderId || job.id,
             orderLineId: detail.orderLineId,
             itemId: detail.itemId,
             itemCode: detail.itemCode,
@@ -2905,13 +3445,27 @@
     });
 
     const handoff = {};
+    const handoffBuckets = new Map();
     orders.forEach((order) => {
-      const jobs = Array.from(order.jobs.values());
+      const key = order.orderId || order.jobOrderId;
+      if (!key) return;
+      const bucket = handoffBuckets.get(key) || [];
+      bucket.push(order);
+      handoffBuckets.set(key, bucket);
+    });
+    const handoffTimestamp = new Date().toISOString();
+    handoffBuckets.forEach((bucket, key) => {
+      const jobs = [];
+      bucket.forEach((order) => {
+        order.jobs.forEach((job) => {
+          jobs.push(job);
+        });
+      });
       const readyJobs = jobs.filter((job) => job.status === 'ready');
-      handoff[order.orderId] = {
+      handoff[key] = {
         status:
           jobs.length && readyJobs.length === jobs.length ? 'ready' : 'pending',
-        updatedAt: new Date().toISOString()
+        updatedAt: handoffTimestamp
       };
     });
 
