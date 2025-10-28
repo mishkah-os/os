@@ -198,6 +198,55 @@ export default class ModuleStore {
     return { record: deepClone(removed), context };
   }
 
+  clearTables(tableNames = []) {
+    const normalized = [];
+    const seen = new Set();
+    if (Array.isArray(tableNames)) {
+      for (const entry of tableNames) {
+        if (entry === undefined || entry === null) continue;
+        const name = String(entry).trim();
+        if (!name || seen.has(name)) continue;
+        seen.add(name);
+        normalized.push(name);
+      }
+    }
+    if (!normalized.length) {
+      return { cleared: [], totalRemoved: 0, changed: false };
+    }
+
+    const cleared = [];
+    let changed = false;
+    let totalRemoved = 0;
+
+    for (const tableName of normalized) {
+      if (!this.tables.includes(tableName)) {
+        cleared.push({ table: tableName, status: 'skipped', reason: 'table-not-registered' });
+        continue;
+      }
+      const target = Array.isArray(this.data[tableName]) ? this.data[tableName] : [];
+      const removed = target.length;
+      if (!Array.isArray(this.data[tableName])) {
+        this.data[tableName] = [];
+      } else if (removed) {
+        target.splice(0, target.length);
+      }
+      if (!removed) {
+        cleared.push({ table: tableName, status: 'empty', removed: 0 });
+        continue;
+      }
+      totalRemoved += removed;
+      changed = true;
+      cleared.push({ table: tableName, status: 'cleared', removed });
+    }
+
+    if (changed) {
+      this.version += 1;
+      this.touchMeta({ recount: true });
+    }
+
+    return { cleared, totalRemoved, changed };
+  }
+
   getRecordReference(tableName, record = {}) {
     const { key, fields, primary } = this.resolveRecordKey(tableName, record, { require: false });
     const ref = {
