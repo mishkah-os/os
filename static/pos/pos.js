@@ -1167,6 +1167,7 @@
 
     function createIndexedDBAdapter(name, version){
       const IndexedDBX = U && (U.IndexedDBX || U.IndexedDB);
+      const BRANCH_ID = ACTIVE_BRANCH_ID;
       if(!hasIndexedDB || !IndexedDBX){
         return {
           available:false,
@@ -1183,9 +1184,10 @@
           async listShifts(){ return []; },
           async openShiftRecord(record){ return record || null; },
           async closeShiftRecord(){ return null; },
-          async nextInvoiceNumber(posId, prefix){
-            const base = `${prefix || posId || 'POS'}-${Date.now()}`;
-            return { value: Date.now(), id: base };
+          async nextInvoiceNumber(){
+            const id = await allocateInvoiceId();
+            const numericValue = Number.isFinite(invoiceSequence) ? invoiceSequence : null;
+            return { value: numericValue, id };
           },
           async peekInvoiceCounter(){ return 0; },
           async resetAll(){ return false; }
@@ -1195,6 +1197,29 @@
       const SHIFT_STORE = 'shifts';
       const META_STORE = 'posMeta';
       const TEMP_STORE = 'order_temp';
+
+      async function postJson(url, payload){
+        const response = await fetch(url, {
+          method:'POST',
+          headers:{ 'content-type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if(!response.ok){
+          const message = await response.text().catch(()=> response.statusText || '');
+          throw new Error(message || `Request failed (${response.status})`);
+        }
+        return response.json();
+      }
+
+      async function getJson(url){
+        const response = await fetch(url, { method:'GET', headers:{ 'accept':'application/json' } });
+        if(response.status === 404) return null;
+        if(!response.ok){
+          const message = await response.text().catch(()=> response.statusText || '');
+          throw new Error(message || `Request failed (${response.status})`);
+        }
+        return response.json();
+      }
 
       const db = new IndexedDBX({
         name,
@@ -1321,30 +1346,32 @@
         return normalizeShiftRecord(payload);
       }
 
-      async function ensureInvoiceCounter(posId){
-        if(!posId) return { id:'default', invoiceCounter:0 };
-        await ensureReady();
-        const existing = await db.get(META_STORE, posId);
-        if(existing && Number.isFinite(existing.invoiceCounter)) return existing;
-        const base = { id: posId, invoiceCounter:0 };
-        await db.put(META_STORE, base);
-        return base;
-      }
-
       async function nextInvoiceNumber(posId, prefix){
-        if(!posId) throw new Error('posId required for invoice sequence');
-        await ensureReady();
-        const meta = await ensureInvoiceCounter(posId);
-        const nextValue = Number(meta.invoiceCounter || 0) + 1;
-        const updated = { ...meta, invoiceCounter: nextValue };
-        await db.put(META_STORE, updated);
-        const safePrefix = prefix || posId;
-        return { value: nextValue, id: `${safePrefix}-${nextValue}` };
+        if(!BRANCH_ID) throw new Error('Branch id is required for invoice sequence');
+        const payload = await postJson(
+          `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/sequences`,
+          {
+            table:'order_header',
+            field:'id',
+            record:{
+              posId: posId || POS_INFO.id,
+              posNumber: Number.isFinite(Number(POS_INFO.number)) ? Number(POS_INFO.number) : null,
+              prefix: prefix || POS_INFO.prefix
+            }
+          }
+        );
+        if(!payload || !payload.id){
+          throw new Error('Sequence allocation failed');
+        }
+        const numericValue = Number(payload.value);
+        if(Number.isFinite(numericValue)){
+          invoiceSequence = Math.max(invoiceSequence, numericValue);
+        }
+        return { value: Number.isFinite(numericValue) ? numericValue : null, id: payload.id };
       }
 
-      async function peekInvoiceCounter(posId){
-        const meta = await ensureInvoiceCounter(posId);
-        return Number(meta.invoiceCounter || 0);
+      async function peekInvoiceCounter(){
+        return Number.isFinite(invoiceSequence) ? invoiceSequence : 0;
       }
 
       async function resetAll(){
@@ -1400,107 +1427,14 @@
       }
 
       async function saveOrder(order){
-        if(!order || !order.id) throw new Error('Order payload requires an id');
-        if(!order.shiftId) throw new Error('Order payload requires an active shift');
-        await ensureReady();
-        const now = Date.now();
-        const normalizedPosId = order.posId || order.metadata?.posId || null;
-        const normalizedPosLabel = order.posLabel || order.metadata?.posLabel || null;
-        const normalizedPosNumber = Number.isFinite(order.posNumber)
-          ? Number(order.posNumber)
-          : (Number.isFinite(order.metadata?.posNumber) ? Number(order.metadata.posNumber) : null);
-        const header = {
-          id: order.id,
-          type: order.type || 'dine_in',
-          status: order.status || 'open',
-          fulfillmentStage: order.fulfillmentStage || order.stage || 'new',
-          paymentState: order.paymentState || 'unpaid',
-          tableIds: Array.isArray(order.tableIds) ? order.tableIds.slice() : [],
-          guests: order.guests || 0,
-          totals: order.totals || {},
-          discount: normalizeDiscount(order.discount),
-          createdAt: order.createdAt || now,
-          updatedAt: order.updatedAt || now,
-          savedAt: order.savedAt || now,
-          allowAdditions: order.allowAdditions !== undefined ? !!order.allowAdditions : true,
-          lockLineEdits: order.lockLineEdits !== undefined ? !!order.lockLineEdits : true,
-          isPersisted: order.isPersisted !== undefined ? !!order.isPersisted : true,
-          origin: order.origin || 'pos',
-          shiftId: order.shiftId,
-          posId: normalizedPosId,
-          posLabel: normalizedPosLabel,
-          posNumber: normalizedPosNumber,
-          metadata:{
-            version:2,
-            linesCount: Array.isArray(order.lines) ? order.lines.length : 0,
-            notesCount: Array.isArray(order.notes) ? order.notes.length : 0,
-            posId: normalizedPosId,
-            posLabel: normalizedPosLabel,
-            posNumber: normalizedPosNumber,
-            discount: normalizeDiscount(order.discount)
-          }
-        };
-
-        await db.put('orders', header);
-
-        const existingLines = await db.byIndex('orderLines', 'by_order', { only: order.id });
-        if(existingLines.length){
-          await db.bulkDelete('orderLines', existingLines.map(line=> line.uid));
+        if(!BRANCH_ID) throw new Error('Branch id is required');
+        if(!order || !order.shiftId){
+          throw new Error('Order payload requires an active shift');
         }
-        const lines = Array.isArray(order.lines) ? order.lines : [];
-        const lineRecords = lines.map(line=>({
-          uid: line.uid || line.storageId || `${order.id}::${line.id || line.itemId || Math.random().toString(16).slice(2,8)}`,
-          id: line.id || `${order.id}::${line.itemId || Math.random().toString(16).slice(2,8)}`,
-          orderId: order.id,
-          itemId: line.itemId,
-          name: line.name || null,
-          description: line.description || null,
-          qty: Number(line.qty) || 0,
-          price: Number(line.price) || 0,
-          total: Number(line.total) || 0,
-          status: line.status || 'draft',
-          stage: line.stage || header.fulfillmentStage,
-          kitchenSection: line.kitchenSection || null,
-          locked: line.locked !== undefined ? !!line.locked : header.lockLineEdits,
-          notes: Array.isArray(line.notes) ? line.notes.slice() : (line.notes ? [line.notes] : []),
-          discount: normalizeDiscount(line.discount),
-          createdAt: line.createdAt || header.createdAt,
-          updatedAt: line.updatedAt || header.updatedAt
-        }));
-        if(lineRecords.length){
-          await db.bulkPut('orderLines', lineRecords);
-        }
-
-        const existingNotes = await db.byIndex('orderNotes', 'by_order', { only: order.id });
-        if(existingNotes.length){
-          await db.bulkDelete('orderNotes', existingNotes.map(note=> note.id));
-        }
-        const notes = Array.isArray(order.notes) ? order.notes : [];
-        const noteRecords = notes.map(note=>({
-          id: note.id || `${order.id}::note::${toTimestamp(note.createdAt)}`,
-          orderId: order.id,
-          message: note.message || '',
-          authorId: note.authorId || 'system',
-          authorName: note.authorName || '',
-          createdAt: toTimestamp(note.createdAt)
-        }));
-        if(noteRecords.length){
-          await db.bulkPut('orderNotes', noteRecords);
-        }
-
-        const eventRecord = {
-          id: `${order.id}::event::${header.updatedAt}`,
-          orderId: order.id,
-          stage: header.fulfillmentStage,
-          status: header.status,
-          at: header.updatedAt,
-          actorId: order.updatedBy || order.authorId || 'pos'
-        };
-        await db.put('orderEvents', eventRecord);
-
-        return true;
+        const endpoint = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders`;
+        const payload = await postJson(endpoint, { order });
+        return payload?.order || order;
       }
-
       function sanitizeTempOrder(order){
         if(!order || !order.id) return null;
         const now = Date.now();
@@ -1558,15 +1492,9 @@
         };
       }
 
-      async function saveTempOrder(order){
-        if(!order || !order.id) throw new Error('Order payload requires an id');
-        await ensureReady();
-        const record = sanitizeTempOrder(order);
-        if(!record) return false;
-        await db.put(TEMP_STORE, record);
-        return true;
+      async function saveTempOrder(){
+        return false;
       }
-
       function hydrateTempRecord(record){
         if(!record) return null;
         const payload = record.payload || record.data || null;
@@ -1582,82 +1510,24 @@
         };
       }
 
-      async function getTempOrder(orderId){
-        if(!orderId) return null;
-        await ensureReady();
-        const record = await db.get(TEMP_STORE, orderId);
-        return hydrateTempRecord(record);
+      async function getTempOrder(){
+        return null;
       }
-
       async function listTempOrders(){
-        await ensureReady();
-        const records = await db.getAll(TEMP_STORE);
-        return records.map(hydrateTempRecord).filter(Boolean);
+        return [];
       }
-
-      async function deleteTempOrder(orderId){
-        if(!orderId) return false;
-        await ensureReady();
-        try {
-          await db.delete(TEMP_STORE, orderId);
-        } catch(_err){ return false; }
-        return true;
+      async function deleteTempOrder(){
+        return false;
       }
-
-      async function listOrders(options={}){
-        await ensureReady();
-        const headers = await db.getAll('orders');
-        const onlyActive = options.onlyActive !== false;
-        const typeFilter = options.type;
-        const stageFilter = options.stage;
-        const idFilter = options.ids;
-        const orders = [];
-        for(const header of headers){
-          const status = header.status || header.payload?.status || 'open';
-          if(onlyActive && (status === 'closed')) continue;
-          if(typeFilter){
-            const typeId = header.type || header.payload?.type || 'dine_in';
-            if(Array.isArray(typeFilter)){ if(!typeFilter.includes(typeId)) continue; }
-            else if(typeId !== typeFilter) continue;
-          }
-          if(stageFilter){
-            const stageId = header.fulfillmentStage || header.payload?.fulfillmentStage || 'new';
-            if(Array.isArray(stageFilter)){ if(!stageFilter.includes(stageId)) continue; }
-            else if(stageId !== stageFilter) continue;
-          }
-          if(idFilter && !idFilter.includes(header.id)) continue;
-          if(header.payload){
-            const legacy = header.payload;
-            orders.push({
-              ...legacy,
-              id: header.id,
-              updatedAt: header.updatedAt || legacy.updatedAt || toTimestamp(legacy.updatedAt)
-            });
-            continue;
-          }
-          const order = await hydrateOrder(header);
-          orders.push(order);
-        }
-        return orders;
+      async function listOrders(){
+        return [];
       }
-
       async function getOrder(orderId){
-        if(!orderId) return null;
-        await ensureReady();
-        const header = await db.get('orders', orderId);
-        if(!header) return null;
-        if(header.payload){
-          const legacy = header.payload;
-          return {
-            ...legacy,
-            id: header.id,
-            updatedAt: header.updatedAt || legacy.updatedAt || toTimestamp(legacy.updatedAt),
-            dirty:false
-          };
-        }
-        return hydrateOrder(header);
+        if(!BRANCH_ID || !orderId) return null;
+        const url = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders/${encodeURIComponent(orderId)}`;
+        const payload = await getJson(url);
+        return payload?.order || null;
       }
-
       async function markSync(){
         await ensureReady();
         await db.put('syncLog', { ts: Date.now() });
@@ -1691,7 +1561,8 @@
         closeShiftRecord,
         nextInvoiceNumber,
         peekInvoiceCounter,
-        resetAll
+        resetAll,
+        supportsTempOrders:false
       };
     }
 
@@ -2937,7 +2808,7 @@
     }
 
     function installTempOrderWatcher(){
-      if(!posDB.available) return;
+      if(!posDB.available || posDB.supportsTempOrders === false) return;
       if(!M || !M.Guardian || typeof M.Guardian.runPreflight !== 'function') return;
       if(M.Guardian.runPreflight.__posTempWatcher) return;
       const originalRunPreflight = M.Guardian.runPreflight.bind(M.Guardian);
@@ -3062,29 +2933,39 @@
     const savedModalSizes = preferencesStore ? (preferencesStore.get('modalSizes', {}) || {}) : {};
     const savedThemePrefs = preferencesStore ? (preferencesStore.get('themePrefs', {}) || {}) : {};
     let invoiceSequence = 0;
-    if(posDB.available){
-      try {
-        invoiceSequence = await posDB.peekInvoiceCounter(POS_INFO.id);
-      } catch(error){
-        console.warn('[Mishkah][POS] invoice peek failed', error);
-        invoiceSequence = 0;
-      }
-    }
+    const ACTIVE_BRANCH_ID = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || null) : null;
+    const MODULE_ID = (()=>{
+      if(typeof window === 'undefined') return 'pos';
+      const entry = window.__POS_MODULE_ENTRY__ || {};
+      const resolved = entry.moduleId || entry.id || 'pos';
+      const text = typeof resolved === 'string' ? resolved.trim() : `${resolved || 'pos'}`;
+      return text || 'pos';
+    })();
 
     async function allocateInvoiceId(){
-      if(posDB.available){
-        try{
-          const next = await posDB.nextInvoiceNumber(POS_INFO.id, POS_INFO.prefix);
-          invoiceSequence = next.value;
-          return next.id;
-        } catch(error){
-          console.warn('[Mishkah][POS] invoice allocation failed', error);
-        }
+      if(!ACTIVE_BRANCH_ID){
+        throw new Error('Branch id is required for invoice allocation');
       }
-      invoiceSequence += 1;
-      return `${POS_INFO.prefix}-${invoiceSequence}`;
+      const endpoint = `/api/branches/${encodeURIComponent(ACTIVE_BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/sequences`;
+      const response = await fetch(endpoint, {
+        method:'POST',
+        headers:{ 'content-type':'application/json' },
+        body: JSON.stringify({ table:'order_header', field:'id', record:{ posId: POS_INFO.id, posNumber: POS_INFO.number } })
+      });
+      if(!response.ok){
+        const message = await response.text().catch(()=> response.statusText || '');
+        throw new Error(message || `HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      if(!payload || !payload.id){
+        throw new Error('Sequence allocation failed');
+      }
+      const numericValue = Number(payload.value);
+      if(Number.isFinite(numericValue)){
+        invoiceSequence = Math.max(invoiceSequence, numericValue);
+      }
+      return payload.id;
     }
-
     function applyThemePreferenceStyles(prefs){
       const styleId = 'pos-theme-prefs';
       let styleEl = document.getElementById(styleId);
