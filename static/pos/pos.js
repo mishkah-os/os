@@ -2141,7 +2141,24 @@
       lines:new Map(),
       payments:new Map(),
       snapshot:{ orders:[], active:[], history:[] },
-      unsubscribes:[]
+      unsubscribes:[],
+      debugLogged:{ headers:false, lines:false, payments:false }
+    };
+
+    const realtimeJobOrders = {
+      store: (typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.watch === 'function')
+        ? window.__POS_DB__
+        : null,
+      installed:false,
+      pending:false,
+      headers:new Map(),
+      details:new Map(),
+      modifiers:new Map(),
+      statusHistory:new Map(),
+      expoPassTickets:new Map(),
+      snapshot:{ headers:[], details:[], modifiers:[], statusHistory:[], expoPassTickets:[] },
+      unsubscribes:[],
+      debugLogged:{ headers:false, details:false, modifiers:false, status:false, expo:false }
     };
 
     function normalizeIdToken(value, fallback=''){
@@ -2164,47 +2181,225 @@
       return normalizeIdToken(value, 'unpaid');
     }
 
+    const parseJSONSafe = (value, fallback)=>{
+      if(typeof value !== 'string') return fallback;
+      try{ return JSON.parse(value); } catch(_err){ return fallback; }
+    };
+
+    function logIndexedDbSample(debugMap, key, rows, normalize){
+      if(!rows || !rows.length) return;
+      if(debugMap[key]) return;
+      debugMap[key] = true;
+      try{
+        const sample = rows[0];
+        const normalized = typeof normalize === 'function' ? normalize(sample) : null;
+        if(normalized){
+          console.info(`[Mishkah][POS][IndexedDB] ${key} sample`, { raw: sample, normalized });
+        } else {
+          console.info(`[Mishkah][POS][IndexedDB] ${key} sample`, sample);
+        }
+      } catch(error){
+        console.info(`[Mishkah][POS][IndexedDB] ${key} sample logging failed`, error);
+      }
+    }
+
+    function sanitizeOrderHeaderRow(row){
+      if(!row) return null;
+      const id = row.id ?? row.order_id ?? row.orderId;
+      if(id == null) return null;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      const orderId = row.orderId ?? row.order_id ?? row.id;
+      if(orderId != null) normalized.orderId = String(orderId);
+      if(normalized.metadata == null && row.meta !== undefined){
+        normalized.metadata = ensurePlainObject(row.meta);
+      }
+      if(typeof normalized.metadata === 'string'){
+        normalized.metadata = ensurePlainObject(parseJSONSafe(normalized.metadata, {}));
+      }
+      if(Array.isArray(row.table_ids) && !Array.isArray(normalized.tableIds)){
+        normalized.tableIds = row.table_ids.slice();
+      } else if(typeof row.table_ids === 'string' && !Array.isArray(normalized.tableIds)){
+        const parsed = parseJSONSafe(row.table_ids, null);
+        if(Array.isArray(parsed)) normalized.tableIds = parsed;
+      }
+      if(normalized.notes == null && row.notes_json){
+        const parsedNotes = parseJSONSafe(row.notes_json, null);
+        if(Array.isArray(parsedNotes)) normalized.notes = parsedNotes;
+      }
+      return normalized;
+    }
+
+    function sanitizeOrderLineRow(row){
+      if(!row) return null;
+      const orderId = row.orderId ?? row.order_id;
+      if(orderId == null) return null;
+      const id = row.id ?? row.line_id ?? row.order_line_id ?? `${orderId}-${row.item_id ?? Math.random().toString(16).slice(2,8)}`;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      normalized.orderId = orderId != null ? String(orderId) : undefined;
+      if(normalized.metadata == null && row.meta !== undefined){
+        normalized.metadata = ensurePlainObject(row.meta);
+      }
+      return normalized;
+    }
+
+    function sanitizeOrderPaymentRow(row){
+      if(!row) return null;
+      const orderId = row.orderId ?? row.order_id;
+      if(orderId == null) return null;
+      const normalized = { ...row };
+      const id = row.id ?? row.payment_id ?? `${orderId}-payment-${Math.random().toString(16).slice(2,8)}`;
+      normalized.id = String(id);
+      normalized.orderId = orderId != null ? String(orderId) : undefined;
+      if(normalized.amount == null && row.value != null){
+        normalized.amount = row.value;
+      }
+      return normalized;
+    }
+
+    function sanitizeJobOrderHeaderRow(row){
+      if(!row) return null;
+      const id = row.id ?? row.job_order_id;
+      if(id == null) return null;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      const orderId = row.orderId ?? row.order_id;
+      if(orderId != null) normalized.orderId = String(orderId);
+      if(normalized.metadata == null && (row.meta !== undefined || row.metadata !== undefined)){
+        normalized.metadata = ensurePlainObject(row.meta ?? row.metadata);
+      }
+      if(typeof normalized.metadata === 'string'){
+        normalized.metadata = ensurePlainObject(parseJSONSafe(normalized.metadata, {}));
+      }
+      normalized.stationId = normalized.stationId ?? row.station_id ?? null;
+      normalized.progressState = normalized.progressState ?? row.progress_state ?? normalized.status ?? 'queued';
+      normalized.status = normalized.status ?? row.status ?? 'queued';
+      const totalItems = Number(row.totalItems ?? row.total_items ?? row.item_count ?? 0) || 0;
+      const completedItems = Number(row.completedItems ?? row.completed_items ?? row.completed ?? 0) || 0;
+      const remainingItems = row.remainingItems ?? row.remaining_items ?? (totalItems - completedItems);
+      normalized.totalItems = totalItems;
+      normalized.completedItems = completedItems;
+      normalized.remainingItems = Number(remainingItems != null ? remainingItems : 0) || 0;
+      if(normalized.tableLabel == null && row.table_label != null) normalized.tableLabel = row.table_label;
+      if(normalized.customerName == null && row.customer_name != null) normalized.customerName = row.customer_name;
+      normalized.notes = normalized.notes ?? row.notes ?? null;
+      if(normalized.meta == null && row.meta != null && typeof row.meta === 'object'){
+        normalized.meta = { ...row.meta };
+      }
+      return normalized;
+    }
+
+    function sanitizeJobOrderDetailRow(row){
+      if(!row) return null;
+      const id = row.id ?? row.detail_id;
+      const jobOrderId = row.jobOrderId ?? row.job_order_id;
+      if(id == null || jobOrderId == null) return null;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      normalized.jobOrderId = String(jobOrderId);
+      normalized.quantity = Number(row.quantity ?? row.qty ?? 0) || 0;
+      normalized.itemNameAr = normalized.itemNameAr ?? row.item_name_ar ?? '';
+      normalized.itemNameEn = normalized.itemNameEn ?? row.item_name_en ?? '';
+      if(normalized.meta == null && (row.meta !== undefined || row.metadata !== undefined)){
+        normalized.meta = ensurePlainObject(row.meta ?? row.metadata);
+      }
+      return normalized;
+    }
+
+    function sanitizeJobOrderModifierRow(row){
+      if(!row) return null;
+      const id = row.id ?? row.modifier_id;
+      const detailId = row.detailId ?? row.detail_id;
+      if(id == null || detailId == null) return null;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      normalized.detailId = String(detailId);
+      normalized.quantity = Number(row.quantity ?? row.qty ?? 0) || 0;
+      if(normalized.meta == null && (row.meta !== undefined || row.metadata !== undefined)){
+        normalized.meta = ensurePlainObject(row.meta ?? row.metadata);
+      }
+      return normalized;
+    }
+
+    function sanitizeJobOrderHistoryRow(row){
+      if(!row) return null;
+      const id = row.id ?? row.history_id;
+      const jobOrderId = row.jobOrderId ?? row.job_order_id;
+      if(id == null || jobOrderId == null) return null;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      normalized.jobOrderId = String(jobOrderId);
+      if(normalized.meta == null && (row.meta !== undefined || row.metadata !== undefined)){
+        normalized.meta = ensurePlainObject(row.meta ?? row.metadata);
+      }
+      return normalized;
+    }
+
+    function sanitizeExpoPassTicketRow(row){
+      if(!row) return null;
+      const id = row.id ?? row.expo_ticket_id;
+      if(id == null) return null;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      const jobIds = row.jobOrderIds ?? row.job_order_ids;
+      if(Array.isArray(jobIds)){
+        normalized.jobOrderIds = jobIds.slice();
+      } else if(typeof jobIds === 'string'){
+        const parsed = parseJSONSafe(jobIds, null);
+        if(Array.isArray(parsed)) normalized.jobOrderIds = parsed;
+      }
+      return normalized;
+    }
+
     function normalizeRealtimeOrderHeader(raw){
-      if(!raw || !raw.id) return null;
-      const metadata = raw.metadata && typeof raw.metadata === 'object' ? { ...raw.metadata } : {};
+      if(!raw) return null;
+      const rawId = raw.id ?? raw.order_id ?? raw.orderId;
+      if(rawId == null) return null;
+      const metadata = ensurePlainObject(raw.metadata || raw.meta);
       const tableIdsSet = new Set();
       if(raw.tableId) tableIdsSet.add(String(raw.tableId));
       if(Array.isArray(raw.tableIds)) raw.tableIds.forEach(id=>{ if(id != null) tableIdsSet.add(String(id)); });
-      if(Array.isArray(metadata.tableIds)) metadata.tableIds.forEach(entry=>{
-        if(!entry) return;
-        if(typeof entry === 'object' && entry.id != null){
-          tableIdsSet.add(String(entry.id));
-        } else {
-          tableIdsSet.add(String(entry));
-        }
-      });
       const openedAt = toMillis(raw.openedAt || raw.opened_at);
       const updatedAt = toMillis(raw.updatedAt || raw.updated_at || raw.closedAt || raw.closed_at, openedAt);
       const closedAt = raw.closedAt || raw.closed_at ? toMillis(raw.closedAt || raw.closed_at, updatedAt) : null;
-      const notesSource = raw.notes ?? metadata.notes;
-      const notes = Array.isArray(notesSource)
-        ? notesSource.map(note=>{
+      const notesSource = raw.notes ?? metadata.notes ?? metadata.notes_json;
+      const normalizedNotesSource = typeof notesSource === 'string'
+        ? parseJSONSafe(notesSource, notesSource)
+        : notesSource;
+      const notes = Array.isArray(normalizedNotesSource)
+        ? normalizedNotesSource.map(note=>{
             if(!note) return null;
             if(typeof note === 'object') return { ...note };
             const message = String(note);
             if(!message.trim()) return null;
             return { id:`note-${Math.random().toString(16).slice(2,8)}`, message, createdAt: updatedAt };
           }).filter(Boolean)
-        : [];
-      const discountValue = Number(raw.discount ?? raw.discountAmount ?? metadata.discountAmount ?? 0) || 0;
+        : (typeof normalizedNotesSource === 'string' && normalizedNotesSource.trim()
+          ? [{ id:`note-${Math.random().toString(16).slice(2,8)}`, message: normalizedNotesSource.trim(), createdAt: updatedAt }]
+          : []);
+      const discountValue = Number(
+        raw.discount ?? raw.discountAmount ?? raw.discount_amount ?? metadata.discountAmount ?? metadata.discount ?? metadata.discount_amount ?? 0
+      ) || 0;
       const discount = discountValue > 0 ? { type:'amount', value: round(discountValue) } : null;
       const totals = {
-        subtotal: round(raw.subtotal ?? metadata.subtotal ?? 0),
-        service: round(raw.service ?? raw.serviceFee ?? metadata.service ?? 0),
-        vat: round(raw.tax ?? raw.vat ?? metadata.tax ?? 0),
+        subtotal: round(raw.subtotal ?? raw.sub_total ?? metadata.subtotal ?? metadata.sub_total ?? 0),
+        service: round(raw.service ?? raw.serviceFee ?? raw.service_amount ?? metadata.service ?? metadata.serviceFee ?? metadata.service_amount ?? 0),
+        vat: round(raw.tax ?? raw.vat ?? raw.tax_amount ?? metadata.tax ?? metadata.vat ?? metadata.tax_amount ?? 0),
         discount: round(discountValue > 0 ? discountValue : 0),
-        deliveryFee: round(raw.deliveryFee ?? metadata.deliveryFee ?? 0),
-        due: round(raw.totalDue ?? raw.total_due ?? raw.total ?? metadata.due ?? 0)
+        deliveryFee: round(raw.deliveryFee ?? raw.delivery_fee ?? metadata.deliveryFee ?? metadata.delivery_fee ?? 0),
+        due: round(
+          raw.totalDue ?? raw.total_due ?? raw.total_amount ?? raw.total ?? metadata.due ?? metadata.totalDue ?? metadata.total_due ?? 0
+        )
       };
+      const paidAmount = Number(raw.totalPaid ?? raw.total_paid ?? metadata.totalPaid ?? metadata.total_paid ?? 0);
+      if(Number.isFinite(paidAmount) && paidAmount > 0){
+        totals.paid = round(paidAmount);
+      }
       totals.total = totals.due;
       const guests = Number(raw.guests ?? metadata.guests ?? 0) || 0;
       return {
-        id: String(raw.id),
+        id: String(rawId),
         shiftId: raw.shiftId || raw.shift_id || metadata.shiftId || null,
         posId: raw.posId || raw.pos_id || metadata.posId || null,
         posLabel: raw.posLabel || metadata.posLabel || null,
@@ -2237,7 +2432,7 @@
 
     function normalizeRealtimeOrderLine(raw, header){
       if(!raw || !header) return null;
-      const metadata = raw.metadata && typeof raw.metadata === 'object' ? raw.metadata : {};
+      const metadata = ensurePlainObject(raw.metadata || raw.meta);
       const base = {
         id: raw.id,
         order_id: raw.orderId || raw.order_id || header.id,
@@ -2402,37 +2597,130 @@
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
       const unsubHeaders = store.watch('order_header', (rows)=>{
+        logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
         realtimeOrders.headers.clear();
         (rows || []).forEach(row=>{
-          if(!row || !row.id) return;
-          realtimeOrders.headers.set(String(row.id), { ...row });
+          const normalized = sanitizeOrderHeaderRow(row);
+          if(!normalized) return;
+          realtimeOrders.headers.set(String(normalized.id), normalized);
         });
         scheduleRealtimeSnapshot();
       });
       const unsubLines = store.watch('order_line', (rows)=>{
+        logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
-          if(!row || !row.orderId) return;
-          const orderId = String(row.orderId);
+          const normalized = sanitizeOrderLineRow(row);
+          if(!normalized || !normalized.orderId) return;
+          const orderId = String(normalized.orderId);
           if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push({ ...row });
+          grouped.get(orderId).push(normalized);
         });
         realtimeOrders.lines = grouped;
         scheduleRealtimeSnapshot();
       });
       const unsubPayments = store.watch('order_payment', (rows)=>{
+        logIndexedDbSample(realtimeOrders.debugLogged, 'order_payment', rows, sanitizeOrderPaymentRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
-          if(!row || !row.orderId) return;
-          const orderId = String(row.orderId);
+          const normalized = sanitizeOrderPaymentRow(row);
+          if(!normalized || !normalized.orderId) return;
+          const orderId = String(normalized.orderId);
           if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push({ ...row });
+          grouped.get(orderId).push(normalized);
         });
         realtimeOrders.payments = grouped;
         scheduleRealtimeSnapshot();
       });
       realtimeOrders.unsubscribes = [unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
       realtimeOrders.installed = true;
+    }
+
+
+    function updateRealtimeJobOrdersSnapshot(){
+      const headers = Array.from(realtimeJobOrders.headers.values()).map(cloneDeep);
+      const details = [];
+      realtimeJobOrders.details.forEach(list=>{
+        list.forEach(detail=> details.push(cloneDeep(detail)));
+      });
+      const modifiers = Array.from(realtimeJobOrders.modifiers.values()).map(cloneDeep);
+      const statusHistory = Array.from(realtimeJobOrders.statusHistory.values()).map(cloneDeep);
+      const expoPassTickets = Array.from(realtimeJobOrders.expoPassTickets.values()).map(cloneDeep);
+      realtimeJobOrders.snapshot = { headers, details, modifiers, statusHistory, expoPassTickets };
+      applyKdsOrderSnapshotNow({ jobOrders: realtimeJobOrders.snapshot }, { source:'indexeddb:job-orders' });
+    }
+
+    function scheduleRealtimeJobOrdersSnapshot(){
+      if(realtimeJobOrders.pending) return;
+      realtimeJobOrders.pending = true;
+      Promise.resolve().then(()=>{
+        realtimeJobOrders.pending = false;
+        updateRealtimeJobOrdersSnapshot();
+      });
+    }
+
+    function installRealtimeJobOrderWatchers(){
+      if(realtimeJobOrders.installed) return;
+      if(!realtimeJobOrders.store) return;
+      const store = realtimeJobOrders.store;
+      const unsubHeaders = store.watch('job_order_header', (rows)=>{
+        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
+        realtimeJobOrders.headers.clear();
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeJobOrderHeaderRow(row);
+          if(!normalized) return;
+          realtimeJobOrders.headers.set(String(normalized.id), normalized);
+        });
+        scheduleRealtimeJobOrdersSnapshot();
+      });
+      const unsubDetails = store.watch('job_order_detail', (rows)=>{
+        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail', rows, sanitizeJobOrderDetailRow);
+        const grouped = new Map();
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeJobOrderDetailRow(row);
+          if(!normalized) return;
+          const key = normalized.jobOrderId;
+          if(!grouped.has(key)) grouped.set(key, []);
+          grouped.get(key).push(normalized);
+        });
+        realtimeJobOrders.details = grouped;
+        scheduleRealtimeJobOrdersSnapshot();
+      });
+      const unsubModifiers = store.watch('job_order_detail_modifier', (rows)=>{
+        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail_modifier', rows, sanitizeJobOrderModifierRow);
+        const map = new Map();
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeJobOrderModifierRow(row);
+          if(!normalized) return;
+          map.set(normalized.id, normalized);
+        });
+        realtimeJobOrders.modifiers = map;
+        scheduleRealtimeJobOrdersSnapshot();
+      });
+      const unsubStatus = store.watch('job_order_status_history', (rows)=>{
+        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_status_history', rows, sanitizeJobOrderHistoryRow);
+        const map = new Map();
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeJobOrderHistoryRow(row);
+          if(!normalized) return;
+          map.set(normalized.id, normalized);
+        });
+        realtimeJobOrders.statusHistory = map;
+        scheduleRealtimeJobOrdersSnapshot();
+      });
+      const unsubExpo = store.watch('expo_pass_ticket', (rows)=>{
+        logIndexedDbSample(realtimeJobOrders.debugLogged, 'expo_pass_ticket', rows, sanitizeExpoPassTicketRow);
+        const map = new Map();
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeExpoPassTicketRow(row);
+          if(!normalized) return;
+          map.set(normalized.id, normalized);
+        });
+        realtimeJobOrders.expoPassTickets = map;
+        scheduleRealtimeJobOrdersSnapshot();
+      });
+      realtimeJobOrders.unsubscribes = [unsubHeaders, unsubDetails, unsubModifiers, unsubStatus, unsubExpo].filter(Boolean);
+      realtimeJobOrders.installed = true;
     }
 
 
@@ -2456,7 +2744,8 @@
         headers: mergeList(current.headers, patch.headers),
         details: mergeList(current.details, patch.details),
         modifiers: mergeList(current.modifiers, patch.modifiers),
-        statusHistory: mergeList(current.statusHistory, patch.statusHistory)
+        statusHistory: mergeList(current.statusHistory, patch.statusHistory),
+        expoPassTickets: mergeList(current.expoPassTickets, patch.expoPassTickets, 'id')
       };
     };
 
@@ -3974,6 +4263,7 @@
     };
 
     installRealtimeOrderWatchers();
+    installRealtimeJobOrderWatchers();
 
     function flushRemoteUpdate(){
       if(!pendingRemoteResult) return;
