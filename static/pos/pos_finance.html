@@ -40,45 +40,58 @@
     import { createPosDb } from './pos-mini-db.js';
 
     const params = new URLSearchParams(window.location.search || '');
-    const BRANCH_ID =
-      params.get('branch') ||
-      params.get('branchId') ||
-      params.get('brname') ||
-      window.POS_BRANCH_PARAM ||
-      'dar';
+    const BRANCH_ID = (params.get('brname') || '').trim();
 
-    const status = {
-      status: 'loading',
-      startedAt: Date.now(),
-      finishedAt: null,
-      error: null,
-      keys: [],
-      branchId: BRANCH_ID
-    };
+    if (!BRANCH_ID) {
+      document.body.innerHTML = `
+        <main
+          style="
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-size: clamp(1.4rem, 4vw, 2.2rem);
+            color: #e2e8f0;
+            background: radial-gradient(circle at top, #0f172a 0%, #020617 65%);
+          "
+        >
+          يرجة اختيار الفرع
+        </main>
+      `;
+    } else {
 
-    window.__POS_DATA_STATUS__ = status;
+      const status = {
+        status: 'loading',
+        startedAt: Date.now(),
+        finishedAt: null,
+        error: null,
+        keys: [],
+        branchId: BRANCH_ID
+      };
 
-    try {
-      const { db, moduleEntry } = await createPosDb({ branchId: BRANCH_ID, role: 'finance-shell' });
-      window.__POS_DB__ = db;
-      window.__POS_MODULE_ENTRY__ = moduleEntry;
-      await db.ready();
-      const records = db.list('pos_database');
-      const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
-      const payload = latest && latest.payload ? latest.payload : {};
-      window.database = payload;
-      status.status = latest ? 'ready' : 'idle';
-      status.keys = Object.keys(payload || {});
-      status.finishedAt = Date.now();
-    } catch (error) {
-      console.error('[POS Finance] Failed to hydrate dataset from /api/schema', error);
-      window.database = {};
-      status.status = 'error';
-      status.error = error;
-      status.finishedAt = Date.now();
+      window.__POS_DATA_STATUS__ = status;
+
+      try {
+        const { db, moduleEntry } = await createPosDb({ branchId: BRANCH_ID, role: 'finance-shell' });
+        window.__POS_DB__ = db;
+        window.__POS_MODULE_ENTRY__ = moduleEntry;
+        await db.ready();
+        const records = db.list('pos_database');
+        const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
+        const payload = latest && latest.payload ? latest.payload : {};
+        window.database = payload;
+        status.status = latest ? 'ready' : 'idle';
+        status.keys = Object.keys(payload || {});
+        status.finishedAt = Date.now();
+      } catch (error) {
+        console.error('[POS Finance] Failed to hydrate dataset from /api/schema', error);
+        window.database = {};
+        status.status = 'error';
+        status.error = error;
+        status.finishedAt = Date.now();
+      }
+
+      await import('./pos_finance.js');
     }
-
-    await import('./pos_finance.js');
   </script>
 </body>
 </html>
