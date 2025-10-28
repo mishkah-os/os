@@ -1,0 +1,62 @@
+{
+  "modules": {
+    "scratchpad": {
+      "label": "Scratchpad",
+      "schemaPath": "schema/definition.json",
+      "schemaFallbackPath": "data/schemas/test_schema.json",
+      "seedPath": "seeds/initial.json",
+      "livePath": "live/data.json",
+      "historyPath": "history",
+      "tables": ["scratchpad_entry"],
+      "description": "Lightweight scratchpad module powered by schema engine."
+    },
+    "pos": {
+      "label": "POS",
+      "schemaPath": "schema/definition.json",
+      "schemaFallbackPath": "data/schemas/pos_schema.json",
+      "seedPath": "seeds/initial.json",
+      "seedFallbackPath": "data/seeds/pos-mock-data.json",
+      "livePath": "live/data.json",
+      "historyPath": "history",
+      "tables": [
+        "pos_database",
+        "pos_terminal",
+        "employee",
+        "pos_shift",
+        "shift_cash_audit",
+        "shift_payment_summary",
+        "order_type",
+        "order_status",
+        "order_stage",
+        "order_payment_state",
+        "order_line_status",
+        "payment_method",
+        "kitchen_section",
+        "menu_category",
+        "category_section",
+        "menu_item",
+        "menu_item_price",
+        "menu_item_media",
+        "menu_modifier",
+        "menu_item_modifier",
+        "customer_profile",
+        "customer_address",
+        "dining_table",
+        "table_lock",
+        "reservation",
+        "reservation_table",
+        "delivery_driver",
+        "order_header",
+        "order_line",
+        "order_status_log",
+        "order_line_status_log",
+        "order_line_modifier",
+        "order_payment",
+        "order_refund",
+        "order_delivery",
+        "audit_event"
+      ],
+      "description": "Serialized POS dataset for front/back sync."
+    }
+  }
+}
