@@ -2084,34 +2084,111 @@
       sequence: toNumber(entry?.sequence || entry?.displayOrder, index)
     }));
 
-  const deriveMenuItems = (payload) =>
-    ensureArray(payload?.items).map((entry, index) => {
-      const id =
-        normalizeId(entry?.id || entry?.itemId) || `item-${index + 1}`;
+  const mergeMeta = (left = {}, right = {}) => ({
+    ...left,
+    ...right,
+    media: { ...(left?.media || {}), ...(right?.media || {}) }
+  });
+
+  const deriveMenuItems = (payload) => {
+    const sources = [
+      payload?.items,
+      payload?.menu_items,
+      payload?.menuItems,
+      payload?.menu?.items,
+      payload?.menu?.menu_items,
+      payload?.menu?.menuItems,
+      payload?.master?.items,
+      payload?.master?.menu_items,
+      payload?.master?.menuItems
+    ];
+
+    const records = new Map();
+    let fallbackIndex = 0;
+
+    const normalizeItem = (entry, id) => {
+      const categoryId = normalizeId(entry?.category_id || entry?.categoryId);
+      const sectionId =
+        normalizeId(
+          entry?.kitchen_section_id ||
+            entry?.kitchenSectionId ||
+            entry?.station_id ||
+            entry?.stationId
+        ) || null;
+      const code =
+        entry?.code ||
+        entry?.sku ||
+        entry?.item_code ||
+        entry?.itemCode ||
+        id;
+      const nameAr =
+        entry?.item_name?.ar ||
+        entry?.name?.ar ||
+        entry?.nameAr ||
+        entry?.titleAr ||
+        entry?.label?.ar ||
+        entry?.labelAr ||
+        '';
+      const nameEn =
+        entry?.item_name?.en ||
+        entry?.name?.en ||
+        entry?.nameEn ||
+        entry?.titleEn ||
+        entry?.label?.en ||
+        entry?.labelEn ||
+        '';
       return {
         id,
         itemId: id,
-        categoryId: normalizeId(entry?.category_id || entry?.categoryId),
-        sectionId:
-          normalizeId(entry?.kitchen_section_id || entry?.kitchenSectionId) ||
-          null,
-        code: entry?.code || entry?.sku || id,
-        nameAr:
-          entry?.item_name?.ar ||
-          entry?.name?.ar ||
-          entry?.nameAr ||
-          entry?.titleAr ||
-          '',
-        nameEn:
-          entry?.item_name?.en ||
-          entry?.name?.en ||
-          entry?.nameEn ||
-          entry?.titleEn ||
-          '',
+        categoryId,
+        sectionId,
+        code,
+        nameAr,
+        nameEn,
         price: toNumber(entry?.pricing?.base || entry?.price, 0),
-        meta: { ...(entry?.meta || {}), media: entry?.media || {} }
+        meta: mergeMeta(entry?.meta || {}, { media: entry?.media || {} })
       };
+    };
+
+    sources.forEach((source) => {
+      ensureArray(source).forEach((entry) => {
+        if (!entry) return;
+        let id =
+          normalizeId(
+            entry?.id ||
+              entry?.itemId ||
+              entry?.item_id ||
+              entry?.menu_item_id ||
+              entry?.menuItemId
+          );
+        if (!id) {
+          fallbackIndex += 1;
+          id = `item-${fallbackIndex}`;
+        }
+        const normalized = normalizeItem(entry, id);
+        if (records.has(id)) {
+          const existing = records.get(id);
+          records.set(id, {
+            ...existing,
+            categoryId: existing.categoryId || normalized.categoryId,
+            sectionId: existing.sectionId || normalized.sectionId,
+            code:
+              existing.code && existing.code !== existing.itemId
+                ? existing.code
+                : normalized.code || existing.code,
+            nameAr: existing.nameAr || normalized.nameAr,
+            nameEn: existing.nameEn || normalized.nameEn,
+            price: existing.price || normalized.price,
+            meta: mergeMeta(normalized.meta, existing.meta)
+          });
+        } else {
+          records.set(id, normalized);
+        }
+      });
     });
+
+    return Array.from(records.values());
+  };
 
   const deriveDrivers = (payload) => {
     const drivers = [];
