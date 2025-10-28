@@ -2184,6 +2184,35 @@
 
   const ensureArray = (value) => (Array.isArray(value) ? value : []);
   const normalizeId = (value) => (value == null ? null : String(value));
+  const canonicalId = (value) => {
+    const id = normalizeId(value);
+    if (!id) return null;
+    const trimmed = id.trim();
+    return trimmed.length ? trimmed : null;
+  };
+  const canonicalCode = (value) => {
+    const code = canonicalId(value);
+    return code ? code.toLowerCase() : null;
+  };
+  const extractOrderLineItemId = (line) => {
+    if (!line) return null;
+    const rawId = canonicalId(
+      line?.orderLineId || line?.order_line_id || line?.id
+    );
+    if (!rawId) return null;
+    const trimmed = rawId.startsWith('ln-') ? rawId.slice(3) : rawId;
+    const uuidMatch = trimmed.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+    );
+    if (uuidMatch) return uuidMatch[0];
+    const hexMatch = trimmed.match(/[0-9a-f]{32}/i);
+    if (hexMatch) return hexMatch[0];
+    const markerIndex = trimmed.indexOf('-m');
+    if (markerIndex > 0) return trimmed.slice(0, markerIndex);
+    const dashIndex = trimmed.indexOf('-');
+    if (dashIndex > 0) return trimmed.slice(0, dashIndex);
+    return trimmed || null;
+  };
   const toNumber = (value, fallback = 0) => {
     const num = Number(value);
     return Number.isFinite(num) ? num : fallback;
@@ -2538,7 +2567,58 @@
     }));
     const categories = deriveMenuCategories(posPayload);
     const items = deriveMenuItems(posPayload);
-    const itemMap = new Map(items.map((item) => [item.id, item]));
+    const itemById = new Map();
+    const itemByCode = new Map();
+    items.forEach((item) => {
+      const idKey = canonicalId(item?.id || item?.itemId);
+      if (idKey) {
+        itemById.set(idKey, item);
+        itemById.set(idKey.toLowerCase(), item);
+      }
+      const codeKey = canonicalCode(item?.code);
+      if (codeKey && !itemByCode.has(codeKey)) {
+        itemByCode.set(codeKey, item);
+      }
+    });
+    const getItemById = (value) => {
+      const key = canonicalId(value);
+      if (!key) return null;
+      return itemById.get(key) || itemById.get(key.toLowerCase()) || null;
+    };
+    const getItemByCode = (value) => {
+      const key = canonicalCode(value);
+      if (!key) return null;
+      return itemByCode.get(key) || null;
+    };
+    const categoryRouteIndex = new Map();
+    stationCategoryRoutes.forEach((route) => {
+      if (!route?.categoryId || !route?.stationId) return;
+      const categoryId = canonicalId(route.categoryId);
+      const stationId = canonicalId(route.stationId);
+      if (!categoryId || !stationId) return;
+      const bucket = categoryRouteIndex.get(categoryId) || [];
+      bucket.push({ ...route, categoryId, stationId });
+      categoryRouteIndex.set(categoryId, bucket);
+      const lowerKey = categoryId.toLowerCase();
+      if (!categoryRouteIndex.has(lowerKey)) {
+        categoryRouteIndex.set(lowerKey, bucket);
+      }
+    });
+    categoryRouteIndex.forEach((bucket, key) => {
+      const sorted = bucket
+        .slice()
+        .sort((a, b) => (a.priority || 0) - (b.priority || 0));
+      const active = sorted.filter((route) => route.isActive !== false);
+      categoryRouteIndex.set(key, active.length ? active : sorted);
+    });
+    const resolveStationForCategory = (categoryId) => {
+      const key = canonicalId(categoryId);
+      if (!key) return null;
+      const bucket =
+        categoryRouteIndex.get(key) || categoryRouteIndex.get(key.toLowerCase());
+      if (bucket && bucket.length) return bucket[0].stationId;
+      return null;
+    };
     const statusLookup = buildStatusLookup(posPayload);
     const drivers = deriveDrivers(posPayload);
     const driverIndex = new Map(drivers.map((driver) => [driver.id, driver]));
@@ -2588,13 +2668,81 @@
         line && typeof line.metadata === 'object' && !Array.isArray(line.metadata)
           ? line.metadata
           : {};
-      const itemId = normalizeId(line?.itemId || line?.item_id);
-      const metadataItemId = normalizeId(metadata?.itemId);
-      const item = itemMap.get(itemId) || itemMap.get(metadataItemId) || {};
-      const sectionId =
-        normalizeId(line?.kitchenSectionId || line?.kitchen_section_id) ||
-        item.sectionId ||
-        'general';
+      const rawItemId = canonicalId(
+        line?.itemId ||
+          line?.item_id ||
+          line?.menuItemId ||
+          line?.menu_item_id
+      );
+      const metadataItemId = canonicalId(
+        metadata?.itemId ||
+          metadata?.item_id ||
+          metadata?.menuItemId ||
+          metadata?.menu_item_id ||
+          metadata?.id
+      );
+      const derivedItemId = extractOrderLineItemId(line);
+      const rawItemCode = canonicalId(
+        line?.itemCode ||
+          line?.item_code ||
+          line?.sku ||
+          line?.code
+      );
+      const metadataItemCode = canonicalId(
+        metadata?.itemCode ||
+          metadata?.item_code ||
+          metadata?.sku ||
+          metadata?.code
+      );
+      const item =
+        getItemById(rawItemId) ||
+        getItemById(metadataItemId) ||
+        getItemById(derivedItemId) ||
+        getItemByCode(rawItemCode) ||
+        getItemByCode(metadataItemCode) ||
+        {};
+      const resolvedItemId =
+        rawItemId ||
+        metadataItemId ||
+        derivedItemId ||
+        canonicalId(item?.id || item?.itemId);
+      const resolvedItemCode =
+        canonicalId(item?.code || item?.itemCode) ||
+        rawItemCode ||
+        metadataItemCode;
+      const rawCategoryId = canonicalId(
+        line?.categoryId ||
+          line?.category_id ||
+          line?.menuCategoryId ||
+          line?.menu_category_id
+      );
+      const metadataCategoryId = canonicalId(
+        metadata?.categoryId ||
+          metadata?.category_id ||
+          metadata?.menuCategoryId ||
+          metadata?.menu_category_id
+      );
+      const categoryId =
+        rawCategoryId || metadataCategoryId || canonicalId(item?.categoryId);
+      let sectionId =
+        canonicalId(
+          line?.kitchenSectionId ||
+            line?.kitchen_section_id ||
+            line?.sectionId ||
+            line?.stationId
+        ) ||
+        canonicalId(
+          metadata?.kitchenSectionId ||
+            metadata?.kitchen_section_id ||
+            metadata?.sectionId ||
+            metadata?.stationId
+        ) ||
+        canonicalId(item?.sectionId) ||
+        null;
+      if (!sectionId) {
+        sectionId = resolveStationForCategory(categoryId) || 'general';
+      }
+      const jobItemId = resolvedItemId || derivedItemId;
       const jobId = `${orderId}:${sectionId}`;
       if (!order.jobs.has(jobId)) {
         const station = stationMap[sectionId] || {};
@@ -2620,6 +2768,10 @@
         });
       }
       const job = order.jobs.get(jobId);
+      const station = stationMap[sectionId] || {};
+      if (station?.code && job.stationCode !== station.code) {
+        job.stationCode = station.code;
+      }
       const quantity = ensureQuantity(line?.quantity);
       const status = resolveLineStatus(
         line?.statusId || line?.status_id || line?.status,
@@ -2633,8 +2785,14 @@
         id: detailId,
         jobOrderId: jobId,
         orderLineId: normalizeId(line?.id) || detailId,
-        itemId: itemId || metadataItemId,
-        itemCode: metadata?.itemCode || metadata?.code || item?.code || itemId || metadataItemId,
+        itemId: jobItemId,
+        itemCode:
+          metadata?.itemCode ||
+          metadata?.code ||
+          resolvedItemCode ||
+          rawItemCode ||
+          jobItemId ||
+          metadataItemId,
         quantity,
         status,
         itemNameAr:
@@ -2642,22 +2800,39 @@
           metadata?.nameAr ||
           metadata?.itemName ||
           metadata?.name ||
+          line?.item_name?.ar ||
+          line?.itemNameAr ||
+          line?.nameAr ||
+          line?.itemName ||
+          line?.name ||
           item?.nameAr ||
           item?.name ||
           item?.item_name?.ar ||
+          station?.nameAr ||
           job.stationCode,
         itemNameEn:
           metadata?.itemNameEn ||
           metadata?.nameEn ||
           metadata?.itemName ||
           metadata?.name ||
+          line?.item_name?.en ||
+          line?.itemNameEn ||
+          line?.nameEn ||
+          line?.itemName ||
+          line?.name ||
           item?.nameEn ||
           item?.name ||
           item?.item_name?.en ||
+          station?.nameEn ||
           job.stationCode,
         prepNotes: Array.isArray(line?.notes)
           ? line.notes.filter(Boolean).join(' • ')
-          : line?.notes || metadata?.prepNotes || ''
+          :
+            line?.notes ||
+            line?.prepNotes ||
+            metadata?.prepNotes ||
+            metadata?.notes ||
+            ''
       });
     });
 
