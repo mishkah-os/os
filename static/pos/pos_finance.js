@@ -344,14 +344,16 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     setUiState({ closingStatus: 'pending', closingMessage: 'جاري إرسال بيانات الإغلاق...' });
     let responsePayload = null;
     try {
-      const response = await fetch('/api/closepos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      let dataClose={
           branch: state?.data?.branch || branch,
           summary,
           generatedAt: new Date().toISOString()
-        })
+        };
+      console.log(dataClose)
+      const response = await fetch('/api/closepos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dataClose)
       });
       const body = await response.json().catch(() => null);
       responsePayload = {
