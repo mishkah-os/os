@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "defaults": {
+    "pos": {
+      "order_header": {
+        "id": {
+          "prefix": "POS",
+          "start": 1,
+          "padding": 6,
+          "counterField": "invoiceSequence"
+        }
+      }
+    }
+  },
+  "branches": {
+    "dar": {
+      "pos": {
+        "order_header": {
+          "id": {
+            "prefix": "DAR",
+            "start": 1001,
+            "padding": 6,
+            "counterField": "invoiceSequence"
+          }
+        }
+      }
+    },
+    "remal": {
+      "pos": {
+        "order_header": {
+          "id": {
+            "prefix": "REM",
+            "start": 2001,
+            "padding": 6,
+            "counterField": "invoiceSequence"
+          }
+        }
+      }
+    }
+  }
+}
