@@ -845,20 +845,33 @@
 
   const buildTabs = (db, t)=>{
     const tabs = [];
+    const toLabelKey = (value)=> (value == null ? '' : String(value).toLowerCase().replace(/\s+/g, ''));
+    const labelKeys = new Set();
+    const registerLabel = (value)=>{
+      const key = toLabelKey(value);
+      if(key) labelKeys.add(key);
+    };
     const { filters, jobs } = db.data;
     const locked = filters.lockedSection;
     if(!locked){
       tabs.push({ id:'prep', label:t.tabs.prep, count: jobs.orders.length });
+      registerLabel(t.tabs.prep);
     }
     const stationOrder = (db.data.stations || []).slice().sort((a, b)=> (a.sequence || 0) - (b.sequence || 0));
     stationOrder.forEach(station=>{
       if(locked && station.id !== filters.activeTab) return;
+      const label = db.env.lang === 'ar'
+        ? (station.nameAr || station.nameEn || station.id)
+        : (station.nameEn || station.nameAr || station.id);
       tabs.push({
         id: station.id,
-        label: db.env.lang === 'ar' ? (station.nameAr || station.nameEn || station.id) : (station.nameEn || station.nameAr || station.id),
+        label,
         count: (jobs.byStation[station.id] || []).length,
         color: station.themeColor || null
       });
+      registerLabel(label);
+      registerLabel(station.id);
+      registerLabel(station.code);
     });
     if(!locked){
       const existingIds = new Set(tabs.map(tab=> tab.id));
@@ -870,8 +883,20 @@
       ];
       stageTabs.forEach(tab=>{
         if(existingIds.has(tab.id)) return;
+        const labelKey = toLabelKey(tab.label);
+        if(labelKey && labelKeys.has(labelKey)) return;
+        if(tab.id === 'expo'){
+          const hasExpoStation = stationOrder.some(station=>{
+            const stationType = (station.stationType || '').toLowerCase();
+            if(stationType === 'expo') return true;
+            const stationKeys = [station.id, station.code, station.nameAr, station.nameEn].map(toLabelKey);
+            return stationKeys.some(key=> key && (key === 'expo' || key === labelKey));
+          });
+          if(hasExpoStation) return;
+        }
         existingIds.add(tab.id);
         tabs.push(tab);
+        if(labelKey) labelKeys.add(labelKey);
       });
     }
     return tabs;
@@ -2229,6 +2254,13 @@
     if (dashIndex > 0) return trimmed.slice(0, dashIndex);
     return trimmed || null;
   };
+  const extractBaseOrderId = (value) => {
+    const id = canonicalId(value);
+    if (!id) return null;
+    const colonIndex = id.indexOf(':');
+    if (colonIndex > 0) return id.slice(0, colonIndex);
+    return id;
+  };
   const toNumber = (value, fallback = 0) => {
     const num = Number(value);
     return Number.isFinite(num) ? num : fallback;
@@ -2641,17 +2673,31 @@
 
     const orders = new Map();
     ensureArray(watcherState.headers).forEach((header) => {
-      const orderId = normalizeId(header?.id || header?.orderId);
-      if (!orderId) return;
-      orders.set(orderId, {
-        orderId,
+      const jobOrderId = canonicalId(
+        header?.id ||
+          header?.jobOrderId ||
+          header?.job_order_id ||
+          header?.orderJobId ||
+          header?.job_id ||
+          header?.orderId ||
+          header?.order_id
+      );
+      if (!jobOrderId) return;
+      const displayOrderId =
+        canonicalId(header?.orderId || header?.order_id) ||
+        extractBaseOrderId(jobOrderId);
+      const orderNumber = resolveOrderNumber(
+        header?.orderNumber ||
+          header?.order_number ||
+          header?.posNumber ||
+          header?.ticketNumber,
+        displayOrderId || jobOrderId
+      );
+      orders.set(jobOrderId, {
+        jobOrderId,
+        orderId: displayOrderId || jobOrderId,
         header,
-        orderNumber: resolveOrderNumber(
-          header?.orderNumber ||
-            header?.order_number ||
-            header?.posNumber,
-          orderId
-        ),
+        orderNumber,
         serviceMode: resolveServiceMode(header, posPayload),
         tableLabel: resolveTableLabel(header, posPayload),
         customerName: resolveCustomerName(header, posPayload),
@@ -2665,13 +2711,25 @@
     const jobHeaders = [];
 
     ensureArray(watcherState.lines).forEach((line) => {
-      const orderId = normalizeId(line?.orderId || line?.order_id);
-      if (!orderId) return;
-      if (!orders.has(orderId)) {
-        orders.set(orderId, {
-          orderId,
+      const jobOrderId = canonicalId(
+        line?.jobOrderId ||
+          line?.job_order_id ||
+          line?.orderId ||
+          line?.order_id
+      );
+      if (!jobOrderId) return;
+      if (!orders.has(jobOrderId)) {
+        const fallbackDisplayId =
+          canonicalId(line?.orderNumber || line?.order_number) ||
+          extractBaseOrderId(jobOrderId);
+        orders.set(jobOrderId, {
+          jobOrderId,
+          orderId: fallbackDisplayId || jobOrderId,
           header: {},
-          orderNumber: resolveOrderNumber(null, orderId),
+          orderNumber: resolveOrderNumber(
+            line?.orderNumber || line?.order_number,
+            fallbackDisplayId || jobOrderId
+          ),
           serviceMode: 'dine_in',
           tableLabel: '',
           customerName: '',
@@ -2680,7 +2738,18 @@
           jobs: new Map()
         });
       }
-      const order = orders.get(orderId);
+      const order = orders.get(jobOrderId);
+      if (!order) return;
+      const lineDisplayId =
+        canonicalId(line?.orderNumber || line?.order_number) ||
+        extractBaseOrderId(jobOrderId);
+      if (lineDisplayId && lineDisplayId !== order.orderId) {
+        order.orderId = lineDisplayId;
+        order.orderNumber = resolveOrderNumber(
+          order.orderNumber,
+          lineDisplayId
+        );
+      }
       const metadata =
         line && typeof line.metadata === 'object' && !Array.isArray(line.metadata)
           ? line.metadata
@@ -2760,12 +2829,20 @@
         sectionId = resolveStationForCategory(categoryId) || 'general';
       }
       const jobItemId = resolvedItemId || derivedItemId;
-      const jobId = `${orderId}:${sectionId}`;
+      const jobOrderRef = order.jobOrderId || jobOrderId;
+      let jobId = jobOrderRef;
+      if (sectionId && jobId && !jobId.includes(':')) {
+        jobId = `${jobId}:${sectionId}`;
+      }
+      if (!jobId) {
+        jobId = sectionId ? `${order.orderId}:${sectionId}` : order.orderId;
+      }
       if (!order.jobs.has(jobId)) {
         const station = stationMap[sectionId] || {};
         order.jobs.set(jobId, {
           id: jobId,
-          orderId,
+          jobOrderId: jobOrderRef || jobId,
+          orderId: order.orderId,
           orderNumber: order.orderNumber,
           stationId: sectionId,
           stationCode: station?.code || sectionId,
@@ -2785,6 +2862,10 @@
         });
       }
       const job = order.jobs.get(jobId);
+      job.jobOrderId = job.jobOrderId || jobOrderRef || jobId;
+      job.id = job.jobOrderId || jobId;
+      job.orderId = order.orderId;
+      job.orderNumber = order.orderNumber;
       const station = stationMap[sectionId] || {};
       if (station?.code && job.stationCode !== station.code) {
         job.stationCode = station.code;
@@ -2800,12 +2881,12 @@
         normalizeId(line?.id) || `${jobId}-detail-${job.details.length + 1}`;
       job.details.push({
         id: detailId,
-        jobOrderId: jobId,
+        jobOrderId: job.jobOrderId || jobId,
         orderLineId: normalizeId(line?.id) || detailId,
         itemId: jobItemId,
         itemCode:
           metadata?.itemCode ||
-          metadata?.code ||
+            metadata?.code ||
           resolvedItemCode ||
           rawItemCode ||
           jobItemId ||
@@ -2865,7 +2946,8 @@
         const progressState =
           status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting';
         jobHeaders.push({
-          id: job.id,
+          id: job.jobOrderId || job.id,
+          jobOrderId: job.jobOrderId || job.id,
           orderId: job.orderId,
           orderNumber: job.orderNumber,
           stationId: job.stationId,
@@ -2889,7 +2971,7 @@
         job.details.forEach((detail) => {
           jobDetails.push({
             id: detail.id,
-            jobOrderId: job.id,
+            jobOrderId: job.jobOrderId || job.id,
             orderLineId: detail.orderLineId,
             itemId: detail.itemId,
             itemCode: detail.itemCode,
@@ -2905,13 +2987,27 @@
     });
 
     const handoff = {};
+    const handoffBuckets = new Map();
     orders.forEach((order) => {
-      const jobs = Array.from(order.jobs.values());
+      const key = order.orderId || order.jobOrderId;
+      if (!key) return;
+      const bucket = handoffBuckets.get(key) || [];
+      bucket.push(order);
+      handoffBuckets.set(key, bucket);
+    });
+    const handoffTimestamp = new Date().toISOString();
+    handoffBuckets.forEach((bucket, key) => {
+      const jobs = [];
+      bucket.forEach((order) => {
+        order.jobs.forEach((job) => {
+          jobs.push(job);
+        });
+      });
       const readyJobs = jobs.filter((job) => job.status === 'ready');
-      handoff[order.orderId] = {
+      handoff[key] = {
         status:
           jobs.length && readyJobs.length === jobs.length ? 'ready' : 'pending',
-        updatedAt: new Date().toISOString()
+        updatedAt: handoffTimestamp
       };
     });
 
