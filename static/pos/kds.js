@@ -2298,8 +2298,13 @@
         });
       }
       const order = orders.get(orderId);
+      const metadata =
+        line && typeof line.metadata === 'object' && !Array.isArray(line.metadata)
+          ? line.metadata
+          : {};
       const itemId = normalizeId(line?.itemId || line?.item_id);
-      const item = itemMap.get(itemId) || {};
+      const metadataItemId = normalizeId(metadata?.itemId);
+      const item = itemMap.get(itemId) || itemMap.get(metadataItemId) || {};
       const sectionId =
         normalizeId(line?.kitchenSectionId || line?.kitchen_section_id) ||
         item.sectionId ||
@@ -2342,15 +2347,31 @@
         id: detailId,
         jobOrderId: jobId,
         orderLineId: normalizeId(line?.id) || detailId,
-        itemId,
-        itemCode: item?.code || itemId,
+        itemId: itemId || metadataItemId,
+        itemCode: metadata?.itemCode || metadata?.code || item?.code || itemId || metadataItemId,
         quantity,
         status,
-        itemNameAr: item?.nameAr || item?.name || item?.item_name?.ar || job.stationCode,
-        itemNameEn: item?.nameEn || item?.name || item?.item_name?.en || job.stationCode,
+        itemNameAr:
+          metadata?.itemNameAr ||
+          metadata?.nameAr ||
+          metadata?.itemName ||
+          metadata?.name ||
+          item?.nameAr ||
+          item?.name ||
+          item?.item_name?.ar ||
+          job.stationCode,
+        itemNameEn:
+          metadata?.itemNameEn ||
+          metadata?.nameEn ||
+          metadata?.itemName ||
+          metadata?.name ||
+          item?.nameEn ||
+          item?.name ||
+          item?.item_name?.en ||
+          job.stationCode,
         prepNotes: Array.isArray(line?.notes)
           ? line.notes.filter(Boolean).join(' • ')
-          : line?.notes || ''
+          : line?.notes || metadata?.prepNotes || ''
       });
     });
 
