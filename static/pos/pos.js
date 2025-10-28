@@ -108,6 +108,15 @@
       const parsed = parseMaybeJSONish(value);
       return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     };
+    const pickArray = (...candidates)=>{
+      for(const candidate of candidates){
+        if(Array.isArray(candidate) && candidate.length) return candidate.slice();
+      }
+      for(const candidate of candidates){
+        if(Array.isArray(candidate)) return candidate.slice();
+      }
+      return [];
+    };
     const normalizeChannelName = (value, fallback='default')=>{
       const base = value == null ? '' : String(value).trim();
       const raw = base || fallback || 'default';
@@ -3058,7 +3067,8 @@
 
     function deriveMenuStructures(source){
       const dataset = source || {};
-      const sectionsRaw = Array.isArray(dataset.kitchen_sections) ? dataset.kitchen_sections : [];
+      const menuSource = isPlainObject(dataset.menu) ? dataset.menu : null;
+      const sectionsRaw = pickArray(dataset.kitchen_sections, menuSource?.kitchen_sections);
       const sections = sectionsRaw.map(section=>{
         const name = ensureLocaleObject(section?.section_name, { ar: section?.id || '', en: section?.id || '' });
         const description = ensureLocaleObject(section?.description, {});
@@ -3068,9 +3078,9 @@
           description
         };
       });
-      const categorySectionsRaw = Array.isArray(dataset.category_sections) ? dataset.category_sections.slice() : [];
+      const categorySectionsRaw = pickArray(dataset.category_sections, menuSource?.category_sections);
       const sectionMap = new Map(categorySectionsRaw.map(entry=> [entry.category_id || entry.categoryId, entry.section_id || entry.sectionId]));
-      const rawCategories = Array.isArray(dataset.categories) ? dataset.categories.slice() : [];
+      const rawCategories = pickArray(dataset.categories, menuSource?.categories);
       if(!rawCategories.some(cat=> cat && cat.id === 'all')){
         rawCategories.unshift({ id:'all', category_name:{ ar:'الكل', en:'All' }, section_id:'expo' });
       }
@@ -3084,7 +3094,7 @@
           label
         };
       });
-      const itemsRaw = Array.isArray(dataset.items) ? dataset.items : [];
+      const itemsRaw = pickArray(dataset.items, menuSource?.items);
       const items = itemsRaw.map(item=>{
         const categoryId = item.category_id || item.category || 'all';
         const pricing = ensurePlainObject(item.pricing);
@@ -3105,7 +3115,9 @@
         };
       });
       const index = new Map(items.map(entry=> [String(entry.id), entry]));
-      const rawModifiers = typeof dataset.modifiers === 'object' && dataset.modifiers ? dataset.modifiers : {};
+      const rawModifiers = isPlainObject(dataset.modifiers) && Object.keys(dataset.modifiers || {}).length
+        ? dataset.modifiers
+        : (menuSource && isPlainObject(menuSource.modifiers) ? menuSource.modifiers : {});
       const normalizeModifierEntry = (entry, fallbackType)=>{
         if(!entry) return null;
         const id = entry.id ?? entry.code ?? entry.key;
