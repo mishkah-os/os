@@ -433,6 +433,173 @@
     return 1;
   };
 
+  const previewList = (value, limit = 5)=> Array.isArray(value) ? value.slice(0, limit) : [];
+  const mapSectionPreview = (section = {})=>{
+    const id = section.id || section.stationId || section.sectionId || null;
+    return {
+      id,
+      code: section.code || section.stationCode || (id ? String(id).toUpperCase() : null),
+      nameAr: section.nameAr || section.section_name?.ar || section.name?.ar || section.nameAr || section.name || '',
+      nameEn: section.nameEn || section.section_name?.en || section.name?.en || section.nameEn || section.name || '',
+      stationType: section.stationType || (section.isExpo || section.is_expo ? 'expo' : 'prep')
+    };
+  };
+  const mapRoutePreview = (route = {})=>({
+    id: route.id || route.routeId || null,
+    categoryId: route.categoryId || route.category_id || null,
+    sectionId: route.stationId || route.station_id || route.sectionId || null,
+    priority: route.priority ?? null,
+    isActive: route.isActive ?? route.active ?? null
+  });
+  const mapMenuItemPreview = (item = {})=>({
+    id: item.id || item.itemId || item.menuItemId || null,
+    code: item.code || item.itemCode || item.menuItemCode || null,
+    nameAr: item.nameAr || item.itemNameAr || item.item_name_ar || item.name?.ar || '',
+    nameEn: item.nameEn || item.itemNameEn || item.item_name_en || item.name?.en || '',
+    sectionId: item.kitchenSectionId || item.sectionId || item.stationId || null,
+    categoryId: item.categoryId || item.menuCategoryId || null
+  });
+  const mapJobHeaderPreview = (header = {})=>({
+    id: header.id || header.jobOrderId || null,
+    orderId: header.orderId || header.order_id || null,
+    stationId: header.stationId || header.sectionId || null,
+    stationCode: header.stationCode || header.station_code || null,
+    status: header.status || '',
+    totalItems: header.totalItems || 0,
+    completedItems: header.completedItems || 0
+  });
+  const mapDetailPreview = (detail = {})=>({
+    id: detail.id || detail.detailId || null,
+    jobOrderId: detail.jobOrderId || detail.job_id || null,
+    itemId: detail.itemId || detail.menuItemId || null,
+    itemCode: detail.itemCode || detail.code || null,
+    quantity: detail.quantity || 0,
+    status: detail.status || '',
+    itemNameAr: detail.itemNameAr || detail.nameAr || detail.item_name_ar || '',
+    itemNameEn: detail.itemNameEn || detail.nameEn || detail.item_name_en || ''
+  });
+  const mapDriverPreview = (driver = {})=>({
+    id: driver.id || driver.driverId || driver.code || null,
+    name: driver.name || driver.driverName || driver.fullName || driver.displayName || '',
+    phone: driver.phone || driver.driverPhone || driver.mobile || ''
+  });
+
+  const summarizeJobPayload = (payload = {})=>{
+    const jobOrders = payload.jobOrders || {};
+    const master = payload.master || {};
+    const headers = Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
+    const details = Array.isArray(jobOrders.details) ? jobOrders.details : [];
+    const stations = Array.isArray(master.stations) ? master.stations : [];
+    const kitchenSections = Array.isArray(master.kitchenSections) ? master.kitchenSections : [];
+    const stationCategoryRoutes = Array.isArray(master.stationCategoryRoutes) ? master.stationCategoryRoutes : [];
+    const menuItems = Array.isArray(master.items) ? master.items : [];
+    const menuCategories = Array.isArray(master.categories) ? master.categories : [];
+    const drivers = Array.isArray(payload.drivers)
+      ? payload.drivers
+      : (Array.isArray(master.drivers) ? master.drivers : []);
+    return {
+      counts:{
+        headers: headers.length,
+        details: details.length,
+        stations: stations.length,
+        kitchenSections: kitchenSections.length,
+        stationCategoryRoutes: stationCategoryRoutes.length,
+        menuItems: menuItems.length,
+        menuCategories: menuCategories.length,
+        drivers: drivers.length
+      },
+      samples:{
+        headers: previewList(headers, 5).map(mapJobHeaderPreview),
+        details: previewList(details, 5).map(mapDetailPreview),
+        stations: previewList(stations, 5).map(mapSectionPreview),
+        kitchenSections: previewList(kitchenSections, 5).map(mapSectionPreview),
+        stationCategoryRoutes: previewList(stationCategoryRoutes, 5).map(mapRoutePreview),
+        menuItems: previewList(menuItems, 5).map(mapMenuItemPreview),
+        drivers: previewList(drivers, 5).map(mapDriverPreview)
+      }
+    };
+  };
+
+  const summarizeAppStateSnapshot = (state)=>{
+    if(!state || typeof state !== 'object') return null;
+    const data = state.data || {};
+    const jobsList = Array.isArray(data.jobs?.list)
+      ? data.jobs.list
+      : (Array.isArray(data.jobs) ? data.jobs : []);
+    const byStation = data.jobs && data.jobs.byStation ? data.jobs.byStation : {};
+    const stations = Array.isArray(data.stations) ? data.stations : [];
+    const kitchenSections = Array.isArray(data.kitchenSections) ? data.kitchenSections : [];
+    const stationCategoryRoutes = Array.isArray(data.stationCategoryRoutes) ? data.stationCategoryRoutes : [];
+    const categorySections = Array.isArray(data.categorySections) ? data.categorySections : [];
+    const menuItems = Array.isArray(data.menu?.items) ? data.menu.items : [];
+    const drivers = Array.isArray(data.drivers) ? data.drivers : [];
+    const deliveries = data.deliveries || {};
+    const assignmentKeys = deliveries.assignments ? Object.keys(deliveries.assignments) : [];
+    const settlementKeys = deliveries.settlements ? Object.keys(deliveries.settlements) : [];
+    const jobsByStation = Object.keys(byStation).map((stationId)=>({
+      stationId,
+      jobCount: Array.isArray(byStation[stationId]) ? byStation[stationId].length : 0
+    }));
+    return {
+      filters:{
+        activeTab: data.filters?.activeTab || null,
+        lockedSection: data.filters?.lockedSection || null
+      },
+      counts:{
+        jobs: jobsList.length,
+        stations: stations.length,
+        kitchenSections: kitchenSections.length,
+        stationCategoryRoutes: stationCategoryRoutes.length,
+        categorySections: categorySections.length,
+        menuItems: menuItems.length,
+        drivers: drivers.length,
+        deliveryAssignments: assignmentKeys.length,
+        deliverySettlements: settlementKeys.length
+      },
+      stations: previewList(stations, 5).map(mapSectionPreview),
+      kitchenSections: previewList(kitchenSections, 5).map(mapSectionPreview),
+      stationCategoryRoutes: previewList(stationCategoryRoutes, 5).map(mapRoutePreview),
+      categorySections: previewList(categorySections, 5).map(mapRoutePreview),
+      menuItems: previewList(menuItems, 5).map(mapMenuItemPreview),
+      drivers: previewList(drivers, 5).map(mapDriverPreview),
+      jobsByStation: previewList(jobsByStation, 10),
+      jobs: previewList(jobsList, 5).map(job=>({
+        id: job.id || job.jobOrderId || null,
+        orderId: job.orderId || null,
+        stationId: job.stationId || job.sectionId || null,
+        stationCode: job.stationCode || null,
+        status: job.status || '',
+        totalItems: job.totalItems || 0,
+        completedItems: job.completedItems || 0,
+        details: previewList(job.details, 3).map(mapDetailPreview)
+      }))
+    };
+  };
+
+  const logDebugGroup = (label, details)=>{
+    if(typeof console === 'undefined') return;
+    try{
+      if(typeof console.groupCollapsed === 'function'){
+        console.groupCollapsed(label);
+        if(details && typeof details === 'object'){
+          Object.keys(details).forEach(key=>{
+            console.log(`${key}:`, details[key]);
+          });
+        } else {
+          console.log(details);
+        }
+        console.groupEnd();
+      } else {
+        console.log(label, details);
+      }
+    } catch(_err){
+      try{ console.log(label, details); } catch(__err){ /* ignore */ }
+    }
+  };
+
+  let lastWatcherSnapshot = null;
+  let lastStateSnapshot = null;
+
   const computeOrdersSnapshot = (db)=>{
     const orders = Array.isArray(db?.data?.jobs?.orders) ? db.data.jobs.orders : [];
     const handoff = db?.data?.handoff || {};
@@ -1560,7 +1727,7 @@
       if(!syncNext.channel){
         syncNext.channel = BRANCH_CHANNEL;
       }
-      return {
+      const nextState = {
         ...state,
         data:{
           ...state.data,
@@ -1581,6 +1748,20 @@
           sync: syncNext
         }
       };
+      const payloadSummary = summarizeJobPayload(payload);
+      const stateSummary = summarizeAppStateSnapshot(nextState);
+      const counts = payloadSummary?.counts || {};
+      const label = `[Mishkah][KDS] applyRemoteOrder → headers:${counts.headers ?? 0} details:${counts.details ?? 0} sections:${counts.kitchenSections ?? counts.stations ?? 0}`;
+      lastStateSnapshot = {
+        context:'applyRemoteOrder',
+        appliedAt: new Date().toISOString(),
+        channel: syncNext?.channel || null,
+        metaChannel: meta?.channel || null,
+        payload: payloadSummary,
+        state: stateSummary
+      };
+      logDebugGroup(label, lastStateSnapshot);
+      return nextState;
     });
   };
 
@@ -1681,6 +1862,24 @@
     dev.getOrders = ()=> (typeof app.getOrders === 'function' ? app.getOrders() : []);
     dev.snapshot = ()=>({ orders: logKdsOrdersRegistry(), nodes: logKdsInteractiveNodes() });
     dev.logDomSnapshot = logKdsInteractiveNodes;
+    dev.getStateSummary = ()=> lastStateSnapshot;
+    dev.logState = ()=>{
+      if(lastStateSnapshot){
+        logDebugGroup('[Mishkah][KDS] Last state summary', lastStateSnapshot);
+      } else if(typeof console !== 'undefined' && typeof console.info === 'function'){
+        console.info('[Mishkah KDS] No state snapshot has been captured yet.');
+      }
+      return lastStateSnapshot;
+    };
+    dev.getWatcherSummary = ()=> lastWatcherSnapshot;
+    dev.logWatcherPayload = ()=>{
+      if(lastWatcherSnapshot){
+        logDebugGroup('[Mishkah][KDS] Last watcher payload summary', lastWatcherSnapshot);
+      } else if(typeof console !== 'undefined' && typeof console.info === 'function'){
+        console.info('[Mishkah KDS] No watcher payload snapshot has been captured yet.');
+      }
+      return lastWatcherSnapshot;
+    };
     window.__MishkahKDSDev__ = dev;
     if(!announced){
       if(typeof console !== 'undefined'){
@@ -2084,34 +2283,111 @@
       sequence: toNumber(entry?.sequence || entry?.displayOrder, index)
     }));
 
-  const deriveMenuItems = (payload) =>
-    ensureArray(payload?.items).map((entry, index) => {
-      const id =
-        normalizeId(entry?.id || entry?.itemId) || `item-${index + 1}`;
+  const mergeMeta = (left = {}, right = {}) => ({
+    ...left,
+    ...right,
+    media: { ...(left?.media || {}), ...(right?.media || {}) }
+  });
+
+  const deriveMenuItems = (payload) => {
+    const sources = [
+      payload?.items,
+      payload?.menu_items,
+      payload?.menuItems,
+      payload?.menu?.items,
+      payload?.menu?.menu_items,
+      payload?.menu?.menuItems,
+      payload?.master?.items,
+      payload?.master?.menu_items,
+      payload?.master?.menuItems
+    ];
+
+    const records = new Map();
+    let fallbackIndex = 0;
+
+    const normalizeItem = (entry, id) => {
+      const categoryId = normalizeId(entry?.category_id || entry?.categoryId);
+      const sectionId =
+        normalizeId(
+          entry?.kitchen_section_id ||
+            entry?.kitchenSectionId ||
+            entry?.station_id ||
+            entry?.stationId
+        ) || null;
+      const code =
+        entry?.code ||
+        entry?.sku ||
+        entry?.item_code ||
+        entry?.itemCode ||
+        id;
+      const nameAr =
+        entry?.item_name?.ar ||
+        entry?.name?.ar ||
+        entry?.nameAr ||
+        entry?.titleAr ||
+        entry?.label?.ar ||
+        entry?.labelAr ||
+        '';
+      const nameEn =
+        entry?.item_name?.en ||
+        entry?.name?.en ||
+        entry?.nameEn ||
+        entry?.titleEn ||
+        entry?.label?.en ||
+        entry?.labelEn ||
+        '';
       return {
         id,
         itemId: id,
-        categoryId: normalizeId(entry?.category_id || entry?.categoryId),
-        sectionId:
-          normalizeId(entry?.kitchen_section_id || entry?.kitchenSectionId) ||
-          null,
-        code: entry?.code || entry?.sku || id,
-        nameAr:
-          entry?.item_name?.ar ||
-          entry?.name?.ar ||
-          entry?.nameAr ||
-          entry?.titleAr ||
-          '',
-        nameEn:
-          entry?.item_name?.en ||
-          entry?.name?.en ||
-          entry?.nameEn ||
-          entry?.titleEn ||
-          '',
+        categoryId,
+        sectionId,
+        code,
+        nameAr,
+        nameEn,
         price: toNumber(entry?.pricing?.base || entry?.price, 0),
-        meta: { ...(entry?.meta || {}), media: entry?.media || {} }
+        meta: mergeMeta(entry?.meta || {}, { media: entry?.media || {} })
       };
+    };
+
+    sources.forEach((source) => {
+      ensureArray(source).forEach((entry) => {
+        if (!entry) return;
+        let id =
+          normalizeId(
+            entry?.id ||
+              entry?.itemId ||
+              entry?.item_id ||
+              entry?.menu_item_id ||
+              entry?.menuItemId
+          );
+        if (!id) {
+          fallbackIndex += 1;
+          id = `item-${fallbackIndex}`;
+        }
+        const normalized = normalizeItem(entry, id);
+        if (records.has(id)) {
+          const existing = records.get(id);
+          records.set(id, {
+            ...existing,
+            categoryId: existing.categoryId || normalized.categoryId,
+            sectionId: existing.sectionId || normalized.sectionId,
+            code:
+              existing.code && existing.code !== existing.itemId
+                ? existing.code
+                : normalized.code || existing.code,
+            nameAr: existing.nameAr || normalized.nameAr,
+            nameEn: existing.nameEn || normalized.nameEn,
+            price: existing.price || normalized.price,
+            meta: mergeMeta(normalized.meta, existing.meta)
+          });
+        } else {
+          records.set(id, normalized);
+        }
+      });
     });
+
+    return Array.from(records.values());
+  };
 
   const deriveDrivers = (payload) => {
     const drivers = [];
@@ -2477,7 +2753,7 @@
     const channel = normalizeChannelName(channelSource, BRANCH_CHANNEL);
     watcherState.channel = channel;
 
-    return {
+    const payload = {
       jobOrders: {
         headers: jobHeaders,
         details: jobDetails,
@@ -2505,6 +2781,23 @@
       meta: posPayload?.meta || posPayload?.settings || {},
       branch: posPayload?.branch || {}
     };
+    const payloadSummary = summarizeJobPayload(payload);
+    const counts = payloadSummary?.counts || {};
+    lastWatcherSnapshot = {
+      source:'watcher',
+      generatedAt: new Date().toISOString(),
+      status: watcherState.status,
+      channel,
+      watcher:{
+        headers: ensureArray(watcherState.headers).length,
+        lines: ensureArray(watcherState.lines).length,
+        deliveries: ensureArray(watcherState.deliveries).length
+      },
+      payload: payloadSummary
+    };
+    const label = `[Mishkah][KDS][Watcher] payload → headers:${counts.headers ?? 0} details:${counts.details ?? 0} sections:${counts.kitchenSections ?? counts.stations ?? 0}`;
+    logDebugGroup(label, lastWatcherSnapshot);
+    return payload;
   };
 
   const updateFromWatchers = () => {
