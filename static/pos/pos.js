@@ -1164,6 +1164,15 @@
     }
 
     const hasIndexedDB = !!((U && (U.IndexedDBX || U.IndexedDB)) && typeof window !== 'undefined' && window.indexedDB);
+    let invoiceSequence = 0;
+    const ACTIVE_BRANCH_ID = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || null) : null;
+    const MODULE_ID = (()=>{
+      if(typeof window === 'undefined') return 'pos';
+      const entry = window.__POS_MODULE_ENTRY__ || {};
+      const resolved = entry.moduleId || entry.id || 'pos';
+      const text = typeof resolved === 'string' ? resolved.trim() : `${resolved || 'pos'}`;
+      return text || 'pos';
+    })();
 
     function createIndexedDBAdapter(name, version){
       const IndexedDBX = U && (U.IndexedDBX || U.IndexedDB);
@@ -2932,15 +2941,6 @@
     const preferencesStore = U.Storage && U.Storage.local ? U.Storage.local('mishkah-pos') : null;
     const savedModalSizes = preferencesStore ? (preferencesStore.get('modalSizes', {}) || {}) : {};
     const savedThemePrefs = preferencesStore ? (preferencesStore.get('themePrefs', {}) || {}) : {};
-    let invoiceSequence = 0;
-    const ACTIVE_BRANCH_ID = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || null) : null;
-    const MODULE_ID = (()=>{
-      if(typeof window === 'undefined') return 'pos';
-      const entry = window.__POS_MODULE_ENTRY__ || {};
-      const resolved = entry.moduleId || entry.id || 'pos';
-      const text = typeof resolved === 'string' ? resolved.trim() : `${resolved || 'pos'}`;
-      return text || 'pos';
-    })();
 
     async function allocateInvoiceId(){
       if(!ACTIVE_BRANCH_ID){
