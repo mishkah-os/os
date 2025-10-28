@@ -205,9 +205,9 @@
         );
 
     const openList = openShifts.length
-      ? D.Lists.Unordered({ attrs: { class: tw`mt-4 space-y-3` } }, openShifts.map((shift) => {
+      ? D.Lists.Ul({ attrs: { class: tw`mt-4 space-y-3` } }, openShifts.map((shift) => {
           const opened = shift.openedAt || shift.opened_at;
-          return D.Lists.Item(
+          return D.Lists.Li(
             { attrs: { class: tw`rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100` } },
             [
               D.Text.Span({ attrs: { class: tw`block text-sm font-semibold text-amber-200` } }, [
