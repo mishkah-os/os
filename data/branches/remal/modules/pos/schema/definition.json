@@ -5,6 +5,86 @@
   "schema": {
     "tables": [
       {
+        "name": "pos_database",
+        "label": "POS Dataset",
+        "comment": "Snapshot container for the branch dataset including configuration, menu and cached stores.",
+        "sqlName": "pos_database",
+        "layout": {
+          "x": 0,
+          "y": 0
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": true,
+            "unique": true,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "branchId",
+            "columnName": "branch_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "payload",
+            "columnName": "payload",
+            "type": "json",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "defaultValue": {},
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "createdAt",
+            "columnName": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "updatedAt",
+            "columnName": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_pos_database_branch",
+            "columns": [
+              "branch_id"
+            ],
+            "unique": false
+          }
+        ]
+      },
+      {
         "name": "pos_terminal",
         "label": "POS Terminal",
         "comment": "Registered POS terminals with physical location metadata.",

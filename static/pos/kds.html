@@ -32,17 +32,52 @@
   <script src="../lib/mishkah.core.js"></script>
   <script src="../lib/mishkah-ui.js"></script>
   <script src="../lib/mishkah-schema.js"></script>
-  <script src="./schema-kds.js"></script>
-  <script src="./pos-mock-data.js"></script>
-  <script src="./kds-mock-data.js"></script>
-  <script>
-    // غيّر القيمة التالية إذا احتجت تشغيل شاشة KDS على قناة مختلفة عن POS.
-    window.MishkahBranchChannel = 'branch-main';
-    window.MishkahKdsChannel = window.MishkahBranchChannel;
-  </script>
 </head>
 <body>
   <div id="app"></div>
-  <script src="./kds.js"></script>
+  <script type="module">
+    import { createPosDb } from './pos-mini-db.js';
+
+    const params = new URLSearchParams(window.location.search || '');
+    const BRANCH_ID =
+      params.get('branch') ||
+      params.get('branchId') ||
+      params.get('brname') ||
+      window.POS_BRANCH_PARAM ||
+      'dar';
+
+    const status = {
+      status: 'loading',
+      startedAt: Date.now(),
+      finishedAt: null,
+      error: null,
+      keys: [],
+      branchId: BRANCH_ID
+    };
+
+    window.__POS_DATA_STATUS__ = status;
+
+    try {
+      const { db, moduleEntry } = await createPosDb({ branchId: BRANCH_ID, role: 'kds-shell' });
+      window.__POS_DB__ = db;
+      window.__POS_MODULE_ENTRY__ = moduleEntry;
+      await db.ready();
+      const records = db.list('pos_database');
+      const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
+      const payload = latest && latest.payload ? latest.payload : {};
+      window.database = payload;
+      status.status = latest ? 'ready' : 'idle';
+      status.keys = Object.keys(payload || {});
+      status.finishedAt = Date.now();
+    } catch (error) {
+      console.error('[KDS] Failed to hydrate dataset from /api/schema', error);
+      window.database = {};
+      status.status = 'error';
+      status.error = error;
+      status.finishedAt = Date.now();
+    }
+
+    await import('./kds.js');
+  </script>
 </body>
 </html>

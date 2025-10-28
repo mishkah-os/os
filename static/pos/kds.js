@@ -1313,45 +1313,8 @@
   const app = M.app.createApp(initialState, {});
   const auto = U.twcss.auto(initialState, app, { pageScaffold:true });
 
-  const wsEndpoint = kdsSource?.sync?.endpoint || database?.kds?.endpoint || database?.sync?.endpoint || 'wss://ws.mas.com.eg/ws';
-  const wsToken = kdsSource?.sync?.token || database?.kds?.token || null;
-  const syncClient = createKitchenSync(app, { endpoint: wsEndpoint, token: wsToken, channel: BRANCH_CHANNEL });
-  if(syncClient){
-    syncClient.connect();
-  }
-
-  let broadcastChannel = null;
-  if(typeof BroadcastChannel !== 'undefined'){
-    try{
-      broadcastChannel = new BroadcastChannel('mishkah-pos-kds-sync');
-      broadcastChannel.onmessage = (event)=>{
-        const msg = event?.data;
-        if(!msg || !msg.type || msg.origin === 'kds') return;
-        const meta = msg.meta || {};
-        if(msg.type === 'orders:payload' && msg.payload){
-          applyRemoteOrder(app, msg.payload, meta);
-          return;
-        }
-        if(msg.type === 'job:update' && msg.jobId){
-          applyJobUpdateMessage(app, { jobId: msg.jobId, payload: msg.payload || {} }, meta);
-        }
-        if(msg.type === 'delivery:update' && msg.orderId){
-          applyDeliveryUpdateMessage(app, { orderId: msg.orderId, payload: msg.payload || {} }, meta);
-        }
-        if(msg.type === 'handoff:update' && msg.orderId){
-          applyHandoffUpdateMessage(app, { orderId: msg.orderId, payload: msg.payload || {} }, meta);
-        }
-      };
-    } catch(_err) {
-      broadcastChannel = null;
-    }
-  }
-
-  const emitSync = (message)=>{
-    if(!broadcastChannel || !message) return;
-    const payload = { origin:'kds', ...message };
-    try{ broadcastChannel.postMessage(payload); } catch(_err){}
-  };
+  const syncClient = null;
+  const emitSync = () => {};
 
   const mergeJobOrders = (current={}, patch={})=>{
     const mergeList = (base=[], updates=[], key='id')=>{
@@ -1611,122 +1574,6 @@
     });
   };
 
-  function createKitchenSync(appInstance, options={}){
-    const WebSocketX = U.WebSocketX || U.WebSocket;
-    const endpoint = options.endpoint;
-    if(!WebSocketX){
-      console.warn('[Mishkah][KDS] WebSocket adapter unavailable. Sync is disabled.');
-    }
-    if(!endpoint){
-      console.warn('[Mishkah][KDS] Missing WebSocket endpoint. Sync is disabled.');
-    }
-    if(!WebSocketX || !endpoint) return null;
-    const channelName = options.channel ? normalizeChannelName(options.channel, BRANCH_CHANNEL) : '';
-    const topicPrefix = channelName ? `${channelName}:` : '';
-    const topicOrders = options.topicOrders || `${topicPrefix}pos:kds:orders`;
-    const topicJobs = options.topicJobs || `${topicPrefix}kds:jobs:updates`;
-    const topicDelivery = options.topicDelivery || `${topicPrefix}kds:delivery:updates`;
-    const topicHandoff = options.topicHandoff || `${topicPrefix}kds:handoff:updates`;
-    const token = options.token;
-    let socket = null;
-    let ready = false;
-    let awaitingAuth = false;
-    const queue = [];
-    const sendEnvelope = (payload)=>{
-      if(!socket) return;
-      if(ready && !awaitingAuth){
-        socket.send(payload);
-      } else {
-        queue.push(payload);
-      }
-    };
-    const flushQueue = ()=>{
-      if(!ready || awaitingAuth) return;
-      while(queue.length){
-        socket.send(queue.shift());
-      }
-    };
-    socket = new WebSocketX(endpoint, {
-      autoReconnect:true,
-      ping:{ interval:15000, timeout:7000, send:{ type:'ping' }, expect:'pong' }
-    });
-    socket.on('open', ()=>{
-      ready = true;
-      console.info('[Mishkah][KDS] Sync connection opened.', { endpoint });
-      if(token){
-        awaitingAuth = true;
-        socket.send({ type:'auth', data:{ token } });
-      } else {
-        socket.send({ type:'subscribe', topic: topicOrders });
-        socket.send({ type:'subscribe', topic: topicJobs });
-        socket.send({ type:'subscribe', topic: topicDelivery });
-        socket.send({ type:'subscribe', topic: topicHandoff });
-        flushQueue();
-      }
-    });
-    socket.on('close', (event)=>{
-      ready = false;
-      awaitingAuth = false;
-      console.warn('[Mishkah][KDS] Sync connection closed.', { code: event?.code, reason: event?.reason });
-    });
-    socket.on('error', (error)=>{
-      ready = false;
-      console.error('[Mishkah][KDS] Sync connection error.', error);
-    });
-    socket.on('message', (msg)=>{
-      if(!msg || typeof msg !== 'object') return;
-      if(msg.type === 'ack'){
-        if(msg.event === 'auth'){
-          awaitingAuth = false;
-          socket.send({ type:'subscribe', topic: topicOrders });
-          socket.send({ type:'subscribe', topic: topicJobs });
-          socket.send({ type:'subscribe', topic: topicDelivery });
-          socket.send({ type:'subscribe', topic: topicHandoff });
-          flushQueue();
-        } else if(msg.event === 'subscribe'){
-          flushQueue();
-        }
-        return;
-      }
-      if(msg.type === 'publish'){
-        if(msg.topic === topicOrders){
-          applyRemoteOrder(appInstance, msg.data || {}, msg.meta || {});
-        }
-        if(msg.topic === topicJobs){
-          applyJobUpdateMessage(appInstance, msg.data || {}, msg.meta || {});
-        }
-        if(msg.topic === topicDelivery){
-          applyDeliveryUpdateMessage(appInstance, msg.data || {}, msg.meta || {});
-        }
-        if(msg.topic === topicHandoff){
-          applyHandoffUpdateMessage(appInstance, msg.data || {}, msg.meta || {});
-        }
-        return;
-      }
-    });
-    const connect = ()=>{
-      try { socket.connect({ waitOpen:false }); } catch(_err){}
-    };
-    return {
-      connect,
-      publishJobUpdate(update){
-        if(!update || !update.jobId) return;
-        sendEnvelope({ type:'publish', topic: topicJobs, data:update });
-      },
-      publishDeliveryUpdate(update){
-        if(!update || !update.orderId) return;
-        sendEnvelope({ type:'publish', topic: topicDelivery, data:update });
-      },
-      publishHandoffUpdate(update){
-        if(!update || !update.orderId) return;
-        sendEnvelope({ type:'publish', topic: topicHandoff, data:update });
-      },
-      publishOrder(payload){
-        if(!payload) return;
-        sendEnvelope({ type:'publish', topic: topicOrders, data:payload });
-      }
-    };
-  }
   const describeInteractiveNode = (node)=>{
     if(!node || node.nodeType !== 1) return null;
     const dataset = {};
@@ -2114,6 +1961,612 @@
       }
     }
   };
+
+  const watcherUnsubscribers = [];
+  const store = typeof window !== 'undefined' ? window.__POS_DB__ : null;
+
+  const watcherState = {
+    status: 'idle',
+    posPayload: database,
+    headers: [],
+    lines: [],
+    deliveries: []
+  };
+
+  const ensureArray = (value) => (Array.isArray(value) ? value : []);
+  const normalizeId = (value) => (value == null ? null : String(value));
+  const toNumber = (value, fallback = 0) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
+  };
+
+  const normalizeKitchenSections = (sections) =>
+    ensureArray(sections).map((section, index) => {
+      const id =
+        normalizeId(section?.id) ||
+        normalizeId(section?.section_id) ||
+        normalizeId(section?.sectionId) ||
+        `section-${index + 1}`;
+      const code =
+        section?.code ||
+        (id ? id.toString().toUpperCase() : `SEC-${index + 1}`);
+      return {
+        id,
+        code,
+        nameAr:
+          section?.section_name?.ar ||
+          section?.name?.ar ||
+          section?.nameAr ||
+          section?.name ||
+          code,
+        nameEn:
+          section?.section_name?.en ||
+          section?.name?.en ||
+          section?.nameEn ||
+          section?.name ||
+          code,
+        description:
+          section?.description?.ar ||
+          section?.description?.en ||
+          section?.description ||
+          '',
+        stationType:
+          section?.stationType ||
+          (section?.isExpo || section?.is_expo || id === 'expo'
+            ? 'expo'
+            : 'prep'),
+        isExpo: !!(section?.isExpo || section?.is_expo || id === 'expo'),
+        sequence: toNumber(section?.sequence, index + 1),
+        themeColor: section?.themeColor || null,
+        autoRouteRules: ensureArray(section?.autoRouteRules),
+        displayConfig:
+          typeof section?.displayConfig === 'object' && section?.displayConfig
+            ? { ...section.displayConfig }
+            : { layout: 'grid', columns: 2 },
+        createdAt: section?.createdAt || null,
+        updatedAt: section?.updatedAt || null
+      };
+    });
+
+  const normalizeCategoryRoutes = (routes) =>
+    ensureArray(routes)
+      .map((entry, index) => {
+        const categoryId =
+          normalizeId(entry?.categoryId) ||
+          normalizeId(entry?.category_id);
+        const stationId =
+          normalizeId(entry?.stationId) ||
+          normalizeId(entry?.station_id) ||
+          normalizeId(entry?.sectionId) ||
+          normalizeId(entry?.section_id);
+        if (!categoryId || !stationId) return null;
+        return {
+          id:
+            normalizeId(entry?.id) ||
+            `route-${index + 1}-${categoryId}-${stationId}`,
+          categoryId,
+          stationId,
+          priority: toNumber(entry?.priority || entry?.sequence, 0),
+          isActive: entry?.isActive !== false && entry?.active !== false,
+          createdAt: entry?.createdAt || null,
+          updatedAt: entry?.updatedAt || null
+        };
+      })
+      .filter(Boolean);
+
+  const deriveMenuCategories = (payload) =>
+    ensureArray(payload?.categories).map((entry, index) => ({
+      id: normalizeId(entry?.id || entry?.categoryId) || `cat-${index + 1}`,
+      nameAr:
+        entry?.category_name?.ar ||
+        entry?.name?.ar ||
+        entry?.nameAr ||
+        entry?.titleAr ||
+        '',
+      nameEn:
+        entry?.category_name?.en ||
+        entry?.name?.en ||
+        entry?.nameEn ||
+        entry?.titleEn ||
+        '',
+      sectionId:
+        normalizeId(entry?.section_id || entry?.sectionId) || null,
+      sequence: toNumber(entry?.sequence || entry?.displayOrder, index)
+    }));
+
+  const deriveMenuItems = (payload) =>
+    ensureArray(payload?.items).map((entry, index) => {
+      const id =
+        normalizeId(entry?.id || entry?.itemId) || `item-${index + 1}`;
+      return {
+        id,
+        itemId: id,
+        categoryId: normalizeId(entry?.category_id || entry?.categoryId),
+        sectionId:
+          normalizeId(entry?.kitchen_section_id || entry?.kitchenSectionId) ||
+          null,
+        code: entry?.code || entry?.sku || id,
+        nameAr:
+          entry?.item_name?.ar ||
+          entry?.name?.ar ||
+          entry?.nameAr ||
+          entry?.titleAr ||
+          '',
+        nameEn:
+          entry?.item_name?.en ||
+          entry?.name?.en ||
+          entry?.nameEn ||
+          entry?.titleEn ||
+          '',
+        price: toNumber(entry?.pricing?.base || entry?.price, 0),
+        meta: { ...(entry?.meta || {}), media: entry?.media || {} }
+      };
+    });
+
+  const deriveDrivers = (payload) => {
+    const drivers = [];
+    const upsert = (source) => {
+      ensureArray(source).forEach((driver) => {
+        if (!driver) return;
+        const id =
+          normalizeId(driver?.id) ||
+          normalizeId(driver?.driverId) ||
+          normalizeId(driver?.code) ||
+          normalizeId(driver?.employeeId);
+        if (!id) return;
+        const record = {
+          id,
+          code: driver?.code || id,
+          name:
+            driver?.name ||
+            driver?.fullName ||
+            driver?.displayName ||
+            driver?.employeeName ||
+            id,
+          phone: driver?.phone || driver?.mobile || driver?.contact || '',
+          vehicleId: driver?.vehicleId || driver?.vehicle_id || ''
+        };
+        const existing = drivers.find((entry) => entry.id === id);
+        if (existing) Object.assign(existing, record);
+        else drivers.push(record);
+      });
+    };
+    upsert(payload?.drivers);
+    upsert(payload?.settings?.drivers);
+    upsert(payload?.master?.drivers);
+    return drivers;
+  };
+
+  const buildStatusLookup = (payload) => {
+    const map = new Map();
+    ensureArray(payload?.order_line_statuses).forEach((entry) => {
+      const id = normalizeId(entry?.id || entry?.statusId);
+      if (!id) return;
+      const key = (entry?.slug || entry?.code || id).toString().toLowerCase();
+      map.set(id.toLowerCase(), key);
+      map.set(key, key);
+      const nameAr = entry?.status_name?.ar || entry?.name?.ar;
+      const nameEn = entry?.status_name?.en || entry?.name?.en;
+      if (nameAr) map.set(String(nameAr).toLowerCase(), key);
+      if (nameEn) map.set(String(nameEn).toLowerCase(), key);
+    });
+    return map;
+  };
+
+  const resolveLineStatus = (value, lookup) => {
+    const raw = normalizeId(value);
+    const key = raw ? raw.toLowerCase() : '';
+    const resolved = lookup.get(key) || key;
+    if (
+      ['ready', 'completed', 'done', 'served', 'finished'].includes(resolved)
+    )
+      return 'ready';
+    if (
+      ['in_progress', 'preparing', 'cooking', 'progress', 'started'].includes(
+        resolved
+      )
+    )
+      return 'in_progress';
+    if (['cancelled', 'void', 'rejected'].includes(resolved)) return 'cancelled';
+    return 'queued';
+  };
+
+  const resolveServiceMode = (header, payload) => {
+    const raw =
+      normalizeId(header?.orderTypeId) ||
+      normalizeId(header?.order_type_id) ||
+      normalizeId(header?.serviceMode);
+    const types = ensureArray(payload?.order_types);
+    const match = types.find(
+      (type) => normalizeId(type?.id || type?.orderTypeId) === raw
+    );
+    const slug = (match?.slug || raw || '').toLowerCase();
+    if (slug.includes('delivery')) return 'delivery';
+    if (
+      slug.includes('pickup') ||
+      slug.includes('takeaway') ||
+      slug.includes('take_away') ||
+      slug.includes('take-away')
+    )
+      return 'takeaway';
+    if (slug.includes('drive')) return 'drive_thru';
+    return 'dine_in';
+  };
+
+  const resolveTableLabel = (header, payload) => {
+    const tableId =
+      normalizeId(header?.tableId) ||
+      normalizeId(header?.table_id) ||
+      normalizeId(header?.tableCode);
+    if (!tableId) return '';
+    const tables = ensureArray(payload?.tables);
+    const match = tables.find(
+      (table) =>
+        normalizeId(table?.id || table?.tableId || table?.code) === tableId
+    );
+    return match?.name || match?.label || tableId;
+  };
+
+  const resolveCustomerName = (header, payload) => {
+    if (header?.customerName) return header.customerName;
+    const customerId =
+      normalizeId(header?.customerId) || normalizeId(header?.customer_id);
+    if (!customerId) return '';
+    const customers = ensureArray(
+      payload?.customers || payload?.customer_profile || payload?.customerProfiles
+    );
+    const match = customers.find(
+      (entry) => normalizeId(entry?.id || entry?.customerId) === customerId
+    );
+    return (
+      match?.name ||
+      match?.fullName ||
+      match?.displayName ||
+      match?.customerName ||
+      ''
+    );
+  };
+
+  const buildWatcherPayload = () => {
+    const posPayload = watcherState.posPayload || {};
+    const stations = buildStations(
+      posPayload,
+      posPayload?.kds || {},
+      posPayload?.master || {}
+    );
+    const stationMap = toStationMap(stations);
+    const kitchenSections = normalizeKitchenSections(
+      posPayload?.kitchen_sections
+    );
+    const stationCategoryRoutes = normalizeCategoryRoutes(
+      posPayload?.category_sections
+    );
+    const categorySections = stationCategoryRoutes.map((route) => ({
+      id: route.id,
+      categoryId: route.categoryId,
+      sectionId: route.stationId,
+      priority: route.priority,
+      isActive: route.isActive,
+      createdAt: route.createdAt,
+      updatedAt: route.updatedAt
+    }));
+    const categories = deriveMenuCategories(posPayload);
+    const items = deriveMenuItems(posPayload);
+    const itemMap = new Map(items.map((item) => [item.id, item]));
+    const statusLookup = buildStatusLookup(posPayload);
+    const drivers = deriveDrivers(posPayload);
+    const driverIndex = new Map(drivers.map((driver) => [driver.id, driver]));
+
+    const orders = new Map();
+    ensureArray(watcherState.headers).forEach((header) => {
+      const orderId = normalizeId(header?.id || header?.orderId);
+      if (!orderId) return;
+      orders.set(orderId, {
+        orderId,
+        header,
+        orderNumber:
+          header?.orderNumber ||
+          header?.order_number ||
+          header?.posNumber ||
+          orderId,
+        serviceMode: resolveServiceMode(header, posPayload),
+        tableLabel: resolveTableLabel(header, posPayload),
+        customerName: resolveCustomerName(header, posPayload),
+        openedAt: header?.openedAt || header?.createdAt || null,
+        dueAt: header?.dueAt || header?.expectedAt || null,
+        jobs: new Map()
+      });
+    });
+
+    const jobDetails = [];
+    const jobHeaders = [];
+
+    ensureArray(watcherState.lines).forEach((line) => {
+      const orderId = normalizeId(line?.orderId || line?.order_id);
+      if (!orderId) return;
+      if (!orders.has(orderId)) {
+        orders.set(orderId, {
+          orderId,
+          header: {},
+          orderNumber: orderId,
+          serviceMode: 'dine_in',
+          tableLabel: '',
+          customerName: '',
+          openedAt: line?.createdAt || null,
+          dueAt: null,
+          jobs: new Map()
+        });
+      }
+      const order = orders.get(orderId);
+      const itemId = normalizeId(line?.itemId || line?.item_id);
+      const item = itemMap.get(itemId) || {};
+      const sectionId =
+        normalizeId(line?.kitchenSectionId || line?.kitchen_section_id) ||
+        item.sectionId ||
+        'general';
+      const jobId = `${orderId}:${sectionId}`;
+      if (!order.jobs.has(jobId)) {
+        const station = stationMap[sectionId] || {};
+        order.jobs.set(jobId, {
+          id: jobId,
+          orderId,
+          orderNumber: order.orderNumber,
+          stationId: sectionId,
+          stationCode: station?.code || sectionId,
+          serviceMode: order.serviceMode,
+          tableLabel: order.tableLabel,
+          customerName: order.customerName,
+          totalItems: 0,
+          completedItems: 0,
+          remainingItems: 0,
+          createdAt: order.openedAt,
+          acceptedAt: order.openedAt,
+          dueAt: order.dueAt,
+          readyAt: null,
+          completedAt: null,
+          updatedAt: order.openedAt,
+          details: []
+        });
+      }
+      const job = order.jobs.get(jobId);
+      const quantity = ensureQuantity(line?.quantity);
+      const status = resolveLineStatus(
+        line?.statusId || line?.status_id || line?.status,
+        statusLookup
+      );
+      job.totalItems += quantity;
+      if (status === 'ready') job.completedItems += quantity;
+      const detailId =
+        normalizeId(line?.id) || `${jobId}-detail-${job.details.length + 1}`;
+      job.details.push({
+        id: detailId,
+        jobOrderId: jobId,
+        orderLineId: normalizeId(line?.id) || detailId,
+        itemId,
+        itemCode: item?.code || itemId,
+        quantity,
+        status,
+        itemNameAr: item?.nameAr || item?.name || item?.item_name?.ar || job.stationCode,
+        itemNameEn: item?.nameEn || item?.name || item?.item_name?.en || job.stationCode,
+        prepNotes: Array.isArray(line?.notes)
+          ? line.notes.filter(Boolean).join(' • ')
+          : line?.notes || ''
+      });
+    });
+
+    orders.forEach((order) => {
+      order.jobs.forEach((job) => {
+        job.remainingItems = Math.max(0, job.totalItems - job.completedItems);
+        const status =
+          job.totalItems > 0 && job.completedItems >= job.totalItems
+            ? 'ready'
+            : job.completedItems > 0
+            ? 'in_progress'
+            : 'queued';
+        const progressState =
+          status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting';
+        jobHeaders.push({
+          id: job.id,
+          orderId: job.orderId,
+          orderNumber: job.orderNumber,
+          stationId: job.stationId,
+          stationCode: job.stationCode,
+          status,
+          progressState,
+          totalItems: job.totalItems,
+          completedItems: job.completedItems,
+          remainingItems: job.remainingItems,
+          tableLabel: job.tableLabel,
+          customerName: job.customerName,
+          serviceMode: job.serviceMode,
+          acceptedAt: job.acceptedAt,
+          createdAt: job.createdAt,
+          readyAt: job.readyAt,
+          completedAt: job.completedAt,
+          dueAt: job.dueAt,
+          updatedAt: new Date().toISOString(),
+          meta: { source: 'watcher' }
+        });
+        job.details.forEach((detail) => {
+          jobDetails.push({
+            id: detail.id,
+            jobOrderId: job.id,
+            orderLineId: detail.orderLineId,
+            itemId: detail.itemId,
+            itemCode: detail.itemCode,
+            quantity: detail.quantity,
+            status: detail.status,
+            itemNameAr: detail.itemNameAr,
+            itemNameEn: detail.itemNameEn,
+            prepNotes: detail.prepNotes,
+            modifiers: []
+          });
+        });
+      });
+    });
+
+    const handoff = {};
+    orders.forEach((order) => {
+      const jobs = Array.from(order.jobs.values());
+      const readyJobs = jobs.filter((job) => job.status === 'ready');
+      handoff[order.orderId] = {
+        status:
+          jobs.length && readyJobs.length === jobs.length ? 'ready' : 'pending',
+        updatedAt: new Date().toISOString()
+      };
+    });
+
+    const deliveries = { assignments: {}, settlements: {} };
+    ensureArray(watcherState.deliveries).forEach((entry) => {
+      const orderId =
+        normalizeId(entry?.orderId) || normalizeId(entry?.order_id);
+      if (!orderId) return;
+      const driverId =
+        normalizeId(entry?.driverId) || normalizeId(entry?.driver_id);
+      const driver = driverIndex.get(driverId) || {};
+      deliveries.assignments[orderId] = {
+        ...(deliveries.assignments[orderId] || {}),
+        driverId,
+        driverName: entry?.driverName || driver?.name || driverId || '',
+        driverPhone: entry?.driverPhone || driver?.phone || '',
+        vehicleId: entry?.vehicleId || driver?.vehicleId || '',
+        status: (normalizeId(entry?.status) || 'pending').toLowerCase(),
+        assignedAt: entry?.assignedAt || entry?.createdAt || null,
+        deliveredAt: entry?.deliveredAt || null,
+        updatedAt: entry?.updatedAt || null
+      };
+    });
+
+    const channelSource =
+      posPayload?.settings?.sync?.channel ||
+      posPayload?.sync?.channel ||
+      posPayload?.branch?.channel ||
+      watcherState.channel ||
+      BRANCH_CHANNEL;
+    const channel = normalizeChannelName(channelSource, BRANCH_CHANNEL);
+    watcherState.channel = channel;
+
+    return {
+      jobOrders: {
+        headers: jobHeaders,
+        details: jobDetails,
+        modifiers: [],
+        statusHistory: [],
+        expoPassTickets: ensureArray(
+          posPayload?.kds?.expoPassTickets || posPayload?.expo_pass_tickets
+        )
+      },
+      master: {
+        stations,
+        stationCategoryRoutes,
+        kitchenSections,
+        categorySections,
+        categories,
+        items,
+        drivers,
+        metadata: posPayload?.metadata || posPayload?.settings || {},
+        sync: { ...(posPayload?.settings?.sync || {}), channel },
+        channel
+      },
+      deliveries,
+      handoff,
+      drivers,
+      meta: posPayload?.meta || posPayload?.settings || {},
+      branch: posPayload?.branch || {}
+    };
+  };
+
+  const updateFromWatchers = () => {
+    const payload = buildWatcherPayload();
+    if (!payload || !payload.jobOrders) return;
+    applyRemoteOrder(app, payload, { channel: watcherState.channel || BRANCH_CHANNEL });
+    const posPayload = watcherState.posPayload || {};
+    const lang = posPayload?.settings?.lang || initialState.env.lang || 'ar';
+    const dir = lang === 'ar' ? 'rtl' : 'ltr';
+    app.setState((state) => {
+      const syncBase = state.data?.sync || {};
+      const sync = {
+        ...syncBase,
+        channel: watcherState.channel || BRANCH_CHANNEL,
+        state: watcherState.status,
+        lastMessage: Date.now()
+      };
+      return {
+        ...state,
+        env: { ...(state.env || {}), lang, dir },
+        data: {
+          ...state.data,
+          sync,
+          meta: {
+          ...(state.data.meta || {}),
+          ...(posPayload?.metadata || {}),
+          ...(posPayload?.settings || {})
+        },
+          branch: payload.branch || state.data.branch || {}
+        }
+      };
+    });
+    if (typeof window !== 'undefined') {
+      window.database = watcherState.posPayload || {};
+      window.MishkahBranchChannel = watcherState.channel || BRANCH_CHANNEL;
+      window.MishkahKdsChannel = window.MishkahBranchChannel;
+    }
+  };
+
+  if (store && typeof store.watch === 'function') {
+    watcherUnsubscribers.push(
+      store.status((status) => {
+        watcherState.status =
+          typeof status === 'string' ? status : status?.status || 'idle';
+        updateFromWatchers();
+      })
+    );
+    watcherUnsubscribers.push(
+      store.watch('pos_database', (rows) => {
+        const latest =
+          Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
+        watcherState.posPayload =
+          (latest && latest.payload) || {};
+        updateFromWatchers();
+      })
+    );
+    watcherUnsubscribers.push(
+      store.watch('order_header', (rows) => {
+        watcherState.headers = ensureArray(rows);
+        updateFromWatchers();
+      })
+    );
+    watcherUnsubscribers.push(
+      store.watch('order_line', (rows) => {
+        watcherState.lines = ensureArray(rows);
+        updateFromWatchers();
+      })
+    );
+    watcherUnsubscribers.push(
+      store.watch('order_delivery', (rows) => {
+        watcherState.deliveries = ensureArray(rows);
+        updateFromWatchers();
+      })
+    );
+  } else {
+    console.warn(
+      '[Mishkah][KDS] POS dataset store unavailable. Live updates are disabled.'
+    );
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+      watcherUnsubscribers.splice(0).forEach((unsub) => {
+        try {
+          if (typeof unsub === 'function') unsub();
+        } catch (_err) {
+          /* ignore */
+        }
+      });
+    });
+  }
+
+  updateFromWatchers();
 
   app.setOrders(Object.assign({}, UI.orders || {}, auto.orders || {}, kdsOrders));
   logKdsOrdersRegistry();
