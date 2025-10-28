@@ -31,7 +31,7 @@
 
   const TEXT_DICT = {
     "title": {
-      "ar": "مشكاة — شاشة المطبخ",
+      "ar": " شاشة المطبخ",
       "en": "Mishkah — Kitchen display"
     },
     "subtitle": {
