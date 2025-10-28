@@ -4,6 +4,23 @@
     version: 1,
     tables: [
       {
+        name: 'pos_database',
+        label: 'POS Dataset',
+        sqlName: 'pos_database',
+        comment: 'Snapshot container for the branch dataset including configuration, menu and cached stores.',
+        layout: { x: 0, y: 0 },
+        fields: [
+          { name: 'id', columnName: 'id', type: 'string', primaryKey: true, unique: true, nullable: false, maxLength: 128 },
+          { name: 'branchId', columnName: 'branch_id', type: 'string', nullable: false, maxLength: 64 },
+          { name: 'payload', columnName: 'payload', type: 'json', nullable: false, defaultValue: {} },
+          { name: 'createdAt', columnName: 'created_at', type: 'timestamp', nullable: false },
+          { name: 'updatedAt', columnName: 'updated_at', type: 'timestamp', nullable: false }
+        ],
+        indexes: [
+          { name: 'idx_pos_database_branch', columns: ['branch_id'] }
+        ]
+      },
+      {
         name: 'pos_terminal',
         label: 'POS Terminal',
         sqlName: 'pos_terminal',
