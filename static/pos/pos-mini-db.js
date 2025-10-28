@@ -1,4 +1,4 @@
-import { createDBAuto } from '../sdk/mishkah.simple-store.js';
+import { createDBAuto } from '../lib/mishkah.simple-store.js';
 
 async function fetchModuleSchema(branchId, moduleId) {
   const params = new URLSearchParams({
