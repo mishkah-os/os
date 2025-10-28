@@ -141,31 +141,31 @@
       const paid = formatCurrency(order.totalPaid ?? order.total_paid ?? 0, { currency, lang });
       const openedAt = order.openedAt || order.opened_at || order.createdAt || order.created_at;
       const opened = openedAt ? new Date(openedAt).toLocaleString(lang === 'en' ? 'en-US' : 'ar-EG') : '—';
-      return D.Tables.Row({ attrs: { class: tw`border-b border-slate-800/60 last:border-b-0` } }, [
-        D.Tables.Cell({ attrs: { class: tw`whitespace-nowrap py-3 text-sm text-slate-200` } }, [order.id || '—']),
-        D.Tables.Cell({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [orderType || '—']),
-        D.Tables.Cell({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [status || '—']),
-        D.Tables.Cell({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [payment || '—']),
-        D.Tables.Cell({ attrs: { class: tw`py-3 text-sm font-semibold text-emerald-300` } }, [paid]),
-        D.Tables.Cell({ attrs: { class: tw`py-3 text-sm text-slate-200` } }, [due]),
-        D.Tables.Cell({ attrs: { class: tw`py-3 text-xs text-slate-400` } }, [opened])
+      return D.Tables.Tr({ attrs: { class: tw`border-b border-slate-800/60 last:border-b-0` } }, [
+        D.Tables.Td({ attrs: { class: tw`whitespace-nowrap py-3 text-sm text-slate-200` } }, [order.id || '—']),
+        D.Tables.Td({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [orderType || '—']),
+        D.Tables.Td({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [status || '—']),
+        D.Tables.Td({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [payment || '—']),
+        D.Tables.Td({ attrs: { class: tw`py-3 text-sm font-semibold text-emerald-300` } }, [paid]),
+        D.Tables.Td({ attrs: { class: tw`py-3 text-sm text-slate-200` } }, [due]),
+        D.Tables.Td({ attrs: { class: tw`py-3 text-xs text-slate-400` } }, [opened])
       ]);
     });
 
     return D.Containers.Div({ attrs: { class: tw`overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/40` } }, [
       D.Tables.Table({ attrs: { class: tw`min-w-full divide-y divide-slate-800/70` } }, [
-        D.Tables.Head({}, [
-          D.Tables.Row({ attrs: { class: tw`bg-slate-900/60` } }, [
-            D.Tables.Header({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الطلب']),
-            D.Tables.Header({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['النوع']),
-            D.Tables.Header({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الحالة']),
-            D.Tables.Header({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الدفع']),
-            D.Tables.Header({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['المدفوع']),
-            D.Tables.Header({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الإجمالي']),
-            D.Tables.Header({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['وقت الفتح'])
+        D.Tables.Thead({}, [
+          D.Tables.Tr({ attrs: { class: tw`bg-slate-900/60` } }, [
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الطلب']),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['النوع']),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الحالة']),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الدفع']),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['المدفوع']),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الإجمالي']),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['وقت الفتح'])
           ])
         ]),
-        D.Tables.Body({}, rows)
+        D.Tables.Tbody({}, rows)
       ]),
       orders.length > limit
         ? D.Containers.Div(
