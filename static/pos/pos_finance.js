@@ -336,10 +336,10 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
 
   const handleCloseDay = async () => {
     const state = app.getState ? app.getState() : app.state;
-     const orders = db ? ensureArray(db.list('order_header')) : [];
-    const payments = db ? ensureArray(db.list('order_payment')) : [];
-    const lines = db ? ensureArray(db.list('order_line')) : [];
-    const shifts = db ? ensureArray(db.list('pos_shift')) : [];
+     let orders_data = db ? ensureArray(db.list('order_header')) : [];
+    let  payments_data = db ? ensureArray(db.list('order_payment')) : [];
+    let  lines_data = db ? ensureArray(db.list('order_line')) : [];
+    let  shifts_data = db ? ensureArray(db.list('pos_shift')) : [];
 
     
     const summary = state?.data?.summary || computeFinancialSummary({
@@ -355,7 +355,7 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
           summary,
           generatedAt: new Date().toISOString()
         };
-      console.log(orders,payments,lines,shifts,state,dataClose)
+      console.log(orders_data,payments_data,lines_data,shifts_data,state,dataClose)
       const response = await fetch('/api/closepos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
