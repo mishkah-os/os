@@ -2241,6 +2241,312 @@
 
     const posDB = createIndexedDBAdapter('mishkah-pos', 4);
 
+    const realtimeOrders = {
+      store: (typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.watch === 'function')
+        ? window.__POS_DB__
+        : null,
+      installed:false,
+      pending:false,
+      ready:false,
+      headers:new Map(),
+      lines:new Map(),
+      payments:new Map(),
+      snapshot:{ orders:[], active:[], history:[] },
+      unsubscribes:[]
+    };
+
+    function normalizeIdToken(value, fallback=''){
+      if(value == null) return fallback;
+      const text = String(value).trim();
+      if(!text) return fallback;
+      const normalized = text.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      return normalized || fallback;
+    }
+
+    function normalizeStatusId(value){
+      return normalizeIdToken(value, 'open');
+    }
+
+    function normalizeStageId(value){
+      return normalizeIdToken(value, 'new');
+    }
+
+    function normalizePaymentStateId(value){
+      return normalizeIdToken(value, 'unpaid');
+    }
+
+    function normalizeRealtimeOrderHeader(raw){
+      if(!raw || !raw.id) return null;
+      const metadata = raw.metadata && typeof raw.metadata === 'object' ? { ...raw.metadata } : {};
+      const tableIdsSet = new Set();
+      if(raw.tableId) tableIdsSet.add(String(raw.tableId));
+      if(Array.isArray(raw.tableIds)) raw.tableIds.forEach(id=>{ if(id != null) tableIdsSet.add(String(id)); });
+      if(Array.isArray(metadata.tableIds)) metadata.tableIds.forEach(entry=>{
+        if(!entry) return;
+        if(typeof entry === 'object' && entry.id != null){
+          tableIdsSet.add(String(entry.id));
+        } else {
+          tableIdsSet.add(String(entry));
+        }
+      });
+      const openedAt = toMillis(raw.openedAt || raw.opened_at);
+      const updatedAt = toMillis(raw.updatedAt || raw.updated_at || raw.closedAt || raw.closed_at, openedAt);
+      const closedAt = raw.closedAt || raw.closed_at ? toMillis(raw.closedAt || raw.closed_at, updatedAt) : null;
+      const notesSource = raw.notes ?? metadata.notes;
+      const notes = Array.isArray(notesSource)
+        ? notesSource.map(note=>{
+            if(!note) return null;
+            if(typeof note === 'object') return { ...note };
+            const message = String(note);
+            if(!message.trim()) return null;
+            return { id:`note-${Math.random().toString(16).slice(2,8)}`, message, createdAt: updatedAt };
+          }).filter(Boolean)
+        : [];
+      const discountValue = Number(raw.discount ?? raw.discountAmount ?? metadata.discountAmount ?? 0) || 0;
+      const discount = discountValue > 0 ? { type:'amount', value: round(discountValue) } : null;
+      const totals = {
+        subtotal: round(raw.subtotal ?? metadata.subtotal ?? 0),
+        service: round(raw.service ?? raw.serviceFee ?? metadata.service ?? 0),
+        vat: round(raw.tax ?? raw.vat ?? metadata.tax ?? 0),
+        discount: round(discountValue > 0 ? discountValue : 0),
+        deliveryFee: round(raw.deliveryFee ?? metadata.deliveryFee ?? 0),
+        due: round(raw.totalDue ?? raw.total_due ?? raw.total ?? metadata.due ?? 0)
+      };
+      totals.total = totals.due;
+      const guests = Number(raw.guests ?? metadata.guests ?? 0) || 0;
+      return {
+        id: String(raw.id),
+        shiftId: raw.shiftId || raw.shift_id || metadata.shiftId || null,
+        posId: raw.posId || raw.pos_id || metadata.posId || null,
+        posLabel: raw.posLabel || metadata.posLabel || null,
+        posNumber: Number.isFinite(Number(raw.posNumber)) ? Number(raw.posNumber) : (Number(metadata.posNumber) || null),
+        type: normalizeOrderTypeId(raw.orderTypeId || raw.order_type_id || raw.type || metadata.orderType || 'dine_in'),
+        status: normalizeStatusId(raw.statusId || raw.status_id || raw.status || metadata.status),
+        fulfillmentStage: normalizeStageId(raw.stageId || raw.stage_id || raw.stage || metadata.stage || metadata.fulfillmentStage),
+        paymentState: normalizePaymentStateId(raw.paymentStateId || raw.payment_state_id || raw.paymentState || metadata.paymentState),
+        tableIds: Array.from(tableIdsSet),
+        guests,
+        notes,
+        totals,
+        discount,
+        openedAt,
+        updatedAt,
+        savedAt: closedAt || updatedAt,
+        closedAt,
+        allowAdditions: metadata.allowAdditions !== undefined ? !!metadata.allowAdditions : true,
+        lockLineEdits: metadata.lockLineEdits === true,
+        metadata,
+        customerId: raw.customerId || raw.customer_id || metadata.customerId || null,
+        customerAddressId: raw.customerAddressId || raw.customer_address_id || metadata.customerAddressId || null,
+        driverId: raw.driverId || raw.driver_id || metadata.driverId || null,
+        openedBy: raw.openedBy || raw.opened_by || metadata.openedBy || null,
+        closedBy: raw.closedBy || raw.closed_by || metadata.closedBy || null,
+        isPersisted: normalizeStatusId(raw.statusId || raw.status_id || raw.status || metadata.status) !== 'draft',
+        dirty:false
+      };
+    }
+
+    function normalizeRealtimeOrderLine(raw, header){
+      if(!raw || !header) return null;
+      const metadata = raw.metadata && typeof raw.metadata === 'object' ? raw.metadata : {};
+      const base = {
+        id: raw.id,
+        order_id: raw.orderId || raw.order_id || header.id,
+        item_id: raw.itemId ?? raw.item_id ?? metadata.itemId,
+        qty: raw.quantity ?? raw.qty ?? metadata.qty ?? 1,
+        price: raw.unitPrice ?? raw.unit_price ?? metadata.unitPrice,
+        total: raw.total ?? metadata.total,
+        notes: Array.isArray(raw.notes) ? raw.notes : (raw.notes ? [raw.notes] : []),
+        discount: metadata.discount || raw.discount,
+        name: metadata.name || metadata.itemName || raw.name,
+        description: metadata.description || raw.description,
+        stage_id: raw.stageId || raw.stage_id || metadata.stageId || header.fulfillmentStage,
+        status_id: raw.statusId || raw.status_id || metadata.statusId || 'draft',
+        kitchen_section_id: raw.kitchenSectionId || raw.kitchen_section_id || metadata.kitchenSectionId,
+        locked: raw.locked ?? metadata.locked
+      };
+      const context = {
+        orderId: header.id,
+        stageId: base.stage_id,
+        kitchenSection: base.kitchen_section_id,
+        actorId: header.openedBy || header.metadata?.openedBy || 'pos',
+        createdAt: header.openedAt,
+        updatedAt: header.updatedAt
+      };
+      return normalizeOrderLine(base, context);
+    }
+
+    function normalizeRealtimePayment(raw){
+      if(!raw || !raw.orderId) return null;
+      const amount = round(raw.amount ?? raw.value ?? 0);
+      const method = raw.paymentMethodId || raw.payment_method_id || raw.methodId || raw.method || 'cash';
+      return {
+        id: raw.id || `${raw.orderId}-payment-${Math.random().toString(16).slice(2,8)}`,
+        orderId: raw.orderId || raw.order_id,
+        shiftId: raw.shiftId || raw.shift_id || null,
+        method,
+        amount,
+        capturedAt: toMillis(raw.capturedAt || raw.captured_at),
+        reference: raw.reference || null
+      };
+    }
+
+    function composeRealtimeOrder(orderId){
+      const rawHeader = realtimeOrders.headers.get(orderId);
+      if(!rawHeader) return null;
+      const header = normalizeRealtimeOrderHeader(rawHeader);
+      if(!header) return null;
+      const lineRows = realtimeOrders.lines.get(orderId) || [];
+      const paymentRows = realtimeOrders.payments.get(orderId) || [];
+      const lines = lineRows.map(row=> normalizeRealtimeOrderLine(row, header)).filter(Boolean);
+      const payments = paymentRows.map(normalizeRealtimePayment).filter(Boolean);
+      const paidTotal = round(payments.reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
+      const totals = {
+        ...header.totals,
+        paid: paidTotal,
+        remaining: Math.max(0, round((header.totals?.due || 0) - paidTotal))
+      };
+      let paymentState = header.paymentState || 'unpaid';
+      if(totals.due > 0){
+        if(paidTotal >= totals.due){
+          paymentState = 'paid';
+        } else if(paidTotal > 0){
+          paymentState = 'partial';
+        } else {
+          paymentState = 'unpaid';
+        }
+      }
+      return {
+        ...header,
+        totals,
+        paymentState,
+        payments,
+        lines,
+        dirty:false,
+        isPersisted: header.isPersisted !== false
+      };
+    }
+
+    function cloneOrderSnapshot(order){
+      return cloneDeep(order);
+    }
+
+    function updateRealtimeSnapshot(){
+      const orders = [];
+      realtimeOrders.headers.forEach((_value, key)=>{
+        const order = composeRealtimeOrder(key);
+        if(order) orders.push(order);
+      });
+      orders.sort((a,b)=> (b.updatedAt || 0) - (a.updatedAt || 0));
+      const active = [];
+      const history = [];
+      orders.forEach(order=>{
+        const bucket = (order.status === 'closed' || order.status === 'finalized') ? history : active;
+        bucket.push(cloneOrderSnapshot(order));
+      });
+      history.forEach((entry, idx)=>{
+        entry.seq = idx + 1;
+        entry.dirty = false;
+        entry.isPersisted = true;
+      });
+      realtimeOrders.snapshot = {
+        orders: orders.map(cloneOrderSnapshot),
+        active,
+        history
+      };
+      realtimeOrders.ready = true;
+      applyRealtimeOrdersToState();
+    }
+
+    function scheduleRealtimeSnapshot(){
+      if(realtimeOrders.pending) return;
+      realtimeOrders.pending = true;
+      Promise.resolve().then(()=>{
+        realtimeOrders.pending = false;
+        updateRealtimeSnapshot();
+      });
+    }
+
+    function getRealtimeOrdersSnapshot(){
+      if(!realtimeOrders.ready){
+        return { orders:[], active:[], history:[] };
+      }
+      return {
+        orders: realtimeOrders.snapshot.orders.map(cloneOrderSnapshot),
+        active: realtimeOrders.snapshot.active.map(cloneOrderSnapshot),
+        history: realtimeOrders.snapshot.history.map(cloneOrderSnapshot)
+      };
+    }
+
+    function applyRealtimeOrdersToState(){
+      if(!realtimeOrders.ready) return;
+      if(!posState || !posState.data) return;
+      const historyClone = realtimeOrders.snapshot.history.map(cloneOrderSnapshot);
+      const activeClone = realtimeOrders.snapshot.active.map(cloneOrderSnapshot);
+      const baseData = posState.data || {};
+      const nextData = {
+        ...baseData,
+        ordersQueue: activeClone,
+        ordersHistory: historyClone
+      };
+      nextData.reports = computeRealtimeReports({ env: posState.env, data: nextData });
+      posState.data = nextData;
+      if(appRef && typeof appRef.setState === 'function'){
+        appRef.setState(prev=>{
+          const prevData = prev.data || {};
+          const mergedData = {
+            ...prevData,
+            ordersQueue: activeClone.map(cloneOrderSnapshot),
+            ordersHistory: historyClone.map(cloneOrderSnapshot)
+          };
+          mergedData.reports = computeRealtimeReports({ env: prev.env || posState.env, data: mergedData });
+          return {
+            ...prev,
+            data: mergedData
+          };
+        });
+      }
+    }
+
+    function installRealtimeOrderWatchers(){
+      if(realtimeOrders.installed) return;
+      if(!realtimeOrders.store) return;
+      const store = realtimeOrders.store;
+      const unsubHeaders = store.watch('order_header', (rows)=>{
+        realtimeOrders.headers.clear();
+        (rows || []).forEach(row=>{
+          if(!row || !row.id) return;
+          realtimeOrders.headers.set(String(row.id), { ...row });
+        });
+        scheduleRealtimeSnapshot();
+      });
+      const unsubLines = store.watch('order_line', (rows)=>{
+        const grouped = new Map();
+        (rows || []).forEach(row=>{
+          if(!row || !row.orderId) return;
+          const orderId = String(row.orderId);
+          if(!grouped.has(orderId)) grouped.set(orderId, []);
+          grouped.get(orderId).push({ ...row });
+        });
+        realtimeOrders.lines = grouped;
+        scheduleRealtimeSnapshot();
+      });
+      const unsubPayments = store.watch('order_payment', (rows)=>{
+        const grouped = new Map();
+        (rows || []).forEach(row=>{
+          if(!row || !row.orderId) return;
+          const orderId = String(row.orderId);
+          if(!grouped.has(orderId)) grouped.set(orderId, []);
+          grouped.get(orderId).push({ ...row });
+        });
+        realtimeOrders.payments = grouped;
+        scheduleRealtimeSnapshot();
+      });
+      realtimeOrders.unsubscribes = [unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
+      realtimeOrders.installed = true;
+    }
+
+
     const pendingKdsMessages = [];
 
     const mergeJobOrderCollections = (current={}, patch={})=>{
@@ -3774,6 +4080,8 @@
       }
     };
 
+    installRealtimeOrderWatchers();
+
     function flushRemoteUpdate(){
       if(!pendingRemoteResult) return;
       const { derived, remote } = pendingRemoteResult;
@@ -3789,27 +4097,27 @@
     }
 
     async function refreshPersistentSnapshot(options={}){
-      if(!posDB.available) return null;
       const { focusCurrent=false, syncOrders=true } = options;
       try{
-        const [allOrders, activeShiftRaw, shiftListRaw, activeOrdersOnly] = await Promise.all([
-          posDB.listOrders({ onlyActive:false }),
-          posDB.getActiveShift(POS_INFO.id),
-          posDB.listShifts({ posId: POS_INFO.id, limit: 100 }),
-          posDB.listOrders({ onlyActive:true })
-        ]);
-        const historyOrders = Array.isArray(allOrders)
-          ? allOrders
-              .filter(order=> order && order.isPersisted !== false && order.dirty !== true && order.status !== 'draft')
-              .map((order, idx)=>({
-                ...order,
-                dirty:false,
-                seq: idx + 1,
-                payments: Array.isArray(order.payments) ? order.payments.map(payment=> ({ ...payment })) : [],
-                lines: Array.isArray(order.lines) ? order.lines.map(line=> ({ ...line })) : []
-              }))
-          : [];
+        const snapshot = getRealtimeOrdersSnapshot();
+        const historyOrders = snapshot.history.map((order, idx)=>({
+          ...order,
+          dirty:false,
+          seq: order.seq || idx + 1,
+          payments: Array.isArray(order.payments) ? order.payments.map(payment=> ({ ...payment })) : [],
+          lines: Array.isArray(order.lines) ? order.lines.map(line=> ({ ...line })) : []
+        }));
         const summarySource = historyOrders;
+        let activeShiftRaw = null;
+        let shiftListRaw = [];
+        if(posDB.available){
+          const result = await Promise.allSettled([
+            posDB.getActiveShift(POS_INFO.id),
+            posDB.listShifts({ posId: POS_INFO.id, limit: 100 })
+          ]);
+          activeShiftRaw = result[0]?.status === 'fulfilled' ? result[0].value : null;
+          shiftListRaw = result[1]?.status === 'fulfilled' ? (result[1].value || []) : [];
+        }
         let currentShift = null;
         if(activeShiftRaw){
           const sanitizedActive = SHIFT_TABLE.createRecord({
@@ -3857,15 +4165,13 @@
               returns: summary.returns
             };
           }) : [];
-        const activeOrders = Array.isArray(activeOrdersOnly) ? activeOrdersOnly.slice() : [];
+        const activeOrders = snapshot.active.map(order=> ({ ...order }));
         const stateSource = appRef && typeof appRef.getState === 'function'
           ? appRef.getState()
           : posState;
         const previousData = stateSource?.data || {};
         const nextData = {
           ...previousData,
-          ordersQueue: activeOrders,
-          ordersHistory: syncOrders ? historyOrders : previousData.ordersHistory,
           shift:{
             ...(previousData.shift || {}),
             current: currentShift,
@@ -3882,9 +4188,14 @@
           },
           status:{
             ...(previousData.status || {}),
-            indexeddb:{ state:'online', lastSync: Date.now() }
+            indexeddb:{ state: posDB.available ? 'online' : 'offline', lastSync: Date.now() }
           }
         };
+        if(syncOrders){
+          nextData.ordersQueue = activeOrders;
+          nextData.ordersHistory = historyOrders;
+          nextData.reports = computeRealtimeReports({ env: stateSource?.env || posState.env, data: nextData });
+        }
         const nextUi = {
           ...(stateSource?.ui || {}),
           shift:{
@@ -3900,6 +4211,9 @@
             data: nextData,
             ui: nextUi
           }));
+        }
+        if(syncOrders){
+          applyRealtimeOrdersToState();
         }
         return { current: currentShift, history, orders: historyOrders };
       } catch(error){
@@ -4045,7 +4359,8 @@
           }
         }
         await posDB.markSync();
-        const latestOrders = await posDB.listOrders({ onlyActive:true });
+        const latestSnapshot = getRealtimeOrdersSnapshot();
+        const latestOrders = latestSnapshot.active.map(order=> ({ ...order }));
         ctx.setState(s=>{
           const data = s.data || {};
           const history = Array.isArray(data.ordersHistory) ? data.ordersHistory.slice() : [];
@@ -8938,26 +9253,21 @@
       'pos.orders.open':{
         on:['click'],
         gkeys:['pos:orders:open'],
-        handler: async (e,ctx)=>{
+        handler:(e,ctx)=>{
           const state = ctx.getState();
           const t = getTexts(state);
           const defaultOrdersUi = { tab:'all', search:'', sort:{ field:'updatedAt', direction:'desc' } };
-          if(posDB.available){
-            try{
-              const orders = await posDB.listOrders({ onlyActive:true });
-              ctx.setState(s=>({
-                ...s,
-                data:{ ...(s.data || {}), ordersQueue: orders },
-                ui:{ ...(s.ui || {}), orders: defaultOrdersUi, modals:{ ...(s.ui?.modals || {}), orders:true } }
-              }));
-              UI.pushToast(ctx, { title:t.toast.orders_loaded, icon:'📥' });
-              return;
-            } catch(error){
-              UI.pushToast(ctx, { title:t.toast.orders_failed, message:String(error), icon:'🛑' });
-            }
-          } else {
-            UI.pushToast(ctx, { title:t.toast.indexeddb_missing, icon:'⚠️' });
+          if(realtimeOrders.ready){
+            const snapshot = getRealtimeOrdersSnapshot();
+            ctx.setState(s=>({
+              ...s,
+              data:{ ...(s.data || {}), ordersQueue: snapshot.active.map(order=> ({ ...order })) },
+              ui:{ ...(s.ui || {}), orders: defaultOrdersUi, modals:{ ...(s.ui?.modals || {}), orders:true } }
+            }));
+            UI.pushToast(ctx, { title:t.toast.orders_loaded, icon:'📥' });
+            return;
           }
+          UI.pushToast(ctx, { title:t.toast.orders_failed, icon:'🛑' });
           ctx.setState(s=>({
             ...s,
             ui:{ ...(s.ui || {}), orders: defaultOrdersUi, modals:{ ...(s.ui?.modals || {}), orders:true } }
@@ -9018,23 +9328,19 @@
       'pos.orders.refresh':{
         on:['click'],
         gkeys:['pos:orders:refresh'],
-        handler: async (e,ctx)=>{
+        handler:(e,ctx)=>{
           const state = ctx.getState();
           const t = getTexts(state);
-          if(!posDB.available){
-            UI.pushToast(ctx, { title:t.toast.indexeddb_missing, icon:'⚠️' });
+          if(!realtimeOrders.ready){
+            UI.pushToast(ctx, { title:t.toast.orders_failed, icon:'🛑' });
             return;
           }
-          try{
-            const orders = await posDB.listOrders({ onlyActive:true });
-            ctx.setState(s=>({
-              ...s,
-              data:{ ...(s.data || {}), ordersQueue: orders }
-            }));
-            UI.pushToast(ctx, { title:t.toast.orders_loaded, icon:'📥' });
-          } catch(error){
-            UI.pushToast(ctx, { title:t.toast.orders_failed, message:String(error), icon:'🛑' });
-          }
+          const snapshot = getRealtimeOrdersSnapshot();
+          ctx.setState(s=>({
+            ...s,
+            data:{ ...(s.data || {}), ordersQueue: snapshot.active.map(order=> ({ ...order })) }
+          }));
+          UI.pushToast(ctx, { title:t.toast.orders_loaded, icon:'📥' });
         }
       },
       'pos.orders.viewJobs':{
@@ -9633,14 +9939,15 @@
           }
           try{
             UI.pushToast(ctx, { title:t.toast.indexeddb_syncing, icon:'🔄' });
-            const orders = await posDB.listOrders();
             await posDB.markSync();
+            const snapshot = getRealtimeOrdersSnapshot();
+            const totalOrders = snapshot.orders.length;
             ctx.setState(s=>({
               ...s,
               data:{
                 ...s.data,
                 status:{ ...s.data.status, indexeddb:{ state:'online', lastSync: Date.now() } },
-                reports:{ ...(s.data.reports || {}), ordersCount: orders.length }
+                reports:{ ...(s.data.reports || {}), ordersCount: totalOrders }
               }
             }));
             UI.pushToast(ctx, { title:t.toast.sync_complete, icon:'✅' });
@@ -9706,8 +10013,6 @@
 
     app.setOrders(Object.assign({}, UI.orders, auto.orders, posOrders));
     app.mount('#app');
-    if(posDB.available){
-      await refreshPersistentSnapshot({ focusCurrent:true, syncOrders:true });
-    }
+    await refreshPersistentSnapshot({ focusCurrent:true, syncOrders:true });
   })();
 
