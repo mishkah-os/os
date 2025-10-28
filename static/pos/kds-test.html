@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mishkah KDS Mini</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #020617;
+        --surface: rgba(15, 23, 42, 0.86);
+        --ticket: rgba(8, 15, 28, 0.68);
+        --border: rgba(148, 163, 184, 0.24);
+        --accent: linear-gradient(135deg, #f97316, #facc15);
+        --text: #f8fafc;
+        --muted: rgba(148, 163, 184, 0.7);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, rgba(251, 191, 36, 0.12), transparent 55%), var(--bg);
+        color: var(--text);
+        font-family: "Inter", "Tajawal", system-ui, sans-serif;
+        padding: clamp(1.5rem, 3vw, 2.5rem);
+        display: flex;
+        justify-content: center;
+      }
+
+      .kds-shell {
+        width: min(1280px, 100%);
+        display: grid;
+        gap: clamp(1.2rem, 2.2vw, 2rem);
+      }
+
+      .kds-header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .kds-title {
+        margin: 0;
+        font-size: clamp(1.4rem, 2.5vw, 2rem);
+        font-weight: 800;
+      }
+
+      .kds-pill {
+        padding: 0.35rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        font-size: 0.82rem;
+        color: var(--muted);
+        background: rgba(15, 23, 42, 0.6);
+      }
+
+      .kds-columns {
+        display: grid;
+        gap: clamp(1.2rem, 2vw, 1.8rem);
+      }
+
+      @media (min-width: 1024px) {
+        .kds-columns {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      .kds-section {
+        background: var(--surface);
+        border-radius: 26px;
+        border: 1px solid var(--border);
+        box-shadow: 0 38px 70px -58px rgba(15, 23, 42, 0.9);
+        padding: clamp(1.4rem, 3vw, 2.2rem);
+        display: grid;
+        gap: 1rem;
+      }
+
+      .kds-section header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.6rem;
+      }
+
+      .kds-section h2 {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+
+      .kds-tickets {
+        display: grid;
+        gap: 0.85rem;
+      }
+
+      .kds-ticket {
+        border-radius: 20px;
+        border: 1px solid rgba(248, 250, 252, 0.12);
+        padding: 1rem 1.1rem;
+        background: var(--ticket);
+        display: grid;
+        gap: 0.6rem;
+      }
+
+      .kds-ticket strong {
+        font-weight: 600;
+        font-size: 1rem;
+      }
+
+      .kds-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+
+      .kds-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+      }
+
+      .kds-btn {
+        border: none;
+        border-radius: 14px;
+        padding: 0.5rem 1.1rem;
+        font: inherit;
+        cursor: pointer;
+        background: rgba(251, 146, 60, 0.18);
+        color: #fed7aa;
+      }
+
+      .kds-btn.secondary {
+        background: rgba(52, 211, 153, 0.16);
+        color: #bbf7d0;
+      }
+
+      .kds-empty {
+        padding: 1.25rem;
+        text-align: center;
+        border-radius: 20px;
+        border: 1px dashed rgba(148, 163, 184, 0.28);
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script src="./lib/mishkah-utils.js"></script>
+    <script src="./lib/mishkah.core.js"></script>
+    <script type="module">
+      import { createPosDb } from './pos-mini-db.js';
+      import { ensurePosIdentity, localizeText, formatCurrency } from './pos-mini-utils.js';
+
+      ensurePosIdentity(window);
+
+      const params = new URLSearchParams(window.location.search || '');
+      const BRANCH_ID =
+        params.get('branch') ||
+        params.get('branchId') ||
+        params.get('brname') ||
+        window.POS_BRANCH_PARAM ||
+        'dar';
+
+      const INITIAL_STATE = {
+        status: 'connecting',
+        branchId: BRANCH_ID,
+        lang: 'ar',
+        sections: [],
+        orders: {},
+        linesBySection: {}
+      };
+
+      const database = {
+        head: { title: 'Mishkah KDS Mini' },
+        env: { theme: 'dark', lang: 'ar', dir: 'rtl' },
+        data: INITIAL_STATE
+      };
+
+      const orders = {};
+      let app;
+
+      const runtime = {
+        orderHeaders: new Map(),
+        sectionIndex: new Map(),
+        statusList: ['queued', 'preparing', 'ready', 'served']
+      };
+
+      let dynamicHandlers = {};
+
+      function rebuildHandlers(state) {
+        dynamicHandlers = {};
+        for (const section of state.sections) {
+          const lines = state.linesBySection[section.id] || [];
+          for (const line of lines) {
+            const advanceKey = `kds:advance:${line.lineId}`;
+            dynamicHandlers[advanceKey] = {
+              on: ['click'],
+              gkeys: [advanceKey],
+              handler: () => advanceLineStatus(line)
+            };
+            const resetKey = `kds:reset:${line.lineId}`;
+            dynamicHandlers[resetKey] = {
+              on: ['click'],
+              gkeys: [resetKey],
+              handler: () => resetLineStatus(line)
+            };
+          }
+        }
+        if (app) {
+          app.setOrders(dynamicHandlers);
+        }
+      }
+
+      function updateState(mutator) {
+        if (!app) return;
+        app.setState((previous) => {
+          const nextData =
+            typeof mutator === 'function' ? mutator(previous.data || INITIAL_STATE) : mutator;
+          return { ...previous, data: nextData };
+        });
+        rebuildHandlers(app.getState().data);
+      }
+
+      function normalizeSection(section) {
+        if (!section) return null;
+        const normalized = {
+          id: section.id || section.section_id || section.sectionId,
+          name: localizeText(section.section_name || section.name || section.label, 'ar'),
+          description: localizeText(section.description || {}, 'ar')
+        };
+        runtime.sectionIndex.set(normalized.id, normalized);
+        return normalized;
+      }
+
+      function normalizeLine(record) {
+        if (!record) return null;
+        const header = runtime.orderHeaders.get(record.orderId) || {};
+        const metadata = record.metadata || {};
+        return {
+          lineId: record.id,
+          orderId: record.orderId,
+          sectionId: record.kitchenSectionId || metadata.sectionId || 'general',
+          statusId: record.statusId || 'queued',
+          quantity: record.quantity || 1,
+          unitPrice: record.unitPrice || 0,
+          total: record.total || 0,
+          itemName: metadata.itemNameAr || metadata.itemName || `صنف #${record.itemId}`,
+          orderStatus: header.statusId || 'open',
+          createdAt: header.openedAt || record.createdAt
+        };
+      }
+
+      function regroupLines(lines) {
+        const result = {};
+        for (const line of lines) {
+          const sectionId = line.sectionId || 'general';
+          if (!result[sectionId]) result[sectionId] = [];
+          result[sectionId].push(line);
+        }
+        return result;
+      }
+
+      function advanceLineStatus(line) {
+        const currentIndex = runtime.statusList.indexOf(line.statusId);
+        const nextStatus = runtime.statusList[Math.min(runtime.statusList.length - 1, currentIndex + 1)] || 'ready';
+        persistLineStatus(line, nextStatus);
+      }
+
+      function resetLineStatus(line) {
+        persistLineStatus(line, 'queued');
+      }
+
+      async function persistLineStatus(line, nextStatus) {
+        try {
+          await posDb.update('order_line', { id: line.lineId, statusId: nextStatus });
+        } catch (error) {
+          console.error('[KDS-Mini] failed to update line status', error);
+        }
+      }
+
+      window.Mishkah.app.setBody((stateWrapper, D) => {
+        const state = stateWrapper.data || INITIAL_STATE;
+        const lang = state.lang || 'ar';
+
+        const header = D.Containers.Div({ attrs: { class: 'kds-header' } }, [
+          D.Text.H1({ attrs: { class: 'kds-title' } }, ['شاشة المطبخ — المصغّر']),
+          D.Text.Span({ attrs: { class: 'kds-pill' } }, [`الحالة: ${state.status}`])
+        ]);
+
+        const sectionCards = state.sections.map((section) => {
+          const lines = state.linesBySection[section.id] || [];
+          const tickets = lines.length
+            ? lines.map((line) =>
+                D.Containers.Div({ attrs: { class: 'kds-ticket' } }, [
+                  D.Text.Strong({}, [line.itemName]),
+                  D.Containers.Div({ attrs: { class: 'kds-meta' } }, [
+                    D.Text.Span({}, [`طلب: ${line.orderId}`]),
+                    D.Text.Span({}, [`الكمية: ${line.quantity}`]),
+                    D.Text.Span({}, [`الحالة: ${line.statusId}`]),
+                    D.Text.Span({}, [`السعر: ${formatCurrency(line.total, { lang })}`])
+                  ]),
+                  D.Containers.Div({ attrs: { class: 'kds-actions' } }, [
+                    D.Forms.Button(
+                      {
+                        attrs: {
+                          type: 'button',
+                          class: 'kds-btn',
+                          gkey: `kds:advance:${line.lineId}`
+                        }
+                      },
+                      ['تقدم الحالة']
+                    ),
+                    D.Forms.Button(
+                      {
+                        attrs: {
+                          type: 'button',
+                          class: 'kds-btn secondary',
+                          gkey: `kds:reset:${line.lineId}`
+                        }
+                      },
+                      ['إرجاع للانتظار']
+                    )
+                  ])
+                ])
+              )
+            : [
+                D.Containers.Div(
+                  { attrs: { class: 'kds-empty' } },
+                  ['لا توجد طلبات حالياً في هذا القسم.']
+                )
+              ];
+
+          return D.Containers.Section({ attrs: { class: 'kds-section' } }, [
+            D.Containers.Header({}, [
+              D.Text.H2({}, [section.name]),
+              section.description ? D.Text.Span({ attrs: { class: 'kds-pill' } }, [section.description]) : null
+            ]),
+            D.Containers.Div({ attrs: { class: 'kds-tickets' } }, tickets)
+          ]);
+        });
+
+        return D.Containers.Div({ attrs: { class: 'kds-shell' } }, [
+          header,
+          D.Containers.Div({ attrs: { class: 'kds-columns' } }, sectionCards)
+        ]);
+      });
+
+      const posDbPromise = createPosDb({ branchId: BRANCH_ID });
+      app = window.Mishkah.app.createApp(database, orders);
+      app.mount('#app');
+      const { db: posDb } = await posDbPromise;
+
+      posDb.status((payload) => {
+        const status = typeof payload === 'string' ? payload : payload?.status || 'idle';
+        updateState((state) => ({ ...state, status }));
+      });
+
+      posDb.watch('pos_database', (rows) => {
+        if (!rows || !rows.length) return;
+        const latest = rows[rows.length - 1];
+        if (!latest || !latest.payload) return;
+        const sectionsRaw = latest.payload.kitchen_sections || [];
+        const normalizedSections = sectionsRaw.map(normalizeSection).filter(Boolean);
+        if (!normalizedSections.find((entry) => entry.id === 'general')) {
+          normalizedSections.push({ id: 'general', name: 'عام', description: 'طلبات بدون قسم محدد' });
+        }
+        updateState((state) => ({
+          ...state,
+          sections: normalizedSections
+        }));
+      });
+
+      posDb.watch('order_header', (rows) => {
+        runtime.orderHeaders.clear();
+        for (const row of rows || []) {
+          runtime.orderHeaders.set(row.id, row);
+        }
+      });
+
+      posDb.watch('order_line', (rows) => {
+        const normalized = (rows || []).map(normalizeLine).filter(Boolean);
+        const grouped = regroupLines(normalized);
+        updateState((state) => ({
+          ...state,
+          linesBySection: grouped
+        }));
+      });
+
+      rebuildHandlers(INITIAL_STATE);
+    </script>
+  </body>
+</html>

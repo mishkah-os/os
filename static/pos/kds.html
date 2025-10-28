@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>مشكاة — شاشة المطبخ (KDS)</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    html, body {
+      height: 100%;
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at top, #0f172a 0%, #020617 55%);
+      font-family: "Tajawal", "Cairo", system-ui, sans-serif;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      color: #f8fafc;
+    }
+    #app {
+      flex: 1 1 auto;
+      display: flex;
+      min-height: 100vh;
+    }
+  </style>
+  <script src="../lib/mishkah-utils.js"></script>
+  <script src="../lib/mishkah.core.js"></script>
+  <script src="../lib/mishkah-ui.js"></script>
+  <script src="../lib/mishkah-schema.js"></script>
+  <script src="./schema-kds.js"></script>
+  <script src="./pos-mock-data.js"></script>
+  <script src="./kds-mock-data.js"></script>
+  <script>
+    // غيّر القيمة التالية إذا احتجت تشغيل شاشة KDS على قناة مختلفة عن POS.
+    window.MishkahBranchChannel = 'branch-main';
+    window.MishkahKdsChannel = window.MishkahBranchChannel;
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="./kds.js"></script>
+</body>
+</html>

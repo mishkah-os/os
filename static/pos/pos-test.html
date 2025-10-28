@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mishkah POS Mini</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f172a;
+        --surface-1: rgba(15, 23, 42, 0.85);
+        --surface-2: rgba(21, 32, 50, 0.68);
+        --border: rgba(148, 163, 184, 0.22);
+        --accent: linear-gradient(135deg, #6366f1, #22d3ee);
+        --text: #f8fafc;
+        --muted: rgba(148, 163, 184, 0.7);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 55%), var(--bg);
+        color: var(--text);
+        font-family: "Inter", "Tajawal", system-ui, sans-serif;
+        padding: clamp(1.5rem, 3vw, 2.5rem);
+        display: flex;
+        justify-content: center;
+      }
+
+      .pos-mini-shell {
+        width: min(1320px, 100%);
+        display: grid;
+        grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+        gap: clamp(1.5rem, 3vw, 2.5rem);
+      }
+
+      .pos-mini-card {
+        background: var(--surface-1);
+        border-radius: 26px;
+        border: 1px solid var(--border);
+        box-shadow: 0 38px 70px -48px rgba(15, 23, 42, 0.9);
+        padding: clamp(1.6rem, 3vw, 2.2rem);
+        display: flex;
+        flex-direction: column;
+        gap: clamp(1.1rem, 2vw, 1.6rem);
+      }
+
+      .pos-mini-header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .pos-mini-title {
+        margin: 0;
+        font-size: clamp(1.4rem, 2.5vw, 2rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+
+      .pos-mini-pill {
+        padding: 0.35rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        font-size: 0.82rem;
+        color: var(--muted);
+        background: rgba(15, 23, 42, 0.6);
+      }
+
+      .pos-mini-sections {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+      }
+
+      .pos-mini-section-btn {
+        border: 1px solid transparent;
+        border-radius: 18px;
+        padding: 0.55rem 1.1rem;
+        font: inherit;
+        cursor: pointer;
+        background: rgba(71, 85, 105, 0.16);
+        color: inherit;
+        transition: border 0.2s, background 0.2s;
+      }
+
+      .pos-mini-section-btn[data-active="true"] {
+        border-color: rgba(99, 102, 241, 0.45);
+        background: rgba(99, 102, 241, 0.12);
+        color: #c7d2fe;
+      }
+
+      .pos-mini-menu {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: clamp(0.8rem, 1.8vw, 1.4rem);
+      }
+
+      .pos-mini-item {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1rem;
+        border-radius: 24px;
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: var(--surface-2);
+        cursor: pointer;
+        min-height: 220px;
+        transition: border 0.2s, transform 0.2s;
+      }
+
+      .pos-mini-item:hover {
+        border-color: rgba(99, 102, 241, 0.45);
+        transform: translateY(-2px);
+      }
+
+      .pos-mini-item img {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 18px;
+        background: rgba(15, 23, 42, 0.4);
+      }
+
+      .pos-mini-item h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .pos-mini-item p {
+        margin: 0;
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+
+      .pos-mini-item .price {
+        margin-top: auto;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #a5b4fc;
+      }
+
+      .pos-mini-cart {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .pos-mini-cart-line {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 0.4rem;
+        padding: 0.85rem 1rem;
+        border-radius: 18px;
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(148, 163, 184, 0.15);
+      }
+
+      .pos-mini-cart-line h4 {
+        margin: 0 0 0.35rem;
+        font-size: 0.98rem;
+        font-weight: 600;
+      }
+
+      .pos-mini-cart-line small {
+        color: var(--muted);
+        display: block;
+        font-size: 0.78rem;
+      }
+
+      .pos-mini-cart-actions {
+        display: flex;
+        gap: 0.35rem;
+        align-items: center;
+        justify-content: flex-end;
+      }
+
+      .pos-mini-btn {
+        border: none;
+        border-radius: 16px;
+        padding: 0.55rem 1.1rem;
+        font: inherit;
+        cursor: pointer;
+        background: rgba(99, 102, 241, 0.18);
+        color: #c7d2fe;
+      }
+
+      .pos-mini-btn.danger {
+        background: rgba(248, 113, 113, 0.16);
+        color: #fecaca;
+      }
+
+      .pos-mini-btn.solid {
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        box-shadow: 0 24px 50px -36px rgba(34, 211, 238, 0.8);
+      }
+
+      .pos-mini-totals {
+        margin-top: 0.5rem;
+        display: grid;
+        gap: 0.35rem;
+        font-size: 0.9rem;
+      }
+
+      .pos-mini-empty {
+        text-align: center;
+        padding: 1.4rem;
+        border-radius: 18px;
+        border: 1px dashed rgba(148, 163, 184, 0.25);
+        color: var(--muted);
+      }
+
+      .pos-mini-toast {
+        font-size: 0.86rem;
+        padding: 0.65rem 1rem;
+        border-radius: 16px;
+        background: rgba(34, 197, 94, 0.16);
+        border: 1px solid rgba(34, 197, 94, 0.25);
+        color: #bbf7d0;
+      }
+
+      .pos-mini-toast.error {
+        background: rgba(248, 113, 113, 0.16);
+        border-color: rgba(248, 113, 113, 0.25);
+        color: #fecaca;
+      }
+
+      @media (max-width: 1024px) {
+        .pos-mini-shell {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script src="./lib/mishkah-utils.js"></script>
+    <script src="./lib/mishkah.core.js"></script>
+    <script type="module">
+      import { createPosDb } from './pos-mini-db.js';
+      import {
+        ensurePosIdentity,
+        localizeText,
+        formatCurrency,
+        calculateTotals,
+        generateOrderId,
+        deriveMenuFromSnapshot,
+        roundCurrency
+      } from './pos-mini-utils.js';
+
+      ensurePosIdentity(window);
+
+      const params = new URLSearchParams(window.location.search || '');
+      const BRANCH_ID =
+        params.get('branch') ||
+        params.get('branchId') ||
+        params.get('brname') ||
+        window.POS_BRANCH_PARAM ||
+        'dar';
+
+      const INITIAL_STATE = {
+        status: 'connecting',
+        branchId: BRANCH_ID,
+        lang: 'ar',
+        categories: [],
+        items: [],
+        activeCategoryId: null,
+        cart: [],
+        totals: calculateTotals([]),
+        lastOrderId: null,
+        submissionStatus: null,
+        submissionMessage: '',
+        shiftId: null
+      };
+
+      const database = {
+        head: { title: 'Mishkah POS Mini' },
+        env: { theme: 'dark', lang: 'ar', dir: 'rtl' },
+        data: INITIAL_STATE
+      };
+
+      const orders = {};
+      let app;
+
+      const runtime = {
+        menuIndex: new Map(),
+        menuByCategory: new Map(),
+        payload: {},
+        employee: null,
+        posInfo: {},
+        tables: [],
+        kitchenSections: [],
+        orderStatuses: [],
+        lineStatuses: []
+      };
+
+      let dynamicHandlers = {};
+      let currentShiftId = null;
+
+      function rebuildHandlers(state) {
+        dynamicHandlers = {};
+        for (const category of state.categories) {
+          const key = `pos:category:${category.id || 'all'}`;
+          dynamicHandlers[key] = {
+            on: ['click'],
+            gkeys: [key],
+            handler: () => selectCategory(category.id)
+          };
+        }
+        for (const item of state.items) {
+          const key = `pos:menu:add:${item.uid}`;
+          dynamicHandlers[key] = {
+            on: ['click'],
+            gkeys: [key],
+            handler: () => addItemToCart(item.id)
+          };
+        }
+        for (const line of state.cart) {
+          const removeKey = `pos:cart:remove:${line.key}`;
+          const increaseKey = `pos:cart:inc:${line.key}`;
+          const decreaseKey = `pos:cart:dec:${line.key}`;
+          dynamicHandlers[removeKey] = {
+            on: ['click'],
+            gkeys: [removeKey],
+            handler: () => removeLine(line.key)
+          };
+          dynamicHandlers[increaseKey] = {
+            on: ['click'],
+            gkeys: [increaseKey],
+            handler: () => changeQuantity(line.key, line.quantity + 1)
+          };
+          dynamicHandlers[decreaseKey] = {
+            on: ['click'],
+            gkeys: [decreaseKey],
+            handler: () => changeQuantity(line.key, line.quantity - 1)
+          };
+        }
+        const baseHandlers = {
+          'pos:cart:clear': {
+            on: ['click'],
+            gkeys: ['pos:cart:clear'],
+            handler: clearCart
+          },
+          'pos:order:submit': {
+            on: ['click'],
+            gkeys: ['pos:order:submit'],
+            handler: submitOrder
+          }
+        };
+        if (app) {
+          app.setOrders(Object.assign({}, baseHandlers, dynamicHandlers));
+        }
+      }
+
+      function updateState(mutator) {
+        if (!app) return;
+        app.setState((previous) => {
+          const next = typeof mutator === 'function' ? mutator(previous.data || INITIAL_STATE) : mutator;
+          return { ...previous, data: next };
+        });
+        const data = app.getState().data;
+        rebuildHandlers(data);
+      }
+
+      function selectCategory(categoryId) {
+        updateState((state) => {
+          const nextCategory = categoryId || null;
+          const items =
+            nextCategory && runtime.menuByCategory.has(nextCategory)
+              ? runtime.menuByCategory.get(nextCategory).map(normalizeMenuItem)
+              : Array.from(runtime.menuIndex.values());
+          return {
+            ...state,
+            activeCategoryId: nextCategory,
+            items
+          };
+        });
+      }
+
+      function normalizeMenuItem(raw) {
+        if (!raw) return null;
+        const existing = runtime.menuIndex.get(raw.id);
+        if (existing) return existing;
+        const price = Number(raw.pricing?.base ?? raw.basePrice ?? raw.price ?? 0);
+        const normalized = {
+          id: raw.id,
+          uid: `${raw.id}`,
+          categoryId: raw.category_id || raw.categoryId || null,
+          kitchenSectionId: raw.kitchen_section_id || raw.kitchenSectionId || null,
+          nameAr: localizeText(raw.item_name || raw.nameAr || raw.name, 'ar'),
+          nameEn: localizeText(raw.item_name || raw.nameEn || raw.name, 'en'),
+          descriptionAr: localizeText(raw.item_description || raw.descriptionAr || raw.description, 'ar'),
+          descriptionEn: localizeText(raw.item_description || raw.descriptionEn || raw.description, 'en'),
+          image: raw.media?.image || raw.image || null,
+          unitPrice: roundCurrency(price)
+        };
+        runtime.menuIndex.set(raw.id, normalized);
+        return normalized;
+      }
+
+      function rebuildMenuFromPayload(payload = {}) {
+        const { items, categories, byCategory } = deriveMenuFromSnapshot(payload);
+        runtime.menuIndex.clear();
+        runtime.menuByCategory.clear();
+        const normalizedCategories = [{ id: null, label: 'الكل' }];
+        for (const category of categories) {
+          const entry = {
+            id: category.id,
+            label: localizeText(category.category_name || category.name || category.label, 'ar')
+          };
+          normalizedCategories.push(entry);
+          const bucket = byCategory.get(category.id);
+          if (bucket) {
+            const normalizedItems = bucket.items.map(normalizeMenuItem).filter(Boolean);
+            runtime.menuByCategory.set(category.id, normalizedItems);
+          }
+        }
+        const normalizedItems = items.map(normalizeMenuItem).filter(Boolean);
+        updateState((state) => ({
+          ...state,
+          status: 'ready',
+          categories: normalizedCategories,
+          items: normalizedItems
+        }));
+      }
+
+      let cartLineCounter = 0;
+      function addItemToCart(itemId) {
+        const item = runtime.menuIndex.get(itemId);
+        if (!item) return;
+        updateState((state) => {
+          const existing = state.cart.find((line) => line.itemId === itemId);
+          let nextCart;
+          if (existing) {
+            nextCart = state.cart.map((line) =>
+              line.itemId === itemId
+                ? { ...line, quantity: line.quantity + 1, total: roundCurrency((line.quantity + 1) * line.unitPrice) }
+                : line
+            );
+          } else {
+            const key = `line-${++cartLineCounter}`;
+            nextCart = state.cart.concat([
+              {
+                key,
+                itemId,
+                nameAr: item.nameAr,
+                nameEn: item.nameEn,
+                unitPrice: item.unitPrice,
+                quantity: 1,
+                total: roundCurrency(item.unitPrice),
+                kitchenSectionId: item.kitchenSectionId,
+                image: item.image || null,
+                numericId: Math.floor(Math.random() * 1_000_000)
+              }
+            ]);
+          }
+          return {
+            ...state,
+            cart: nextCart,
+            totals: calculateTotals(nextCart.map((line) => ({
+              quantity: line.quantity,
+              unitPrice: line.unitPrice
+            }))),
+            submissionStatus: null,
+            submissionMessage: ''
+          };
+        });
+      }
+
+      function changeQuantity(key, quantity) {
+        updateState((state) => {
+          const nextQty = Math.max(0, quantity);
+          const nextCart = state.cart
+            .map((line) => {
+              if (line.key !== key) return line;
+              if (nextQty === 0) return null;
+              return { ...line, quantity: nextQty, total: roundCurrency(nextQty * line.unitPrice) };
+            })
+            .filter(Boolean);
+          return {
+            ...state,
+            cart: nextCart,
+            totals: calculateTotals(nextCart.map((line) => ({
+              quantity: line.quantity,
+              unitPrice: line.unitPrice
+            })))
+          };
+        });
+      }
+
+      function removeLine(key) {
+        updateState((state) => {
+          const nextCart = state.cart.filter((line) => line.key !== key);
+          return {
+            ...state,
+            cart: nextCart,
+            totals: calculateTotals(nextCart.map((line) => ({
+              quantity: line.quantity,
+              unitPrice: line.unitPrice
+            })))
+          };
+        });
+      }
+
+      function clearCart() {
+        updateState((state) => ({
+          ...state,
+          cart: [],
+          totals: calculateTotals([]),
+          submissionStatus: null,
+          submissionMessage: ''
+        }));
+      }
+
+      async function ensureShift() {
+        if (currentShiftId) return currentShiftId;
+        const cashier = runtime.employee || { id: 'cashier-mini', full_name: 'Cashier Mini', role: 'cashier' };
+        const pos = runtime.posInfo || {};
+        const created = await posDb.insert('pos_shift', {
+          posId: pos.id || 'pos-mini',
+          posLabel: pos.label || 'POS Mini',
+          posNumber: Number(pos.number) || 1,
+          cashierId: cashier.id,
+          cashierName: cashier.full_name || cashier.name || 'Cashier',
+          cashierRole: cashier.role || 'cashier',
+          employeeId: cashier.id,
+          openedBy: cashier.id,
+          status: 'open',
+          isClosed: false,
+          totalsByType: {},
+          paymentsByMethod: {},
+          countsByType: {},
+          ordersCount: 0,
+          orders: [],
+          totalSales: 0
+        });
+        currentShiftId = created.id;
+        return currentShiftId;
+      }
+
+      async function submitOrder(event) {
+        event?.preventDefault?.();
+        const state = app.getState().data;
+        if (!state.cart.length) {
+          updateState((prev) => ({
+            ...prev,
+            submissionStatus: 'error',
+            submissionMessage: 'الرجاء إضافة عناصر للسلة قبل الحفظ.'
+          }));
+          return;
+        }
+
+        try {
+          updateState((prev) => ({
+            ...prev,
+            submissionStatus: 'pending',
+            submissionMessage: 'جاري حفظ الطلب في الخادم المركزي...'
+          }));
+
+          const shiftId = await ensureShift();
+          const totals = calculateTotals(
+            state.cart.map((line) => ({ quantity: line.quantity, unitPrice: line.unitPrice }))
+          );
+          const orderId = generateOrderId('ord');
+          const nowIso = new Date().toISOString();
+
+          await posDb.insert('order_header', {
+            id: orderId,
+            shiftId,
+            posId: (runtime.posInfo && runtime.posInfo.id) || 'pos-mini',
+            posNumber: Number(runtime.posInfo?.number) || 1,
+            orderTypeId: 'dine_in',
+            statusId: 'open',
+            stageId: 'new',
+            paymentStateId: 'unpaid',
+            tableId: runtime.tables[0]?.id || null,
+            openedBy: runtime.employee?.id || 'cashier-mini',
+            guests: 1,
+            subtotal: totals.subtotal,
+            discount: totals.discount,
+            service: totals.service,
+            tax: totals.tax,
+            deliveryFee: totals.deliveryFee,
+            totalDue: totals.due,
+            totalPaid: 0,
+            metadata: {
+              source: 'pos-test',
+              branchId: BRANCH_ID,
+              submittedAt: nowIso
+            },
+            notes: []
+          });
+
+          for (const line of state.cart) {
+            await posDb.insert('order_line', {
+              orderId,
+              itemId: line.numericId || Math.floor(Math.random() * 1000000),
+              kitchenSectionId: line.kitchenSectionId || null,
+              statusId: 'queued',
+              quantity: line.quantity,
+              unitPrice: roundCurrency(line.unitPrice),
+              total: roundCurrency(line.total),
+              metadata: {
+                itemId: line.itemId,
+                itemNameAr: line.nameAr,
+                itemNameEn: line.nameEn,
+                image: line.image || null,
+                sectionId: line.kitchenSectionId || null,
+                source: 'pos-test'
+              }
+            });
+          }
+
+          clearCart();
+          updateState((prev) => ({
+            ...prev,
+            lastOrderId: orderId,
+            submissionStatus: 'success',
+            submissionMessage: `تم حفظ الطلب بنجاح • رقم ${orderId}`
+          }));
+        } catch (error) {
+          console.error('[POS-Mini] failed to submit order', error);
+          updateState((prev) => ({
+            ...prev,
+            submissionStatus: 'error',
+            submissionMessage: error?.message || 'تعذّر حفظ الطلب، يرجى المحاولة لاحقًا.'
+          }));
+        }
+      }
+
+      window.Mishkah.app.setBody((stateWrapper, D) => {
+        const state = stateWrapper.data || INITIAL_STATE;
+        const lang = state.lang || 'ar';
+        const cartEmpty = !state.cart.length;
+
+        const statusBadge = D.Text.Span(
+          { attrs: { class: 'pos-mini-pill' } },
+          [`الحالة: ${state.status === 'ready' ? 'متصل' : state.status}`]
+        );
+
+        const header = D.Containers.Div(
+          { attrs: { class: 'pos-mini-header' } },
+          [
+            D.Text.H1({ attrs: { class: 'pos-mini-title' } }, ['مركز نقطة البيع — نسخة المصغّر']),
+            statusBadge
+          ]
+        );
+
+        const categoryButtons = state.categories.map((category) =>
+          D.Forms.Button(
+            {
+              attrs: {
+                type: 'button',
+                class: 'pos-mini-section-btn',
+                'data-active': category.id === state.activeCategoryId ? 'true' : 'false',
+                gkey: `pos:category:${category.id || 'all'}`
+              }
+            },
+            [category.label || 'بدون اسم']
+          )
+        );
+
+        const menuGrid = state.items.length
+          ? D.Containers.Div(
+              { attrs: { class: 'pos-mini-menu' } },
+              state.items.map((item) =>
+                D.Containers.Div(
+                  {
+                    attrs: {
+                      class: 'pos-mini-item',
+                      role: 'button',
+                      tabindex: '0',
+                      gkey: `pos:menu:add:${item.uid}`
+                    }
+                  },
+                  [
+                    item.image
+                      ? D.Media.Img({ attrs: { src: item.image, alt: item.nameAr, loading: 'lazy' } })
+                      : D.Containers.Div(
+                          {
+                            attrs: {
+                              style:
+                                'width:100%;height:120px;border-radius:18px;background:rgba(30,41,59,0.6);display:grid;place-items:center;font-size:2.2rem;'
+                            }
+                          },
+                          ['🍽️']
+                        ),
+                    D.Text.H3({}, [item.nameAr]),
+                    item.descriptionAr
+                      ? D.Text.P({}, [item.descriptionAr])
+                      : null,
+                    D.Text.Span({ attrs: { class: 'price' } }, [
+                      formatCurrency(item.unitPrice, { lang })
+                    ])
+                  ].filter(Boolean)
+                )
+              )
+            )
+          : D.Containers.Div(
+              { attrs: { class: 'pos-mini-empty' } },
+              ['لا توجد عناصر متاحة حاليًا، تأكد من تحميل قائمة الفرع.']
+            );
+
+        const cartLines = state.cart.map((line) =>
+          D.Containers.Div(
+            { attrs: { class: 'pos-mini-cart-line' } },
+            [
+              D.Containers.Div({}, [
+                D.Text.H4({}, [line.nameAr]),
+                D.Text.Small({}, [
+                  `الكمية: ${line.quantity} • السعر: ${formatCurrency(line.unitPrice, { lang })}`
+                ])
+              ]),
+              D.Containers.Div(
+                { attrs: { class: 'pos-mini-cart-actions' } },
+                [
+                  D.Forms.Button(
+                    {
+                      attrs: {
+                        type: 'button',
+                        class: 'pos-mini-btn',
+                        gkey: `pos:cart:inc:${line.key}`
+                      }
+                    },
+                    ['+']
+                  ),
+                  D.Forms.Button(
+                    {
+                      attrs: {
+                        type: 'button',
+                        class: 'pos-mini-btn',
+                        gkey: `pos:cart:dec:${line.key}`
+                      }
+                    },
+                    ['−']
+                  ),
+                  D.Forms.Button(
+                    {
+                      attrs: {
+                        type: 'button',
+                        class: 'pos-mini-btn danger',
+                        gkey: `pos:cart:remove:${line.key}`
+                      }
+                    },
+                    ['حذف']
+                  )
+                ]
+              )
+            ]
+          )
+        );
+
+        const totalsView = D.Containers.Div({ attrs: { class: 'pos-mini-totals' } }, [
+          D.Text.Span({}, [`الإجمالي: ${formatCurrency(state.totals.subtotal, { lang })}`]),
+          D.Text.Span({}, [`المستحق: ${formatCurrency(state.totals.due, { lang })}`])
+        ]);
+
+        const feedback =
+          state.submissionStatus === 'success' || state.submissionStatus === 'error'
+            ? D.Containers.Div(
+                {
+                  attrs: {
+                    class: `pos-mini-toast ${state.submissionStatus === 'error' ? 'error' : ''}`
+                  }
+                },
+                [state.submissionMessage || '']
+              )
+            : state.submissionStatus === 'pending'
+            ? D.Containers.Div(
+                { attrs: { class: 'pos-mini-toast' } },
+                [state.submissionMessage || 'جاري الحفظ...']
+              )
+            : null;
+
+        const cartSection = D.Containers.Section({ attrs: { class: 'pos-mini-card' } }, [
+          D.Containers.Div({ attrs: { class: 'pos-mini-header' } }, [
+            D.Text.H2({ attrs: { class: 'pos-mini-title' } }, ['سلة الطلب']),
+            D.Forms.Button(
+              {
+                attrs: {
+                  type: 'button',
+                  class: 'pos-mini-btn danger',
+                  gkey: 'pos:cart:clear',
+                  disabled: cartEmpty ? 'disabled' : null
+                }
+              },
+              ['إفراغ السلة']
+            )
+          ]),
+          cartLines.length ? D.Containers.Div({ attrs: { class: 'pos-mini-cart' } }, cartLines) : D.Containers.Div({ attrs: { class: 'pos-mini-empty' } }, ['ابدأ بإضافة الأصناف من القائمة.']),
+          totalsView,
+          D.Forms.Button(
+            {
+              attrs: {
+                type: 'button',
+                class: 'pos-mini-btn solid',
+                gkey: 'pos:order:submit',
+                disabled: cartEmpty ? 'disabled' : null
+              }
+            },
+            ['حفظ الطلب في الخادم المركزي']
+          ),
+          feedback
+        ]);
+
+        const menuSection = D.Containers.Section({ attrs: { class: 'pos-mini-card' } }, [
+          header,
+          D.Containers.Div({ attrs: { class: 'pos-mini-sections' } }, categoryButtons),
+          menuGrid
+        ]);
+
+        return D.Containers.Div({ attrs: { class: 'pos-mini-shell' } }, [menuSection, cartSection]);
+      });
+
+      const posDbPromise = createPosDb({ branchId: BRANCH_ID });
+      app = window.Mishkah.app.createApp(database, orders);
+      app.mount('#app');
+      const { db: posDb } = await posDbPromise;
+
+      posDb.status((payload) => {
+        const status = typeof payload === 'string' ? payload : payload?.status || 'idle';
+        updateState((state) => ({ ...state, status }));
+      });
+
+      posDb.watch('pos_database', (rows) => {
+        if (!rows || !rows.length) return;
+        const latest = rows[rows.length - 1];
+        if (!latest || !latest.payload) return;
+        runtime.payload = latest.payload;
+        runtime.posInfo = latest.payload?.settings?.pos || {};
+        runtime.tables = latest.payload?.tables || [];
+        runtime.employee = (latest.payload?.employees || [])[0] || runtime.employee;
+        runtime.kitchenSections = latest.payload?.kitchen_sections || [];
+        runtime.orderStatuses = latest.payload?.order_statuses || [];
+        runtime.lineStatuses = latest.payload?.order_line_statuses || [];
+        rebuildMenuFromPayload(latest.payload);
+      });
+
+      posDb.watch('pos_shift', (rows) => {
+        const openShift = (rows || []).find((shift) => shift && shift.status !== 'closed' && !shift.isClosed);
+        currentShiftId = openShift ? openShift.id : null;
+        updateState((state) => ({ ...state, shiftId: currentShiftId }));
+      });
+
+      rebuildHandlers(INITIAL_STATE);
+    </script>
+  </body>
+</html>
