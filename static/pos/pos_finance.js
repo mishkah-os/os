@@ -19,27 +19,103 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
 
   const defaultLang = (initialPayload.settings && initialPayload.settings.lang) || 'ar';
 
-  const normalizeMap = (entries = []) => {
+  const PREF_KEY = '__POS_FINANCE_PREFS__';
+  const supportedLangs = new Set(['ar', 'en']);
+
+  const readPreferences = () => {
+    if (!global.localStorage) return {};
+    try {
+      const raw = global.localStorage.getItem(PREF_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_err) {
+      return {};
+    }
+  };
+
+  const writePreferences = (prefs) => {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+    } catch (_err) {
+      /* ignore */
+    }
+  };
+
+  const storedPrefs = readPreferences();
+  let activeLang = supportedLangs.has(storedPrefs.lang) ? storedPrefs.lang : defaultLang;
+  if (!supportedLangs.has(activeLang)) {
+    activeLang = 'ar';
+  }
+  let activeTheme = storedPrefs.theme === 'light' ? 'light' : 'dark';
+
+  const persistPreferences = () => {
+    writePreferences({ theme: activeTheme, lang: activeLang });
+  };
+
+  const applyDocumentLang = (lang) => {
+    const root = global.document?.documentElement;
+    if (!root) return;
+    root.lang = lang;
+    root.dir = lang === 'en' ? 'ltr' : 'rtl';
+  };
+
+  const applyDocumentTheme = (theme) => {
+    const root = global.document?.documentElement;
+    if (!root) return;
+    const resolved = theme === 'light' ? 'light' : 'dark';
+    root.setAttribute('data-theme', resolved);
+    root.style.colorScheme = resolved;
+  };
+
+  applyDocumentLang(activeLang);
+  applyDocumentTheme(activeTheme);
+
+  const translateHeadTitle = (lang) => (lang === 'en' ? 'Mishkah POS — Finance Closing' : 'لوحة الإغلاق المالي — Mishkah POS');
+
+  const normalizeMap = (entries = [], lang = activeLang) => {
     const map = new Map();
     for (const entry of ensureArray(entries)) {
       if (!entry) continue;
       const id = entry.id || entry.code || entry.value || entry.key;
       if (!id) continue;
-      map.set(String(id), localizeText(entry.name || entry.status_name || entry.payment_name || entry.type_name || entry.label, defaultLang));
+      const label =
+        localizeText(
+          entry.name || entry.status_name || entry.payment_name || entry.type_name || entry.label,
+          lang
+        ) || entry.label || entry.name || '';
+      map.set(String(id), label);
     }
     return map;
   };
 
-  let currentPaymentMethods = ensureArray(initialPayload.payment_methods || initialPayload.paymentMethods).map((method) => ({
-    ...method,
-    label: localizeText(method?.name, defaultLang)
-  }));
+  const translatePaymentMethods = (methods = [], lang = activeLang) =>
+    ensureArray(methods).map((method) => {
+      if (!method) return method;
+      const label = localizeText(method.name, lang) || method.label || method.name || '';
+      return { ...method, label };
+    });
 
-  const lookups = {
-    statuses: normalizeMap(initialPayload.order_statuses || initialPayload.orderStatuses),
-    payments: normalizeMap(initialPayload.order_payment_states || initialPayload.orderPaymentStates),
-    types: normalizeMap(initialPayload.order_types || initialPayload.orderTypes)
+  let latestPayload = { ...initialPayload };
+
+  const localizeFromPayload = (payload = latestPayload, lang = activeLang) => {
+    const source = payload && Object.keys(payload).length ? payload : initialPayload;
+    const paymentMethodsSource = source.payment_methods || source.paymentMethods || [];
+    const statusesSource = source.order_statuses || source.orderStatuses || [];
+    const paymentStatesSource = source.order_payment_states || source.orderPaymentStates || [];
+    const orderTypesSource = source.order_types || source.orderTypes || [];
+    return {
+      paymentMethods: translatePaymentMethods(paymentMethodsSource, lang),
+      lookups: {
+        statuses: normalizeMap(statusesSource, lang),
+        payments: normalizeMap(paymentStatesSource, lang),
+        types: normalizeMap(orderTypesSource, lang)
+      }
+    };
   };
+
+  const localizedInitial = localizeFromPayload(latestPayload, activeLang);
+  let currentPaymentMethods = localizedInitial.paymentMethods;
+  let lookups = localizedInitial.lookups;
 
   const initialOrders = db ? ensureArray(db.list('order_header')) : [];
   const initialPayments = db ? ensureArray(db.list('order_payment')) : [];
@@ -69,6 +145,71 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
   const ensureNumber = (value) => {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : 0;
+  };
+
+  const translateResetMessage = (type, context = {}) => {
+    const lang = context.lang || activeLang;
+    switch (type) {
+      case 'cancelled':
+        return lang === 'en'
+          ? 'Order reset cancelled (invalid code).'
+          : 'تم إلغاء إعادة ضبط الطلبات (رمز غير صحيح).';
+      case 'pending':
+        return lang === 'en'
+          ? 'Resetting transaction data...'
+          : 'جاري إعادة ضبط بيانات الحركات...';
+      case 'success': {
+        const removed = Number(context.removed ?? 0);
+        const base =
+          lang === 'en'
+            ? `Transactions reset successfully (${removed} records)`
+            : `تمت إعادة ضبط بيانات الحركات بنجاح (${removed} سجل)`;
+        const tablesSummary = context.tablesSummary ? String(context.tablesSummary).trim() : '';
+        if (tablesSummary) {
+          const detailsLabel = lang === 'en' ? 'Details:' : 'التفاصيل:';
+          return `${base}. ${detailsLabel} ${tablesSummary}.`;
+        }
+        return `${base}.`;
+      }
+      case 'failure': {
+        const base =
+          lang === 'en'
+            ? 'Failed to reset order data.'
+            : 'تعذر إعادة ضبط بيانات الطلبات.';
+        const details = context.details ? String(context.details).trim() : '';
+        return details ? `${base} ${details}` : base;
+      }
+      case 'network':
+        return lang === 'en'
+          ? 'Unable to reach the reset service.'
+          : 'تعذر الاتصال بخادم إعادة الضبط.';
+      default:
+        return '';
+    }
+  };
+
+  const translateCloseMessage = (type, context = {}) => {
+    const lang = context.lang || activeLang;
+    switch (type) {
+      case 'pending':
+        return lang === 'en'
+          ? 'Sending closing payload...'
+          : 'جاري إرسال بيانات الإغلاق...';
+      case 'success':
+        return lang === 'en'
+          ? 'Closing submitted successfully (demo).'
+          : 'تم إرسال الإغلاق بنجاح (تجريبي).';
+      case 'failure':
+        return lang === 'en'
+          ? 'Demo closing submission failed.'
+          : 'فشل إرسال الإغلاق التجريبي.';
+      case 'network':
+        return lang === 'en'
+          ? 'Could not reach the demo closing endpoint.'
+          : 'تعذر الوصول إلى نقطة الإغلاق التجريبية.';
+      default:
+        return '';
+    }
   };
 
   const computePaymentsFromOrders = (orders = []) => {
@@ -106,7 +247,7 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
         label: info.label || info.nameAr || info.name || methodId,
         icon: info.icon || '💳',
         type: info.type || 'other',
-        typeLabel: info.type ? localizeText(info.type_name || info.typeLabel || info.type, defaultLang) : ''
+        typeLabel: info.type ? localizeText(info.type_name || info.typeLabel || info.type, activeLang) : ''
       };
     });
     list.sort((a, b) => ensureNumber(b.amount) - ensureNumber(a.amount));
@@ -188,11 +329,11 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     return summary;
   };
 
-  const buildState = ({ orders, payments, lines, shifts, summary, newLookups }) => ({
-    head: { title: 'لوحة الإغلاق المالي — Mishkah POS' },
-    env: { theme: 'dark', lang: defaultLang, dir: defaultLang === 'en' ? 'ltr' : 'rtl' },
+  const buildState = ({ orders, payments, lines, shifts, summary, newLookups, lang = activeLang, theme = activeTheme }) => ({
+    head: { title: translateHeadTitle(lang) },
+    env: { theme, lang, dir: lang === 'en' ? 'ltr' : 'rtl' },
     data: {
-      lang: defaultLang,
+      lang,
       branch,
       settings,
       currency,
@@ -227,7 +368,9 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     lines: initialLines,
     shifts: initialShifts,
     summary,
-    newLookups: lookups
+    newLookups: lookups,
+    lang: activeLang,
+    theme: activeTheme
   });
 
   const app = M.app.createApp(initialState, {});
@@ -260,25 +403,19 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
   };
 
   const updateLookupsFromPayload = (payload = {}) => {
-    const paymentMethodsNext = ensureArray(payload.payment_methods || payload.paymentMethods).map((method) => ({
-      ...method,
-      label: localizeText(method?.name, defaultLang)
-    }));
-    const nextLookups = {
-      statuses: normalizeMap(payload.order_statuses || payload.orderStatuses),
-      payments: normalizeMap(payload.order_payment_states || payload.orderPaymentStates),
-      types: normalizeMap(payload.order_types || payload.orderTypes)
-    };
-    if (paymentMethodsNext.length) {
-      currentPaymentMethods = paymentMethodsNext;
+    latestPayload = { ...latestPayload, ...payload };
+    const localized = localizeFromPayload(latestPayload, activeLang);
+    if (localized.paymentMethods?.length) {
+      currentPaymentMethods = localized.paymentMethods;
     }
+    lookups = localized.lookups;
 
     app.setState((state) => ({
       ...state,
       data: {
         ...state.data,
         paymentMethods: currentPaymentMethods,
-        lookups: nextLookups
+        lookups
       }
     }));
   };
@@ -322,12 +459,64 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     }));
   };
 
+  const setThemePreference = (theme) => {
+    const resolved = theme === 'light' ? 'light' : 'dark';
+    if (resolved === activeTheme) return;
+    activeTheme = resolved;
+    applyDocumentTheme(activeTheme);
+    persistPreferences();
+    app.setState((state) => ({
+      ...state,
+      env: { ...(state.env || {}), theme: activeTheme }
+    }));
+  };
+
+  const setLanguagePreference = (lang) => {
+    const resolved = lang === 'en' ? 'en' : 'ar';
+    if (resolved === activeLang) return;
+    activeLang = resolved;
+    applyDocumentLang(activeLang);
+    persistPreferences();
+
+    const stateSnapshot = app.getState ? app.getState() : app.state;
+    const localized = localizeFromPayload(latestPayload, activeLang);
+    if (localized.paymentMethods?.length) {
+      currentPaymentMethods = localized.paymentMethods;
+    }
+    lookups = localized.lookups;
+
+    const summaryNext = computeFinancialSummary({
+      orders: ensureArray(stateSnapshot?.data?.orders || []),
+      payments: ensureArray(stateSnapshot?.data?.payments || []),
+      shifts: ensureArray(stateSnapshot?.data?.shifts || [])
+    });
+
+    app.setState((state) => ({
+      ...state,
+      head: { title: translateHeadTitle(activeLang) },
+      env: {
+        ...(state.env || {}),
+        theme: activeTheme,
+        lang: activeLang,
+        dir: activeLang === 'en' ? 'ltr' : 'rtl'
+      },
+      data: {
+        ...state.data,
+        lang: activeLang,
+        paymentMethods: currentPaymentMethods,
+        lookups,
+        summary: summaryNext
+      }
+    }));
+  };
+
   const handleResetOrders = async () => {
-    const code = global.prompt('أدخل رمز إعادة ضبط الطلبات');
+    const promptMessage = activeLang === 'en' ? 'Enter the reset code' : 'أدخل رمز إعادة ضبط الطلبات';
+    const code = global.prompt(promptMessage);
     if (code !== '114477') {
       setUiState({
         resetStatus: 'cancelled',
-        resetMessage: 'تم إلغاء إعادة ضبط الطلبات (رمز غير صحيح).',
+        resetMessage: translateResetMessage('cancelled'),
         lastResetResponse: null,
         lastResetHistoryEntry: null
       });
@@ -345,7 +534,7 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     };
     setUiState({
       resetStatus: 'pending',
-      resetMessage: 'جاري إعادة ضبط بيانات الحركات...',
+      resetMessage: translateResetMessage('pending'),
       lastResetResponse: null,
       lastResetHistoryEntry: null
     });
@@ -358,12 +547,14 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) {
-        const message = body?.message
-          ? `تعذر إعادة ضبط بيانات الطلبات: ${body.message}`
-          : 'تعذر إعادة ضبط بيانات الطلبات.';
+        const detailMessage = body?.message
+          ? activeLang === 'en'
+            ? `Reason: ${body.message}`
+            : `السبب: ${body.message}`
+          : '';
         setUiState({
           resetStatus: 'error',
-          resetMessage: message,
+          resetMessage: translateResetMessage('failure', { details: detailMessage }),
           lastResetAt: attemptAt,
           lastResetResponse: body || { ok: false, status: response.status },
           lastResetHistoryEntry: null
@@ -377,13 +568,11 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
         ? historySummary.tables
             .filter((table) => table && table.name)
             .map((table) => `${table.name}: ${Number(table.count || 0)}`)
-            .join('، ')
+            .join(activeLang === 'en' ? ', ' : '، ')
         : '';
-      const messageBase = `تمت إعادة ضبط بيانات الحركات بنجاح (${removed} سجل).`;
-      const message = tablesSummary ? `${messageBase} التفاصيل: ${tablesSummary}.` : messageBase;
       setUiState({
         resetStatus: 'success',
-        resetMessage: message,
+        resetMessage: translateResetMessage('success', { removed, tablesSummary }),
         lastResetAt: attemptAt,
         lastResetResponse: body,
         lastResetHistoryEntry: historySummary
@@ -393,7 +582,7 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     } catch (error) {
       setUiState({
         resetStatus: 'error',
-        resetMessage: 'تعذر الاتصال بخادم إعادة الضبط.',
+        resetMessage: translateResetMessage('network', { details: error?.message }),
         lastResetAt: attemptAt,
         lastResetResponse: { ok: false, status: 'network-error', error: error?.message },
         lastResetHistoryEntry: null
@@ -404,26 +593,32 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
 
   const handleCloseDay = async () => {
     const state = app.getState ? app.getState() : app.state;
-     let orders_data = db ? ensureArray(db.list('order_header')) : [];
-    let  payments_data = db ? ensureArray(db.list('order_payment')) : [];
-    let  lines_data = db ? ensureArray(db.list('order_line')) : [];
-    let  shifts_data = db ? ensureArray(db.list('pos_shift')) : [];
+    const ordersData = db ? ensureArray(db.list('order_header')) : [];
+    const paymentsData = db ? ensureArray(db.list('order_payment')) : [];
+    const linesData = db ? ensureArray(db.list('order_line')) : [];
+    const shiftsData = db ? ensureArray(db.list('pos_shift')) : [];
 
-    
     const summary = state?.data?.summary || computeFinancialSummary({
       orders: ensureArray(db?.list('order_header') || []),
       payments: ensureArray(db?.list('order_payment') || []),
       shifts: ensureArray(db?.list('pos_shift') || [])
     });
-    setUiState({ closingStatus: 'pending', closingMessage: 'جاري إرسال بيانات الإغلاق...' });
+    setUiState({ closingStatus: 'pending', closingMessage: translateCloseMessage('pending') });
     let responsePayload = null;
     try {
-      let dataClose={
-          branch: state?.data?.branch || branch,
-          summary,
-          generatedAt: new Date().toISOString()
-        };
-      console.log(orders_data,payments_data,lines_data,shifts_data,state,dataClose)
+      const dataClose = {
+        branch: state?.data?.branch || branch,
+        summary,
+        generatedAt: new Date().toISOString()
+      };
+      console.log('[POS Finance] Closing payload snapshot', {
+        orders: ordersData,
+        payments: paymentsData,
+        lines: linesData,
+        shifts: shiftsData,
+        state,
+        payload: dataClose
+      });
       const response = await fetch('/api/closepos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -437,21 +632,43 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
       };
       setUiState({
         closingStatus: response.ok ? 'success' : 'error',
-        closingMessage: response.ok ? 'تم إرسال الإغلاق بنجاح (تجريبي).' : 'فشل إرسال الإغلاق التجريبي.' ,
+        closingMessage: response.ok
+          ? translateCloseMessage('success')
+          : translateCloseMessage('failure'),
         lastClosingResponse: responsePayload
       });
     } catch (error) {
       responsePayload = { ok: false, status: 'network-error', error: error?.message };
       setUiState({
         closingStatus: 'error',
-        closingMessage: 'تعذر الوصول إلى نقطة الإغلاق التجريبية.',
+        closingMessage: translateCloseMessage('network', { details: error?.message }),
         lastClosingResponse: responsePayload
       });
     }
-    console.log('اغلاق تجريبي', responsePayload);
+    console.log('[POS Finance] Demo closing response', responsePayload);
   };
 
   app.setOrders({
+    'finance:theme:set': {
+      on: ['click'],
+      gkeys: ['finance:theme:set'],
+      handler: (event) => {
+        const btn = event?.target && event.target.closest('[data-theme]');
+        if (!btn) return;
+        const theme = btn.getAttribute('data-theme');
+        setThemePreference(theme);
+      }
+    },
+    'finance:lang:set': {
+      on: ['click'],
+      gkeys: ['finance:lang:set'],
+      handler: (event) => {
+        const btn = event?.target && event.target.closest('[data-lang]');
+        if (!btn) return;
+        const lang = btn.getAttribute('data-lang');
+        setLanguagePreference(lang);
+      }
+    },
     'finance:reset-orders': {
       on: ['click'],
       gkeys: ['finance:reset-orders'],

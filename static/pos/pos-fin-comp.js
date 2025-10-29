@@ -6,6 +6,129 @@
   const D = M.DSL;
   const { tw, cx } = U.twcss;
 
+  const TEXT = {
+    ar: {
+      title: 'لوحة الإغلاق المالي',
+      branchUnknown: 'فرع غير معروف',
+      controls: {
+        theme: 'الثيم',
+        light: 'نهاري',
+        dark: 'ليلي',
+        language: 'اللغة',
+        arabic: 'عربي',
+        english: 'إنجليزي'
+      },
+      actions: {
+        reset: 'إعادة ضبط الطلبات',
+        close: 'تأكيد إغلاق اليوم'
+      },
+      metrics: {
+        totalOrders: 'إجمالي الطلبات',
+        averageOrderValue: 'متوسط قيمة الطلب',
+        totalDue: 'إجمالي المستحق',
+        totalPaid: 'إجمالي المدفوع',
+        paidOrders: 'طلبات مدفوعة',
+        openOrders: 'طلبات مفتوحة',
+        outstanding: 'مبالغ غير محصلة'
+      },
+      payments: {
+        heading: 'توزيع المدفوعات حسب الوسيلة',
+        empty: 'لا توجد مدفوعات مسجلة بعد.'
+      },
+      orders: {
+        heading: 'أحدث الطلبات المغلقة',
+        empty: 'لا توجد طلبات مغلقة حتى الآن.',
+        columns: {
+          order: 'الطلب',
+          type: 'النوع',
+          status: 'الحالة',
+          payment: 'الدفع',
+          paid: 'المدفوع',
+          total: 'الإجمالي',
+          opened: 'وقت الفتح'
+        },
+        showing: (limit, total) => `عرض ${limit} من ${total} طلبًا.`
+      },
+      shifts: {
+        heading: 'الوردية',
+        lastClosed: 'آخر وردية مغلقة',
+        noClosed: 'لا توجد ورديات مغلقة بعد.',
+        openEmpty: 'لا توجد ورديات مفتوحة حاليًا.'
+      },
+      status: {
+        resetSuccess: 'تم إعادة ضبط الطلبات.',
+        resetCancelled: 'تم إلغاء إعادة الضبط.',
+        resetPending: 'جاري إعادة ضبط البيانات...',
+        resetError: 'تعذر إعادة ضبط البيانات.',
+        resetNetwork: 'تعذر الوصول إلى خدمة إعادة الضبط.',
+        closingPending: 'جارٍ تنفيذ إغلاق اليوم...',
+        closingSuccess: 'تم إرسال الإغلاق بنجاح (تجريبي).',
+        closingError: 'فشل إرسال الإغلاق التجريبي.'
+      }
+    },
+    en: {
+      title: 'Finance Closing Dashboard',
+      branchUnknown: 'Unknown branch',
+      controls: {
+        theme: 'Theme',
+        light: 'Light',
+        dark: 'Dark',
+        language: 'Language',
+        arabic: 'Arabic',
+        english: 'English'
+      },
+      actions: {
+        reset: 'Reset Orders',
+        close: 'Confirm Day Close'
+      },
+      metrics: {
+        totalOrders: 'Total Orders',
+        averageOrderValue: 'Average Order Value',
+        totalDue: 'Total Due',
+        totalPaid: 'Total Paid',
+        paidOrders: 'Paid Orders',
+        openOrders: 'Open Orders',
+        outstanding: 'Outstanding Amount'
+      },
+      payments: {
+        heading: 'Payments by Method',
+        empty: 'No payments recorded yet.'
+      },
+      orders: {
+        heading: 'Latest Closed Orders',
+        empty: 'No closed orders yet.',
+        columns: {
+          order: 'Order',
+          type: 'Type',
+          status: 'Status',
+          payment: 'Payment',
+          paid: 'Paid',
+          total: 'Total',
+          opened: 'Opened At'
+        },
+        showing: (limit, total) => `Showing ${limit} of ${total} orders.`
+      },
+      shifts: {
+        heading: 'Shifts',
+        lastClosed: 'Latest Closed Shift',
+        noClosed: 'No closed shifts yet.',
+        openEmpty: 'No open shifts right now.'
+      },
+      status: {
+        resetSuccess: 'Orders reset successfully.',
+        resetCancelled: 'Reset cancelled.',
+        resetPending: 'Resetting transaction data...',
+        resetError: 'Failed to reset orders.',
+        resetNetwork: 'Unable to reach the reset service.',
+        closingPending: 'Submitting closing data...',
+        closingSuccess: 'Closing submitted successfully (demo).',
+        closingError: 'Demo closing submission failed.'
+      }
+    }
+  };
+
+  const getTexts = (lang = 'ar') => TEXT[lang] || TEXT.ar;
+
   const ensureNumber = (value) => {
     const num = Number(value);
     return Number.isFinite(num) ? num : 0;
@@ -60,7 +183,8 @@
         attrs: {
           class: cx(
             tw`rounded-2xl p-5 shadow-lg shadow-slate-950/40 backdrop-blur-xl transition hover:shadow-slate-900/70`,
-            intent.wrapper
+            intent.wrapper,
+            'finance-card'
           )
         }
       },
@@ -84,7 +208,11 @@
     return D.Containers.Div(
       {
         attrs: {
-          class: tw`rounded-xl border border-slate-800/70 bg-slate-900/60 p-4 transition hover:border-slate-700 hover:bg-slate-900`
+          class: cx(
+            tw`rounded-xl border border-slate-800/70 bg-slate-900/60 p-4 transition hover:border-slate-700 hover:bg-slate-900`,
+            'finance-panel',
+            'finance-row'
+          )
         }
       },
       [
@@ -126,10 +254,19 @@
   };
 
   const OrdersTable = (orders = [], lookups = {}, lang = 'ar', currency = 'EGP') => {
+    const t = getTexts(lang);
     if (!orders.length) {
       return D.Containers.Div(
-        { attrs: { class: tw`rounded-2xl border border-slate-800/70 bg-slate-900/40 p-6 text-center text-slate-400` } },
-        ['لا توجد طلبات مغلقة حتى الآن.']
+        {
+          attrs: {
+            class: cx(
+              tw`rounded-2xl border border-slate-800/70 bg-slate-900/40 p-6 text-center text-slate-400`,
+              'finance-panel',
+              'finance-table'
+            )
+          }
+        },
+        [t.orders.empty]
       );
     }
     const limit = 6;
@@ -156,40 +293,78 @@
       ]);
     });
 
-    return D.Containers.Div({ attrs: { class: tw`overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/40` } }, [
+    return D.Containers.Div(
+      {
+        attrs: {
+          class: cx(
+            tw`overflow-hidden rounded-2xl border border-slate-800/70 bg-slate-950/40`,
+            'finance-panel',
+            'finance-table'
+          )
+        }
+      },
+      [
       D.Tables.Table({ attrs: { class: tw`min-w-full divide-y divide-slate-800/70` } }, [
         D.Tables.Thead({}, [
           D.Tables.Tr({ attrs: { class: tw`bg-slate-900/60` } }, [
-            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الطلب']),
-            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['النوع']),
-            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الحالة']),
-            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الدفع']),
-            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['المدفوع']),
-            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['الإجمالي']),
-            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, ['وقت الفتح'])
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, [
+              t.orders.columns.order
+            ]),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, [
+              t.orders.columns.type
+            ]),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, [
+              t.orders.columns.status
+            ]),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, [
+              t.orders.columns.payment
+            ]),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, [
+              t.orders.columns.paid
+            ]),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, [
+              t.orders.columns.total
+            ]),
+            D.Tables.Th({ attrs: { class: tw`px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400` } }, [
+              t.orders.columns.opened
+            ])
           ])
         ]),
         D.Tables.Tbody({}, rows)
       ]),
       orders.length > limit
         ? D.Containers.Div(
-            { attrs: { class: tw`border-t border-slate-800/60 bg-slate-900/40 px-4 py-3 text-center text-xs text-slate-400` } },
-            [`عرض ${limit} من ${orders.length} طلبًا.`]
+            {
+              attrs: {
+                class: cx(
+                  tw`border-t border-slate-800/60 bg-slate-900/40 px-4 py-3 text-center text-xs text-slate-400`,
+                  'finance-panel'
+                )
+              }
+            },
+            [t.orders.showing(limit, orders.length)]
           )
         : null
-    ]);
+    ]
+    );
   };
 
   const ShiftSummary = (openShifts = [], latestShift = null, lang = 'ar') => {
+    const t = getTexts(lang);
     const latest = latestShift
       ? D.Containers.Div(
           {
             attrs: {
-              class: tw`rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-100`
+              class: cx(
+                tw`rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-100`,
+                'finance-status'
+              )
             }
           },
           [
-            D.Text.Span({ attrs: { class: tw`block text-xs uppercase tracking-wide text-emerald-200/70` } }, ['آخر وردية مغلقة']),
+            D.Text.Span({ attrs: { class: tw`block text-xs uppercase tracking-wide text-emerald-200/70` } }, [
+              t.shifts.lastClosed
+            ]),
             D.Text.Strong({ attrs: { class: tw`mt-2 block text-base` } }, [latestShift.posLabel || latestShift.posId || 'POS']),
             D.Text.Small(
               { attrs: { class: tw`mt-2 block text-xs text-emerald-200/80` } },
@@ -204,8 +379,16 @@
           ]
         )
       : D.Containers.Div(
-          { attrs: { class: tw`rounded-xl border border-slate-800/70 bg-slate-900/40 p-4 text-sm text-slate-300` } },
-          ['لا توجد ورديات مغلقة بعد.']
+          {
+            attrs: {
+              class: cx(
+                tw`rounded-xl border border-slate-800/70 bg-slate-900/40 p-4 text-sm text-slate-300`,
+                'finance-panel',
+                'finance-status'
+              )
+            }
+          },
+          [t.shifts.noClosed]
         );
 
     const openList = openShifts.length
@@ -224,32 +407,45 @@
             ]
           );
         }))
-      : D.Text.Small({ attrs: { class: tw`mt-4 block text-xs text-slate-500` } }, ['لا توجد ورديات مفتوحة حاليًا.']);
+      : D.Text.Small({ attrs: { class: tw`mt-4 block text-xs text-slate-500` } }, [t.shifts.openEmpty]);
 
     return D.Containers.Div({ attrs: { class: tw`flex flex-col gap-4` } }, [latest, openList]);
   };
 
   const StatusBanner = (ui = {}, lang = 'ar') => {
+    const t = getTexts(lang);
     const banners = [];
     if (ui.resetStatus && ui.resetStatus !== 'idle') {
-      const tone = ui.resetStatus === 'success' ? intentPalette.success : intentPalette.warning;
+      const fallback =
+        ui.resetStatus === 'success'
+          ? t.status.resetSuccess
+          : ui.resetStatus === 'cancelled'
+          ? t.status.resetCancelled
+          : ui.resetStatus === 'pending'
+          ? t.status.resetPending
+          : ui.resetStatus === 'error'
+          ? t.status.resetError
+          : '';
+      const toneClass =
+        ui.resetStatus === 'success'
+          ? tw`border-emerald-400/40 bg-emerald-500/10 text-emerald-100`
+          : ui.resetStatus === 'pending'
+          ? tw`border-sky-400/40 bg-sky-500/10 text-sky-100`
+          : tw`border-amber-400/40 bg-amber-500/10 text-amber-100`;
       banners.push(
         D.Containers.Div(
-          {
-            attrs: {
-              class: cx(
-                tw`rounded-xl border px-4 py-3 text-sm font-medium shadow`,
-                ui.resetStatus === 'success'
-                  ? tw`border-emerald-400/40 bg-emerald-500/10 text-emerald-100`
-                  : tw`border-amber-400/40 bg-amber-500/10 text-amber-100`
-              )
-            }
-          },
-          [ui.resetMessage || (ui.resetStatus === 'success' ? 'تم إعادة ضبط الطلبات.' : 'تم إلغاء إعادة الضبط.')]
+          { attrs: { class: cx(tw`rounded-xl border px-4 py-3 text-sm font-medium shadow`, toneClass, 'finance-status') } },
+          [ui.resetMessage || fallback]
         )
       );
     }
     if (ui.closingStatus && ui.closingStatus !== 'idle') {
+      const fallback =
+        ui.closingStatus === 'success'
+          ? t.status.closingSuccess
+          : ui.closingStatus === 'pending'
+          ? t.status.closingPending
+          : t.status.closingError;
       const toneClass =
         ui.closingStatus === 'success'
           ? tw`border-emerald-400/40 bg-emerald-500/10 text-emerald-100`
@@ -258,8 +454,8 @@
           : tw`border-sky-400/40 bg-sky-500/10 text-sky-100`;
       banners.push(
         D.Containers.Div(
-          { attrs: { class: cx(tw`rounded-xl border px-4 py-3 text-sm font-medium shadow`, toneClass) } },
-          [ui.closingMessage || 'جارٍ تنفيذ إغلاق اليوم...']
+          { attrs: { class: cx(tw`rounded-xl border px-4 py-3 text-sm font-medium shadow`, toneClass, 'finance-status') } },
+          [ui.closingMessage || fallback]
         )
       );
     }
@@ -271,22 +467,77 @@
     const data = state?.data || {};
     const ui = state?.ui || {};
     const lang = data.lang || state?.env?.lang || 'ar';
+    const theme = state?.env?.theme || 'dark';
     const currency = data.currency?.code || data.currencyCode || 'EGP';
     const paymentBreakdown = data.summary?.paymentBreakdown || [];
     const totals = data.summary?.totals || {};
     const totalPayments = ensureNumber(totals.totalPayments || totals.totalPaid);
     const lookups = data.lookups || {};
+    const t = getTexts(lang);
+    const branchName =
+      lang === 'en'
+        ? data.branch?.nameEn || data.branch?.name || t.branchUnknown
+        : data.branch?.nameAr || data.branch?.name || t.branchUnknown;
+
+    const controlContainerClass = cx(tw`flex items-center gap-2 rounded-full border px-3 py-1`, 'finance-control');
+    const controlButtonClass = cx(tw`rounded-full px-3 py-1 text-xs font-semibold transition`, 'finance-control__btn');
 
     const header = D.Containers.Header(
       { attrs: { class: tw`flex flex-col gap-4 border-b border-slate-800/70 pb-6 md:flex-row md:items-center md:justify-between` } },
       [
         D.Containers.Div({ attrs: { class: tw`space-y-1` } }, [
-          D.Text.H1({ attrs: { class: tw`text-2xl font-black tracking-tight text-slate-100` } }, ['لوحة الإغلاق المالي']),
-          D.Text.Small({ attrs: { class: tw`text-sm text-slate-400` } }, [
-            data.branch?.nameAr || data.branch?.name || 'فرع غير معروف'
-          ])
+          D.Text.H1({ attrs: { class: tw`text-2xl font-black tracking-tight text-slate-100` } }, [t.title]),
+          D.Text.Small({ attrs: { class: tw`text-sm text-slate-400` } }, [branchName])
         ]),
         D.Containers.Div({ attrs: { class: tw`flex flex-wrap items-center gap-3` } }, [
+          D.Containers.Div(
+            { attrs: { class: controlContainerClass } },
+            [
+              D.Text.Span({ attrs: { class: tw`text-xs text-slate-400` } }, [t.controls.theme]),
+              D.Forms.Button({
+                attrs: {
+                  type: 'button',
+                  class: controlButtonClass,
+                  gkey: 'finance:theme:set',
+                  'data-theme': 'light',
+                  'data-active': theme === 'light' ? 'true' : 'false'
+                }
+              }, [`☀️ ${t.controls.light}`]),
+              D.Forms.Button({
+                attrs: {
+                  type: 'button',
+                  class: controlButtonClass,
+                  gkey: 'finance:theme:set',
+                  'data-theme': 'dark',
+                  'data-active': theme === 'dark' ? 'true' : 'false'
+                }
+              }, [`🌙 ${t.controls.dark}`])
+            ]
+          ),
+          D.Containers.Div(
+            { attrs: { class: controlContainerClass } },
+            [
+              D.Text.Span({ attrs: { class: tw`text-xs text-slate-400` } }, [t.controls.language]),
+              D.Forms.Button({
+                attrs: {
+                  type: 'button',
+                  class: controlButtonClass,
+                  gkey: 'finance:lang:set',
+                  'data-lang': 'ar',
+                  'data-active': lang === 'ar' ? 'true' : 'false'
+                }
+              }, [t.controls.arabic]),
+              D.Forms.Button({
+                attrs: {
+                  type: 'button',
+                  class: controlButtonClass,
+                  gkey: 'finance:lang:set',
+                  'data-lang': 'en',
+                  'data-active': lang === 'en' ? 'true' : 'false'
+                }
+              }, [t.controls.english])
+            ]
+          ),
           D.Forms.Button(
             {
               attrs: {
@@ -295,7 +546,7 @@
                 gkey: 'finance:reset-orders'
               }
             },
-            ['إعادة ضبط الطلبات']
+            [t.actions.reset]
           ),
           D.Forms.Button(
             {
@@ -305,49 +556,49 @@
                 gkey: 'finance:close-day'
               }
             },
-            ['تأكيد إغلاق اليوم']
+            [t.actions.close]
           )
         ])
       ]
     );
 
     const summaryGrid = D.Containers.Div({ attrs: { class: tw`grid gap-4 md:grid-cols-2 xl:grid-cols-4` } }, [
-      MetricCard({ label: 'إجمالي الطلبات', value: totals.totalOrders || 0, intent: 'primary' }, lang, currency),
-      MetricCard({ label: 'متوسط قيمة الطلب', value: totals.averageOrderValue || 0, asCurrency: true }, lang, currency),
-      MetricCard({ label: 'إجمالي المستحق', value: totals.totalDue || 0, asCurrency: true }, lang, currency),
-      MetricCard({ label: 'إجمالي المدفوع', value: totals.totalPaid || 0, asCurrency: true, intent: 'success' }, lang, currency)
+      MetricCard({ label: t.metrics.totalOrders, value: totals.totalOrders || 0, intent: 'primary' }, lang, currency),
+      MetricCard({ label: t.metrics.averageOrderValue, value: totals.averageOrderValue || 0, asCurrency: true }, lang, currency),
+      MetricCard({ label: t.metrics.totalDue, value: totals.totalDue || 0, asCurrency: true }, lang, currency),
+      MetricCard({ label: t.metrics.totalPaid, value: totals.totalPaid || 0, asCurrency: true, intent: 'success' }, lang, currency)
     ]);
 
     const outstandingGrid = D.Containers.Div({ attrs: { class: tw`grid gap-4 md:grid-cols-3` } }, [
-      MetricCard({ label: 'طلبات مدفوعة', value: totals.paidOrders || 0, intent: 'success' }, lang, currency),
-      MetricCard({ label: 'طلبات مفتوحة', value: totals.openOrders || 0, intent: 'warning' }, lang, currency),
-      MetricCard({ label: 'مبالغ غير محصلة', value: totals.outstanding || 0, asCurrency: true, intent: 'danger' }, lang, currency)
+      MetricCard({ label: t.metrics.paidOrders, value: totals.paidOrders || 0, intent: 'success' }, lang, currency),
+      MetricCard({ label: t.metrics.openOrders, value: totals.openOrders || 0, intent: 'warning' }, lang, currency),
+      MetricCard({ label: t.metrics.outstanding, value: totals.outstanding || 0, asCurrency: true, intent: 'danger' }, lang, currency)
     ]);
 
     const paymentsSection = D.Containers.Section(
-      { attrs: { class: tw`flex flex-col gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/30 p-6` } },
+      { attrs: { class: cx(tw`flex flex-col gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/30 p-6`, 'finance-panel') } },
       [
-        D.Text.H2({ attrs: { class: tw`text-lg font-semibold text-slate-100` } }, ['توزيع المدفوعات حسب الوسيلة']),
+        D.Text.H2({ attrs: { class: tw`text-lg font-semibold text-slate-100` } }, [t.payments.heading]),
         paymentBreakdown.length
           ? D.Containers.Div({ attrs: { class: tw`grid gap-4 md:grid-cols-2` } },
               paymentBreakdown.map((entry) => PaymentRow(entry, lang, currency, totalPayments))
             )
-          : D.Text.Small({ attrs: { class: tw`text-sm text-slate-400` } }, ['لا توجد مدفوعات مسجلة بعد.'])
+          : D.Text.Small({ attrs: { class: tw`text-sm text-slate-400` } }, [t.payments.empty])
       ]
     );
 
     const ordersSection = D.Containers.Section(
-      { attrs: { class: tw`flex flex-col gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/30 p-6` } },
+      { attrs: { class: cx(tw`flex flex-col gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/30 p-6`, 'finance-panel') } },
       [
-        D.Text.H2({ attrs: { class: tw`text-lg font-semibold text-slate-100` } }, ['أحدث الطلبات المغلقة']),
+        D.Text.H2({ attrs: { class: tw`text-lg font-semibold text-slate-100` } }, [t.orders.heading]),
         OrdersTable(data.recentOrders || data.orders || [], lookups, lang, currency)
       ]
     );
 
     const shiftsSection = D.Containers.Section(
-      { attrs: { class: tw`flex flex-col gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/30 p-6` } },
+      { attrs: { class: cx(tw`flex flex-col gap-4 rounded-2xl border border-slate-800/70 bg-slate-900/30 p-6`, 'finance-panel') } },
       [
-        D.Text.H2({ attrs: { class: tw`text-lg font-semibold text-slate-100` } }, ['الوردية']),
+        D.Text.H2({ attrs: { class: tw`text-lg font-semibold text-slate-100` } }, [t.shifts.heading]),
         ShiftSummary(data.summary?.openShifts || [], data.summary?.latestShift || null, lang)
       ]
     );
@@ -356,7 +607,12 @@
 
     return M.UI.AppRoot({
       shell: D.Containers.Div(
-        { attrs: { class: tw`flex min-h-screen w-full flex-col gap-6 bg-slate-950/90 px-6 pb-10 pt-8` } },
+        {
+          attrs: {
+            class: cx(tw`flex min-h-screen w-full flex-col gap-6 bg-slate-950/90 px-6 pb-10 pt-8`, 'finance-shell'),
+            'data-theme': theme
+          }
+        },
         [header, statusBanner, summaryGrid, outstandingGrid, paymentsSection, ordersSection, shiftsSection].filter(Boolean)
       ),
       overlays: []
