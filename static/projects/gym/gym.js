@@ -1,6 +1,6 @@
 import { createPosDb } from './pos/pos-mini-db.js';
-import { div, button, span, input, label, select, option, textarea } from './lib/mishkah.div.js';
-import { createSimpleStore } from './lib/mishkah.simple-store.js';
+import { div, button, span, input, label, select, option, textarea } from '../../lib/mishkah.div.js';
+import { createSimpleStore } from '../../lib/mishkah.simple-store.js';
 
 const BRANCH_ID = 'gim';
 const MODULE_ID = 'gym';
