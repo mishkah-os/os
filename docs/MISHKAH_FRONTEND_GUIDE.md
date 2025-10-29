@@ -74,47 +74,103 @@
 
 ## <a name="component-system"></a>🧩 نظام المكونات / Component System
 
-### 1. مكتبة mishkah.div.js - بناء العناصر
+### ⚠️ IMPORTANT: كيف يعمل Mishkah فعلياً
 
-**الاستخدام الأساسي:**
+**Mishkah لا يستخدم ES6 Modules!** النظام مبني على Global Objects:
 
 ```javascript
-import { div, button, span, input, label } from '../../static/lib/mishkah.div.js';
+// ❌ خطأ - لا تستخدم imports
+import { div, button } from '../../static/lib/mishkah.div.js';
 
-// إنشاء عنصر بسيط
-const myDiv = div('.', 'Hello World');
+// ✅ صحيح - استخدم Global Objects
+(async function() {
+  const M = Mishkah;           // Mishkah global object
+  const UI = M.UI;             // UI components
+  const U = M.utils;           // Utilities
+  const { tw, token } = U.twcss || {};  // Tailwind-like utilities
 
-// إنشاء عنصر مع صنف CSS
-const styledDiv = div('card', 'Content here');
-
-// إنشاء عنصر مع خصائص
-const interactive = button('btn/solid', {
-  onclick: () => alert('Clicked!'),
-  style: 'width: 100%;'
-}, 'Click Me');
-
-// إنشاء عنصر متداخل
-const complex = div('card', { style: 'padding: 2rem;' }, [
-  div('.', { class: 'mk-text-2xl mk-font-bold' }, 'Title'),
-  div('.', { class: 'mk-text-muted' }, 'Description'),
-  button('btn/solid', { onclick: handleClick }, 'Action')
-]);
+  // الآن يمكنك استخدام المكونات
+})();
 ```
 
-**الدوال المتاحة:**
+### 1. بناء العناصر - الطريقة الصحيحة
+
+**استخدام Vanilla JavaScript (الطريقة المفضلة):**
 
 ```javascript
-// العناصر الأساسية
-div(classes, attrs_or_content, content_or_null)
-span(classes, attrs_or_content, content_or_null)
-button(classes, attrs_or_content, content_or_null)
-input(classes, attrs_or_content, content_or_null)
-label(classes, attrs_or_content, content_or_null)
-textarea(classes, attrs_or_content, content_or_null)
-select(classes, attrs_or_content, content_or_null)
-option(classes, attrs_or_content, content_or_null)
+// إنشاء عنصر بسيط
+const myDiv = document.createElement('div');
+myDiv.textContent = 'Hello World';
+myDiv.className = 'my-class';
+myDiv.style.cssText = 'padding: 1rem; background: var(--mk-surface-1);';
 
-// والمزيد...
+// إنشاء عنصر مع innerHTML
+const card = document.createElement('div');
+card.style.cssText = `
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  background: var(--mk-surface-1);
+  border: 1px solid var(--mk-border);
+`;
+card.innerHTML = `
+  <h2 style="font-size: 1.25rem; margin: 0 0 1rem 0;">Title</h2>
+  <p style="color: var(--mk-muted);">Description</p>
+`;
+
+// إنشاء button تفاعلي
+const button = document.createElement('button');
+button.textContent = 'Click Me';
+button.style.cssText = `
+  padding: 0.75rem 1.5rem;
+  background: var(--mk-primary);
+  color: white;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+`;
+button.onclick = () => alert('Clicked!');
+
+// إنشاء هيكل متداخل
+const container = document.createElement('div');
+container.style.cssText = 'display: flex; flex-direction: column; gap: 1rem;';
+
+const title = document.createElement('h1');
+title.textContent = 'My App';
+container.appendChild(title);
+
+const description = document.createElement('p');
+description.textContent = 'This is my app';
+container.appendChild(description);
+
+container.appendChild(button);
+```
+
+**استخدام Mishkah UI Components:**
+
+```javascript
+(async function() {
+  const M = Mishkah;
+  const UI = M.UI;
+
+  // استخدام مكونات Mishkah الجاهزة
+  const myButton = UI.Button({
+    attrs: { gkey: 'my-button', class: 'my-class' },
+    variant: 'solid',  // solid, ghost, soft
+    size: 'md'         // sm, md, lg
+  }, ['Click Me']);
+
+  const myBadge = UI.Badge({
+    text: 'Active',
+    variant: 'badge/ghost',
+    leading: '✅'
+  });
+
+  const myCard = UI.Card({
+    attrs: { class: 'my-card' }
+  }, [
+    // المحتوى هنا
+  ]);
+})();
 ```
 
 ### 2. مكتبة mishkah-ui.js - المكونات الجاهزة
