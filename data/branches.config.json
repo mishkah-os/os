@@ -8,6 +8,10 @@
     "remal": {
       "label": "رمال — الفرع السحابي",
       "modules": ["pos"]
+    },
+    "gim": {
+      "label": "جيم — نظام إدارة الجيم",
+      "modules": ["gym"]
     }
   },
   "patterns": [
@@ -18,6 +22,10 @@
     {
       "match": "^pos:",
       "modules": ["pos"]
+    },
+    {
+      "match": "^gym:",
+      "modules": ["gym"]
     }
   ],
   "defaults": ["pos"]

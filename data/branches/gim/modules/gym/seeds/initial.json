@@ -1,0 +1,1361 @@
+{
+  "version": 1,
+  "meta": {
+    "branchId": "gim",
+    "moduleId": "gym",
+    "generatedAt": "2025-10-29T10:00:00Z"
+  },
+  "tables": {
+    "gym_config": [
+      {
+        "id": "main",
+        "gym_name": {
+          "en": "PowerFit Gym",
+          "ar": "باور فيت للياقة البدنية"
+        },
+        "currency": "EGP",
+        "timezone": "Africa/Cairo",
+        "reminder_days_before": 7,
+        "business_hours": {
+          "saturday": { "open": "06:00", "close": "23:00" },
+          "sunday": { "open": "06:00", "close": "23:00" },
+          "monday": { "open": "06:00", "close": "23:00" },
+          "tuesday": { "open": "06:00", "close": "23:00" },
+          "wednesday": { "open": "06:00", "close": "23:00" },
+          "thursday": { "open": "06:00", "close": "23:00" },
+          "friday": { "open": "14:00", "close": "23:00" }
+        },
+        "contact_info": {
+          "phone": "+20 10 1234 5678",
+          "email": "info@powerfit.com",
+          "address": {
+            "en": "123 Main Street, Cairo, Egypt",
+            "ar": "١٢٣ شارع الرئيسي، القاهرة، مصر"
+          }
+        },
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      }
+    ],
+    "staff": [
+      {
+        "id": "staff_001",
+        "name": {
+          "en": "Ahmed Hassan",
+          "ar": "أحمد حسن"
+        },
+        "role": "manager",
+        "email": "ahmed@powerfit.com",
+        "phone": "+20 10 1111 1111",
+        "hire_date": "2024-01-01",
+        "status": "active",
+        "salary": 8000,
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z"
+      },
+      {
+        "id": "staff_002",
+        "name": {
+          "en": "Sara Mohamed",
+          "ar": "سارة محمد"
+        },
+        "role": "receptionist",
+        "email": "sara@powerfit.com",
+        "phone": "+20 10 2222 2222",
+        "hire_date": "2024-03-15",
+        "status": "active",
+        "salary": 4500,
+        "created_at": "2024-03-15T00:00:00Z",
+        "updated_at": "2024-03-15T00:00:00Z"
+      },
+      {
+        "id": "staff_003",
+        "name": {
+          "en": "Karim Ali",
+          "ar": "كريم علي"
+        },
+        "role": "trainer",
+        "email": "karim@powerfit.com",
+        "phone": "+20 10 3333 3333",
+        "hire_date": "2024-02-10",
+        "status": "active",
+        "salary": 6000,
+        "created_at": "2024-02-10T00:00:00Z",
+        "updated_at": "2024-02-10T00:00:00Z"
+      },
+      {
+        "id": "staff_004",
+        "name": {
+          "en": "Fatima Ibrahim",
+          "ar": "فاطمة إبراهيم"
+        },
+        "role": "trainer",
+        "email": "fatima@powerfit.com",
+        "phone": "+20 10 4444 4444",
+        "hire_date": "2024-04-20",
+        "status": "active",
+        "salary": 6000,
+        "created_at": "2024-04-20T00:00:00Z",
+        "updated_at": "2024-04-20T00:00:00Z"
+      }
+    ],
+    "membership_plan": [
+      {
+        "id": "plan_001",
+        "plan_name": {
+          "en": "Monthly Membership",
+          "ar": "اشتراك شهري"
+        },
+        "description": {
+          "en": "Full gym access for 30 days",
+          "ar": "دخول كامل للجيم لمدة ٣٠ يوم"
+        },
+        "duration_days": 30,
+        "price": 500,
+        "features": {
+          "en": ["Access to all equipment", "Locker access", "Group classes"],
+          "ar": ["الدخول لجميع المعدات", "خزانة تخزين", "حصص جماعية"]
+        },
+        "is_active": true,
+        "display_order": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "plan_002",
+        "plan_name": {
+          "en": "Quarterly Membership",
+          "ar": "اشتراك ربع سنوي"
+        },
+        "description": {
+          "en": "Full gym access for 90 days - Save 10%",
+          "ar": "دخول كامل للجيم لمدة ٩٠ يوم - وفر ١٠٪"
+        },
+        "duration_days": 90,
+        "price": 1350,
+        "features": {
+          "en": ["Access to all equipment", "Locker access", "Group classes", "10% discount"],
+          "ar": ["الدخول لجميع المعدات", "خزانة تخزين", "حصص جماعية", "خصم ١٠٪"]
+        },
+        "is_active": true,
+        "display_order": 2,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "plan_003",
+        "plan_name": {
+          "en": "Annual Membership",
+          "ar": "اشتراك سنوي"
+        },
+        "description": {
+          "en": "Full gym access for 365 days - Save 20%",
+          "ar": "دخول كامل للجيم لمدة ٣٦٥ يوم - وفر ٢٠٪"
+        },
+        "duration_days": 365,
+        "price": 4800,
+        "features": {
+          "en": ["Access to all equipment", "Locker access", "Group classes", "20% discount", "Free personal training session"],
+          "ar": ["الدخول لجميع المعدات", "خزانة تخزين", "حصص جماعية", "خصم ٢٠٪", "جلسة تدريب شخصي مجانية"]
+        },
+        "is_active": true,
+        "display_order": 3,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "plan_004",
+        "plan_name": {
+          "en": "Premium Monthly",
+          "ar": "اشتراك شهري مميز"
+        },
+        "description": {
+          "en": "Premium access with personal trainer",
+          "ar": "دخول مميز مع مدرب شخصي"
+        },
+        "duration_days": 30,
+        "price": 1200,
+        "features": {
+          "en": ["Access to all equipment", "Private locker", "Group classes", "4 personal training sessions", "Nutrition consultation"],
+          "ar": ["الدخول لجميع المعدات", "خزانة خاصة", "حصص جماعية", "٤ جلسات تدريب شخصي", "استشارة تغذية"]
+        },
+        "is_active": true,
+        "display_order": 4,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      }
+    ],
+    "gym_member": [
+      {
+        "id": "member_001",
+        "member_code": "GYM001",
+        "full_name": {
+          "en": "Omar Khaled",
+          "ar": "عمر خالد"
+        },
+        "email": "omar.khaled@email.com",
+        "phone": "+20 10 5555 0001",
+        "date_of_birth": "1995-05-15",
+        "gender": "male",
+        "address": {
+          "en": "Nasr City, Cairo",
+          "ar": "مدينة نصر، القاهرة"
+        },
+        "emergency_contact": {
+          "name": "Khaled Omar",
+          "phone": "+20 10 5555 0002",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2024-09-01",
+        "status": "active",
+        "created_at": "2024-09-01T00:00:00Z",
+        "updated_at": "2024-09-01T00:00:00Z"
+      },
+      {
+        "id": "member_002",
+        "member_code": "GYM002",
+        "full_name": {
+          "en": "Layla Ahmed",
+          "ar": "ليلى أحمد"
+        },
+        "email": "layla.ahmed@email.com",
+        "phone": "+20 10 5555 0003",
+        "date_of_birth": "1992-08-22",
+        "gender": "female",
+        "address": {
+          "en": "Zamalek, Cairo",
+          "ar": "الزمالك، القاهرة"
+        },
+        "emergency_contact": {
+          "name": "Ahmed Ali",
+          "phone": "+20 10 5555 0004",
+          "relation": "spouse"
+        },
+        "medical_notes": {
+          "en": "Allergic to nuts",
+          "ar": "حساسية من المكسرات"
+        },
+        "profile_photo": null,
+        "joined_date": "2024-06-15",
+        "status": "active",
+        "created_at": "2024-06-15T00:00:00Z",
+        "updated_at": "2024-06-15T00:00:00Z"
+      },
+      {
+        "id": "member_003",
+        "member_code": "GYM003",
+        "full_name": {
+          "en": "Youssef Hassan",
+          "ar": "يوسف حسن"
+        },
+        "email": "youssef.hassan@email.com",
+        "phone": "+20 10 5555 0005",
+        "date_of_birth": "1998-12-10",
+        "gender": "male",
+        "address": {
+          "en": "Maadi, Cairo",
+          "ar": "المعادي، القاهرة"
+        },
+        "emergency_contact": {
+          "name": "Hassan Youssef",
+          "phone": "+20 10 5555 0006",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2025-08-20",
+        "status": "active",
+        "created_at": "2025-08-20T00:00:00Z",
+        "updated_at": "2025-08-20T00:00:00Z"
+      },
+      {
+        "id": "member_004",
+        "member_code": "GYM004",
+        "full_name": {
+          "en": "Nour Mohamed",
+          "ar": "نور محمد"
+        },
+        "email": "nour.mohamed@email.com",
+        "phone": "+20 10 5555 0007",
+        "date_of_birth": "1990-03-18",
+        "gender": "female",
+        "address": {
+          "en": "Heliopolis, Cairo",
+          "ar": "مصر الجديدة، القاهرة"
+        },
+        "emergency_contact": {
+          "name": "Mohamed Ali",
+          "phone": "+20 10 5555 0008",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2024-11-10",
+        "status": "active",
+        "created_at": "2024-11-10T00:00:00Z",
+        "updated_at": "2024-11-10T00:00:00Z"
+      },
+      {
+        "id": "member_005",
+        "member_code": "GYM005",
+        "full_name": {
+          "en": "Mahmoud Ibrahim",
+          "ar": "محمود إبراهيم"
+        },
+        "email": "mahmoud.ibrahim@email.com",
+        "phone": "+20 10 5555 0009",
+        "date_of_birth": "1993-07-25",
+        "gender": "male",
+        "address": {
+          "en": "6th October City",
+          "ar": "مدينة السادس من أكتوبر"
+        },
+        "emergency_contact": {
+          "name": "Ibrahim Mahmoud",
+          "phone": "+20 10 5555 0010",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2025-01-05",
+        "status": "active",
+        "created_at": "2025-01-05T00:00:00Z",
+        "updated_at": "2025-01-05T00:00:00Z"
+      },
+      {
+        "id": "member_006",
+        "member_code": "GYM006",
+        "full_name": {
+          "en": "Hana Samir",
+          "ar": "هناء سمير"
+        },
+        "email": "hana.samir@email.com",
+        "phone": "+20 10 5555 0011",
+        "date_of_birth": "1996-11-30",
+        "gender": "female",
+        "address": {
+          "en": "New Cairo",
+          "ar": "القاهرة الجديدة"
+        },
+        "emergency_contact": {
+          "name": "Samir Hassan",
+          "phone": "+20 10 5555 0012",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2025-07-15",
+        "status": "active",
+        "created_at": "2025-07-15T00:00:00Z",
+        "updated_at": "2025-07-15T00:00:00Z"
+      },
+      {
+        "id": "member_007",
+        "member_code": "GYM007",
+        "full_name": {
+          "en": "Tarek Yasser",
+          "ar": "طارق ياسر"
+        },
+        "email": "tarek.yasser@email.com",
+        "phone": "+20 10 5555 0013",
+        "date_of_birth": "1991-04-08",
+        "gender": "male",
+        "address": {
+          "en": "Dokki, Giza",
+          "ar": "الدقي، الجيزة"
+        },
+        "emergency_contact": {
+          "name": "Yasser Tarek",
+          "phone": "+20 10 5555 0014",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "Lower back pain",
+          "ar": "ألم أسفل الظهر"
+        },
+        "profile_photo": null,
+        "joined_date": "2024-08-01",
+        "status": "active",
+        "created_at": "2024-08-01T00:00:00Z",
+        "updated_at": "2024-08-01T00:00:00Z"
+      },
+      {
+        "id": "member_008",
+        "member_code": "GYM008",
+        "full_name": {
+          "en": "Dina Mostafa",
+          "ar": "دينا مصطفى"
+        },
+        "email": "dina.mostafa@email.com",
+        "phone": "+20 10 5555 0015",
+        "date_of_birth": "1994-09-14",
+        "gender": "female",
+        "address": {
+          "en": "Mohandessin, Giza",
+          "ar": "المهندسين، الجيزة"
+        },
+        "emergency_contact": {
+          "name": "Mostafa Ali",
+          "phone": "+20 10 5555 0016",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2025-05-20",
+        "status": "active",
+        "created_at": "2025-05-20T00:00:00Z",
+        "updated_at": "2025-05-20T00:00:00Z"
+      },
+      {
+        "id": "member_009",
+        "member_code": "GYM009",
+        "full_name": {
+          "en": "Ziad Adel",
+          "ar": "زياد عادل"
+        },
+        "email": "ziad.adel@email.com",
+        "phone": "+20 10 5555 0017",
+        "date_of_birth": "1997-02-28",
+        "gender": "male",
+        "address": {
+          "en": "Shubra, Cairo",
+          "ar": "شبرا، القاهرة"
+        },
+        "emergency_contact": {
+          "name": "Adel Ziad",
+          "phone": "+20 10 5555 0018",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2025-09-10",
+        "status": "active",
+        "created_at": "2025-09-10T00:00:00Z",
+        "updated_at": "2025-09-10T00:00:00Z"
+      },
+      {
+        "id": "member_010",
+        "member_code": "GYM010",
+        "full_name": {
+          "en": "Salma Tarek",
+          "ar": "سلمى طارق"
+        },
+        "email": "salma.tarek@email.com",
+        "phone": "+20 10 5555 0019",
+        "date_of_birth": "1999-06-05",
+        "gender": "female",
+        "address": {
+          "en": "Nasr City, Cairo",
+          "ar": "مدينة نصر، القاهرة"
+        },
+        "emergency_contact": {
+          "name": "Tarek Ahmed",
+          "phone": "+20 10 5555 0020",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2025-03-12",
+        "status": "active",
+        "created_at": "2025-03-12T00:00:00Z",
+        "updated_at": "2025-03-12T00:00:00Z"
+      },
+      {
+        "id": "member_011",
+        "member_code": "GYM011",
+        "full_name": {
+          "en": "Adam Wael",
+          "ar": "آدم وائل"
+        },
+        "email": "adam.wael@email.com",
+        "phone": "+20 10 5555 0021",
+        "date_of_birth": "1988-10-20",
+        "gender": "male",
+        "address": {
+          "en": "Giza, Egypt",
+          "ar": "الجيزة، مصر"
+        },
+        "emergency_contact": {
+          "name": "Wael Adam",
+          "phone": "+20 10 5555 0022",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "Diabetes Type 2",
+          "ar": "سكري من النوع الثاني"
+        },
+        "profile_photo": null,
+        "joined_date": "2024-12-01",
+        "status": "active",
+        "created_at": "2024-12-01T00:00:00Z",
+        "updated_at": "2024-12-01T00:00:00Z"
+      },
+      {
+        "id": "member_012",
+        "member_code": "GYM012",
+        "full_name": {
+          "en": "Yasmin Khaled",
+          "ar": "ياسمين خالد"
+        },
+        "email": "yasmin.khaled@email.com",
+        "phone": "+20 10 5555 0023",
+        "date_of_birth": "2000-01-15",
+        "gender": "female",
+        "address": {
+          "en": "Alexandria",
+          "ar": "الإسكندرية"
+        },
+        "emergency_contact": {
+          "name": "Khaled Hassan",
+          "phone": "+20 10 5555 0024",
+          "relation": "father"
+        },
+        "medical_notes": {
+          "en": "None",
+          "ar": "لا يوجد"
+        },
+        "profile_photo": null,
+        "joined_date": "2025-10-01",
+        "status": "active",
+        "created_at": "2025-10-01T00:00:00Z",
+        "updated_at": "2025-10-01T00:00:00Z"
+      }
+    ],
+    "membership_subscription": [
+      {
+        "id": "sub_001",
+        "member_id": "member_001",
+        "plan_id": "plan_003",
+        "start_date": "2024-11-01",
+        "end_date": "2025-10-31",
+        "status": "active",
+        "amount_paid": 4800,
+        "payment_method": "cash",
+        "auto_renew": false,
+        "notes": {
+          "en": "Paid in full",
+          "ar": "دفع كامل"
+        },
+        "created_by": "staff_002",
+        "created_at": "2024-11-01T10:00:00Z",
+        "updated_at": "2024-11-01T10:00:00Z"
+      },
+      {
+        "id": "sub_002",
+        "member_id": "member_002",
+        "plan_id": "plan_002",
+        "start_date": "2025-08-01",
+        "end_date": "2025-10-29",
+        "status": "expiring_soon",
+        "amount_paid": 1350,
+        "payment_method": "card",
+        "auto_renew": true,
+        "notes": {
+          "en": "Auto-renewal enabled",
+          "ar": "التجديد التلقائي مفعل"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-08-01T11:30:00Z",
+        "updated_at": "2025-08-01T11:30:00Z"
+      },
+      {
+        "id": "sub_003",
+        "member_id": "member_003",
+        "plan_id": "plan_001",
+        "start_date": "2025-10-01",
+        "end_date": "2025-10-31",
+        "status": "expiring_soon",
+        "amount_paid": 500,
+        "payment_method": "cash",
+        "auto_renew": false,
+        "notes": {
+          "en": "First month",
+          "ar": "الشهر الأول"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-01T09:00:00Z",
+        "updated_at": "2025-10-01T09:00:00Z"
+      },
+      {
+        "id": "sub_004",
+        "member_id": "member_004",
+        "plan_id": "plan_004",
+        "start_date": "2025-10-05",
+        "end_date": "2025-11-04",
+        "status": "active",
+        "amount_paid": 1200,
+        "payment_method": "card",
+        "auto_renew": true,
+        "notes": {
+          "en": "Premium membership",
+          "ar": "عضوية مميزة"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-05T14:00:00Z",
+        "updated_at": "2025-10-05T14:00:00Z"
+      },
+      {
+        "id": "sub_005",
+        "member_id": "member_005",
+        "plan_id": "plan_003",
+        "start_date": "2025-02-01",
+        "end_date": "2026-01-31",
+        "status": "active",
+        "amount_paid": 4800,
+        "payment_method": "cash",
+        "auto_renew": false,
+        "notes": {
+          "en": "Paid in full",
+          "ar": "دفع كامل"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-02-01T10:00:00Z",
+        "updated_at": "2025-02-01T10:00:00Z"
+      },
+      {
+        "id": "sub_006",
+        "member_id": "member_006",
+        "plan_id": "plan_001",
+        "start_date": "2025-10-10",
+        "end_date": "2025-11-09",
+        "status": "active",
+        "amount_paid": 500,
+        "payment_method": "card",
+        "auto_renew": true,
+        "notes": {
+          "en": "Monthly subscription",
+          "ar": "اشتراك شهري"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-10T16:00:00Z",
+        "updated_at": "2025-10-10T16:00:00Z"
+      },
+      {
+        "id": "sub_007",
+        "member_id": "member_007",
+        "plan_id": "plan_002",
+        "start_date": "2025-08-10",
+        "end_date": "2025-11-08",
+        "status": "active",
+        "amount_paid": 1350,
+        "payment_method": "cash",
+        "auto_renew": false,
+        "notes": {
+          "en": "Quarterly subscription",
+          "ar": "اشتراك ربع سنوي"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-08-10T12:00:00Z",
+        "updated_at": "2025-08-10T12:00:00Z"
+      },
+      {
+        "id": "sub_008",
+        "member_id": "member_008",
+        "plan_id": "plan_001",
+        "start_date": "2025-10-15",
+        "end_date": "2025-11-14",
+        "status": "active",
+        "amount_paid": 500,
+        "payment_method": "card",
+        "auto_renew": true,
+        "notes": {
+          "en": "Monthly subscription",
+          "ar": "اشتراك شهري"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-15T11:00:00Z",
+        "updated_at": "2025-10-15T11:00:00Z"
+      },
+      {
+        "id": "sub_009",
+        "member_id": "member_009",
+        "plan_id": "plan_001",
+        "start_date": "2025-10-01",
+        "end_date": "2025-10-31",
+        "status": "expiring_soon",
+        "amount_paid": 500,
+        "payment_method": "cash",
+        "auto_renew": false,
+        "notes": {
+          "en": "Trial month",
+          "ar": "شهر تجريبي"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-01T15:00:00Z",
+        "updated_at": "2025-10-01T15:00:00Z"
+      },
+      {
+        "id": "sub_010",
+        "member_id": "member_010",
+        "plan_id": "plan_004",
+        "start_date": "2025-10-20",
+        "end_date": "2025-11-19",
+        "status": "active",
+        "amount_paid": 1200,
+        "payment_method": "card",
+        "auto_renew": true,
+        "notes": {
+          "en": "Premium with trainer",
+          "ar": "مميز مع مدرب"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-20T13:00:00Z",
+        "updated_at": "2025-10-20T13:00:00Z"
+      },
+      {
+        "id": "sub_011",
+        "member_id": "member_011",
+        "plan_id": "plan_002",
+        "start_date": "2025-09-01",
+        "end_date": "2025-11-29",
+        "status": "active",
+        "amount_paid": 1350,
+        "payment_method": "cash",
+        "auto_renew": false,
+        "notes": {
+          "en": "Quarterly plan",
+          "ar": "خطة ربع سنوية"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-09-01T10:00:00Z",
+        "updated_at": "2025-09-01T10:00:00Z"
+      },
+      {
+        "id": "sub_012",
+        "member_id": "member_012",
+        "plan_id": "plan_001",
+        "start_date": "2025-10-25",
+        "end_date": "2025-11-24",
+        "status": "active",
+        "amount_paid": 500,
+        "payment_method": "card",
+        "auto_renew": true,
+        "notes": {
+          "en": "First month",
+          "ar": "الشهر الأول"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-25T14:00:00Z",
+        "updated_at": "2025-10-25T14:00:00Z"
+      }
+    ],
+    "gym_service": [
+      {
+        "id": "service_001",
+        "service_name": {
+          "en": "Personal Training Session",
+          "ar": "جلسة تدريب شخصي"
+        },
+        "description": {
+          "en": "One-on-one training session with certified trainer",
+          "ar": "جلسة تدريب فردية مع مدرب معتمد"
+        },
+        "category": "training",
+        "price": 200,
+        "duration_minutes": 60,
+        "is_active": true,
+        "requires_trainer": true,
+        "max_participants": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "service_002",
+        "service_name": {
+          "en": "Nutrition Consultation",
+          "ar": "استشارة تغذية"
+        },
+        "description": {
+          "en": "Professional nutrition advice and meal planning",
+          "ar": "نصائح تغذية احترافية وتخطيط وجبات"
+        },
+        "category": "consultation",
+        "price": 150,
+        "duration_minutes": 45,
+        "is_active": true,
+        "requires_trainer": true,
+        "max_participants": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "service_003",
+        "service_name": {
+          "en": "Locker Rental",
+          "ar": "إيجار خزانة"
+        },
+        "description": {
+          "en": "Monthly locker rental",
+          "ar": "إيجار خزانة شهري"
+        },
+        "category": "facility",
+        "price": 50,
+        "duration_minutes": 0,
+        "is_active": true,
+        "requires_trainer": false,
+        "max_participants": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "service_004",
+        "service_name": {
+          "en": "Protein Shake",
+          "ar": "مشروب بروتين"
+        },
+        "description": {
+          "en": "Fresh protein shake",
+          "ar": "مشروب بروتين طازج"
+        },
+        "category": "nutrition",
+        "price": 30,
+        "duration_minutes": 0,
+        "is_active": true,
+        "requires_trainer": false,
+        "max_participants": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "service_005",
+        "service_name": {
+          "en": "Energy Drink",
+          "ar": "مشروب طاقة"
+        },
+        "description": {
+          "en": "Energy boosting drink",
+          "ar": "مشروب منشط للطاقة"
+        },
+        "category": "nutrition",
+        "price": 25,
+        "duration_minutes": 0,
+        "is_active": true,
+        "requires_trainer": false,
+        "max_participants": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "service_006",
+        "service_name": {
+          "en": "Group Class - Yoga",
+          "ar": "حصة جماعية - يوغا"
+        },
+        "description": {
+          "en": "60-minute yoga class",
+          "ar": "حصة يوغا لمدة ٦٠ دقيقة"
+        },
+        "category": "class",
+        "price": 80,
+        "duration_minutes": 60,
+        "is_active": true,
+        "requires_trainer": true,
+        "max_participants": 15,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "service_007",
+        "service_name": {
+          "en": "Group Class - Spinning",
+          "ar": "حصة جماعية - دراجات"
+        },
+        "description": {
+          "en": "45-minute spinning class",
+          "ar": "حصة دراجات لمدة ٤٥ دقيقة"
+        },
+        "category": "class",
+        "price": 70,
+        "duration_minutes": 45,
+        "is_active": true,
+        "requires_trainer": true,
+        "max_participants": 20,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      },
+      {
+        "id": "service_008",
+        "service_name": {
+          "en": "Body Composition Analysis",
+          "ar": "تحليل تكوين الجسم"
+        },
+        "description": {
+          "en": "InBody scan and consultation",
+          "ar": "فحص InBody واستشارة"
+        },
+        "category": "assessment",
+        "price": 100,
+        "duration_minutes": 30,
+        "is_active": true,
+        "requires_trainer": true,
+        "max_participants": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
+      }
+    ],
+    "service_transaction": [
+      {
+        "id": "svc_txn_001",
+        "member_id": "member_001",
+        "service_id": "service_001",
+        "staff_id": "staff_003",
+        "transaction_date": "2025-10-15T10:00:00Z",
+        "amount": 200,
+        "payment_method": "cash",
+        "status": "completed",
+        "notes": {
+          "en": "Upper body workout",
+          "ar": "تمرين الجزء العلوي"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-15T10:00:00Z"
+      },
+      {
+        "id": "svc_txn_002",
+        "member_id": "member_002",
+        "service_id": "service_004",
+        "staff_id": null,
+        "transaction_date": "2025-10-20T14:30:00Z",
+        "amount": 30,
+        "payment_method": "card",
+        "status": "completed",
+        "notes": {
+          "en": "Chocolate flavor",
+          "ar": "نكهة الشوكولاتة"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-20T14:30:00Z"
+      },
+      {
+        "id": "svc_txn_003",
+        "member_id": "member_003",
+        "service_id": "service_003",
+        "staff_id": null,
+        "transaction_date": "2025-10-01T09:00:00Z",
+        "amount": 50,
+        "payment_method": "cash",
+        "status": "completed",
+        "notes": {
+          "en": "Locker #45",
+          "ar": "خزانة رقم ٤٥"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-01T09:00:00Z"
+      },
+      {
+        "id": "svc_txn_004",
+        "member_id": "member_004",
+        "service_id": "service_002",
+        "staff_id": "staff_004",
+        "transaction_date": "2025-10-18T11:00:00Z",
+        "amount": 150,
+        "payment_method": "card",
+        "status": "completed",
+        "notes": {
+          "en": "Weight loss program",
+          "ar": "برنامج إنقاص وزن"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-18T11:00:00Z"
+      },
+      {
+        "id": "svc_txn_005",
+        "member_id": "member_005",
+        "service_id": "service_006",
+        "staff_id": "staff_004",
+        "transaction_date": "2025-10-22T18:00:00Z",
+        "amount": 80,
+        "payment_method": "cash",
+        "status": "completed",
+        "notes": {
+          "en": "Evening yoga class",
+          "ar": "حصة يوغا مسائية"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-22T18:00:00Z"
+      },
+      {
+        "id": "svc_txn_006",
+        "member_id": "member_006",
+        "service_id": "service_005",
+        "staff_id": null,
+        "transaction_date": "2025-10-23T16:00:00Z",
+        "amount": 25,
+        "payment_method": "card",
+        "status": "completed",
+        "notes": {
+          "en": "Pre-workout boost",
+          "ar": "منشط قبل التمرين"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-23T16:00:00Z"
+      },
+      {
+        "id": "svc_txn_007",
+        "member_id": "member_007",
+        "service_id": "service_001",
+        "staff_id": "staff_003",
+        "transaction_date": "2025-10-24T09:00:00Z",
+        "amount": 200,
+        "payment_method": "cash",
+        "status": "completed",
+        "notes": {
+          "en": "Lower body workout",
+          "ar": "تمرين الجزء السفلي"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-24T09:00:00Z"
+      },
+      {
+        "id": "svc_txn_008",
+        "member_id": "member_008",
+        "service_id": "service_008",
+        "staff_id": "staff_003",
+        "transaction_date": "2025-10-25T10:30:00Z",
+        "amount": 100,
+        "payment_method": "card",
+        "status": "completed",
+        "notes": {
+          "en": "Initial assessment",
+          "ar": "تقييم أولي"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-25T10:30:00Z"
+      },
+      {
+        "id": "svc_txn_009",
+        "member_id": "member_009",
+        "service_id": "service_007",
+        "staff_id": "staff_003",
+        "transaction_date": "2025-10-26T17:00:00Z",
+        "amount": 70,
+        "payment_method": "cash",
+        "status": "completed",
+        "notes": {
+          "en": "Cardio workout",
+          "ar": "تمرين كارديو"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-26T17:00:00Z"
+      },
+      {
+        "id": "svc_txn_010",
+        "member_id": "member_010",
+        "service_id": "service_004",
+        "staff_id": null,
+        "transaction_date": "2025-10-27T15:00:00Z",
+        "amount": 30,
+        "payment_method": "card",
+        "status": "completed",
+        "notes": {
+          "en": "Vanilla flavor",
+          "ar": "نكهة الفانيليا"
+        },
+        "created_by": "staff_002",
+        "created_at": "2025-10-27T15:00:00Z"
+      }
+    ],
+    "payment_transaction": [
+      {
+        "id": "pay_001",
+        "reference_type": "subscription",
+        "reference_id": "sub_001",
+        "member_id": "member_001",
+        "amount": 4800,
+        "payment_method": "cash",
+        "payment_date": "2024-11-01T10:00:00Z",
+        "status": "completed",
+        "receipt_number": "RCP-2024-001",
+        "notes": {
+          "en": "Annual membership payment",
+          "ar": "دفعة عضوية سنوية"
+        },
+        "processed_by": "staff_002",
+        "created_at": "2024-11-01T10:00:00Z"
+      },
+      {
+        "id": "pay_002",
+        "reference_type": "subscription",
+        "reference_id": "sub_002",
+        "member_id": "member_002",
+        "amount": 1350,
+        "payment_method": "card",
+        "payment_date": "2025-08-01T11:30:00Z",
+        "status": "completed",
+        "receipt_number": "RCP-2025-048",
+        "notes": {
+          "en": "Quarterly membership payment",
+          "ar": "دفعة عضوية ربع سنوية"
+        },
+        "processed_by": "staff_002",
+        "created_at": "2025-08-01T11:30:00Z"
+      },
+      {
+        "id": "pay_003",
+        "reference_type": "service",
+        "reference_id": "svc_txn_001",
+        "member_id": "member_001",
+        "amount": 200,
+        "payment_method": "cash",
+        "payment_date": "2025-10-15T10:00:00Z",
+        "status": "completed",
+        "receipt_number": "RCP-2025-152",
+        "notes": {
+          "en": "Personal training session",
+          "ar": "جلسة تدريب شخصي"
+        },
+        "processed_by": "staff_002",
+        "created_at": "2025-10-15T10:00:00Z"
+      },
+      {
+        "id": "pay_004",
+        "reference_type": "subscription",
+        "reference_id": "sub_003",
+        "member_id": "member_003",
+        "amount": 500,
+        "payment_method": "cash",
+        "payment_date": "2025-10-01T09:00:00Z",
+        "status": "completed",
+        "receipt_number": "RCP-2025-145",
+        "notes": {
+          "en": "Monthly membership payment",
+          "ar": "دفعة عضوية شهرية"
+        },
+        "processed_by": "staff_002",
+        "created_at": "2025-10-01T09:00:00Z"
+      },
+      {
+        "id": "pay_005",
+        "reference_type": "service",
+        "reference_id": "svc_txn_002",
+        "member_id": "member_002",
+        "amount": 30,
+        "payment_method": "card",
+        "payment_date": "2025-10-20T14:30:00Z",
+        "status": "completed",
+        "receipt_number": "RCP-2025-156",
+        "notes": {
+          "en": "Protein shake",
+          "ar": "مشروب بروتين"
+        },
+        "processed_by": "staff_002",
+        "created_at": "2025-10-20T14:30:00Z"
+      }
+    ],
+    "attendance_log": [
+      {
+        "id": "att_001",
+        "member_id": "member_001",
+        "check_in_time": "2025-10-28T07:00:00Z",
+        "check_out_time": "2025-10-28T08:30:00Z",
+        "duration_minutes": 90,
+        "notes": "Morning workout",
+        "created_at": "2025-10-28T07:00:00Z"
+      },
+      {
+        "id": "att_002",
+        "member_id": "member_002",
+        "check_in_time": "2025-10-28T17:00:00Z",
+        "check_out_time": "2025-10-28T18:15:00Z",
+        "duration_minutes": 75,
+        "notes": "Evening session",
+        "created_at": "2025-10-28T17:00:00Z"
+      },
+      {
+        "id": "att_003",
+        "member_id": "member_003",
+        "check_in_time": "2025-10-28T10:00:00Z",
+        "check_out_time": "2025-10-28T11:30:00Z",
+        "duration_minutes": 90,
+        "notes": "Cardio day",
+        "created_at": "2025-10-28T10:00:00Z"
+      },
+      {
+        "id": "att_004",
+        "member_id": "member_004",
+        "check_in_time": "2025-10-28T18:00:00Z",
+        "check_out_time": "2025-10-28T19:00:00Z",
+        "duration_minutes": 60,
+        "notes": "Yoga class",
+        "created_at": "2025-10-28T18:00:00Z"
+      },
+      {
+        "id": "att_005",
+        "member_id": "member_005",
+        "check_in_time": "2025-10-29T06:30:00Z",
+        "check_out_time": "2025-10-29T08:00:00Z",
+        "duration_minutes": 90,
+        "notes": "Early morning workout",
+        "created_at": "2025-10-29T06:30:00Z"
+      },
+      {
+        "id": "att_006",
+        "member_id": "member_006",
+        "check_in_time": "2025-10-29T09:00:00Z",
+        "check_out_time": null,
+        "duration_minutes": null,
+        "notes": "Currently in gym",
+        "created_at": "2025-10-29T09:00:00Z"
+      },
+      {
+        "id": "att_007",
+        "member_id": "member_007",
+        "check_in_time": "2025-10-27T16:00:00Z",
+        "check_out_time": "2025-10-27T17:45:00Z",
+        "duration_minutes": 105,
+        "notes": "Leg day",
+        "created_at": "2025-10-27T16:00:00Z"
+      },
+      {
+        "id": "att_008",
+        "member_id": "member_008",
+        "check_in_time": "2025-10-27T11:00:00Z",
+        "check_out_time": "2025-10-27T12:30:00Z",
+        "duration_minutes": 90,
+        "notes": "Full body workout",
+        "created_at": "2025-10-27T11:00:00Z"
+      }
+    ],
+    "reminder": [
+      {
+        "id": "rem_001",
+        "member_id": "member_002",
+        "subscription_id": "sub_002",
+        "reminder_type": "renewal",
+        "reminder_date": "2025-10-22",
+        "message": {
+          "en": "Your quarterly membership expires on October 29. Please renew to continue enjoying our services.",
+          "ar": "ينتهي اشتراكك الربع سنوي في ٢٩ أكتوبر. يرجى التجديد لمواصلة الاستمتاع بخدماتنا."
+        },
+        "status": "sent",
+        "sent_at": "2025-10-22T09:00:00Z",
+        "created_at": "2025-10-22T09:00:00Z"
+      },
+      {
+        "id": "rem_002",
+        "member_id": "member_003",
+        "subscription_id": "sub_003",
+        "reminder_type": "renewal",
+        "reminder_date": "2025-10-24",
+        "message": {
+          "en": "Your monthly membership expires on October 31. Please renew to continue your fitness journey.",
+          "ar": "ينتهي اشتراكك الشهري في ٣١ أكتوبر. يرجى التجديد لمواصلة رحلتك الرياضية."
+        },
+        "status": "sent",
+        "sent_at": "2025-10-24T09:00:00Z",
+        "created_at": "2025-10-24T09:00:00Z"
+      },
+      {
+        "id": "rem_003",
+        "member_id": "member_009",
+        "subscription_id": "sub_009",
+        "reminder_type": "renewal",
+        "reminder_date": "2025-10-24",
+        "message": {
+          "en": "Your monthly membership expires on October 31. Please renew to continue your fitness journey.",
+          "ar": "ينتهي اشتراكك الشهري في ٣١ أكتوبر. يرجى التجديد لمواصلة رحلتك الرياضية."
+        },
+        "status": "sent",
+        "sent_at": "2025-10-24T09:00:00Z",
+        "created_at": "2025-10-24T09:00:00Z"
+      },
+      {
+        "id": "rem_004",
+        "member_id": "member_001",
+        "subscription_id": "sub_001",
+        "reminder_type": "renewal",
+        "reminder_date": "2025-10-24",
+        "message": {
+          "en": "Your annual membership expires on October 31. Please renew to maintain your membership benefits.",
+          "ar": "ينتهي اشتراكك السنوي في ٣١ أكتوبر. يرجى التجديد للحفاظ على مزايا عضويتك."
+        },
+        "status": "pending",
+        "sent_at": null,
+        "created_at": "2025-10-24T00:00:00Z"
+      }
+    ],
+    "revenue_report": [
+      {
+        "id": "report_001",
+        "report_date": "2025-10-01",
+        "report_type": "daily",
+        "total_revenue": 2450,
+        "membership_revenue": 2000,
+        "service_revenue": 450,
+        "payment_breakdown": {
+          "cash": 1500,
+          "card": 950
+        },
+        "metrics": {
+          "new_members": 3,
+          "renewals": 2,
+          "service_count": 8
+        },
+        "created_at": "2025-10-01T23:59:59Z"
+      },
+      {
+        "id": "report_002",
+        "report_date": "2025-10-15",
+        "report_type": "daily",
+        "total_revenue": 1730,
+        "membership_revenue": 1200,
+        "service_revenue": 530,
+        "payment_breakdown": {
+          "cash": 700,
+          "card": 1030
+        },
+        "metrics": {
+          "new_members": 2,
+          "renewals": 1,
+          "service_count": 10
+        },
+        "created_at": "2025-10-15T23:59:59Z"
+      },
+      {
+        "id": "report_003",
+        "report_date": "2025-10-01",
+        "report_type": "monthly",
+        "total_revenue": 45680,
+        "membership_revenue": 38500,
+        "service_revenue": 7180,
+        "payment_breakdown": {
+          "cash": 25340,
+          "card": 20340
+        },
+        "metrics": {
+          "new_members": 12,
+          "renewals": 18,
+          "service_count": 145,
+          "average_revenue_per_member": 3807
+        },
+        "created_at": "2025-10-31T23:59:59Z"
+      }
+    ]
+  }
+}

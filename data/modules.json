@@ -57,6 +57,27 @@
         "audit_event"
       ],
       "description": "Serialized POS dataset for front/back sync."
+    },
+    "gym": {
+      "label": "Gym Management",
+      "schemaPath": "schema/definition.json",
+      "seedPath": "seeds/initial.json",
+      "livePath": "live/data.json",
+      "historyPath": "history",
+      "tables": [
+        "gym_config",
+        "staff",
+        "gym_member",
+        "membership_plan",
+        "membership_subscription",
+        "gym_service",
+        "service_transaction",
+        "payment_transaction",
+        "attendance_log",
+        "reminder",
+        "revenue_report"
+      ],
+      "description": "Gym management system for memberships, services, and POS."
     }
   }
 }
