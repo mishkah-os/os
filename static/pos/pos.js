@@ -438,6 +438,7 @@
           customer_saved:'تم حفظ بيانات العميل', customer_attach_success:'تم ربط العميل بالطلب',
           customer_missing_selection:'اختر عميلًا أولًا', customer_missing_address:'اختر عنوانًا لهذا العميل', customer_form_invalid:'أكمل الاسم ورقم الهاتف',
           new_order:'تم إنشاء طلب جديد', order_type_changed:'تم تغيير نوع الطلب', table_assigned:'تم اختيار الطاولة',
+          order_table_required:'يرجى اختيار طاولة قبل حفظ طلب الصالة', order_customer_required:'يرجى ربط طلب التوصيل ببيانات العميل وعنوانه',
           merge_stub:'قريبًا دمج الطاولات', load_more_stub:'سيتم تحميل المزيد من الأصناف لاحقًا', indexeddb_syncing:'جاري المزامنة مع IndexedDB',
           theme_switched:'تم تغيير الثيم', lang_switched:'تم تغيير اللغة', logout_stub:'تم إنهاء الوردية افتراضيًا',
           kdsConnected:'تم الاتصال بالمطبخ', kdsClosed:'تم إغلاق الاتصال بالمطبخ', kdsFailed:'فشل الاتصال بالمطبخ',
@@ -573,6 +574,7 @@
           customer_saved:'Customer saved successfully', customer_attach_success:'Customer linked to order',
           customer_missing_selection:'Select a customer first', customer_missing_address:'Select an address for this customer', customer_form_invalid:'Please enter name and phone number',
           new_order:'New order created', order_type_changed:'Order type changed', table_assigned:'Table assigned',
+          order_table_required:'Select at least one table before saving dine-in orders', order_customer_required:'Link delivery orders to a customer profile and address',
           merge_stub:'Table merge coming soon', load_more_stub:'Menu pagination coming soon', indexeddb_syncing:'Syncing with IndexedDB…',
           theme_switched:'Theme updated', lang_switched:'Language updated', logout_stub:'Session ended (stub)',
           kdsConnected:'Connected to kitchen', kdsClosed:'Kitchen connection closed', kdsFailed:'Kitchen connection failed',
@@ -4483,6 +4485,19 @@
       const requiresPayment = mode === 'finalize' || mode === 'finalize-print';
       const finalize = requiresPayment;
       const openPrint = mode === 'finalize-print';
+      const assignedTables = Array.isArray(order.tableIds) ? order.tableIds.filter(Boolean) : [];
+      if(orderType === 'dine_in' && assignedTables.length === 0){
+        UI.pushToast(ctx, { title:t.toast.order_table_required || t.ui.select_table, icon:'⚠️' });
+        return { status:'error', reason:'table-required' };
+      }
+      if(orderType === 'delivery'){
+        const customerId = order.customerId || order.customer?.id || null;
+        const addressId = order.customerAddressId || order.customer?.addressId || null;
+        if(!customerId || !addressId){
+          UI.pushToast(ctx, { title:t.toast.order_customer_required || t.ui.customer_required_delivery, icon:'⚠️' });
+          return { status:'error', reason:'customer-required' };
+        }
+      }
       const now = Date.now();
       const safeLines = (order.lines || []).map(line=>({
         ...line,
@@ -4532,6 +4547,7 @@
         }
       }
       const idChanged = previousOrderId !== finalOrderId;
+      const primaryTableId = assignedTables.length ? assignedTables[0] : (order.tableId || null);
       const orderPayload = {
         ...order,
         id: finalOrderId,
@@ -4550,7 +4566,30 @@
         posNumber: Number.isFinite(Number(order.posNumber)) ? Number(order.posNumber) : POS_INFO.number,
         isPersisted:true,
         dirty:false,
-        paymentState: paymentSummary.state
+        paymentState: paymentSummary.state,
+        orderTypeId: orderType,
+        order_type_id: orderType,
+        statusId: status,
+        status_id: status,
+        stageId: finalizeStage,
+        stage_id: finalizeStage,
+        paymentStateId: paymentSummary.state,
+        payment_state_id: paymentSummary.state,
+        subtotal: totals.subtotal,
+        discountAmount: totals.discount,
+        discount_amount: totals.discount,
+        service_amount: totals.service,
+        tax_amount: totals.vat,
+        delivery_fee: totals.deliveryFee,
+        totalDue: totals.due,
+        total_due: totals.due,
+        total: totals.due,
+        totalPaid: paymentSummary.paid,
+        total_paid: paymentSummary.paid,
+        tableId: primaryTableId,
+        table_id: primaryTableId,
+        serviceMode: orderType,
+        metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType }
       };
       if(finalize){
         orderPayload.finalizedAt = now;

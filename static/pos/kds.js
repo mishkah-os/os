@@ -1223,10 +1223,11 @@
       const label = db.env.lang === 'ar'
         ? (station.nameAr || station.nameEn || station.id)
         : (station.nameEn || station.nameAr || station.id);
+      const stationJobs = (jobs.byStation[station.id] || []).filter(job=> job.status !== 'ready' && job.status !== 'completed');
       tabs.push({
         id: station.id,
         label,
-        count: (jobs.byStation[station.id] || []).length,
+        count: stationJobs.length,
         color: station.themeColor || null
       });
       registerLabel(label);
@@ -1553,7 +1554,7 @@
   };
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
-    const jobs = db.data.jobs.byStation[stationId] || [];
+    const jobs = (db.data.jobs.byStation[stationId] || []).filter(job=> job.status !== 'ready' && job.status !== 'completed');
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, jobs.map(job=> renderJobCard(job, station, t, lang, now)));
