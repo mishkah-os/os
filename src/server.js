@@ -2316,15 +2316,31 @@ async function applySyncSnapshot(branchId, moduleId, snapshot = {}, context = {}
   return nextState;
 }
 
+async function loadTopicBootstrap(topic) {
+  const descriptor = parseSyncTopic(topic);
+  if (!descriptor) {
+    return null;
+  }
+  try {
+    const state = await ensureSyncState(descriptor.branchId, descriptor.moduleId);
+    const payload = buildSyncPublishData(state, { meta: { reason: 'bootstrap' } });
+    return deepClone(payload);
+  } catch (error) {
+    logger.warn({ err: error, topic, descriptor }, 'Failed to generate pubsub bootstrap payload');
+    return null;
+  }
+}
+
 async function ensurePubsubTopic(topic) {
   if (!PUBSUB_TOPICS.has(topic)) {
     PUBSUB_TOPICS.set(topic, { subscribers: new Set(), lastData: null });
   }
   const record = PUBSUB_TOPICS.get(topic);
-  const descriptor = parseSyncTopic(topic);
-  if (descriptor && !record.lastData) {
-    const state = await ensureSyncState(descriptor.branchId, descriptor.moduleId);
-    record.lastData = deepClone(buildSyncPublishData(state, { meta: { reason: 'bootstrap' } }));
+  if (record.lastData === undefined || record.lastData === null) {
+    const bootstrap = await loadTopicBootstrap(topic);
+    if (bootstrap) {
+      record.lastData = bootstrap;
+    }
   }
   return record;
 }
@@ -2336,6 +2352,14 @@ async function registerPubsubSubscriber(topic, client) {
     client.pubsubTopics = new Set();
   }
   client.pubsubTopics.add(topic);
+  if (record.lastData === undefined || record.lastData === null) {
+    const bootstrap = await loadTopicBootstrap(topic);
+    if (bootstrap) {
+      record.lastData = bootstrap;
+    } else {
+      logger.debug({ topic }, 'No bootstrap payload available for pubsub subscription');
+    }
+  }
   return record;
 }
 
