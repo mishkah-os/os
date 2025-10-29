@@ -134,7 +134,11 @@
     }
     const limit = 6;
     const rows = orders.slice(0, limit).map((order) => {
-      const orderType = lookups.types?.get(order.orderTypeId) || lookups.types?.get(order.order_type_id) || '';
+      const orderType =
+        lookups.types?.get(order.orderTypeId) ||
+        lookups.types?.get(order.order_type_id) ||
+        lookups.types?.get(order.type) ||
+        '';
       const status = lookups.statuses?.get(order.statusId) || lookups.statuses?.get(order.status_id) || '';
       const payment = lookups.payments?.get(order.paymentStateId) || lookups.payments?.get(order.payment_state_id) || '';
       const due = formatCurrency(order.totalDue ?? order.total_due ?? order.subtotal ?? 0, { currency, lang });

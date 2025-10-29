@@ -341,10 +341,62 @@
         availableTables: [],
         selectedTableId: null,
         orders: [],
-        ordersFilter: 'restaurant',
+        ordersFilter: 'all',
         orderActionStatus: null,
         orderActionMessage: ''
       };
+
+      const DEFAULT_ORDER_TYPES = [
+        { id: 'dine_in', label: { ar: 'صالة', en: 'Dine-in' } },
+        { id: 'delivery', label: { ar: 'توصيل', en: 'Delivery' } },
+        { id: 'takeaway', label: { ar: 'تيك أواي', en: 'Takeaway' } }
+      ];
+
+      const STATUS_FALLBACK = {
+        open: { ar: 'قيد التنفيذ', en: 'In progress' },
+        held: { ar: 'معلّق', en: 'On hold' },
+        finalized: { ar: 'منتهي', en: 'Finalized' },
+        closed: { ar: 'مغلق', en: 'Closed' }
+      };
+
+      const PAYMENT_FALLBACK = {
+        unpaid: { ar: 'غير مدفوع', en: 'Unpaid' },
+        partial: { ar: 'مدفوع جزئيًا', en: 'Partially paid' },
+        paid: { ar: 'مدفوع', en: 'Paid' }
+      };
+
+      function normalizeOrderTypeId(value) {
+        if (!value) return 'dine_in';
+        const normalized = String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        return normalized || 'dine_in';
+      }
+
+      function createOrderTypeIndex(list = []) {
+        const map = new Map();
+        DEFAULT_ORDER_TYPES.forEach((entry) => {
+          map.set(entry.id, { id: entry.id, label: { ...entry.label } });
+        });
+        const entries = Array.isArray(list) ? list : [];
+        for (const entry of entries) {
+          if (!entry) continue;
+          const idRaw = entry.id || entry.order_type_id || entry.orderTypeId || entry.code || entry.value;
+          if (!idRaw) continue;
+          const id = normalizeOrderTypeId(idRaw);
+          const nameSource = entry.type_name || entry.name || entry.label || {};
+          const ar =
+            typeof nameSource === 'object'
+              ? nameSource.ar || nameSource.en || map.get(id)?.label?.ar || id
+              : String(nameSource || id);
+          const en =
+            typeof nameSource === 'object'
+              ? nameSource.en || nameSource.ar || map.get(id)?.label?.en || id
+              : String(nameSource || id);
+          map.set(id, { id, label: { ar, en } });
+        }
+        return map;
+      }
+
+      const defaultOrderTypeIndex = createOrderTypeIndex(DEFAULT_ORDER_TYPES);
 
       const database = {
         head: { title: 'Mishkah POS Tablet' },
@@ -365,9 +417,63 @@
         tableIndex: new Map(),
         kitchenSections: [],
         orderStatuses: [],
+        paymentStates: [],
         lineStatuses: [],
+        orderTypes: Array.from(defaultOrderTypeIndex.values()),
+        orderTypeIndex: defaultOrderTypeIndex,
         ordersIndex: new Map()
       };
+
+      function localizeOrderTypeLabel(typeId, lang = 'ar') {
+        const normalized = normalizeOrderTypeId(typeId);
+        const entry = runtime.orderTypeIndex.get(normalized) || runtime.orderTypeIndex.get('dine_in');
+        if (!entry) return normalized;
+        return lang === 'en'
+          ? entry.label.en || entry.label.ar || normalized
+          : entry.label.ar || entry.label.en || normalized;
+      }
+
+      function localizeStatusLabel(statusId, lang = 'ar') {
+        if (!statusId) return lang === 'en' ? 'Unknown' : 'غير معروف';
+        const normalized = String(statusId).toLowerCase();
+        const match = (runtime.orderStatuses || []).find((entry) => {
+          const candidate = entry?.id || entry?.status_id || entry?.statusId;
+          return candidate && String(candidate).toLowerCase() === normalized;
+        });
+        if (match) {
+          const source = match.status_name || match.name || match.label;
+          if (typeof source === 'object') {
+            return lang === 'en'
+              ? source.en || source.ar || normalized
+              : source.ar || source.en || normalized;
+          }
+          if (source) return String(source);
+        }
+        const fallback = STATUS_FALLBACK[normalized];
+        if (fallback) return lang === 'en' ? fallback.en : fallback.ar;
+        return normalized;
+      }
+
+      function localizePaymentStateLabel(stateId, lang = 'ar') {
+        if (!stateId) return lang === 'en' ? 'Unknown' : 'غير معروف';
+        const normalized = String(stateId).toLowerCase();
+        const match = (runtime.paymentStates || []).find((entry) => {
+          const candidate = entry?.id || entry?.payment_state_id || entry?.paymentStateId;
+          return candidate && String(candidate).toLowerCase() === normalized;
+        });
+        if (match) {
+          const source = match.payment_name || match.name || match.label;
+          if (typeof source === 'object') {
+            return lang === 'en'
+              ? source.en || source.ar || normalized
+              : source.ar || source.en || normalized;
+          }
+          if (source) return String(source);
+        }
+        const fallback = PAYMENT_FALLBACK[normalized];
+        if (fallback) return lang === 'en' ? fallback.en : fallback.ar;
+        return normalized;
+      }
 
       let dynamicHandlers = {};
       let currentShiftId = null;
@@ -512,6 +618,13 @@
           categories: normalizedCategories,
           items: normalizedItems
         }));
+      }
+
+      function rebuildOrderTypesFromPayload(payload = {}) {
+        const source = payload.order_types || payload.orderTypes;
+        const index = createOrderTypeIndex(Array.isArray(source) ? source : []);
+        runtime.orderTypeIndex = index;
+        runtime.orderTypes = Array.from(index.values());
       }
 
       function syncTables(tables = []) {
@@ -734,30 +847,53 @@
         if (!raw) return null;
         const id = raw.id || raw.orderId || raw.order_id;
         if (!id) return null;
-        const orderType = raw.orderTypeId || raw.order_type_id || 'dine_in';
-        if (orderType !== 'dine_in' && orderType !== 'restaurant') return null;
-        const status = raw.statusId || raw.status_id || 'open';
+        const status = raw.statusId || raw.status_id || raw.status || 'open';
         if (status === 'completed' || status === 'closed') return null;
+        const typeId = normalizeOrderTypeId(
+          raw.orderTypeId || raw.order_type_id || raw.order_type || raw.type || 'dine_in'
+        );
         const tableId = raw.tableId || raw.table_id || null;
         const table = tableId ? runtime.tableIndex.get(tableId) : null;
-        const total = roundCurrency(raw.totalDue ?? raw.total_due ?? raw.totalPaid ?? raw.total_paid ?? 0);
+        const due = roundCurrency(
+          raw.totalDue ?? raw.total_due ?? raw.total ?? raw.total_amount ?? raw.totalPaid ?? raw.total_paid ?? 0
+        );
+        const paid = roundCurrency(raw.totalPaid ?? raw.total_paid ?? 0);
+        const remaining = Math.max(0, roundCurrency(due - paid));
+        const paymentState = raw.paymentStateId || raw.payment_state_id || raw.payment_state || 'unpaid';
         const openedAt = raw.openedAt || raw.opened_at || raw.createdAt || raw.created_at || null;
         const displayNumber = raw.metadata?.displayNumber || raw.metadata?.display_number || id;
-        runtime.ordersIndex.set(id, { raw, id, displayNumber, total });
+        const tableLabel = table ? table.label : tableId ? `طاولة ${tableId}` : '—';
+        runtime.ordersIndex.set(id, {
+          raw,
+          id,
+          displayNumber,
+          total: due,
+          paid,
+          remaining,
+          status,
+          paymentState,
+          typeId,
+          tableId,
+          tableLabel
+        });
         return {
           id,
-          tableId,
-          tableLabel: table ? table.label : tableId ? `طاولة ${tableId}` : 'بدون طاولة',
+          displayNumber,
+          total: due,
+          paid,
+          remaining,
           status,
-          total,
-          openedAt,
-          displayNumber
+          paymentState,
+          typeId,
+          tableId,
+          tableLabel,
+          openedAt
         };
       }
 
       function rebuildOrders(rows = []) {
         runtime.ordersIndex.clear();
-        const filtered = rows
+        const mapped = rows
           .map((row) => normalizeOrder(row))
           .filter(Boolean)
           .sort((a, b) => {
@@ -765,10 +901,14 @@
             const bTime = b.openedAt ? new Date(b.openedAt).getTime() : 0;
             return bTime - aTime;
           });
-        updateState((state) => ({
-          ...state,
-          orders: filtered
-        }));
+        updateState((state) => {
+          const filter = state.ordersFilter || 'all';
+          const visible = filter === 'all' ? mapped : mapped.filter((order) => order.typeId === filter);
+          return {
+            ...state,
+            orders: visible
+          };
+        });
       }
 
       async function submitOrder(event) {
@@ -1005,7 +1145,7 @@
 
         const tableOptions = state.availableTables.length
           ? state.availableTables.map((table) =>
-              D.Forms.Option(
+              D.Inputs.Option(
                 {
                   attrs: {
                     value: table.id,
@@ -1015,11 +1155,11 @@
                 [table.label]
               )
             )
-          : [D.Forms.Option({ attrs: { value: '' } }, ['لا توجد طاولات متاحة'])];
+          : [D.Inputs.Option({ attrs: { value: '' } }, ['لا توجد طاولات متاحة'])];
 
         const tableSelector = D.Forms.Fieldset({}, [
           D.Text.Small({ attrs: { class: 'pos-mini-pill' } }, ['اختيار الطاولة']),
-          D.Forms.Select(
+          D.Inputs.Select(
             {
               attrs: {
                 class: 'pos-mini-select',
@@ -1081,6 +1221,19 @@
               )
             : null;
 
+        const activeFilterLabel =
+          state.ordersFilter === 'all'
+            ? lang === 'en' ? 'All orders' : 'كل الطلبات'
+            : localizeOrderTypeLabel(state.ordersFilter, lang);
+
+        const typeLabelText = lang === 'en' ? 'Service type' : 'نوع الطلب';
+        const tableLabelText = lang === 'en' ? 'Table' : 'الطاولة';
+        const startedLabelText = lang === 'en' ? 'Opened at' : 'وقت البدء';
+        const statusLabelText = lang === 'en' ? 'Status' : 'الحالة';
+        const paymentStateText = lang === 'en' ? 'Payment' : 'حالة الدفع';
+        const paidLabelText = lang === 'en' ? 'Paid' : 'المدفوع';
+        const remainingLabelText = lang === 'en' ? 'Outstanding' : 'المتبقي';
+
         const ordersList = state.orders.length
           ? state.orders.map((order) =>
               D.Containers.Article(
@@ -1094,11 +1247,19 @@
                     )
                   ]),
                   D.Containers.Div({ attrs: { class: 'pos-mini-order-meta' } }, [
-                    D.Text.Span({}, [`الطاولة: ${order.tableLabel}`]),
+                    D.Text.Span({}, [`${typeLabelText}: ${localizeOrderTypeLabel(order.typeId, lang)}`]),
+                    D.Text.Span({}, [`${tableLabelText}: ${order.tableLabel}`]),
                     order.openedAt
-                      ? D.Text.Span({}, [`وقت البدء: ${new Date(order.openedAt).toLocaleTimeString('ar-EG')}`])
+                      ? D.Text.Span({}, [
+                          `${startedLabelText}: ${new Date(order.openedAt).toLocaleTimeString(
+                            lang === 'en' ? 'en-US' : 'ar-EG'
+                          )}`
+                        ])
                       : null,
-                    D.Text.Span({}, [`الحالة: ${order.status === 'open' ? 'قيد التنفيذ' : order.status}`])
+                    D.Text.Span({}, [`${statusLabelText}: ${localizeStatusLabel(order.status, lang)}`]),
+                    D.Text.Span({}, [`${paymentStateText}: ${localizePaymentStateLabel(order.paymentState, lang)}`]),
+                    D.Text.Span({}, [`${paidLabelText}: ${formatCurrency(order.paid, { lang })}`]),
+                    D.Text.Span({}, [`${remainingLabelText}: ${formatCurrency(order.remaining, { lang })}`])
                   ].filter(Boolean)),
                   D.Forms.Button(
                     {
@@ -1116,14 +1277,16 @@
           : [
               D.Containers.Div(
                 { attrs: { class: 'pos-mini-empty' } },
-                ['لا توجد طلبات مفتوحة للمطعم الآن.']
+                [lang === 'en' ? 'No active orders right now.' : 'لا توجد طلبات حالية الآن.']
               )
             ];
 
         const ordersSection = D.Containers.Section({ attrs: { class: 'pos-mini-card' } }, [
           D.Containers.Div({ attrs: { class: 'pos-mini-header' } }, [
-            D.Text.H2({ attrs: { class: 'pos-mini-title' } }, ['الطلبات الحالية للمطعم']),
-            D.Text.Span({ attrs: { class: 'pos-mini-pill' } }, ['فلتر: المطعم فقط'])
+            D.Text.H2({ attrs: { class: 'pos-mini-title' } }, [lang === 'en' ? 'Current orders' : 'الطلبات الحالية']),
+            D.Text.Span({ attrs: { class: 'pos-mini-pill' } }, [
+              lang === 'en' ? `Filter: ${activeFilterLabel}` : `الفلتر: ${activeFilterLabel}`
+            ])
           ]),
           D.Containers.Div({ attrs: { class: 'pos-mini-orders' } }, ordersList),
           ordersFeedback
@@ -1160,8 +1323,10 @@
         runtime.employee = (latest.payload?.employees || [])[0] || runtime.employee;
         runtime.kitchenSections = latest.payload?.kitchen_sections || [];
         runtime.orderStatuses = latest.payload?.order_statuses || [];
+        runtime.paymentStates = latest.payload?.order_payment_states || [];
         runtime.lineStatuses = latest.payload?.order_line_statuses || [];
         rebuildMenuFromPayload(latest.payload);
+        rebuildOrderTypesFromPayload(latest.payload);
         syncTables(runtime.tables);
       });
 
