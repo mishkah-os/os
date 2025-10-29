@@ -141,8 +141,8 @@
         '';
       const status = lookups.statuses?.get(order.statusId) || lookups.statuses?.get(order.status_id) || '';
       const payment = lookups.payments?.get(order.paymentStateId) || lookups.payments?.get(order.payment_state_id) || '';
-      const due = formatCurrency(order.totalDue ?? order.total_due ?? order.subtotal ?? 0, { currency, lang });
-      const paid = formatCurrency(order.totalPaid ?? order.total_paid ?? 0, { currency, lang });
+      const due = formatCurrency(order.totalDue ?? order.total_due ?? order.totals?.due ?? order.subtotal ?? 0, { currency, lang });
+      const paid = formatCurrency(order.totalPaid ?? order.total_paid ?? order.totals?.paid ?? 0, { currency, lang });
       const openedAt = order.openedAt || order.opened_at || order.createdAt || order.created_at;
       const opened = openedAt ? new Date(openedAt).toLocaleString(lang === 'en' ? 'en-US' : 'ar-EG') : '—';
       return D.Tables.Tr({ attrs: { class: tw`border-b border-slate-800/60 last:border-b-0` } }, [

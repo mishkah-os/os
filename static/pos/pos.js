@@ -918,7 +918,7 @@
         }
       });
       const totalSales = orders.length
-        ? round(orders.reduce((sum, entry)=> sum + (Number(entry.total)||0), 0))
+        ? round(orders.reduce((sum, entry)=> sum + (Number(entry.totals?.due || entry.total)||0), 0))
         : round(shift.totalSales || 0);
       const ordersCount = orders.length
         ? orders.length
@@ -4589,6 +4589,7 @@
         tableId: primaryTableId,
         table_id: primaryTableId,
         serviceMode: orderType,
+        version: order.isPersisted && order.version ? order.version : 1,
         metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType }
       };
       if(finalize){
@@ -6946,7 +6947,7 @@
             rows: report.orders.map(entry=>({
               id: entry.id,
               type: localize(getOrderTypeConfig(entry.type || 'dine_in').label, lang),
-              total: new Intl.NumberFormat(getLocale(db), { style:'currency', currency:getCurrency(db) }).format(entry.total || 0),
+              total: new Intl.NumberFormat(getLocale(db), { style:'currency', currency:getCurrency(db) }).format(entry.totals?.due || entry.total || 0),
               savedAt: formatDateTime(entry.savedAt, lang, { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
             }))
           })
