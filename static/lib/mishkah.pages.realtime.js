@@ -31,6 +31,52 @@
     signalQueue: [],
   };
 
+  const topicSnapshots = new Map();
+
+  function clonePayload(value) {
+    if (value === null || typeof value !== 'object') return value;
+    if (typeof structuredClone === 'function') {
+      try { return structuredClone(value); } catch (_err) { /* fallthrough */ }
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (_err) {
+      if (Array.isArray(value)) return value.slice();
+      return { ...value };
+    }
+  }
+
+  function resolveTopicPayload(topic, payload) {
+    if (payload === null || payload === undefined || typeof payload !== 'object' || Array.isArray(payload)) {
+      const clone = clonePayload(payload);
+      if (topic) topicSnapshots.set(topic, clone);
+      return clone;
+    }
+    if (payload.mode === 'snapshot') {
+      const snapshot = clonePayload(payload.snapshot);
+      if (topic) topicSnapshots.set(topic, snapshot);
+      return snapshot;
+    }
+    if (payload.mode === 'delta') {
+      const base = topicSnapshots.has(topic) ? clonePayload(topicSnapshots.get(topic)) : {};
+      const working = base && typeof base === 'object' ? base : {};
+      const removals = Array.isArray(payload.remove) ? payload.remove : [];
+      removals.forEach((key) => {
+        if (key != null) delete working[key];
+      });
+      if (payload.set && typeof payload.set === 'object') {
+        Object.keys(payload.set).forEach((key) => {
+          working[key] = clonePayload(payload.set[key]);
+        });
+      }
+      if (topic) topicSnapshots.set(topic, working);
+      return working;
+    }
+    const fallback = clonePayload(payload);
+    if (topic) topicSnapshots.set(topic, fallback);
+    return fallback;
+  }
+
   function normalizeState(state) {
     const rt = state.data?.realtime || {};
     return {
@@ -194,6 +240,7 @@
         const message = U.JSON.parseSafe(event.data, null);
         if (!message) return;
         if (message.type === 'publish') {
+          message.data = resolveTopicPayload(message.topic, message.data);
           handleSignalMessage(message, state);
           handleChatPublish(message, state);
         } else if (message.type === 'chat:history') {

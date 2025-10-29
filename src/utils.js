@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
 
+const SERIALIZE_CACHE = Symbol('ws2:serialize-cache');
+
 const hasStructuredClone = typeof structuredClone === 'function';
 
 export function deepClone(value) {
@@ -19,6 +21,71 @@ export function deepClone(value) {
     for (const key of Object.keys(value)) copy[key] = deepClone(value[key]);
     return copy;
   }
+}
+
+export function serializeOnce(payload, { cycle = null, binary = true } = {}) {
+  const preferBinary = binary !== false;
+
+  const createBufferResult = (text, cached) => {
+    const buffer = Buffer.from(text);
+    return { data: buffer, bytes: buffer.byteLength, cached };
+  };
+
+  const createFrozenStringResult = (text, cached) => {
+    const frozen = Object.freeze(text);
+    return { data: frozen, bytes: Buffer.byteLength(text), cached };
+  };
+
+  if (payload === null || payload === undefined) {
+    return preferBinary ? createBufferResult('null', false) : createFrozenStringResult('null', false);
+  }
+
+  if (preferBinary && Buffer.isBuffer(payload)) {
+    return { data: payload, bytes: payload.byteLength, cached: true };
+  }
+
+  if (!preferBinary && typeof payload === 'string') {
+    return { data: Object.freeze(payload), bytes: Buffer.byteLength(payload), cached: true };
+  }
+
+  if (typeof payload !== 'object') {
+    const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    return preferBinary ? createBufferResult(text, false) : createFrozenStringResult(text, false);
+  }
+
+  if (!Object.isExtensible(payload)) {
+    const text = JSON.stringify(payload);
+    return preferBinary ? createBufferResult(text, false) : createFrozenStringResult(text, false);
+  }
+
+  let cache = payload[SERIALIZE_CACHE];
+  if (!cache) {
+    cache = {};
+    Object.defineProperty(payload, SERIALIZE_CACHE, { value: cache, enumerable: false, configurable: false });
+  }
+
+  const modeKey = preferBinary ? 'binary' : 'json';
+  const existing = cache[modeKey];
+  if (existing && (cycle == null || existing.cycle === cycle)) {
+    existing.hits += 1;
+    return { data: existing.value, bytes: existing.bytes, cached: true };
+  }
+
+  const text = JSON.stringify(payload);
+  const value = preferBinary ? Buffer.from(text) : Object.freeze(text);
+  const entry = {
+    value,
+    bytes: preferBinary ? value.byteLength : Buffer.byteLength(text),
+    cycle: cycle ?? null,
+    hits: 0
+  };
+  cache[modeKey] = entry;
+  try {
+    Object.freeze(payload);
+  } catch (_err) {
+    /* ignore freeze failures */
+  }
+  return { data: entry.value, bytes: entry.bytes, cached: false };
 }
 
 function mergeObjects(baseObj, patchObj) {

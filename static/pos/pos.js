@@ -73,6 +73,36 @@
       }
       return value;
     };
+    const topicSnapshots = new Map();
+    const cloneForTopic = (value)=> cloneDeep(value);
+    const resolveTopicPayload = (topic, payload)=>{
+      if(payload == null || typeof payload !== 'object' || Array.isArray(payload)){
+        const simpleClone = cloneForTopic(payload);
+        if(topic) topicSnapshots.set(topic, simpleClone);
+        return simpleClone;
+      }
+      if(payload.mode === 'snapshot'){
+        const snapshot = cloneForTopic(payload.snapshot);
+        if(topic) topicSnapshots.set(topic, snapshot);
+        return snapshot;
+      }
+      if(payload.mode === 'delta'){
+        const base = topic && topicSnapshots.has(topic) ? cloneDeep(topicSnapshots.get(topic)) : {};
+        const working = isPlainObject(base) ? base : {};
+        const removals = Array.isArray(payload.remove) ? payload.remove : [];
+        removals.forEach((key)=>{ if(key != null) delete working[key]; });
+        if(isPlainObject(payload.set)){
+          Object.keys(payload.set).forEach((key)=>{
+            working[key] = cloneForTopic(payload.set[key]);
+          });
+        }
+        if(topic) topicSnapshots.set(topic, working);
+        return working;
+      }
+      const fallback = cloneForTopic(payload);
+      if(topic) topicSnapshots.set(topic, fallback);
+      return fallback;
+    };
     const ensureLocaleObject = (value, fallback)=>{
       const parsed = parseMaybeJSONish(value);
       const locale = {};
@@ -2073,17 +2103,18 @@
         }
         if(msg.type === 'publish'){
           const meta = msg.meta || {};
+          const resolved = resolveTopicPayload(msg.topic, msg.data);
           if(msg.topic === topicOrders && typeof handlers.onOrders === 'function'){
-            try { handlers.onOrders(msg.data || {}, meta); } catch(handlerErr){ console.warn('[Mishkah][POS][KDS] onOrders handler failed.', handlerErr); }
+            try { handlers.onOrders(resolved || {}, meta); } catch(handlerErr){ console.warn('[Mishkah][POS][KDS] onOrders handler failed.', handlerErr); }
           }
           if(msg.topic === topicJobs && typeof handlers.onJobUpdate === 'function'){
-            try { handlers.onJobUpdate(msg.data || {}, meta); } catch(handlerErr){ console.warn('[Mishkah][POS][KDS] onJobUpdate handler failed.', handlerErr); }
+            try { handlers.onJobUpdate(resolved || {}, meta); } catch(handlerErr){ console.warn('[Mishkah][POS][KDS] onJobUpdate handler failed.', handlerErr); }
           }
           if(msg.topic === topicDelivery && typeof handlers.onDeliveryUpdate === 'function'){
-            try { handlers.onDeliveryUpdate(msg.data || {}, meta); } catch(handlerErr){ console.warn('[Mishkah][POS][KDS] onDeliveryUpdate handler failed.', handlerErr); }
+            try { handlers.onDeliveryUpdate(resolved || {}, meta); } catch(handlerErr){ console.warn('[Mishkah][POS][KDS] onDeliveryUpdate handler failed.', handlerErr); }
           }
           if(msg.topic === topicHandoff && typeof handlers.onHandoffUpdate === 'function'){
-            try { handlers.onHandoffUpdate(msg.data || {}, meta); } catch(handlerErr){ console.warn('[Mishkah][POS][KDS] onHandoffUpdate handler failed.', handlerErr); }
+            try { handlers.onHandoffUpdate(resolved || {}, meta); } catch(handlerErr){ console.warn('[Mishkah][POS][KDS] onHandoffUpdate handler failed.', handlerErr); }
           }
           return;
         }

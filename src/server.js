@@ -63,7 +63,7 @@ const PROM_EXPORTER_PREFERRED = METRICS_ENABLED && !['0', 'false', 'no', 'off'].
 const metricsState = {
   enabled: METRICS_ENABLED,
   prom: { client: null, register: null, counters: {}, histograms: {} },
-  ws: { broadcasts: 0, frames: 0 },
+  ws: { broadcasts: 0, frames: 0, serializations: 0, cacheHits: 0, payloadBytes: 0 },
   ajax: { requests: 0, totalDurationMs: 0 },
   http: { requests: 0 }
 };
@@ -85,6 +85,16 @@ if (PROM_EXPORTER_PREFERRED) {
       metricsState.prom.counters.wsFrames = new prom.Counter({
         name: 'ws2_ws_frames_delivered_total',
         help: 'Total websocket frames delivered to clients',
+        labelNames: ['channel']
+      });
+      metricsState.prom.counters.wsSerializations = new prom.Counter({
+        name: 'ws2_ws_serialization_events_total',
+        help: 'Total websocket payload serialization events',
+        labelNames: ['channel', 'result']
+      });
+      metricsState.prom.counters.wsPayloadBytes = new prom.Counter({
+        name: 'ws2_ws_payload_bytes_total',
+        help: 'Total websocket payload bytes delivered',
         labelNames: ['channel']
       });
       metricsState.prom.counters.httpRequests = new prom.Counter({
@@ -880,6 +890,38 @@ function evaluateConcurrencyGuards(store, tableName, record, concurrency, option
 }
 
 
+let broadcastCycle = 0;
+
+function nextBroadcastCycle() {
+  broadcastCycle += 1;
+  if (broadcastCycle > Number.MAX_SAFE_INTEGER - 1) {
+    broadcastCycle = 1;
+  }
+  return broadcastCycle;
+}
+
+function recordWsSerialization(channel, { cached = false, bytes = 0 } = {}) {
+  if (!metricsState.enabled) return;
+  const normalizedChannel = channel || 'direct';
+  if (cached) {
+    metricsState.ws.cacheHits += 1;
+  } else {
+    metricsState.ws.serializations += 1;
+  }
+  if (Number.isFinite(bytes) && bytes > 0) {
+    metricsState.ws.payloadBytes += bytes;
+  }
+  if (metricsState.prom.counters.wsSerializations) {
+    metricsState.prom.counters.wsSerializations.inc({
+      channel: normalizedChannel,
+      result: cached ? 'cache-hit' : 'serialized'
+    });
+  }
+  if (metricsState.prom.counters.wsPayloadBytes && Number.isFinite(bytes) && bytes > 0) {
+    metricsState.prom.counters.wsPayloadBytes.inc({ channel: normalizedChannel }, bytes);
+  }
+}
+
 function recordWsBroadcast(channel, deliveredCount = 0) {
   if (!metricsState.enabled) return;
   const normalizedChannel = channel || 'unknown';
@@ -933,6 +975,15 @@ async function renderMetrics() {
     '# HELP ws2_ws_frames_total Total websocket frames delivered',
     '# TYPE ws2_ws_frames_total counter',
     `ws2_ws_frames_total ${metricsState.ws.frames}`,
+    '# HELP ws2_ws_serializations_total Total websocket payload serializations',
+    '# TYPE ws2_ws_serializations_total counter',
+    `ws2_ws_serializations_total ${metricsState.ws.serializations}`,
+    '# HELP ws2_ws_serialization_cache_hits_total Total websocket serialization cache hits',
+    '# TYPE ws2_ws_serialization_cache_hits_total counter',
+    `ws2_ws_serialization_cache_hits_total ${metricsState.ws.cacheHits}`,
+    '# HELP ws2_ws_payload_bytes_total Total websocket payload bytes delivered',
+    '# TYPE ws2_ws_payload_bytes_total counter',
+    `ws2_ws_payload_bytes_total ${metricsState.ws.payloadBytes}`,
     '# HELP ws2_http_requests_total Total HTTP requests handled by WS2',
     '# TYPE ws2_http_requests_total counter',
     `ws2_http_requests_total ${metricsState.http.requests}`,
@@ -2248,7 +2299,7 @@ async function ensurePubsubTopic(topic) {
   const descriptor = parseSyncTopic(topic);
   if (descriptor && !record.lastData) {
     const state = await ensureSyncState(descriptor.branchId, descriptor.moduleId);
-    record.lastData = buildSyncPublishData(state, { meta: { reason: 'bootstrap' } });
+    record.lastData = deepClone(buildSyncPublishData(state, { meta: { reason: 'bootstrap' } }));
   }
   return record;
 }
@@ -2315,13 +2366,18 @@ function buildSyncPublishData(state, overrides = {}) {
 
 async function broadcastPubsub(topic, data) {
   const record = await ensurePubsubTopic(topic);
+  const envelope = record.lastData ? buildDeltaEnvelope(record.lastData, data) : buildSnapshotEnvelope(data);
+  if (!envelope) {
+    return;
+  }
   record.lastData = deepClone(data);
-  const frame = { type: 'publish', topic, data: deepClone(data) };
+  const frame = { type: 'publish', topic, data: envelope };
+  const cycle = nextBroadcastCycle();
   let delivered = 0;
   for (const clientId of record.subscribers) {
     const target = clients.get(clientId);
     if (!target) continue;
-    if (sendToClient(target, frame)) {
+    if (sendToClient(target, frame, { cycle, channel: 'pubsub' })) {
       delivered += 1;
     }
   }
@@ -2552,6 +2608,69 @@ function buildBranchDeltaDetail(branchId, payload = {}, frame = {}) {
   return detail;
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (a === null || b === null) return a === b;
+  if (typeof a !== typeof b) return false;
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false;
+    for (let idx = 0; idx < a.length; idx += 1) {
+      if (!deepEqual(a[idx], b[idx])) return false;
+    }
+    return true;
+  }
+  if (typeof a === 'object') {
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b || {});
+    if (aKeys.length !== bKeys.length) return false;
+    for (const key of aKeys) {
+      if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+      if (!deepEqual(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+function buildSnapshotEnvelope(state) {
+  if (state === undefined) {
+    return { mode: 'snapshot', snapshot: null };
+  }
+  if (!isPlainObject(state)) {
+    return { mode: 'snapshot', snapshot: deepClone(state) };
+  }
+  return { mode: 'snapshot', snapshot: deepClone(state) };
+}
+
+function buildDeltaEnvelope(previous, next) {
+  if (!isPlainObject(previous) || !isPlainObject(next)) {
+    return buildSnapshotEnvelope(next);
+  }
+  const set = {};
+  const remove = [];
+  let changed = false;
+  for (const [key, value] of Object.entries(next)) {
+    if (!deepEqual(previous[key], value)) {
+      set[key] = deepClone(value);
+      changed = true;
+    }
+  }
+  for (const key of Object.keys(previous)) {
+    if (!Object.prototype.hasOwnProperty.call(next, key)) {
+      remove.push(key);
+      changed = true;
+    }
+  }
+  if (!changed) return null;
+  const envelope = { mode: 'delta', set };
+  if (remove.length) envelope.remove = remove;
+  return envelope;
+}
+
 async function broadcastBranchTopics(branchId, suffixes, detail = {}) {
   if (!suffixes || !suffixes.size) return;
   const safeBranch = branchId || 'default';
@@ -2620,8 +2739,13 @@ async function handlePubsubFrame(client, frame) {
       }
       const record = await registerPubsubSubscriber(topic, client);
       sendToClient(client, { type: 'ack', event: 'subscribe', topic });
-      if (record.lastData) {
-        sendToClient(client, { type: 'publish', topic, data: deepClone(record.lastData) });
+      if (record.lastData !== undefined && record.lastData !== null) {
+        const snapshotEnvelope = buildSnapshotEnvelope(record.lastData);
+        sendToClient(
+          client,
+          { type: 'publish', topic, data: snapshotEnvelope },
+          { cycle: nextBroadcastCycle(), channel: 'pubsub' }
+        );
       }
       return;
     }
@@ -5009,11 +5133,15 @@ function unregisterClient(client) {
   }
 }
 
-function sendToClient(client, payload) {
+function sendToClient(client, payload, options = {}) {
   if (!client || !client.ws) return false;
   if (client.ws.readyState !== client.ws.OPEN) return false;
+  const { cycle = null, channel = 'direct', binary = true } = options;
   try {
-    client.ws.send(JSON.stringify(payload));
+    const serialization = serializeOnce(payload, { cycle, binary });
+    const data = serialization.data;
+    client.ws.send(data);
+    recordWsSerialization(channel, serialization);
     return true;
   } catch (error) {
     logger.warn({ err: error, clientId: client.id }, 'Failed to send message to client');
@@ -5024,12 +5152,13 @@ function sendToClient(client, payload) {
 function broadcastToBranch(branchId, payload, exceptClient = null) {
   const set = branchClients.get(branchId);
   if (!set) return;
+  const cycle = nextBroadcastCycle();
   let delivered = 0;
   for (const clientId of set) {
     const target = clients.get(clientId);
     if (!target) continue;
     if (exceptClient && target.id === exceptClient.id) continue;
-    if (sendToClient(target, payload)) {
+    if (sendToClient(target, payload, { cycle, channel: 'branch' })) {
       delivered += 1;
     }
   }
