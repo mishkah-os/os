@@ -1,4 +1,4 @@
-import { createPosDb } from './pos/pos-mini-db.js';
+import { createPosDb } from '../../pos/pos-mini-db.js';
 import { div, button, span, input, label, select, option, textarea } from '../../lib/mishkah.div.js';
 import { createSimpleStore } from '../../lib/mishkah.simple-store.js';
 
