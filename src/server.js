@@ -20,7 +20,7 @@ import {
 } from './eventStore.js';
 import { createId, nowIso, safeJsonParse, deepClone } from './utils.js';
 import SchemaEngine from './schema/engine.js';
-import ModuleStore from './moduleStore.js';
+import ModuleStore, { VersionConflictError } from './moduleStore.js';
 import SequenceManager from './sequenceManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -155,6 +155,19 @@ function safeDecode(value) {
   } catch (_err) {
     return value;
   }
+}
+
+function isVersionConflict(error) {
+  return error instanceof VersionConflictError || (error && error.code === 'VERSION_CONFLICT');
+}
+
+function versionConflictDetails(error) {
+  return {
+    table: error?.table || null,
+    key: error?.key || null,
+    expectedVersion: error?.expectedVersion ?? null,
+    currentVersion: error?.currentVersion ?? null
+  };
 }
 
 function parseCookies(header) {
@@ -1485,6 +1498,7 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
   if (!line) return null;
   const uid = line.uid || line.storageId || `${orderId}::${line.id || line.itemId || createId('ln')}`;
   const id = line.id || `${orderId}::${line.itemId || createId('ln')}`;
+  const versionValue = Number(line.version);
   const qty = Number(line.qty);
   const price = Number(line.price);
   const total = Number(line.total);
@@ -1535,7 +1549,7 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
   statusLogs.sort((a, b) => (a.changedAt || 0) - (b.changedAt || 0));
   const latest = statusLogs[statusLogs.length - 1] || {};
   const resolvedStatus = latest.status || baseStatus;
-  return {
+  const record = {
     uid,
     id,
     orderId,
@@ -1555,6 +1569,10 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
     updatedAt,
     statusLogs
   };
+  if (Number.isFinite(versionValue) && versionValue > 0) {
+    record.version = Math.trunc(versionValue);
+  }
+  return record;
 }
 
 function normalizeOrderNoteRecord(orderId, note, fallbackAuthor, fallbackTimestamp) {
@@ -1601,6 +1619,7 @@ function normalizeIncomingOrder(order, options = {}) {
     method: entry.method || entry.id || entry.type || 'cash',
     amount: Number(entry.amount) || 0
   }));
+  const headerVersion = Number(order.version);
   const metadata = ensurePlainObject(order.metadata);
   metadata.version = metadata.version || 2;
   metadata.linesCount = Array.isArray(order.lines) ? order.lines.length : metadata.linesCount || 0;
@@ -1644,6 +1663,9 @@ function normalizeIncomingOrder(order, options = {}) {
     customerAddress: order.customerAddress || '',
     customerAreaId: order.customerAreaId || null
   };
+  if (Number.isFinite(headerVersion) && headerVersion > 0) {
+    header.version = Math.trunc(headerVersion);
+  }
   if (order.finalizedAt) header.finalizedAt = toTimestamp(order.finalizedAt, savedAt);
   if (order.finishedAt) header.finishedAt = toTimestamp(order.finishedAt, savedAt);
 
@@ -4053,6 +4075,15 @@ async function handleBranchesApi(req, res, url) {
           normalized: buildAckOrder(result.normalized)
         });
       } catch (error) {
+        if (isVersionConflict(error)) {
+          logger.info({ err: error, branchId, moduleId, details: versionConflictDetails(error) }, 'POS order persist rejected due to version conflict');
+          jsonResponse(res, 409, {
+            error: 'order-version-conflict',
+            message: error.message,
+            details: versionConflictDetails(error)
+          });
+          return;
+        }
         logger.warn({ err: error, branchId, moduleId }, 'Failed to persist POS order via API');
         jsonResponse(res, 500, { error: 'order-persist-failed', message: error.message });
       }
@@ -4173,6 +4204,14 @@ async function handleBranchesApi(req, res, url) {
         includeSnapshot: false
       });
     } catch (error) {
+      if (isVersionConflict(error)) {
+        jsonResponse(res, 409, {
+          error: 'version-conflict',
+          message: error.message,
+          details: versionConflictDetails(error)
+        });
+        return;
+      }
       logger.warn({ err: error, branchId, moduleId }, 'Save endpoint failed to persist event');
       jsonResponse(res, 400, { error: 'module-event-failed', message: error.message });
       return;
@@ -4309,6 +4348,15 @@ async function handleBranchesApi(req, res, url) {
         );
         ingested.push(result);
       } catch (error) {
+        if (isVersionConflict(error)) {
+          jsonResponse(res, 409, {
+            error: 'version-conflict',
+            message: error.message,
+            index: ingested.length,
+            details: versionConflictDetails(error)
+          });
+          return;
+        }
         logger.warn({ err: error, branchId, moduleId }, 'Batch event failed');
         jsonResponse(res, 400, { error: 'module-event-failed', message: error.message, index: ingested.length });
         return;
@@ -4365,6 +4413,14 @@ async function handleBranchesApi(req, res, url) {
       const result = await handleModuleEvent(branchId, moduleId, body, null, { source: 'rest' });
       jsonResponse(res, 200, result);
     } catch (error) {
+      if (isVersionConflict(error)) {
+        jsonResponse(res, 409, {
+          error: 'version-conflict',
+          message: error.message,
+          details: versionConflictDetails(error)
+        });
+        return;
+      }
       logger.warn({ err: error, branchId, moduleId }, 'Module event failed (REST)');
       jsonResponse(res, 400, { error: 'module-event-failed', message: error.message });
     }
@@ -4598,6 +4654,14 @@ async function handleBranchesApi(req, res, url) {
         }
       } catch (error) {
         const notFound = typeof error?.message === 'string' && /not\sfound/i.test(error.message);
+        if (isVersionConflict(error)) {
+          jsonResponse(res, 409, {
+            error: 'version-conflict',
+            message: error.message,
+            details: versionConflictDetails(error)
+          });
+          return;
+        }
         const code = error?.code === 'MODULE_STORE_NOT_FOUND' || notFound ? 404 : 400;
         jsonResponse(res, code, { error: 'module-event-failed', message: error.message });
         return;
