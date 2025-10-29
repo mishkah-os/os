@@ -340,7 +340,7 @@
           subtotal:'الإجمالي الفرعي', service:'خدمة', vat:'ضريبة', discount:'خصم', delivery_fee:'رسوم التوصيل', total:'الإجمالي المستحق',
           cart_empty:'لم يتم إضافة أصناف بعد', choose_items:'اختر صنفًا من القائمة لإضافته إلى الطلب.', tables:'الطاولات',
           select_table:'اختر طاولة لإسناد الطلب', table_status:'حالة الطاولة', table_available:'متاحة', table_occupied:'مشغولة',
-          table_reserved:'محجوزة', table_maintenance:'صيانة', payments:'المدفوعات', split_payments:'تقسيم الدفعات', paid:'المدفوع',
+          table_reserved:'محجوزة', table_maintenance:'صيانة', payments:'المدفوعات', split_payments:'تقسيم الدفعات', recorded_payments:'الدفعات المسجلة', paid:'المدفوع',
           remaining:'المتبقي', open_payments:'تسجيل دفعة', open_reports:'فتح التقارير', reports:'التقارير', orders_count:'عدد الطلبات',
           shift_open:'فتح وردية', shift_close:'إغلاق الوردية', shift_summary:'ملخص الوردية', shift_open_prompt:'أدخل الرقم السري لفتح الوردية',
           shift_cash_start:'رصيد أول المدة', shift_cash_end:'رصيد آخر المدة', shift_total_sales:'إجمالي المبيعات',
@@ -427,7 +427,7 @@
         toast:{
           item_added:'تمت إضافة الصنف', quantity_updated:'تم تحديث الكمية', cart_cleared:'تم مسح الطلب',
           order_saved:'تم حفظ الطلب محليًا', order_finalized:'تم إنهاء الطلب', sync_complete:'تم تحديث المزامنة', payment_recorded:'تم تسجيل الدفعة',
-          amount_required:'من فضلك أدخل قيمة صحيحة', indexeddb_missing:'IndexedDB غير متاحة في هذا المتصفح',
+          amount_required:'من فضلك أدخل قيمة صحيحة', payment_exceeds_limit:'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%', payment_deleted:'تم حذف الدفعة', payment_locked:'لا يمكن حذف الدفعة بعد إنهاء الطلب', indexeddb_missing:'IndexedDB غير متاحة في هذا المتصفح',
           indexeddb_error:'تعذر حفظ البيانات محليًا', print_stub:'سيتم التكامل مع الطابعة لاحقًا',
           discount_stub:'سيتم تفعيل الخصومات لاحقًا', notes_updated:'تم تحديث الملاحظات', add_note:'أدخل ملاحظة ترسل للمطبخ',
           set_qty:'أدخل الكمية الجديدة', line_actions:'سيتم فتح إجراءات السطر لاحقًا', line_modifiers_applied:'تم تحديث الإضافات والمنزوعات', confirm_clear:'هل تريد مسح الطلب الحالي؟',
@@ -477,7 +477,7 @@
           service:'Service', vat:'VAT', discount:'Discount', delivery_fee:'Delivery fee', total:'Amount due',
           cart_empty:'No items added yet', choose_items:'Pick an item from the menu to start the order.', tables:'Tables',
           select_table:'Select a table for this order', table_status:'Table status', table_available:'Available', table_occupied:'Occupied',
-          table_reserved:'Reserved', table_maintenance:'Maintenance', payments:'Payments', split_payments:'Split payments', paid:'Paid',
+          table_reserved:'Reserved', table_maintenance:'Maintenance', payments:'Payments', split_payments:'Split payments', recorded_payments:'Recorded payments', paid:'Paid',
           remaining:'Remaining', open_payments:'Add payment', open_reports:'Open reports', reports:'Reports', orders_count:'Orders',
           shift_open:'Open shift', shift_close:'Close shift', shift_summary:'Shift summary', shift_open_prompt:'Enter the PIN to open the shift',
           shift_cash_start:'Opening cash', shift_cash_end:'Closing cash', shift_total_sales:'Total sales',
@@ -563,7 +563,7 @@
         toast:{
           item_added:'Item added to cart', quantity_updated:'Quantity updated', cart_cleared:'Cart cleared',
           order_saved:'Order stored locally', order_finalized:'Order finalized', sync_complete:'Sync completed', payment_recorded:'Payment recorded',
-          amount_required:'Enter a valid amount', indexeddb_missing:'IndexedDB is not available in this browser',
+          amount_required:'Enter a valid amount', payment_exceeds_limit:'Payment exceeds allowed limit. Maximum: %max%', payment_deleted:'Payment deleted', payment_locked:'Cannot delete payment after order is finalized', indexeddb_missing:'IndexedDB is not available in this browser',
           indexeddb_error:'Failed to persist locally', print_stub:'Printer integration coming soon',
           discount_stub:'Discount workflow coming soon', notes_updated:'Notes updated', add_note:'Add a note for the kitchen',
           set_qty:'Enter the new quantity', line_actions:'Line actions coming soon', line_modifiers_applied:'Line modifiers updated', confirm_clear:'Clear the current order?',
@@ -2466,6 +2466,14 @@
     function normalizeRealtimeOrderLine(raw, header){
       if(!raw || !header) return null;
       const metadata = ensurePlainObject(raw.metadata || raw.meta);
+      // Try to get name from multiple sources
+      const nameCandidate = metadata.name || metadata.itemName || raw.name || raw.item_name;
+      const itemNameAr = metadata.itemNameAr || metadata.item_name_ar || raw.item_name_ar;
+      const itemNameEn = metadata.itemNameEn || metadata.item_name_en || raw.item_name_en;
+      let finalName = nameCandidate;
+      if(!finalName && (itemNameAr || itemNameEn)){
+        finalName = { ar: itemNameAr || itemNameEn || '', en: itemNameEn || itemNameAr || '' };
+      }
       const base = {
         id: raw.id,
         order_id: raw.orderId || raw.order_id || header.id,
@@ -2475,7 +2483,7 @@
         total: raw.total ?? metadata.total,
         notes: Array.isArray(raw.notes) ? raw.notes : (raw.notes ? [raw.notes] : []),
         discount: metadata.discount || raw.discount,
-        name: metadata.name || metadata.itemName || raw.name,
+        name: finalName,
         description: metadata.description || raw.description,
         stage_id: raw.stageId || raw.stage_id || metadata.stageId || header.fulfillmentStage,
         status_id: raw.statusId || raw.status_id || metadata.statusId || 'draft',
@@ -4589,7 +4597,7 @@
         tableId: primaryTableId,
         table_id: primaryTableId,
         serviceMode: orderType,
-        version: order.isPersisted && order.version ? order.version : 1,
+        version: order.isPersisted ? (Number(order.version) || 1) + 1 : 1,
         metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType }
       };
       if(finalize){
@@ -4956,6 +4964,8 @@
     function OrderLine(db, line){
       const t = getTexts(db);
       const lang = db.env.lang;
+      const order = db.data.order || {};
+      const isLocked = line.locked || (order.isPersisted && order.lockLineEdits) || (line.status && line.status !== 'draft');
       const modifiers = Array.isArray(line.modifiers) ? line.modifiers : [];
       const notes = notesToText(line.notes);
       const discountInfo = normalizeDiscount(line.discount);
@@ -4979,6 +4989,40 @@
       const notesRow = notes
         ? D.Text.Span({ attrs:{ class: tw`text-[10px] sm:text-xs ${token('muted')}` }}, ['📝 ', notes])
         : null;
+      const editButtons = isLocked
+        ? [
+            D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')} px-2` }}, ['🔒'])
+          ]
+        : [
+            UI.QtyStepper({ value: line.qty, gkeyDec:'pos:order:line:dec', gkeyInc:'pos:order:line:inc', gkeyEdit:'pos:order:line:qty', dataId: line.id }),
+            UI.Button({
+              attrs:{
+                gkey:'pos:order:line:modifiers',
+                'data-line-id':line.id,
+                title: t.ui.line_modifiers
+              },
+              variant:'ghost',
+              size:'sm'
+            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['➕/➖'])]),
+            UI.Button({
+              attrs:{
+                gkey:'pos:order:line:note',
+                'data-line-id':line.id,
+                title: t.ui.notes
+              },
+              variant:'ghost',
+              size:'sm'
+            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['📝'])]),
+            UI.Button({
+              attrs:{
+                gkey:'pos:order:line:discount',
+                'data-line-id':line.id,
+                title: t.ui.discount_action
+              },
+              variant:'ghost',
+              size:'sm'
+            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['٪'])])
+          ];
       return UI.ListItem({
         leading: D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['🍲']),
         content:[
@@ -4988,35 +5032,8 @@
           discountRow
         ].filter(Boolean),
         trailing:[
-          UI.QtyStepper({ value: line.qty, gkeyDec:'pos:order:line:dec', gkeyInc:'pos:order:line:inc', gkeyEdit:'pos:order:line:qty', dataId: line.id }),
           UI.PriceText({ amount: line.total, currency:getCurrency(db), locale:getLocale(db) }),
-          UI.Button({
-            attrs:{
-              gkey:'pos:order:line:modifiers',
-              'data-line-id':line.id,
-              title: t.ui.line_modifiers
-            },
-            variant:'ghost',
-            size:'sm'
-          }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['➕/➖'])]),
-          UI.Button({
-            attrs:{
-              gkey:'pos:order:line:note',
-              'data-line-id':line.id,
-              title: t.ui.notes
-            },
-            variant:'ghost',
-            size:'sm'
-          }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['📝'])]),
-          UI.Button({
-            attrs:{
-              gkey:'pos:order:line:discount',
-              'data-line-id':line.id,
-              title: t.ui.discount_action
-            },
-            variant:'ghost',
-            size:'sm'
-          }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['٪'])])
+          ...editButtons
         ]
       });
     }
@@ -5340,9 +5357,11 @@
       const orderType = order.type || 'dine_in';
       const isTakeaway = orderType === 'takeaway';
       const isDelivery = orderType === 'delivery';
+      const isDineIn = orderType === 'dine_in';
       const isFinalized = order.status === 'finalized' || order.status === 'closed';
       const deliveredStage = order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed';
-      const canShowSave = !isFinalized && (!isDelivery || !deliveredStage) && (!isTakeaway || !deliveredStage);
+      // Only show "Save" button for dine-in orders. Takeaway and delivery should only have "Save & Finish"
+      const canShowSave = isDineIn && !isFinalized && !deliveredStage;
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
@@ -6356,6 +6375,31 @@
       const methods = (db.data.payments?.methods && db.data.payments.methods.length)
         ? db.data.payments.methods
         : PAYMENT_METHODS;
+      const order = db.data.order || {};
+      const isOrderFinalized = order.status === 'finalized' || order.isPersisted;
+      const currentPayments = Array.isArray(db.data.payments?.split) ? db.data.payments.split : [];
+      const paymentsListSection = currentPayments.length > 0
+        ? D.Containers.Div({ attrs:{ class: tw`space-y-2` }}, [
+            D.Text.Strong({ attrs:{ class: tw`text-sm` }}, [t.ui.recorded_payments || 'الدفعات المسجلة']),
+            D.Containers.Div({ attrs:{ class: tw`space-y-1` }}, currentPayments.map(pay=>{
+              const method = methods.find(m=> m.id === pay.method) || { id: pay.method, label: { ar: pay.method, en: pay.method }, icon: '💰' };
+              return UI.HStack({ attrs:{ class: tw`items-center justify-between rounded-[var(--radius)] bg-[var(--surface-2)] px-3 py-2 text-sm` }}, [
+                D.Containers.Div({ attrs:{ class: tw`flex items-center gap-2` }}, [
+                  D.Text.Span({}, [method.icon]),
+                  D.Text.Span({}, [localize(method.label, db.env.lang)]),
+                  D.Text.Span({ attrs:{ class: tw`font-semibold` }}, [formatCurrencyValue(db, pay.amount)])
+                ]),
+                !isOrderFinalized
+                  ? UI.Button({
+                      attrs:{ gkey:'pos:payments:delete', 'data-payment-id':pay.id, class: tw`h-7 w-7 p-0` },
+                      variant:'ghost',
+                      size:'sm'
+                    }, [D.Text.Span({ attrs:{ class: tw`text-red-500` }}, ['🗑️'])])
+                  : null
+              ].filter(Boolean));
+            }))
+          ])
+        : null;
       return UI.Drawer({
         open:true,
         side:'end',
@@ -6369,6 +6413,7 @@
           UI.Button({ attrs:{ gkey:'pos:payments:close' }, variant:'ghost', size:'md' }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['✕'])])
         ]),
         content: D.Containers.Div({ attrs:{ class: tw`space-y-3` }}, [
+          paymentsListSection,
           UI.ChipGroup({
             attrs:{ class: tw`text-base sm:text-lg` },
             items: methods.map(method=>({
@@ -6387,7 +6432,7 @@
             confirmAttrs:{ gkey:'pos:payments:capture', variant:'solid', size:'md', class: tw`w-full` }
           }),
           UI.Button({ attrs:{ gkey:'pos:payments:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])
-        ])
+        ].filter(Boolean))
       });
     }
 
@@ -10120,6 +10165,18 @@
             UI.pushToast(ctx, { title:t.toast.amount_required, icon:'⚠️' });
             return;
           }
+          // Validate payment amount - max overpayment is 100 (largest bill denomination)
+          const order = state.data.order || {};
+          const totals = order.totals || {};
+          const currentSplit = state.data.payments?.split || [];
+          const currentPaid = currentSplit.reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0);
+          const remaining = Math.max(0, (totals.due || 0) - currentPaid);
+          const maxAllowed = remaining + 100;
+          if(amount > maxAllowed){
+            const message = (t.toast.payment_exceeds_limit || 'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%').replace('%max%', String(Math.round(maxAllowed)));
+            UI.pushToast(ctx, { title: message, icon:'⚠️' });
+            return;
+          }
           const method = state.data.payments.activeMethod || 'cash';
           const pending = state.ui?.pendingAction;
           let finalizeMode = null;
@@ -10159,6 +10216,45 @@
           if(shouldFinalize && finalizeMode){
             await persistOrderFlow(ctx, finalizeMode, { skipPaymentCheck:true });
           }
+        }
+      },
+      'pos.payments.delete':{
+        on:['click'],
+        gkeys:['pos:payments:delete'],
+        handler:(e,ctx)=>{
+          const btn = e.target.closest('[data-payment-id]');
+          if(!btn) return;
+          const paymentId = btn.getAttribute('data-payment-id');
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const order = state.data.order || {};
+          if(order.status === 'finalized' || order.isPersisted){
+            UI.pushToast(ctx, { title:t.toast.payment_locked || 'لا يمكن حذف الدفعة بعد إنهاء الطلب', icon:'🔒' });
+            return;
+          }
+          ctx.setState(s=>{
+            const data = s.data || {};
+            const currentSplit = Array.isArray(data.payments?.split) ? data.payments.split : [];
+            const nextSplit = currentSplit.filter(pay=> pay.id !== paymentId);
+            const order = data.order || {};
+            const totals = order.totals || {};
+            const paymentSnapshot = summarizePayments(totals, nextSplit);
+            return {
+              ...s,
+              data:{
+                ...data,
+                payments:{
+                  ...(data.payments || {}),
+                  split: nextSplit
+                },
+                order:{
+                  ...order,
+                  paymentState: paymentSnapshot.state
+                }
+              }
+            };
+          });
+          UI.pushToast(ctx, { title:t.toast.payment_deleted || 'تم حذف الدفعة', icon:'🗑️' });
         }
       },
       'pos.payments.split':{
