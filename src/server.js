@@ -20,8 +20,10 @@ import {
 } from './eventStore.js';
 import { createId, nowIso, safeJsonParse, deepClone } from './utils.js';
 import SchemaEngine from './schema/engine.js';
-import ModuleStore, { VersionConflictError } from './moduleStore.js';
+import HybridStore from './hybridStore.js';
+import { VersionConflictError } from './moduleStore.js';
 import SequenceManager from './sequenceManager.js';
+import { initializeSqlite } from './db/sqlite.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,6 +61,7 @@ const METRICS_ENABLED = !['0', 'false', 'no', 'off'].includes(
 const PROM_EXPORTER_PREFERRED = METRICS_ENABLED && !['0', 'false', 'no', 'off'].includes(
   String(process.env.WS2_PROMETHEUS_DISABLED || process.env.WS2_DISABLE_PROMETHEUS || '').toLowerCase()
 );
+const HYBRID_CACHE_TTL_MS = Math.max(250, Number(process.env.HYBRID_CACHE_TTL_MS) || 1500);
 
 const metricsState = {
   enabled: METRICS_ENABLED,
@@ -3003,6 +3006,8 @@ async function readBody(req) {
 await mkdir(HISTORY_DIR, { recursive: true });
 await mkdir(BRANCHES_DIR, { recursive: true });
 
+initializeSqlite({ rootDir: ROOT_DIR });
+
 const schemaEngine = new SchemaEngine();
 const schemaPaths = new Set([path.resolve(DEFAULT_SCHEMA_PATH)]);
 if (ENV_SCHEMA_PATH) {
@@ -3166,7 +3171,9 @@ async function ensureModuleStore(branchId, moduleId) {
       tables: existing.tables || {}
     };
   }
-  const store = new ModuleStore(schemaEngine, branchId, moduleId, moduleDefinition, seed, moduleSeed);
+  const store = new HybridStore(schemaEngine, branchId, moduleId, moduleDefinition, seed, moduleSeed, {
+    cacheTtlMs: HYBRID_CACHE_TTL_MS
+  });
   moduleStores.set(key, store);
   if (!existing) {
     await persistModuleStore(store);
