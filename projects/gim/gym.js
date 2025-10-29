@@ -1,53 +1,25 @@
-import { createPosDb } from '../../static/pos/pos-mini-db.js';
-import { div, button, span, input, label, select, option, textarea } from '../../static/lib/mishkah.div.js';
-import { createSimpleStore } from '../../static/lib/mishkah.simple-store.js';
+(async function() {
+  // Access Mishkah global objects
+  const M = Mishkah;
+  const UI = M.UI;
+  const U = M.utils;
+  const { tw, token } = U.twcss || {};
 
-const BRANCH_ID = 'gim';
-const MODULE_ID = 'gym';
+  // Get database from window
+  const db = window.__GYM_DB__;
+  if (!db) {
+    console.error('[GYM] Database not initialized');
+    return;
+  }
 
-// Global state
-let db;
-let store;
-let currentLang = 'ar';
-let currentTheme = 'dark';
+  // State
+  let currentPage = 'dashboard';
+  let currentLang = 'ar';
+  let currentTheme = 'dark';
+  let selectedMember = null;
 
-// Initialize the application
-async function init() {
-  // Initialize database
-  const result = await createPosDb({
-    branchId: BRANCH_ID,
-    moduleId: MODULE_ID
-  });
-
-  db = result.db;
-  await db.ready();
-
-  // Create simple store
-  store = createSimpleStore({
-    currentPage: 'dashboard',
-    selectedMember: null,
-    selectedSubscription: null,
-    currentLang: 'ar',
-    currentTheme: 'dark'
-  });
-
-  // Listen to state changes
-  store.subscribe(() => {
-    renderApp();
-  });
-
-  // Set initial theme and lang
-  document.documentElement.setAttribute('data-theme', currentTheme);
-  document.documentElement.setAttribute('lang', currentLang);
-  document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
-
-  // Initial render
-  renderApp();
-}
-
-// Translation helper
-function t(key) {
-  const translations = {
+  // Translations
+  const t = {
     // Navigation
     dashboard: { ar: 'لوحة التحكم', en: 'Dashboard' },
     members: { ar: 'الأعضاء', en: 'Members' },
@@ -62,6 +34,8 @@ function t(key) {
     monthly_revenue: { ar: 'الإيرادات الشهرية', en: 'Monthly Revenue' },
     todays_attendance: { ar: 'حضور اليوم', en: "Today's Attendance" },
     pending_reminders: { ar: 'تذكيرات معلقة', en: 'Pending Reminders' },
+    recent_activity: { ar: 'النشاط الأخير', en: 'Recent Activity' },
+    renewal_reminders: { ar: 'تذكيرات التجديد', en: 'Renewal Reminders' },
 
     // Members
     member_code: { ar: 'رقم العضو', en: 'Member Code' },
@@ -99,565 +73,570 @@ function t(key) {
     active: { ar: 'نشط', en: 'Active' },
     inactive: { ar: 'غير نشط', en: 'Inactive' },
     search: { ar: 'بحث', en: 'Search' },
-
-    // Gym specific
     gym_name: { ar: 'باور فيت للياقة البدنية', en: 'PowerFit Gym' },
-    welcome: { ar: 'مرحباً بك', en: 'Welcome' },
-    recent_activity: { ar: 'النشاط الأخير', en: 'Recent Activity' },
-    renewal_reminders: { ar: 'تذكيرات التجديد', en: 'Renewal Reminders' },
-    quick_stats: { ar: 'إحصائيات سريعة', en: 'Quick Stats' },
+    welcome: { ar: 'مرحباً بك', en: 'Welcome' }
   };
 
-  return translations[key] ? translations[key][currentLang] : key;
-}
+  // Localize helper
+  function localize(obj) {
+    if (!obj) return '';
+    if (typeof obj === 'string') return obj;
+    return obj[currentLang] || obj.ar || obj.en || '';
+  }
 
-// Format currency
-function formatCurrency(amount) {
-  return new Intl.NumberFormat(currentLang === 'ar' ? 'ar-EG' : 'en-US', {
-    style: 'currency',
-    currency: 'EGP',
-    minimumFractionDigits: 0
-  }).format(amount);
-}
+  // Format currency
+  function formatCurrency(amount) {
+    return new Intl.NumberFormat(currentLang === 'ar' ? 'ar-EG' : 'en-US', {
+      style: 'currency',
+      currency: 'EGP',
+      minimumFractionDigits: 0
+    }).format(amount || 0);
+  }
 
-// Format date
-function formatDate(dateStr) {
-  const date = new Date(dateStr);
-  return new Intl.DateTimeFormat(currentLang === 'ar' ? 'ar-EG' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }).format(date);
-}
+  // Format date
+  function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat(currentLang === 'ar' ? 'ar-EG' : 'en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }).format(date);
+  }
 
-// Main app renderer
-function renderApp() {
-  const state = store.getState();
-  currentLang = state.currentLang;
-  currentTheme = state.currentTheme;
+  // Toggle language
+  function toggleLanguage() {
+    currentLang = currentLang === 'ar' ? 'en' : 'ar';
+    document.documentElement.setAttribute('lang', currentLang);
+    document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
+    render();
+  }
 
-  document.documentElement.setAttribute('lang', currentLang);
-  document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
-  document.documentElement.setAttribute('data-theme', currentTheme);
+  // Toggle theme
+  function toggleTheme() {
+    currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    render();
+  }
 
-  const app = div('.', { class: 'mk-app' }, [
-    renderTopBar(),
-    div('.', { class: 'mk-main-content' }, [
-      renderNavigation(),
-      renderPage(state.currentPage)
-    ])
-  ]);
+  // Navigate to page
+  function navigate(page) {
+    currentPage = page;
+    render();
+  }
 
-  document.getElementById('app').replaceChildren(app);
-}
+  // Render stat card
+  function renderStatCard(icon, label, value, variant = 'primary') {
+    const card = document.createElement('div');
+    card.className = tw ? tw`p-6 rounded-lg` : 'stat-card';
+    card.style.cssText = `
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      background: var(--mk-surface-1);
+      border: 1px solid var(--mk-border);
+    `;
 
-// Top bar
-function renderTopBar() {
-  return div('toolbar', [
-    div('toolbar/section', [
-      div('hstack', { style: 'gap: 1rem; align-items: center;' }, [
-        span('.', { class: 'mk-text-2xl mk-font-bold' }, t('gym_name')),
-      ])
-    ]),
-    div('toolbar/section', [
-      div('toolbar/group', [
-        button('btn/ghost btn/icon', {
-          onclick: () => {
-            currentLang = currentLang === 'ar' ? 'en' : 'ar';
-            store.setState({ currentLang });
-          }
-        }, currentLang === 'ar' ? '🇬🇧' : '🇸🇦'),
-        button('btn/ghost btn/icon', {
-          onclick: () => {
-            currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            store.setState({ currentTheme });
-          }
-        }, currentTheme === 'dark' ? '☀️' : '🌙'),
-      ])
-    ])
-  ]);
-}
+    card.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <span style="color: var(--mk-muted); font-size: 0.875rem;">${label}</span>
+          <span style="font-size: 1.5rem; font-weight: 700;">${value}</span>
+        </div>
+        <span style="font-size: 2.5rem;">${icon}</span>
+      </div>
+    `;
 
-// Navigation
-function renderNavigation() {
-  const state = store.getState();
-  const pages = ['dashboard', 'members', 'subscriptions', 'pos', 'reports'];
+    return card;
+  }
 
-  return div('.', { class: 'mk-nav' }, [
-    div('vstack', { style: 'gap: 0.5rem; padding: 1rem;' },
-      pages.map(page =>
-        button(
-          state.currentPage === page ? 'btn/solid' : 'btn/ghost',
-          {
-            style: 'width: 100%; justify-content: flex-start;',
-            onclick: () => store.setState({ currentPage: page })
-          },
-          t(page)
-        )
-      )
-    )
-  ]);
-}
+  // Render dashboard
+  function renderDashboard() {
+    const members = db.list('gym_member') || [];
+    const subscriptions = db.list('membership_subscription') || [];
+    const attendance = db.list('attendance_log') || [];
+    const reminders = db.list('reminder') || [];
+    const reports = db.list('revenue_report') || [];
 
-// Page router
-function renderPage(page) {
-  const pages = {
-    dashboard: renderDashboard,
-    members: renderMembers,
-    subscriptions: renderSubscriptions,
-    pos: renderPOS,
-    reports: renderReports
-  };
+    const activeSubscriptions = subscriptions.filter(s => s.status === 'active' || s.status === 'expiring_soon');
+    const expiringSoon = subscriptions.filter(s => s.status === 'expiring_soon');
+    const pendingReminders = reminders.filter(r => r.status === 'pending');
 
-  return div('.', { class: 'mk-page' }, [
-    pages[page] ? pages[page]() : div('.', 'Page not found')
-  ]);
-}
+    const today = new Date().toISOString().split('T')[0];
+    const todayAttendance = attendance.filter(a => a.check_in_time.startsWith(today));
 
-// Dashboard page
-function renderDashboard() {
-  const members = db.list('gym_member') || [];
-  const subscriptions = db.list('membership_subscription') || [];
-  const attendance = db.list('attendance_log') || [];
-  const reminders = db.list('reminder') || [];
-  const reports = db.list('revenue_report') || [];
+    const monthlyReport = reports.find(r => r.report_type === 'monthly');
+    const monthlyRevenue = monthlyReport ? monthlyReport.total_revenue : 0;
 
-  const activeSubscriptions = subscriptions.filter(s => s.status === 'active' || s.status === 'expiring_soon');
-  const expiringSoon = subscriptions.filter(s => s.status === 'expiring_soon');
-  const pendingReminders = reminders.filter(r => r.status === 'pending');
+    const container = document.createElement('div');
+    container.style.cssText = 'display: flex; flex-direction: column; gap: 2rem; padding: 2rem; overflow-y: auto; height: 100%;';
 
-  // Get today's attendance
-  const today = new Date().toISOString().split('T')[0];
-  const todayAttendance = attendance.filter(a => a.check_in_time.startsWith(today));
-
-  // Get monthly revenue
-  const monthlyReport = reports.find(r => r.report_type === 'monthly');
-  const monthlyRevenue = monthlyReport ? monthlyReport.total_revenue : 0;
-
-  return div('vstack', { style: 'gap: 2rem; padding: 2rem;' }, [
     // Header
-    div('.', { class: 'mk-text-3xl mk-font-bold' }, t('dashboard')),
+    const header = document.createElement('h1');
+    header.style.cssText = 'font-size: 1.875rem; font-weight: 700; margin: 0;';
+    header.textContent = localize(t.dashboard);
+    container.appendChild(header);
 
-    // Stats cards
-    div('.', {
-      style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;'
-    }, [
-      renderStatCard('👥', t('total_members'), members.length, 'primary'),
-      renderStatCard('✅', t('active_subscriptions'), activeSubscriptions.length, 'success'),
-      renderStatCard('⚠️', t('expiring_soon'), expiringSoon.length, 'warning'),
-      renderStatCard('💰', t('monthly_revenue'), formatCurrency(monthlyRevenue), 'accent'),
-      renderStatCard('📊', t('todays_attendance'), todayAttendance.length, 'secondary'),
-      renderStatCard('🔔', t('pending_reminders'), pendingReminders.length, 'danger'),
-    ]),
+    // Stats grid
+    const statsGrid = document.createElement('div');
+    statsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;';
 
-    // Recent activity and reminders
-    div('.', {
-      style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;'
-    }, [
-      renderRecentActivity(attendance.slice(-5).reverse()),
-      renderRenewalReminders(expiringSoon)
-    ])
-  ]);
-}
+    statsGrid.appendChild(renderStatCard('👥', localize(t.total_members), members.length));
+    statsGrid.appendChild(renderStatCard('✅', localize(t.active_subscriptions), activeSubscriptions.length));
+    statsGrid.appendChild(renderStatCard('⚠️', localize(t.expiring_soon), expiringSoon.length));
+    statsGrid.appendChild(renderStatCard('💰', localize(t.monthly_revenue), formatCurrency(monthlyRevenue)));
+    statsGrid.appendChild(renderStatCard('📊', localize(t.todays_attendance), todayAttendance.length));
+    statsGrid.appendChild(renderStatCard('🔔', localize(t.pending_reminders), pendingReminders.length));
 
-// Stat card component
-function renderStatCard(icon, label, value, variant = 'primary') {
-  return div('card', { style: 'padding: 1.5rem;' }, [
-    div('hstack', { style: 'justify-content: space-between; align-items: center;' }, [
-      div('vstack', { style: 'gap: 0.5rem;' }, [
-        span('.', { class: 'mk-text-muted' }, label),
-        span('.', { class: 'mk-text-2xl mk-font-bold' }, value)
-      ]),
-      span('.', { class: 'mk-text-4xl' }, icon)
-    ])
-  ]);
-}
+    container.appendChild(statsGrid);
 
-// Recent activity
-function renderRecentActivity(recentAttendance) {
-  const members = db.list('gym_member') || [];
+    // Activity section
+    const activitySection = document.createElement('div');
+    activitySection.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;';
 
-  return div('card', { style: 'padding: 1.5rem;' }, [
-    div('.', { class: 'mk-text-xl mk-font-bold', style: 'margin-bottom: 1rem;' }, t('recent_activity')),
-    div('vstack', { style: 'gap: 0.75rem;' },
-      recentAttendance.length > 0 ? recentAttendance.map(att => {
-        const member = members.find(m => m.id === att.member_id);
-        const memberName = member ? member.full_name[currentLang] : 'Unknown';
-        const time = new Date(att.check_in_time).toLocaleTimeString(currentLang === 'ar' ? 'ar-EG' : 'en-US', {
-          hour: '2-digit',
-          minute: '2-digit'
-        });
+    // Recent activity card
+    const activityCard = document.createElement('div');
+    activityCard.style.cssText = `
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      background: var(--mk-surface-1);
+      border: 1px solid var(--mk-border);
+    `;
+    activityCard.innerHTML = `
+      <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 1rem 0;">${localize(t.recent_activity)}</h2>
+      <div style="color: var(--mk-muted);">${todayAttendance.length > 0 ? `${todayAttendance.length} عضو حضر اليوم` : 'لا يوجد نشاط اليوم'}</div>
+    `;
+    activitySection.appendChild(activityCard);
 
-        return div('list/item', [
-          div('list/item-leading', '👤'),
-          div('list/item-content', [
-            div('.', { class: 'mk-font-medium' }, memberName),
-            div('.', { class: 'mk-text-sm mk-text-muted' }, `${t('check_in_time' in att ? 'check_in_time' : 'checked_in')}: ${time}`)
-          ])
-        ]);
-      }) : [div('.', { class: 'mk-text-muted' }, currentLang === 'ar' ? 'لا يوجد نشاط حديث' : 'No recent activity')]
-    )
-  ]);
-}
+    // Renewal reminders card
+    const remindersCard = document.createElement('div');
+    remindersCard.style.cssText = `
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      background: var(--mk-surface-1);
+      border: 1px solid var(--mk-border);
+    `;
+    remindersCard.innerHTML = `
+      <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 1rem 0;">${localize(t.renewal_reminders)}</h2>
+      <div style="color: var(--mk-muted);">${expiringSoon.length} اشتراك ينتهي قريباً</div>
+    `;
+    activitySection.appendChild(remindersCard);
 
-// Renewal reminders
-function renderRenewalReminders(expiringSoon) {
-  const members = db.list('gym_member') || [];
-  const plans = db.list('membership_plan') || [];
+    container.appendChild(activitySection);
 
-  return div('card', { style: 'padding: 1.5rem;' }, [
-    div('.', { class: 'mk-text-xl mk-font-bold', style: 'margin-bottom: 1rem;' }, t('renewal_reminders')),
-    div('vstack', { style: 'gap: 0.75rem;' },
-      expiringSoon.length > 0 ? expiringSoon.map(sub => {
-        const member = members.find(m => m.id === sub.member_id);
-        const plan = plans.find(p => p.id === sub.plan_id);
-        const memberName = member ? member.full_name[currentLang] : 'Unknown';
-        const planName = plan ? plan.plan_name[currentLang] : 'Unknown';
-        const endDate = formatDate(sub.end_date);
+    return container;
+  }
 
-        return div('list/item', [
-          div('list/item-leading', '⚠️'),
-          div('list/item-content', [
-            div('.', { class: 'mk-font-medium' }, memberName),
-            div('.', { class: 'mk-text-sm mk-text-muted' }, `${planName} - ${endDate}`)
-          ]),
-          div('list/item-trailing', [
-            button('btn/sm btn/soft', {
-              onclick: () => {
-                store.setState({
-                  currentPage: 'subscriptions',
-                  selectedSubscription: sub.id
-                });
-              }
-            }, t('renew'))
-          ])
-        ]);
-      }) : [div('.', { class: 'mk-text-muted' }, currentLang === 'ar' ? 'لا توجد اشتراكات تنتهي قريباً' : 'No subscriptions expiring soon')]
-    )
-  ]);
-}
+  // Render members list
+  function renderMembers() {
+    const members = db.list('gym_member') || [];
 
-// Members page
-function renderMembers() {
-  const members = db.list('gym_member') || [];
+    const container = document.createElement('div');
+    container.style.cssText = 'display: flex; flex-direction: column; gap: 2rem; padding: 2rem; overflow-y: auto; height: 100%;';
 
-  return div('vstack', { style: 'gap: 2rem; padding: 2rem;' }, [
     // Header
-    div('hstack', { style: 'justify-content: space-between; align-items: center;' }, [
-      div('.', { class: 'mk-text-3xl mk-font-bold' }, t('members')),
-      button('btn/solid', { onclick: () => alert('Add member functionality') }, t('add_member'))
-    ]),
+    const header = document.createElement('div');
+    header.style.cssText = 'display: flex; justify-content: space-between; align-items: center;';
+    header.innerHTML = `
+      <h1 style="font-size: 1.875rem; font-weight: 700; margin: 0;">${localize(t.members)}</h1>
+      <button style="
+        padding: 0.75rem 1.5rem;
+        background: var(--mk-primary);
+        color: white;
+        border: none;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        font-size: 1rem;
+      ">${localize(t.add_member)}</button>
+    `;
+    container.appendChild(header);
 
-    // Search bar
-    div('.', { style: 'margin-bottom: 1rem;' }, [
-      input('input', {
-        type: 'text',
-        placeholder: t('search'),
-        style: 'width: 100%; max-width: 400px;'
-      })
-    ]),
+    // Members grid
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;';
 
-    // Members table
-    div('card', { style: 'overflow-x: auto;' }, [
-      div('.', { class: 'mk-table-container' }, [
-        renderMembersTable(members)
-      ])
-    ])
-  ]);
-}
+    members.forEach(member => {
+      const card = document.createElement('div');
+      card.style.cssText = `
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        background: var(--mk-surface-1);
+        border: 1px solid var(--mk-border);
+        cursor: pointer;
+        transition: transform 0.2s;
+      `;
+      card.onmouseenter = () => card.style.transform = 'translateY(-2px)';
+      card.onmouseleave = () => card.style.transform = 'translateY(0)';
 
-// Members table
-function renderMembersTable(members) {
-  const table = document.createElement('table');
-  table.className = 'mk-table';
-  table.style.width = '100%';
-  table.style.borderCollapse = 'collapse';
+      const statusColor = member.status === 'active' ? 'var(--mk-success)' : 'var(--mk-muted)';
 
-  // Header
-  const thead = document.createElement('thead');
-  const headerRow = document.createElement('tr');
-  [t('member_code'), t('full_name'), t('phone'), t('email'), t('status'), t('actions')].forEach(header => {
-    const th = document.createElement('th');
-    th.textContent = header;
-    th.style.padding = '1rem';
-    th.style.textAlign = currentLang === 'ar' ? 'right' : 'left';
-    th.style.borderBottom = '1px solid var(--mk-border)';
-    headerRow.appendChild(th);
-  });
-  thead.appendChild(headerRow);
-  table.appendChild(thead);
+      card.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div>
+              <div style="font-size: 1.25rem; font-weight: 700;">${localize(member.full_name)}</div>
+              <div style="color: var(--mk-muted); font-size: 0.875rem;">${member.member_code}</div>
+            </div>
+            <span style="
+              padding: 0.25rem 0.75rem;
+              background: ${statusColor};
+              color: white;
+              border-radius: 9999px;
+              font-size: 0.75rem;
+              font-weight: 600;
+            ">${localize(t[member.status])}</span>
+          </div>
+          <div style="color: var(--mk-muted); font-size: 0.875rem;">
+            <div>📞 ${member.phone}</div>
+            <div>📧 ${member.email}</div>
+          </div>
+        </div>
+      `;
 
-  // Body
-  const tbody = document.createElement('tbody');
-  members.forEach(member => {
-    const row = document.createElement('tr');
-    row.style.borderBottom = '1px solid var(--mk-border)';
+      grid.appendChild(card);
+    });
 
-    // Member code
-    const codeCell = document.createElement('td');
-    codeCell.textContent = member.member_code;
-    codeCell.style.padding = '1rem';
-    row.appendChild(codeCell);
+    container.appendChild(grid);
+    return container;
+  }
 
-    // Full name
-    const nameCell = document.createElement('td');
-    nameCell.textContent = member.full_name[currentLang];
-    nameCell.style.padding = '1rem';
-    nameCell.style.fontWeight = '500';
-    row.appendChild(nameCell);
+  // Render subscriptions
+  function renderSubscriptions() {
+    const subscriptions = db.list('membership_subscription') || [];
+    const members = db.list('gym_member') || [];
+    const plans = db.list('membership_plan') || [];
 
-    // Phone
-    const phoneCell = document.createElement('td');
-    phoneCell.textContent = member.phone;
-    phoneCell.style.padding = '1rem';
-    row.appendChild(phoneCell);
+    const container = document.createElement('div');
+    container.style.cssText = 'display: flex; flex-direction: column; gap: 2rem; padding: 2rem; overflow-y: auto; height: 100%;';
 
-    // Email
-    const emailCell = document.createElement('td');
-    emailCell.textContent = member.email;
-    emailCell.style.padding = '1rem';
-    row.appendChild(emailCell);
-
-    // Status
-    const statusCell = document.createElement('td');
-    statusCell.style.padding = '1rem';
-    const statusBadge = span('badge', member.status === 'active' ? t('active') : t('inactive'));
-    statusBadge.style.backgroundColor = member.status === 'active' ? 'var(--mk-success)' : 'var(--mk-muted)';
-    statusCell.appendChild(statusBadge);
-    row.appendChild(statusCell);
-
-    // Actions
-    const actionsCell = document.createElement('td');
-    actionsCell.style.padding = '1rem';
-    const actionsDiv = div('hstack', { style: 'gap: 0.5rem;' }, [
-      button('btn/sm btn/ghost', { onclick: () => viewMember(member) }, t('view')),
-      button('btn/sm btn/ghost', { onclick: () => editMember(member) }, t('edit'))
-    ]);
-    actionsCell.appendChild(actionsDiv);
-    row.appendChild(actionsCell);
-
-    tbody.appendChild(row);
-  });
-  table.appendChild(tbody);
-
-  return table;
-}
-
-function viewMember(member) {
-  alert(`View member: ${member.full_name[currentLang]}`);
-}
-
-function editMember(member) {
-  alert(`Edit member: ${member.full_name[currentLang]}`);
-}
-
-// Subscriptions page
-function renderSubscriptions() {
-  const subscriptions = db.list('membership_subscription') || [];
-  const members = db.list('gym_member') || [];
-  const plans = db.list('membership_plan') || [];
-
-  return div('vstack', { style: 'gap: 2rem; padding: 2rem;' }, [
     // Header
-    div('.', { class: 'mk-text-3xl mk-font-bold' }, t('subscriptions')),
+    const header = document.createElement('h1');
+    header.style.cssText = 'font-size: 1.875rem; font-weight: 700; margin: 0;';
+    header.textContent = localize(t.subscriptions);
+    container.appendChild(header);
 
-    // Subscriptions list
-    div('.', {
-      style: 'display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem;'
-    }, subscriptions.map(sub => {
+    // Subscriptions grid
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem;';
+
+    subscriptions.forEach(sub => {
       const member = members.find(m => m.id === sub.member_id);
       const plan = plans.find(p => p.id === sub.plan_id);
 
-      return renderSubscriptionCard(sub, member, plan);
-    }))
-  ]);
-}
+      const isExpiring = sub.status === 'expiring_soon';
+      const borderColor = isExpiring ? 'var(--mk-warning)' : 'var(--mk-border)';
 
-// Subscription card
-function renderSubscriptionCard(subscription, member, plan) {
-  const isExpiring = subscription.status === 'expiring_soon';
-  const memberName = member ? member.full_name[currentLang] : 'Unknown';
-  const planName = plan ? plan.plan_name[currentLang] : 'Unknown';
+      const card = document.createElement('div');
+      card.style.cssText = `
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        background: var(--mk-surface-1);
+        border: 2px solid ${borderColor};
+      `;
 
-  return div('card', {
-    style: `padding: 1.5rem; ${isExpiring ? 'border: 2px solid var(--mk-warning);' : ''}`
-  }, [
-    div('vstack', { style: 'gap: 1rem;' }, [
-      // Member name and status
-      div('hstack', { style: 'justify-content: space-between; align-items: center;' }, [
-        div('.', { class: 'mk-text-xl mk-font-bold' }, memberName),
-        span(
-          'badge',
-          { style: `background: ${isExpiring ? 'var(--mk-warning)' : 'var(--mk-success)'};` },
-          isExpiring ? t('expiring_soon') : t('active')
-        )
-      ]),
+      card.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 1.25rem; font-weight: 700;">${member ? localize(member.full_name) : 'Unknown'}</div>
+            <span style="
+              padding: 0.25rem 0.75rem;
+              background: ${isExpiring ? 'var(--mk-warning)' : 'var(--mk-success)'};
+              color: white;
+              border-radius: 9999px;
+              font-size: 0.75rem;
+              font-weight: 600;
+            ">${isExpiring ? localize(t.expiring_soon) : localize(t.active)}</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.875rem;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--mk-muted);">${localize(t.plan_name)}</span>
+              <span>${plan ? localize(plan.plan_name) : 'Unknown'}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--mk-muted);">${localize(t.start_date)}</span>
+              <span>${formatDate(sub.start_date)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--mk-muted);">${localize(t.end_date)}</span>
+              <span>${formatDate(sub.end_date)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: var(--mk-muted);">${localize(t.amount)}</span>
+              <span style="font-weight: 700;">${formatCurrency(sub.amount_paid)}</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+            <button style="
+              flex: 1;
+              padding: 0.5rem 1rem;
+              background: var(--mk-primary);
+              color: white;
+              border: none;
+              border-radius: 0.375rem;
+              cursor: pointer;
+              font-size: 0.875rem;
+            ">${localize(t.renew)}</button>
+            <button style="
+              flex: 1;
+              padding: 0.5rem 1rem;
+              background: transparent;
+              color: var(--mk-fg);
+              border: 1px solid var(--mk-border);
+              border-radius: 0.375rem;
+              cursor: pointer;
+              font-size: 0.875rem;
+            ">${localize(t.view)}</button>
+          </div>
+        </div>
+      `;
 
-      // Plan details
-      div('vstack', { style: 'gap: 0.5rem;' }, [
-        div('hstack', { style: 'justify-content: space-between;' }, [
-          span('.', { class: 'mk-text-muted' }, t('plan_name')),
-          span('.', { class: 'mk-font-medium' }, planName)
-        ]),
-        div('hstack', { style: 'justify-content: space-between;' }, [
-          span('.', { class: 'mk-text-muted' }, t('start_date')),
-          span('.', formatDate(subscription.start_date))
-        ]),
-        div('hstack', { style: 'justify-content: space-between;' }, [
-          span('.', { class: 'mk-text-muted' }, t('end_date')),
-          span('.', formatDate(subscription.end_date))
-        ]),
-        div('hstack', { style: 'justify-content: space-between;' }, [
-          span('.', { class: 'mk-text-muted' }, t('amount')),
-          span('.', { class: 'mk-font-bold' }, formatCurrency(subscription.amount_paid))
-        ])
-      ]),
+      grid.appendChild(card);
+    });
 
-      // Actions
-      div('hstack', { style: 'gap: 0.5rem; margin-top: 0.5rem;' }, [
-        button('btn/sm btn/solid', {
-          onclick: () => renewSubscription(subscription, member)
-        }, t('renew')),
-        button('btn/sm btn/ghost', {
-          onclick: () => viewSubscription(subscription)
-        }, t('view'))
-      ])
-    ])
-  ]);
-}
-
-function renewSubscription(subscription, member) {
-  alert(`Renew subscription for: ${member.full_name[currentLang]}`);
-}
-
-function viewSubscription(subscription) {
-  alert(`View subscription: ${subscription.id}`);
-}
-
-// POS page
-function renderPOS() {
-  const services = db.list('gym_service') || [];
-  const activeServices = services.filter(s => s.is_active);
-
-  return div('vstack', { style: 'gap: 2rem; padding: 2rem;' }, [
-    // Header
-    div('.', { class: 'mk-text-3xl mk-font-bold' }, t('pos')),
-
-    // POS content
-    div('.', {
-      style: 'display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;'
-    }, [
-      // Services grid
-      div('card', { style: 'padding: 1.5rem;' }, [
-        div('.', { class: 'mk-text-xl mk-font-bold', style: 'margin-bottom: 1rem;' }, t('services')),
-        div('.', {
-          style: 'display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;'
-        }, activeServices.map(service => renderServiceCard(service)))
-      ]),
-
-      // Cart
-      div('card', { style: 'padding: 1.5rem; height: fit-content;' }, [
-        div('.', { class: 'mk-text-xl mk-font-bold', style: 'margin-bottom: 1rem;' }, t('cart')),
-        div('vstack', { style: 'gap: 1rem;' }, [
-          div('.', { class: 'mk-text-muted' }, currentLang === 'ar' ? 'السلة فارغة' : 'Cart is empty'),
-          div('hstack', { style: 'justify-content: space-between; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--mk-border);' }, [
-            span('.', { class: 'mk-font-bold' }, t('total')),
-            span('.', { class: 'mk-font-bold mk-text-xl' }, formatCurrency(0))
-          ]),
-          button('btn/solid', { style: 'width: 100%; margin-top: 1rem;' }, t('checkout'))
-        ])
-      ])
-    ])
-  ]);
-}
-
-// Service card
-function renderServiceCard(service) {
-  return div('card', {
-    style: 'padding: 1rem; cursor: pointer; transition: transform 0.2s;',
-    onclick: () => addToCart(service),
-    onmouseenter: (e) => e.currentTarget.style.transform = 'scale(1.05)',
-    onmouseleave: (e) => e.currentTarget.style.transform = 'scale(1)'
-  }, [
-    div('vstack', { style: 'gap: 0.5rem;' }, [
-      div('.', { class: 'mk-font-bold' }, service.service_name[currentLang]),
-      div('.', { class: 'mk-text-sm mk-text-muted' }, service.description[currentLang]),
-      div('.', { class: 'mk-font-bold mk-text-lg', style: 'color: var(--mk-primary);' }, formatCurrency(service.price))
-    ])
-  ]);
-}
-
-function addToCart(service) {
-  alert(`Added to cart: ${service.service_name[currentLang]}`);
-}
-
-// Reports page
-function renderReports() {
-  const reports = db.list('revenue_report') || [];
-  const monthlyReport = reports.find(r => r.report_type === 'monthly');
-
-  if (!monthlyReport) {
-    return div('vstack', { style: 'gap: 2rem; padding: 2rem;' }, [
-      div('.', { class: 'mk-text-3xl mk-font-bold' }, t('reports')),
-      div('.', { class: 'mk-text-muted' }, currentLang === 'ar' ? 'لا توجد تقارير متاحة' : 'No reports available')
-    ]);
+    container.appendChild(grid);
+    return container;
   }
 
-  return div('vstack', { style: 'gap: 2rem; padding: 2rem;' }, [
-    // Header
-    div('.', { class: 'mk-text-3xl mk-font-bold' }, t('reports')),
+  // Render POS
+  function renderPOS() {
+    const services = db.list('gym_service') || [];
+    const activeServices = services.filter(s => s.is_active);
 
-    // Revenue overview
-    div('.', {
-      style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;'
-    }, [
-      renderStatCard('💰', t('total') + ' ' + t('revenue_report'), formatCurrency(monthlyReport.total_revenue), 'primary'),
-      renderStatCard('📋', t('membership_revenue'), formatCurrency(monthlyReport.membership_revenue), 'success'),
-      renderStatCard('🛍️', t('service_revenue'), formatCurrency(monthlyReport.service_revenue), 'accent')
-    ]),
+    const container = document.createElement('div');
+    container.style.cssText = 'display: flex; flex-direction: column; gap: 2rem; padding: 2rem; overflow-y: auto; height: 100%;';
+
+    // Header
+    const header = document.createElement('h1');
+    header.style.cssText = 'font-size: 1.875rem; font-weight: 700; margin: 0;';
+    header.textContent = localize(t.pos);
+    container.appendChild(header);
+
+    // Services grid
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.5rem;';
+
+    activeServices.forEach(service => {
+      const card = document.createElement('div');
+      card.style.cssText = `
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        background: var(--mk-surface-1);
+        border: 1px solid var(--mk-border);
+        cursor: pointer;
+        transition: all 0.2s;
+      `;
+      card.onmouseenter = () => {
+        card.style.transform = 'scale(1.05)';
+        card.style.borderColor = 'var(--mk-primary)';
+      };
+      card.onmouseleave = () => {
+        card.style.transform = 'scale(1)';
+        card.style.borderColor = 'var(--mk-border)';
+      };
+
+      card.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <div style="font-weight: 700; font-size: 1.125rem;">${localize(service.service_name)}</div>
+          <div style="color: var(--mk-muted); font-size: 0.875rem;">${localize(service.description)}</div>
+          <div style="color: var(--mk-primary); font-weight: 700; font-size: 1.25rem; margin-top: 0.5rem;">
+            ${formatCurrency(service.price)}
+          </div>
+        </div>
+      `;
+
+      grid.appendChild(card);
+    });
+
+    container.appendChild(grid);
+    return container;
+  }
+
+  // Render reports
+  function renderReports() {
+    const reports = db.list('revenue_report') || [];
+    const monthlyReport = reports.find(r => r.report_type === 'monthly');
+
+    const container = document.createElement('div');
+    container.style.cssText = 'display: flex; flex-direction: column; gap: 2rem; padding: 2rem; overflow-y: auto; height: 100%;';
+
+    // Header
+    const header = document.createElement('h1');
+    header.style.cssText = 'font-size: 1.875rem; font-weight: 700; margin: 0;';
+    header.textContent = localize(t.reports);
+    container.appendChild(header);
+
+    if (!monthlyReport) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'color: var(--mk-muted); text-align: center; padding: 4rem;';
+      empty.textContent = currentLang === 'ar' ? 'لا توجد تقارير متاحة' : 'No reports available';
+      container.appendChild(empty);
+      return container;
+    }
+
+    // Stats grid
+    const statsGrid = document.createElement('div');
+    statsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;';
+
+    statsGrid.appendChild(renderStatCard('💰', localize(t.total) + ' ' + localize(t.revenue_report), formatCurrency(monthlyReport.total_revenue)));
+    statsGrid.appendChild(renderStatCard('📋', localize(t.membership_revenue), formatCurrency(monthlyReport.membership_revenue)));
+    statsGrid.appendChild(renderStatCard('🛍️', localize(t.service_revenue), formatCurrency(monthlyReport.service_revenue)));
+
+    container.appendChild(statsGrid);
 
     // Payment breakdown
-    div('card', { style: 'padding: 1.5rem;' }, [
-      div('.', { class: 'mk-text-xl mk-font-bold', style: 'margin-bottom: 1rem;' },
-        currentLang === 'ar' ? 'تفصيل طرق الدفع' : 'Payment Breakdown'
-      ),
-      div('vstack', { style: 'gap: 1rem;' }, [
-        div('hstack', { style: 'justify-content: space-between;' }, [
-          span('.', currentLang === 'ar' ? 'نقدي' : 'Cash'),
-          span('.', { class: 'mk-font-bold' }, formatCurrency(monthlyReport.payment_breakdown.cash))
-        ]),
-        div('hstack', { style: 'justify-content: space-between;' }, [
-          span('.', currentLang === 'ar' ? 'بطاقة' : 'Card'),
-          span('.', { class: 'mk-font-bold' }, formatCurrency(monthlyReport.payment_breakdown.card))
-        ])
-      ])
-    ]),
+    const breakdownCard = document.createElement('div');
+    breakdownCard.style.cssText = `
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      background: var(--mk-surface-1);
+      border: 1px solid var(--mk-border);
+    `;
+    breakdownCard.innerHTML = `
+      <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 1rem 0;">
+        ${currentLang === 'ar' ? 'تفصيل طرق الدفع' : 'Payment Breakdown'}
+      </h2>
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div style="display: flex; justify-content: space-between;">
+          <span>${currentLang === 'ar' ? 'نقدي' : 'Cash'}</span>
+          <span style="font-weight: 700;">${formatCurrency(monthlyReport.payment_breakdown.cash)}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>${currentLang === 'ar' ? 'بطاقة' : 'Card'}</span>
+          <span style="font-weight: 700;">${formatCurrency(monthlyReport.payment_breakdown.card)}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(breakdownCard);
 
-    // Metrics
-    div('card', { style: 'padding: 1.5rem;' }, [
-      div('.', { class: 'mk-text-xl mk-font-bold', style: 'margin-bottom: 1rem;' }, t('quick_stats')),
-      div('.', {
-        style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;'
-      }, [
-        renderMetric(currentLang === 'ar' ? 'أعضاء جدد' : 'New Members', monthlyReport.metrics.new_members),
-        renderMetric(currentLang === 'ar' ? 'تجديدات' : 'Renewals', monthlyReport.metrics.renewals),
-        renderMetric(currentLang === 'ar' ? 'عدد الخدمات' : 'Service Count', monthlyReport.metrics.service_count),
-        renderMetric(
-          currentLang === 'ar' ? 'متوسط الإيراد/عضو' : 'Avg Revenue/Member',
-          formatCurrency(monthlyReport.metrics.average_revenue_per_member)
-        )
-      ])
-    ])
-  ]);
-}
+    return container;
+  }
 
-// Metric component
-function renderMetric(label, value) {
-  return div('vstack', { style: 'gap: 0.5rem;' }, [
-    span('.', { class: 'mk-text-muted' }, label),
-    span('.', { class: 'mk-text-2xl mk-font-bold' }, value)
-  ]);
-}
+  // Main render function
+  function render() {
+    const app = document.getElementById('app');
+    if (!app) return;
 
-// Start the app
-init();
+    // Clear app
+    app.innerHTML = '';
+
+    // Create main container
+    const shell = document.createElement('div');
+    shell.className = 'gym-shell';
+
+    // Top bar
+    const topBar = document.createElement('div');
+    topBar.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      background: var(--mk-surface-1);
+      border-bottom: 1px solid var(--mk-border);
+    `;
+    topBar.innerHTML = `
+      <div style="font-size: 1.5rem; font-weight: 700;">${localize(t.gym_name)}</div>
+      <div style="display: flex; gap: 0.5rem;">
+        <button onclick="window.toggleLang()" style="
+          padding: 0.5rem 1rem;
+          background: transparent;
+          color: var(--mk-fg);
+          border: 1px solid var(--mk-border);
+          border-radius: 0.375rem;
+          cursor: pointer;
+          font-size: 1.25rem;
+        ">${currentLang === 'ar' ? '🇬🇧' : '🇸🇦'}</button>
+        <button onclick="window.toggleTheme()" style="
+          padding: 0.5rem 1rem;
+          background: transparent;
+          color: var(--mk-fg);
+          border: 1px solid var(--mk-border);
+          border-radius: 0.375rem;
+          cursor: pointer;
+          font-size: 1.25rem;
+        ">${currentTheme === 'dark' ? '☀️' : '🌙'}</button>
+      </div>
+    `;
+    shell.appendChild(topBar);
+
+    // Main content area
+    const mainContent = document.createElement('div');
+    mainContent.style.cssText = 'display: flex; flex: 1; overflow: hidden;';
+
+    // Navigation
+    const nav = document.createElement('nav');
+    nav.style.cssText = `
+      width: 250px;
+      background: var(--mk-surface-1);
+      border-${currentLang === 'ar' ? 'left' : 'right'}: 1px solid var(--mk-border);
+      padding: 1rem;
+      overflow-y: auto;
+    `;
+
+    const pages = ['dashboard', 'members', 'subscriptions', 'pos', 'reports'];
+    const navButtons = pages.map(page => {
+      const isActive = currentPage === page;
+      const btn = document.createElement('button');
+      btn.style.cssText = `
+        width: 100%;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        background: ${isActive ? 'var(--mk-primary)' : 'transparent'};
+        color: ${isActive ? 'white' : 'var(--mk-fg)'};
+        border: none;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        text-align: ${currentLang === 'ar' ? 'right' : 'left'};
+        font-size: 1rem;
+        transition: all 0.2s;
+      `;
+      btn.textContent = localize(t[page]);
+      btn.onclick = () => navigate(page);
+      if (!isActive) {
+        btn.onmouseenter = () => btn.style.background = 'var(--mk-surface-2)';
+        btn.onmouseleave = () => btn.style.background = 'transparent';
+      }
+      return btn;
+    });
+
+    navButtons.forEach(btn => nav.appendChild(btn));
+    mainContent.appendChild(nav);
+
+    // Page content
+    const pageContent = document.createElement('div');
+    pageContent.style.cssText = 'flex: 1; overflow-y: auto; background: var(--mk-surface-0);';
+
+    let content;
+    switch (currentPage) {
+      case 'dashboard':
+        content = renderDashboard();
+        break;
+      case 'members':
+        content = renderMembers();
+        break;
+      case 'subscriptions':
+        content = renderSubscriptions();
+        break;
+      case 'pos':
+        content = renderPOS();
+        break;
+      case 'reports':
+        content = renderReports();
+        break;
+      default:
+        content = renderDashboard();
+    }
+
+    pageContent.appendChild(content);
+    mainContent.appendChild(pageContent);
+
+    shell.appendChild(mainContent);
+    app.appendChild(shell);
+  }
+
+  // Expose functions to window
+  window.toggleLang = toggleLanguage;
+  window.toggleTheme = toggleTheme;
+
+  // Initial render
+  render();
+
+  console.log('[GYM] Application initialized successfully');
+})();

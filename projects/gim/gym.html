@@ -8,258 +8,55 @@
   <!-- Mishkah CSS -->
   <link rel="stylesheet" href="../../static/lib/mishkah-css.css">
 
-  <!-- Custom styles -->
   <style>
-    * {
+    :root { color-scheme: light dark; }
+    html, body {
+      height: 100%;
+      min-height: 100vh;
+      width: 100vw;
       margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+      overflow: hidden;
+      background: var(--mk-bg, #0f1115);
     }
-
     body {
-      font-family: 'Cairo', 'Inter', system-ui, -apple-system, sans-serif;
-      background: var(--mk-bg);
-      color: var(--mk-fg);
-      line-height: 1.6;
+      font-family: "Cairo", "Tajawal", system-ui, sans-serif;
+      touch-action: manipulation;
+      display: flex;
+      min-height: 100vh;
+      width: 100vw;
+      color: var(--mk-fg, #e8eef4);
     }
-
-    .mk-app {
+    #app {
+      flex: 1 1 auto;
+      min-height: 100vh;
+      width: 100vw;
+      display: flex;
+    }
+    .gym-shell {
+      flex: 1 1 auto;
+      width: 100vw;
       display: flex;
       flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    .mk-main-content {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .mk-nav {
-      width: 250px;
-      background: var(--mk-surface-1);
-      border-right: 1px solid var(--mk-border);
-      overflow-y: auto;
-    }
-
-    [dir="rtl"] .mk-nav {
-      border-right: none;
-      border-left: 1px solid var(--mk-border);
-    }
-
-    .mk-page {
-      flex: 1;
-      overflow-y: auto;
-      background: var(--mk-surface-0);
-    }
-
-    /* Utility classes */
-    .mk-text-xl {
-      font-size: 1.25rem;
-      line-height: 1.75rem;
-    }
-
-    .mk-text-2xl {
-      font-size: 1.5rem;
-      line-height: 2rem;
-    }
-
-    .mk-text-3xl {
-      font-size: 1.875rem;
-      line-height: 2.25rem;
-    }
-
-    .mk-text-4xl {
-      font-size: 2.25rem;
-      line-height: 2.5rem;
-    }
-
-    .mk-text-sm {
-      font-size: 0.875rem;
-      line-height: 1.25rem;
-    }
-
-    .mk-text-muted {
-      color: var(--mk-muted);
-    }
-
-    .mk-font-bold {
-      font-weight: 700;
-    }
-
-    .mk-font-medium {
-      font-weight: 500;
-    }
-
-    /* Table styles */
-    .mk-table-container {
-      overflow-x: auto;
-    }
-
-    .mk-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .mk-table th,
-    .mk-table td {
-      padding: 1rem;
-      text-align: right;
-      border-bottom: 1px solid var(--mk-border);
-    }
-
-    [dir="ltr"] .mk-table th,
-    [dir="ltr"] .mk-table td {
-      text-align: left;
-    }
-
-    .mk-table th {
-      font-weight: 600;
-      background: var(--mk-surface-1);
-    }
-
-    .mk-table tbody tr:hover {
-      background: var(--mk-surface-1);
-    }
-
-    /* Card hover effect */
-    .mk-card-hover {
-      transition: all 0.2s ease;
-      cursor: pointer;
-    }
-
-    .mk-card-hover:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-
-    /* Scrollbar styling */
-    ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
-    }
-
-    ::-webkit-scrollbar-track {
-      background: var(--mk-surface-0);
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background: var(--mk-surface-3);
-      border-radius: 4px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--mk-muted);
-    }
-
-    /* Loading state */
-    .mk-loading {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      font-size: 1.5rem;
-      color: var(--mk-primary);
-    }
-
-    /* Responsive design */
-    @media (max-width: 768px) {
-      .mk-nav {
-        position: absolute;
-        left: -250px;
-        height: 100%;
-        z-index: 100;
-        transition: left 0.3s ease;
-      }
-
-      [dir="rtl"] .mk-nav {
-        left: auto;
-        right: -250px;
-        transition: right 0.3s ease;
-      }
-
-      .mk-nav.open {
-        left: 0;
-      }
-
-      [dir="rtl"] .mk-nav.open {
-        right: 0;
-      }
-
-      .mk-page {
-        width: 100%;
-      }
-    }
-
-    /* Badge styles */
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: white;
-    }
-
-    /* Animation */
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .fade-in {
-      animation: fadeIn 0.3s ease-out;
-    }
-
-    /* Input styles */
-    input[type="text"],
-    input[type="email"],
-    input[type="tel"],
-    input[type="date"],
-    select,
-    textarea {
-      width: 100%;
-      padding: 0.75rem;
-      background: var(--mk-surface-1);
-      border: 1px solid var(--mk-border);
-      border-radius: 0.375rem;
-      color: var(--mk-fg);
-      font-size: 1rem;
-      transition: all 0.2s;
-    }
-
-    input:focus,
-    select:focus,
-    textarea:focus {
-      outline: none;
-      border-color: var(--mk-primary);
-      box-shadow: 0 0 0 3px rgba(42, 165, 160, 0.1);
-    }
-
-    /* Print styles */
-    @media print {
-      .mk-nav,
-      toolbar {
-        display: none !important;
-      }
-
-      .mk-page {
-        overflow: visible;
-      }
     }
   </style>
+
+  <!-- Mishkah Core Libraries (loaded as regular scripts, not modules) -->
+  <script src="../../static/lib/mishkah-utils.js"></script>
+  <script src="../../static/lib/mishkah.core.js"></script>
+  <script src="../../static/lib/mishkah-ui.js"></script>
+  <script src="../../static/lib/mishkah-schema.js"></script>
 </head>
 <body>
   <div id="app">
-    <div class="mk-loading">
-      <div style="text-align: center;">
+    <div style="
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-size: 1.5rem;
+      color: var(--mk-fg);
+      text-align: center;
+    ">
+      <div>
         <div style="font-size: 3rem; margin-bottom: 1rem;">💪</div>
         <div>جاري تحميل نظام إدارة الجيم...</div>
         <div style="font-size: 0.875rem; color: var(--mk-muted); margin-top: 0.5rem;">
@@ -269,14 +66,60 @@
     </div>
   </div>
 
-  <!-- Mishkah Core Libraries -->
-  <script src="../../static/lib/mishkah-utils.js"></script>
-  <script src="../../static/lib/mishkah.core.js"></script>
-  <script src="../../static/lib/mishkah.div.js"></script>
-  <script src="../../static/lib/mishkah.simple-store.js"></script>
-  <script src="../../static/lib/mishkah-ui.js"></script>
+  <!-- App Script (as module) -->
+  <script type="module">
+    import { createPosDb } from '../../static/pos/pos-mini-db.js';
 
-  <!-- Gym App -->
-  <script src="./gym.js" type="module"></script>
+    const BRANCH_ID = 'gim';
+    const MODULE_ID = 'gym';
+
+    try {
+      const { db, moduleEntry } = await createPosDb({
+        branchId: BRANCH_ID,
+        moduleId: MODULE_ID
+      });
+
+      window.__GYM_DB__ = db;
+      window.__GYM_MODULE__ = moduleEntry;
+
+      await db.ready();
+
+      // Load the main app
+      await import('./gym.js');
+
+    } catch (error) {
+      console.error('[GYM] Failed to initialize:', error);
+      document.getElementById('app').innerHTML = `
+        <div style="
+          min-height: 100vh;
+          display: grid;
+          place-items: center;
+          padding: 2rem;
+          text-align: center;
+        ">
+          <div>
+            <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+            <div style="font-size: 1.5rem; color: var(--mk-danger); margin-bottom: 1rem;">
+              فشل تحميل النظام
+            </div>
+            <div style="color: var(--mk-muted); margin-bottom: 2rem;">
+              ${error.message}
+            </div>
+            <button onclick="location.reload()" style="
+              padding: 0.75rem 2rem;
+              background: var(--mk-primary);
+              color: white;
+              border: none;
+              border-radius: 0.5rem;
+              cursor: pointer;
+              font-size: 1rem;
+            ">
+              إعادة المحاولة
+            </button>
+          </div>
+        </div>
+      `;
+    }
+  </script>
 </body>
 </html>
