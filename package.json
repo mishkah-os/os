@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node ./src/server.js",
     "dev": "NODE_ENV=development node ./src/server.js",
+    "test": "node --test",
     "hybrid:migrate": "node ./src/tasks/hybridStoreTasks.js migrate",
     "hybrid:loadtest": "node ./src/tasks/hybridStoreTasks.js loadtest"
   },
