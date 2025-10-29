@@ -1,7 +1,7 @@
 {
     "moduleId": "pos",
     "branchId": "remal",
-    "version": 1,
+    "version": 49,
     "tables": {
         "pos_database": [
             {
@@ -2250,21 +2250,68 @@
                     "payment_methods": [
                         {
                             "id": "466A6AB4-66C0-4056-AB47-7387C912D057",
+                            "icon": "💳",
                             "name": {
                                 "ar": "Cash",
                                 "en": "Cash"
+                            }
+                        },
+                        {
+                            "id": "DD1D382B-ACA1-4C99-8834-C1D4EA118969",
+                            "icon": "💲",
+                            "name": {
+                                "ar": "visa",
+                                "en": "visa"
                             }
                         }
                     ]
                 }
             }
-        ]
+        ],
+        "pos_terminal": [],
+        "employee": [],
+        "pos_shift": [],
+        "shift_cash_audit": [],
+        "shift_payment_summary": [],
+        "order_type": [],
+        "order_status": [],
+        "order_stage": [],
+        "order_payment_state": [],
+        "order_line_status": [],
+        "payment_method": [],
+        "kitchen_section": [],
+        "menu_category": [],
+        "category_section": [],
+        "menu_item": [],
+        "menu_item_price": [],
+        "menu_item_media": [],
+        "menu_modifier": [],
+        "menu_item_modifier": [],
+        "customer_profile": [],
+        "customer_address": [],
+        "dining_table": [],
+        "table_lock": [],
+        "reservation": [],
+        "reservation_table": [],
+        "delivery_driver": [],
+        "order_header": [],
+        "order_line": [],
+        "order_status_log": [],
+        "order_line_status_log": [],
+        "order_line_modifier": [],
+        "order_payment": [],
+        "order_refund": [],
+        "order_delivery": [],
+        "audit_event": []
     },
     "meta": {
-        "branchId": "remal",
+        "branchId": "dar",
         "moduleId": "pos",
-        "lastUpdatedAt": "2024-02-20T09:30:00Z",
+        "lastUpdatedAt": "2025-10-27T12:23:47.654Z",
         "serverId": "seed",
-        "datasetSource": "seed"
-    }
+        "datasetSource": "seed",
+        "counter": 38,
+        "labCounter": 38
+    },
+    "savedAt": "2025-10-27T12:23:47.657Z"
 }
