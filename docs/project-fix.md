@@ -158,6 +158,24 @@ order_header: [
 ]
 // 5 records لـ order واحد!
 الأثر الكارثي:
+
+## تحديث الحالة بعد المعالجات الأخيرة
+
+### بث البيانات وتقليل الحمل
+* `sendToClient` يستدعي `serializeOnce` المخزَّنة مؤقتاً لكل دورة بث، ما يعني أننا نُسلسِل الإطار مرة واحدة فقط قبل إعادة استخدامه بين جميع العملاء مع تسجيل القياسات الخاصة بالبث.【F:src/server.js†L5215-L5234】
+* عند إنشاء أي اشتراك جديد، يقوم `registerPubsubSubscriber` بتحميل بيانات التهيئة عبر `loadTopicBootstrap` ثم يرسِل لقطة كاملة (`mode: 'snapshot'`) فوراً، بحيث لا تبقى الواجهات في حالة شاشة سوداء تنتظر تحديثاً لاحقاً.【F:src/server.js†L2319-L2361】
+* ما زال بث الدلتا يعتمد على `buildDeltaEnvelope` ويعود إلى لقطة كاملة إذا لم تُكتشف تغييرات، لذا يمكننا مراقبة الأداء وتحويل العملاء القدامى تدريجياً بدون انقطاع في التدفّق.【F:src/server.js†L2408-L2442】【F:src/server.js†L2669-L2697】
+
+### التخزين الهجين وإدارة الذاكرة
+* `HybridStore` يُحدِّث SQLite عند كل عملية `insert` أو `merge` أو `remove` عبر دوال `writeThrough`/`deleteThrough`، ثم يُبطِل الكاش قصير الأمد لضمان أن البيانات الباردة تُحمَّل عند الحاجة فقط.【F:src/hybridStore.js†L81-L154】【F:src/hybridStore.js†L200-L219】
+* ملفات SQLite تُنشأ بواسطة `initializeSqlite` التي تضبط وضع WAL وفهارس محددة، وتوفر عمليات `persistRecord`, `loadTableRecords`, و`replaceTableRecords` المستخدمة في الطبقة الهجينة.【F:src/db/sqlite.js†L1-L206】
+
+### التحكم بالتوازي وسلامة المعاملات
+* الحقول الحساسة مثل `order_header` و`order_line` صارت إصداراتها إلزامية؛ `resolveNextVersion` ترفض أي تعديل بدون نسخة حديثة وتطلق `VersionConflictError` الذي نُعيده برد HTTP 409 للمستدعي حتى لا تُستبدل التحديثات الأحدث بسجلات قديمة.【F:src/moduleStore.js†L61-L120】【F:src/moduleStore.js†L200-L239】
+
+### نقاط بقيت تحت المراقبة
+* ما زال `rotateEventLog` يعمل بالأسلوب القديم (إعادة تسمية مباشرة)، ونخطط لإضافة خطوات نسخ/تحقق لتأمين التدوير عند زيادة الضغط.【F:src/eventStore.js†L329-L420】
+* خوارزمية `deepEqual` الحالية تعمل بتعقيد ‎O(n)‎، لكنها كافية للأحجام المتوسطة وستُستبدل بمحرك أسرع إذا رصدنا بطئاً في الحِمل الفعلي.【F:src/server.js†L2660-L2684】
 •	Memory: ×3-5 استهلاك
 •	Query: listTable('order_header') يعيد duplicates
 •	Client complexity: يجب deduplicate + merge versions
