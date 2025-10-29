@@ -23,8 +23,8 @@ export function deepClone(value) {
   }
 }
 
-export function serializeOnce(payload, { cycle = null, binary = true } = {}) {
-  const preferBinary = binary !== false;
+export function serializeOnce(payload, { cycle = null, binary = false } = {}) {
+  const preferBinary = binary === true;
 
   const createBufferResult = (text, cached) => {
     const buffer = Buffer.from(text);
