@@ -1,5 +1,23 @@
 import { deepClone, nowIso } from './utils.js';
 
+const VERSIONED_TABLES = new Set(['order_header', 'order_line']);
+
+export class VersionConflictError extends Error {
+  constructor(message, options = {}) {
+    super(message);
+    this.name = 'VersionConflictError';
+    this.code = 'VERSION_CONFLICT';
+    this.table = options.table || null;
+    this.key = options.key || null;
+    this.expectedVersion = options.expectedVersion ?? null;
+    this.currentVersion = options.currentVersion ?? null;
+    this.reason = options.reason || null;
+    if (options.details && typeof options.details === 'object') {
+      this.details = options.details;
+    }
+  }
+}
+
 export default class ModuleStore {
   constructor(schemaEngine, branchId, moduleId, definition = {}, seed = {}, seedData = null) {
     this.schemaEngine = schemaEngine;
@@ -7,6 +25,13 @@ export default class ModuleStore {
     this.moduleId = moduleId;
     this.definition = definition || {};
     this.tables = Array.isArray(definition.tables) ? definition.tables.slice() : [];
+    this.versionedTables = new Set();
+    for (const tableName of this.tables) {
+      const normalized = typeof tableName === 'string' ? tableName.toLowerCase() : null;
+      if (normalized && VERSIONED_TABLES.has(normalized)) {
+        this.versionedTables.add(normalized);
+      }
+    }
     this.version = Number(seed.version || 1);
     this.meta = deepClone(seed.meta || {});
     if (!this.meta.lastUpdatedAt) this.meta.lastUpdatedAt = nowIso();
@@ -20,6 +45,9 @@ export default class ModuleStore {
     for (const tableName of this.tables) {
       const records = Array.isArray(seedTables[tableName]) ? seedTables[tableName].map((entry) => deepClone(entry)) : [];
       this.data[tableName] = records;
+      for (const record of this.data[tableName]) {
+        this.initializeRecordVersion(tableName, record);
+      }
     }
 
     if (this.seedData) {
@@ -31,6 +59,48 @@ export default class ModuleStore {
     if (!this.tables.includes(tableName)) {
       throw new Error(`Table "${tableName}" not registered in module "${this.moduleId}"`);
     }
+  }
+
+  isVersionedTable(tableName) {
+    if (!tableName) return false;
+    const normalized = String(tableName).toLowerCase();
+    return this.versionedTables.has(normalized);
+  }
+
+  normalizeVersionInput(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    const normalized = Math.trunc(numeric);
+    if (normalized <= 0) return null;
+    return normalized;
+  }
+
+  initializeRecordVersion(tableName, record) {
+    if (!this.isVersionedTable(tableName)) return;
+    if (!record || typeof record !== 'object') return;
+    const provided = this.normalizeVersionInput(record.version);
+    record.version = provided || 1;
+  }
+
+  resolveConcurrencyConflict(tableName, key, expectedVersion, currentVersion, reason = 'mismatch') {
+    const normalizedTable = String(tableName || '').toLowerCase();
+    const isHeader = normalizedTable === 'order_header';
+    const friendly = isHeader ? 'order' : 'order item';
+    const message = `Another device has already updated this ${friendly}. Please reload and try again.`;
+    throw new VersionConflictError(message, { table: tableName, key, expectedVersion, currentVersion, reason });
+  }
+
+  resolveNextVersion(tableName, currentRecord, patch, key) {
+    if (!this.isVersionedTable(tableName)) return null;
+    const currentVersion = this.normalizeVersionInput(currentRecord?.version) || 1;
+    const expectedVersion = this.normalizeVersionInput(patch?.version);
+    if (!expectedVersion) {
+      this.resolveConcurrencyConflict(tableName, key, expectedVersion, currentVersion, 'missing-version');
+    }
+    if (expectedVersion !== currentVersion) {
+      this.resolveConcurrencyConflict(tableName, key, expectedVersion, currentVersion, 'stale-version');
+    }
+    return currentVersion + 1;
   }
 
   getSnapshot() {
@@ -52,6 +122,7 @@ export default class ModuleStore {
     this.ensureTable(tableName);
     const enrichedContext = { branchId: this.branchId, ...context };
     const created = this.schemaEngine.createRecord(tableName, record, enrichedContext);
+    this.initializeRecordVersion(tableName, created);
     this.data[tableName].push(created);
     this.version += 1;
     this.touchMeta({ increment: 1 });
@@ -148,6 +219,7 @@ export default class ModuleStore {
     }
     const tableDef = this.schemaEngine.getTable(tableName);
     const current = this.data[tableName][index];
+    const nextVersion = this.resolveNextVersion(tableName, current, patch, key);
     const next = { ...current };
     for (const field of tableDef.fields || []) {
       const fieldName = field.name;
@@ -159,6 +231,9 @@ export default class ModuleStore {
     const hasUpdatedAt = Array.isArray(tableDef.fields) && tableDef.fields.some((field) => field.name === 'updatedAt');
     if (hasUpdatedAt && !Object.prototype.hasOwnProperty.call(patch, 'updatedAt')) {
       next.updatedAt = nowIso();
+    }
+    if (nextVersion !== null) {
+      next.version = nextVersion;
     }
     this.data[tableName][index] = next;
     this.version += 1;
@@ -278,6 +353,9 @@ export default class ModuleStore {
           if (!record || typeof record !== 'object') continue;
           clones.push(deepClone(record));
         }
+        for (const record of clones) {
+          this.initializeRecordVersion(normalizedName, record);
+        }
         result.restored = clones.length;
         totalRestored += clones.length;
         if (clones.length || target.length) {
@@ -297,6 +375,7 @@ export default class ModuleStore {
       for (const record of incoming) {
         if (!record || typeof record !== 'object') continue;
         const clone = deepClone(record);
+        this.initializeRecordVersion(normalizedName, clone);
         const { key } = this.resolveRecordKey(normalizedName, clone, { require: false });
         if (key && existingKeys.has(key)) {
           result.duplicates += 1;
@@ -391,7 +470,11 @@ export default class ModuleStore {
         const fallbackKey = serialized || `row:${fallback.size + keyed.size}`;
         fallback.set(fallbackKey, row);
       }
-      this.data[tableName] = [...keyed.values(), ...fallback.values()];
+      const mergedRows = [...keyed.values(), ...fallback.values()];
+      for (const row of mergedRows) {
+        this.initializeRecordVersion(tableName, row);
+      }
+      this.data[tableName] = mergedRows;
     }
     const total = Object.values(this.data).reduce((acc, value) => {
       if (Array.isArray(value)) return acc + value.length;
@@ -439,6 +522,7 @@ export default class ModuleStore {
       if (target.length) continue;
       rows.forEach((row) => {
         const record = this.schemaEngine.createRecord(tableName, row, { branchId: this.branchId, ...context });
+        this.initializeRecordVersion(tableName, record);
         target.push(record);
         this.meta.counter = (this.meta.counter || 0) + 1;
         this.meta.labCounter = this.meta.counter;
