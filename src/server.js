@@ -18,7 +18,7 @@ import {
   discardLogFile,
   logRejectedMutation
 } from './eventStore.js';
-import { createId, nowIso, safeJsonParse, deepClone } from './utils.js';
+import { createId, nowIso, safeJsonParse, deepClone, serializeOnce } from './utils.js';
 import SchemaEngine from './schema/engine.js';
 import HybridStore from './hybridStore.js';
 import { VersionConflictError } from './moduleStore.js';
