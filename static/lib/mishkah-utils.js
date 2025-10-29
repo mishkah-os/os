@@ -2854,11 +2854,39 @@ function getPureJson(data) {
   return traverse(cloned);
 }
 
+function deepMerge(target, source) {
+  if (Array.isArray(target) && Array.isArray(source)) {
+    const map = new Map(target.map(obj => [obj.id, obj]));
+    for (const obj of source) {
+      if (obj && obj.id && map.has(obj.id)) {
+        map.set(obj.id, deepMerge(map.get(obj.id), obj));
+      } else if (obj && obj.id) {
+        map.set(obj.id, obj);
+      } else {
+        map.set(Symbol(), obj);
+      }
+    }
+    return Array.from(map.values());
+  } else if (isObject(target) && isObject(source)) {
+    const result = { ...target };
+    for (const key in source) {
+      result[key] =
+        key in target ? deepMerge(target[key], source[key]) : source[key];
+    }
+    return result;
+  }
+  return source;
+}
 
-  U.helpers = {getPureJson:getPureJson};
+function isObject(obj) {
+  return obj && typeof obj === 'object' && !Array.isArray(obj);
+}
+
+  U.helpers = {getPureJson:getPureJson,deepMerge:deepMerge};
   
   
 })(window);
+
 
 
 
