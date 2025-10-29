@@ -105,6 +105,9 @@ export default class HybridStore extends ModuleStore {
 
   applySeed(seed, context = {}) {
     super.applySeed(seed, context);
+    if (!this.persistedTables || typeof this.persistedTables[Symbol.iterator] !== 'function') {
+      this.persistedTables = normalizePersistedTables(null, this.tables);
+    }
     for (const tableName of this.persistedTables) {
       const records = Array.isArray(this.data?.[tableName]) ? this.data[tableName].map((entry) => deepClone(entry)) : [];
       if (!records.length) continue;
