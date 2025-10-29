@@ -1156,7 +1156,8 @@ UI.ToastHost = ({ toasts=[] })=>
 let _toId=1;
 UI.pushToast = (ctx,{ title, message, icon, ttl=2800 })=>{
   ctx.setState(s=>{
-    const list=(s.ui?.toasts||[]).concat([{ id:_toId++, title, message, icon }]);
+    // Hide all previous toasts when showing a new one
+    const list=[{ id:_toId++, title, message, icon }];
     return { ...s, ui:{ ...(s.ui||{}), toasts:list } };
   });
   const id=_toId-1;
