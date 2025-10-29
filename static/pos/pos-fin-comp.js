@@ -90,7 +90,7 @@
       [
         D.Containers.Div({ attrs: { class: tw`flex items-center justify-between gap-4` } }, [
           D.Containers.Div({ attrs: { class: tw`flex items-center gap-3` } }, [
-            D.Containers.Span(
+            D.Text.Span(
               {
                 attrs: {
                   class: tw`flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-xl`
