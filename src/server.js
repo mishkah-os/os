@@ -5203,7 +5203,7 @@ function unregisterClient(client) {
 function sendToClient(client, payload, options = {}) {
   if (!client || !client.ws) return false;
   if (client.ws.readyState !== client.ws.OPEN) return false;
-  const { cycle = null, channel = 'direct', binary = true } = options;
+  const { cycle = null, channel = 'direct', binary = false } = options;
   try {
     const serialization = serializeOnce(payload, { cycle, binary });
     const data = serialization.data;
