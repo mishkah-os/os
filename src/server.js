@@ -1249,7 +1249,7 @@ function summarizeTableCounts(snapshot = {}) {
 }
 
 function isPlainObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value);
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function toIsoTimestamp(value, fallback = nowIso()) {
@@ -2631,10 +2631,6 @@ function buildBranchDeltaDetail(branchId, payload = {}, frame = {}) {
     detail.meta = deepClone(frame.meta);
   }
   return detail;
-}
-
-function isPlainObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function deepEqual(a, b) {
