@@ -1217,21 +1217,38 @@
       tabs.push({ id:'prep', label:t.tabs.prep, count: jobs.orders.length });
       registerLabel(t.tabs.prep);
     }
+    let expoIntegrated = false;
     const stationOrder = (db.data.stations || []).slice().sort((a, b)=> (a.sequence || 0) - (b.sequence || 0));
     stationOrder.forEach(station=>{
       if(locked && station.id !== filters.activeTab) return;
       const label = db.env.lang === 'ar'
         ? (station.nameAr || station.nameEn || station.id)
         : (station.nameEn || station.nameAr || station.id);
-      const stationJobs = (jobs.byStation[station.id] || []).filter(job=> job.status !== 'ready' && job.status !== 'completed');
-      tabs.push({
-        id: station.id,
-        label,
-        count: stationJobs.length,
-        color: station.themeColor || null
-      });
+      const isExpoStation = station.isExpo === true || (String(station.stationType || '').toLowerCase() === 'expo');
+      const tabId = isExpoStation ? 'expo' : station.id;
+      const activeJobs = (jobs.byStation[station.id] || []).filter(job=> job.status !== 'ready' && job.status !== 'completed');
+      const tabCount = isExpoStation ? getExpoOrders(db).length : activeJobs.length;
+      if(!tabs.some(tab=> tab.id === tabId)){
+        tabs.push({
+          id: tabId,
+          label,
+          count: tabCount,
+          color: station.themeColor || null
+        });
+      } else {
+        const existingIndex = tabs.findIndex(tab=> tab.id === tabId);
+        if(existingIndex >= 0){
+          tabs[existingIndex] = {
+            ...tabs[existingIndex],
+            label,
+            count: tabCount,
+            color: tabs[existingIndex].color || station.themeColor || null
+          };
+        }
+      }
+      if(isExpoStation) expoIntegrated = true;
       registerLabel(label);
-      registerLabel(station.id);
+      registerLabel(tabId);
       registerLabel(station.code);
     });
     if(!locked){
@@ -1243,18 +1260,17 @@
         { id:'delivery-pending', label:t.tabs.pendingDelivery, count: getPendingDeliveryOrders(db).length }
       ];
       stageTabs.forEach(tab=>{
-        if(existingIds.has(tab.id)) return;
+        if(existingIds.has(tab.id)){
+          if(tab.id === 'expo' && !expoIntegrated){
+            // Allow expo stage tab if we only have a station entry but it wasn't mapped earlier
+            existingIds.delete(tab.id);
+          } else {
+            return;
+          }
+        }
         const labelKey = toLabelKey(tab.label);
         if(labelKey && labelKeys.has(labelKey)) return;
-        if(tab.id === 'expo'){
-          const hasExpoStation = stationOrder.some(station=>{
-            const stationType = (station.stationType || '').toLowerCase();
-            if(stationType === 'expo') return true;
-            const stationKeys = [station.id, station.code, station.nameAr, station.nameEn].map(toLabelKey);
-            return stationKeys.some(key=> key && (key === 'expo' || key === labelKey));
-          });
-          if(hasExpoStation) return;
-        }
+        if(tab.id === 'expo' && expoIntegrated) return;
         existingIds.add(tab.id);
         tabs.push(tab);
         if(labelKey) labelKeys.add(labelKey);
