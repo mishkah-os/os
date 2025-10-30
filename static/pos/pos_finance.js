@@ -140,8 +140,7 @@
   const initialPayments = db ? ensureArray(db.list('order_payment')) : [];
   const initialLines = db ? ensureArray(db.list('order_line')) : [];
   const initialShifts = db ? ensureArray(db.list('pos_shift')) : [];
-  const initialDataset = enrichOrdersSnapshot(initialOrders, initialLines, initialPayments);
-  let normalizedOrders = initialDataset.orders;
+  let normalizedOrders = [];
 
   const settings = initialPayload.settings || {};
   const branchSync = settings.sync || {};
@@ -278,6 +277,9 @@
     });
     return { orders: normalizedOrders, linesByOrder, paymentsByOrder };
   };
+
+  const initialDataset = enrichOrdersSnapshot(initialOrders, initialLines, initialPayments);
+  normalizedOrders = initialDataset.orders;
 
   const translateResetMessage = (type, context = {}) => {
     const lang = context.lang || activeLang;
