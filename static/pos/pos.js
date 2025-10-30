@@ -5426,7 +5426,16 @@
               },
               variant:'ghost',
               size:'sm'
-            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['📝'])])
+            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['📝'])]),
+            UI.Button({
+              attrs:{
+                gkey:'pos:order:line:discount',
+                'data-line-id':line.id,
+                title: t.ui.discount_action
+              },
+              variant:'ghost',
+              size:'sm'
+            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['٪'])])
           ];
       return UI.ListItem({
         leading: D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['🍲']),
@@ -6938,6 +6947,67 @@
       });
     }
 
+    function LineDiscountModal(db){
+      const t = getTexts(db);
+      if(!db.ui.modals.lineDiscount) return null;
+      const draft = db.ui.lineDiscount || {};
+      const lineId = draft.lineId;
+      const order = db.data.order || {};
+      const line = (order.lines || []).find(entry=> entry.id === lineId);
+      if(!line){
+        return UI.Modal({
+          open:true,
+          size:'sm',
+          title: t.ui.discount_action,
+          description: t.toast.order_nav_not_found,
+          closeGkey:'pos:line-discount:close',
+          actions:[UI.Button({ attrs:{ gkey:'pos:line-discount:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])]
+        });
+      }
+      const lang = db.env.lang;
+      const unitPrice = getLineUnitPrice(line);
+      const maxAmount = draft.baseAmount != null ? Number(draft.baseAmount) : Math.max(0, round(unitPrice * (Number(line.qty) || 0)));
+      const discountInfo = normalizeDiscount(line.discount);
+      const type = draft.type || discountInfo?.type || 'amount';
+      const value = draft.value ?? (discountInfo ? String(discountInfo.value) : '');
+      const hint = type === 'percent'
+        ? (t.ui.discount_percent_hint || 'أدخل النسبة المئوية')
+        : `${t.ui.discount_amount_hint || 'أدخل قيمة الخصم'} – ≤ ${formatCurrencyValue(db, maxAmount)}`;
+      const summaryRows = D.Containers.Div({ attrs:{ class: tw`space-y-1 text-xs ${token('muted')}` }}, [
+        D.Text.Span({}, [`${localize(line.name, lang)} × ${line.qty}`]),
+        D.Text.Span({}, [`${t.ui.total}: ${formatCurrencyValue(db, line.total)}`])
+      ]);
+      return UI.Modal({
+        open:true,
+        size:'sm',
+        title: t.ui.discount_action,
+        description: localize(line.name, lang),
+        closeGkey:'pos:line-discount:close',
+        content: D.Containers.Div({ attrs:{ class: tw`space-y-4` }}, [
+          summaryRows,
+          UI.Segmented({
+            items:[
+              { id:'amount', label: t.ui.discount_amount || 'مبلغ', attrs:{ gkey:'pos:line-discount:type', 'data-type':'amount' } },
+              { id:'percent', label: t.ui.discount_percent || 'نسبة %', attrs:{ gkey:'pos:line-discount:type', 'data-type':'percent' } }
+            ],
+            activeId: type
+          }),
+          D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')}` }}, [hint]),
+          UI.NumpadDecimal({
+            attrs:{ class: tw`w-full` },
+            value: value,
+            placeholder: type === 'percent' ? '0%' : formatCurrencyValue(db, 0),
+            gkey:'pos:line-discount:input',
+            confirmLabel: t.ui.discount_action,
+            confirmAttrs:{ gkey:'pos:line-discount:apply', variant:'solid', size:'md', class: tw`w-full` }
+          })
+        ]),
+        actions:[
+          UI.Button({ attrs:{ gkey:'pos:line-discount:clear', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.remove_discount || 'إزالة الخصم']),
+          UI.Button({ attrs:{ gkey:'pos:line-discount:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])
+        ]
+      });
+    }
 
     function ReturnsModal(db){
       const t = getTexts(db);
@@ -7673,6 +7743,7 @@
           ReservationsModal(db),
           PrintModal(db),
           LineModifiersModal(db),
+          LineDiscountModal(db),
           ReturnsModal(db),
           DiscountOrderModal(db),
           PaymentsSheet(db),
@@ -8244,6 +8315,44 @@
             };
           });
           UI.pushToast(ctx, { title:t.toast.notes_updated, icon:'📝' });
+        }
+      },
+      'pos.order.line.discount':{
+        on:['click'],
+        gkeys:['pos:order:line:discount'],
+        handler:(e,ctx)=>{
+          const btn = e.target.closest('[data-line-id]');
+          if(!btn) return;
+          const lineId = btn.getAttribute('data-line-id');
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const order = state.data.order || {};
+          const line = (order.lines || []).find(entry=> entry.id === lineId);
+          if(!line){
+            UI.pushToast(ctx, { title:t.toast.order_nav_not_found, icon:'❓' });
+            return;
+          }
+          if(line.locked || (order.isPersisted && order.lockLineEdits) || (line.status && line.status !== 'draft')){
+            UI.pushToast(ctx, { title:t.toast.line_locked, icon:'🔒' });
+            return;
+          }
+          const unitPrice = getLineUnitPrice(line);
+          const baseAmount = Math.max(0, round(unitPrice * (Number(line.qty) || 0)));
+          const currentDiscount = normalizeDiscount(line.discount);
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              modals:{ ...(s.ui?.modals || {}), lineDiscount:true },
+              lineDiscount:{
+                lineId,
+                type: currentDiscount?.type || 'amount',
+                value: currentDiscount ? String(currentDiscount.value) : '',
+                baseAmount,
+                allowedRate: Number(state.data.user?.allowedDiscountRate)
+              }
+            }
+          }));
         }
       },
       'pos.order.line.modifiers.toggle':{
