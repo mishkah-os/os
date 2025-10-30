@@ -2541,6 +2541,13 @@
         totals.paid = round(paidAmount);
       }
       totals.total = totals.due;
+      console.log('[Mishkah][POS] normalizeRealtimeOrderHeader totals:', {
+        orderId: String(rawId),
+        rawSubtotal: raw.subtotal,
+        rawTotalDue: raw.totalDue,
+        rawTotal: raw.total,
+        computedTotals: totals
+      });
       const guests = Number(raw.guests ?? metadata.guests ?? 0) || 0;
       const versionValue = Number(raw.version ?? metadata.version ?? metadata.currentVersion ?? metadata.versionCurrent);
       const header = {
@@ -2668,7 +2675,21 @@
         dirty:false,
         isPersisted: header.isPersisted !== false
       };
-      return enrichOrderWithMenu(composedOrder);
+      console.log('[Mishkah][POS] composeRealtimeOrder before enrich:', {
+        orderId,
+        headerTotals: header.totals,
+        composedTotals: totals,
+        linesCount: lines.length,
+        firstLine: lines[0]
+      });
+      const enriched = enrichOrderWithMenu(composedOrder);
+      console.log('[Mishkah][POS] composeRealtimeOrder after enrich:', {
+        orderId,
+        totals: enriched.totals,
+        linesCount: enriched.lines?.length,
+        firstLine: enriched.lines?.[0]
+      });
+      return enriched;
     }
 
     function cloneOrderSnapshot(order){
@@ -4871,6 +4892,14 @@
           missingKitchenLine = line;
         }
         kitchenSection = kitchenSection ? String(kitchenSection) : undefined;
+        console.log('[Mishkah][POS] Preparing line for save:', {
+          lineId: line.id,
+          itemToken,
+          itemId,
+          name: line.name,
+          kitchenSection,
+          hasName: !!line.name
+        });
         return {
           ...line,
           itemId,
@@ -4992,9 +5021,25 @@
       try{
         const persistableOrder = { ...orderPayload };
         delete persistableOrder.dirty;
+        console.log('[Mishkah][POS] Saving order to DB:', {
+          orderId: persistableOrder.id,
+          totals: persistableOrder.totals,
+          linesCount: persistableOrder.lines?.length,
+          firstLine: persistableOrder.lines?.[0],
+          subtotal: persistableOrder.subtotal,
+          totalDue: persistableOrder.totalDue
+        });
         let savedOrder = null;
         try {
           savedOrder = await posDB.saveOrder(persistableOrder);
+          console.log('[Mishkah][POS] Order saved to DB, returned data:', {
+            orderId: savedOrder?.id,
+            totals: savedOrder?.totals,
+            linesCount: savedOrder?.lines?.length,
+            firstLine: savedOrder?.lines?.[0],
+            subtotal: savedOrder?.subtotal,
+            totalDue: savedOrder?.totalDue
+          });
         } catch(error){
           if(error && (error.code === 'order-version-conflict' || error.code === 'VERSION_CONFLICT')){
             await refreshFromRemote(error.order || null, 'order_conflict_refreshed');
@@ -5018,10 +5063,22 @@
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
           ? mergePreferRemote(orderPayload, savedOrder)
           : orderPayload;
+        console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
+          orderId: remoteResolved.id,
+          totals: remoteResolved.totals,
+          linesCount: remoteResolved.lines?.length,
+          firstLine: remoteResolved.lines?.[0]
+        });
         const normalizedOrderForState = enrichOrderWithMenu({
           ...remoteResolved,
           allowAdditions,
           lockLineEdits: finalize ? true : (remoteResolved.lockLineEdits ?? order.lockLineEdits)
+        });
+        console.log('[Mishkah][POS] After enrichOrderWithMenu:', {
+          orderId: normalizedOrderForState.id,
+          totals: normalizedOrderForState.totals,
+          linesCount: normalizedOrderForState.lines?.length,
+          firstLine: normalizedOrderForState.lines?.[0]
         });
         const mergedTotals = normalizedOrderForState.totals && typeof normalizedOrderForState.totals === 'object'
           ? { ...normalizedOrderForState.totals }
@@ -5037,6 +5094,12 @@
         normalizedOrderForState.allowAdditions = allowAdditions;
         normalizedOrderForState.lockLineEdits = finalize ? true : (normalizedOrderForState.lockLineEdits !== undefined ? normalizedOrderForState.lockLineEdits : true);
         const syncedOrderForState = syncOrderVersionMetadata(normalizedOrderForState);
+        console.log('[Mishkah][POS] Final order for state:', {
+          orderId: syncedOrderForState.id,
+          totals: syncedOrderForState.totals,
+          linesCount: syncedOrderForState.lines?.length,
+          firstLine: syncedOrderForState.lines?.[0]
+        });
         const latestSnapshot = getRealtimeOrdersSnapshot();
         const latestOrders = latestSnapshot.active.map(order=> ({ ...order }));
         ctx.setState(s=>{
