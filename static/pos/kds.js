@@ -23,6 +23,119 @@
     }
   };
 
+  const HANDOFF_STORAGE_KEY = 'mishkah:kds:handoff:v1';
+  const resolveStorage = ()=>{
+    if(typeof window === 'undefined') return null;
+    const storage = window.localStorage || null;
+    if(!storage) return null;
+    try{
+      const probeKey = '__kds_storage_probe__';
+      storage.setItem(probeKey, '1');
+      storage.removeItem(probeKey);
+      return storage;
+    } catch(_err){
+      return null;
+    }
+  };
+  const handoffStorage = resolveStorage();
+  const normalizeOrderKey = (value)=>{
+    if(value == null) return null;
+    const text = String(value).trim();
+    return text.length ? text : null;
+  };
+  const shouldPersistHandoff = (record)=>{
+    if(!record || typeof record !== 'object') return false;
+    const status = record.status ? String(record.status).toLowerCase() : '';
+    return status === 'assembled' || status === 'served';
+  };
+  const parsePersistedHandoff = ()=>{
+    if(!handoffStorage) return {};
+    try{
+      const raw = handoffStorage.getItem(HANDOFF_STORAGE_KEY);
+      if(!raw) return {};
+      const parsed = JSON.parse(raw);
+      if(!parsed || typeof parsed !== 'object') return {};
+      return Object.keys(parsed).reduce((acc, key)=>{
+        const entry = parsed[key];
+        if(entry && typeof entry === 'object'){
+          acc[key] = { ...entry };
+        }
+        return acc;
+      }, {});
+    } catch(_err){
+      return {};
+    }
+  };
+  const persistedHandoff = parsePersistedHandoff();
+  const writePersistedHandoff = ()=>{
+    if(!handoffStorage) return;
+    try{
+      handoffStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify(persistedHandoff));
+    } catch(_err){ /* ignore persistence errors */ }
+  };
+  const recordPersistedHandoff = (orderId, record)=>{
+    const key = normalizeOrderKey(orderId);
+    if(!key) return;
+    if(record && shouldPersistHandoff(record)){
+      persistedHandoff[key] = { ...record };
+    } else if(persistedHandoff[key]){
+      delete persistedHandoff[key];
+    }
+    writePersistedHandoff();
+  };
+  const clonePersistedHandoff = ()=> Object.keys(persistedHandoff).reduce((acc, key)=>{
+    acc[key] = cloneDeep(persistedHandoff[key]);
+    return acc;
+  }, {});
+  const resolveHandoffTimestamp = (record)=>{
+    if(!record || typeof record !== 'object') return 0;
+    const candidates = [record.updatedAt, record.servedAt, record.assembledAt];
+    for(const value of candidates){
+      const ms = value ? Date.parse(value) : NaN;
+      if(Number.isFinite(ms)) return ms;
+    }
+    return 0;
+  };
+  const applyExpoStatusForOrder = (source, orderId, patch={})=>{
+    if(!Array.isArray(source)) return source;
+    const key = normalizeOrderKey(orderId);
+    if(!key) return source;
+    let changed = false;
+    const next = source.map(ticket=>{
+      if(!ticket || typeof ticket !== 'object') return ticket;
+      const ticketKey = normalizeOrderKey(ticket.orderId || ticket.order_id || ticket.orderID);
+      if(ticketKey && ticketKey === key){
+        changed = true;
+        return { ...ticket, ...patch };
+      }
+      return ticket;
+    });
+    return changed ? next : source;
+  };
+  const syncExpoSourceWithHandoff = (source, handoffMap)=>{
+    if(!Array.isArray(source)) return source;
+    if(!handoffMap || typeof handoffMap !== 'object') return source;
+    let changed = false;
+    const next = source.map(ticket=>{
+      if(!ticket || typeof ticket !== 'object') return ticket;
+      const ticketKey = normalizeOrderKey(ticket.orderId || ticket.order_id || ticket.orderID);
+      if(!ticketKey) return ticket;
+      const record = handoffMap[ticketKey];
+      if(!record || typeof record !== 'object') return ticket;
+      const status = record.status;
+      if(status && status !== ticket.status){
+        changed = true;
+        const patch = { status };
+        if(record.updatedAt) patch.updatedAt = record.updatedAt;
+        if(record.assembledAt) patch.assembledAt = record.assembledAt;
+        if(record.servedAt) patch.servedAt = record.servedAt;
+        return { ...ticket, ...patch };
+      }
+      return ticket;
+    });
+    return changed ? next : source;
+  };
+
   const normalizeChannelName = (value, fallback='default')=>{
     const base = value == null ? '' : String(value).trim();
     const raw = base || fallback || 'default';
@@ -1217,21 +1330,38 @@
       tabs.push({ id:'prep', label:t.tabs.prep, count: jobs.orders.length });
       registerLabel(t.tabs.prep);
     }
+    let expoIntegrated = false;
     const stationOrder = (db.data.stations || []).slice().sort((a, b)=> (a.sequence || 0) - (b.sequence || 0));
     stationOrder.forEach(station=>{
       if(locked && station.id !== filters.activeTab) return;
       const label = db.env.lang === 'ar'
         ? (station.nameAr || station.nameEn || station.id)
         : (station.nameEn || station.nameAr || station.id);
-      const stationJobs = (jobs.byStation[station.id] || []).filter(job=> job.status !== 'ready' && job.status !== 'completed');
-      tabs.push({
-        id: station.id,
-        label,
-        count: stationJobs.length,
-        color: station.themeColor || null
-      });
+      const isExpoStation = station.isExpo === true || (String(station.stationType || '').toLowerCase() === 'expo');
+      const tabId = isExpoStation ? 'expo' : station.id;
+      const activeJobs = (jobs.byStation[station.id] || []).filter(job=> job.status !== 'ready' && job.status !== 'completed');
+      const tabCount = isExpoStation ? getExpoOrders(db).length : activeJobs.length;
+      if(!tabs.some(tab=> tab.id === tabId)){
+        tabs.push({
+          id: tabId,
+          label,
+          count: tabCount,
+          color: station.themeColor || null
+        });
+      } else {
+        const existingIndex = tabs.findIndex(tab=> tab.id === tabId);
+        if(existingIndex >= 0){
+          tabs[existingIndex] = {
+            ...tabs[existingIndex],
+            label,
+            count: tabCount,
+            color: tabs[existingIndex].color || station.themeColor || null
+          };
+        }
+      }
+      if(isExpoStation) expoIntegrated = true;
       registerLabel(label);
-      registerLabel(station.id);
+      registerLabel(tabId);
       registerLabel(station.code);
     });
     if(!locked){
@@ -1243,18 +1373,17 @@
         { id:'delivery-pending', label:t.tabs.pendingDelivery, count: getPendingDeliveryOrders(db).length }
       ];
       stageTabs.forEach(tab=>{
-        if(existingIds.has(tab.id)) return;
+        if(existingIds.has(tab.id)){
+          if(tab.id === 'expo' && !expoIntegrated){
+            // Allow expo stage tab if we only have a station entry but it wasn't mapped earlier
+            existingIds.delete(tab.id);
+          } else {
+            return;
+          }
+        }
         const labelKey = toLabelKey(tab.label);
         if(labelKey && labelKeys.has(labelKey)) return;
-        if(tab.id === 'expo'){
-          const hasExpoStation = stationOrder.some(station=>{
-            const stationType = (station.stationType || '').toLowerCase();
-            if(stationType === 'expo') return true;
-            const stationKeys = [station.id, station.code, station.nameAr, station.nameEn].map(toLabelKey);
-            return stationKeys.some(key=> key && (key === 'expo' || key === labelKey));
-          });
-          if(hasExpoStation) return;
-        }
+        if(tab.id === 'expo' && expoIntegrated) return;
         existingIds.add(tab.id);
         tabs.push(tab);
         if(labelKey) labelKeys.add(labelKey);
@@ -1876,7 +2005,7 @@
       menu: initialMenu,
       filters:{ activeTab: defaultTab, lockedSection },
       deliveries:{ assignments:{}, settlements:{} },
-      handoff:{},
+      handoff: clonePersistedHandoff(),
       drivers: Array.isArray(database.drivers)
         ? database.drivers.map(driver=>({ ...driver }))
         : (Array.isArray(masterSource?.drivers) ? masterSource.drivers.map(driver=> ({ ...driver })) : []),
@@ -1889,11 +2018,35 @@
     }
   };
 
+  initialState.data.expoSource = syncExpoSourceWithHandoff(initialState.data.expoSource, initialState.data.handoff);
+  initialState.data.expoTickets = buildExpoTickets(initialState.data.expoSource, initialState.data.jobs);
+
   const app = M.app.createApp(initialState, {});
   const auto = U.twcss.auto(initialState, app, { pageScaffold:true });
 
+  const LOCAL_SYNC_CHANNEL_NAME = 'mishkah-pos-kds-sync';
+  const syncInstanceId = `kds-${Math.random().toString(36).slice(2)}`;
+  const localSyncChannel = (typeof BroadcastChannel !== 'undefined')
+    ? new BroadcastChannel(LOCAL_SYNC_CHANNEL_NAME)
+    : null;
+
   const syncClient = null;
-  const emitSync = () => {};
+  const emitSync = (message={})=>{
+    if(!localSyncChannel || !message || typeof message !== 'object' || !message.type) return;
+    const nowIso = new Date().toISOString();
+    const state = typeof app.getState === 'function' ? app.getState() : initialState;
+    const channel = normalizeChannelName(state?.data?.sync?.channel || BRANCH_CHANNEL, BRANCH_CHANNEL);
+    const meta = {
+      channel,
+      publishedAt: nowIso,
+      ...(message.meta && typeof message.meta === 'object' ? message.meta : {})
+    };
+    try{
+      localSyncChannel.postMessage({ origin:'kds', source: syncInstanceId, ...message, meta });
+    } catch(err){
+      console.warn('[Mishkah][KDS] Failed to broadcast sync message.', err);
+    }
+  };
 
   const mergeJobOrders = (current={}, patch={})=>{
     const mergeList = (base=[], updates=[], key='id')=>{
@@ -2000,11 +2153,21 @@
     appInstance.setState(state=>{
       const handoff = state.data.handoff || {};
       const next = { ...handoff, [orderId]: { ...(handoff[orderId] || {}), ...patch } };
+      const expoSourceNext = syncExpoSourceWithHandoff(state.data.expoSource, next);
+      const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
+      const record = next[orderId];
+      if(record && shouldPersistHandoff(record)){
+        recordPersistedHandoff(orderId, cloneDeep(record));
+      } else {
+        recordPersistedHandoff(orderId, null);
+      }
       const baseNext = {
         ...state,
         data:{
           ...state.data,
-          handoff: next
+          handoff: next,
+          expoSource: expoSourceNext,
+          expoTickets: expoTicketsNext
         }
       };
       const syncBase = baseNext.data?.sync || state.data?.sync || {};
@@ -2029,8 +2192,7 @@
       const expoSourcePatch = Array.isArray(payload.jobOrders?.expoPassTickets)
         ? payload.jobOrders.expoPassTickets.map(ticket=> ({ ...ticket }))
         : state.data.expoSource;
-      const expoSourceNext = Array.isArray(expoSourcePatch) ? expoSourcePatch : [];
-      const expoTicketsNext = buildExpoTickets(expoSourceNext, jobsIndexedNext);
+      let expoSourceNext = Array.isArray(expoSourcePatch) ? expoSourcePatch : [];
       let deliveriesNext = state.data.deliveries || { assignments:{}, settlements:{} };
       if(payload.deliveries){
         const assignments = { ...(deliveriesNext.assignments || {}) };
@@ -2063,14 +2225,15 @@
         });
         driversNext = Array.from(map.values());
       }
-      let handoffNext = state.data.handoff || {};
+      const existingHandoff = state.data.handoff || {};
+      let handoffNext = { ...existingHandoff };
       if(payload.handoff && typeof payload.handoff === 'object'){
         const merged = { ...handoffNext };
         Object.keys(payload.handoff).forEach(orderId=>{
           const existing = handoffNext[orderId] || {};
           const incoming = payload.handoff[orderId] || {};
-          // Preserve assembled and served statuses - don't let watcher overwrite them
-          const preservedStatus = (existing.status === 'assembled' || existing.status === 'served')
+          const existingStatus = existing.status ? String(existing.status).toLowerCase() : '';
+          const preservedStatus = (existingStatus === 'assembled' || existingStatus === 'served')
             ? existing.status
             : incoming.status;
           merged[orderId] = {
@@ -2081,6 +2244,43 @@
         });
         handoffNext = merged;
       }
+      const persistedEntries = Object.entries(persistedHandoff);
+      if(persistedEntries.length){
+        const merged = { ...handoffNext };
+        persistedEntries.forEach(([orderId, record])=>{
+          if(!record || typeof record !== 'object') return;
+          const key = normalizeOrderKey(orderId);
+          if(!key) return;
+          const storedStatus = record.status ? String(record.status).toLowerCase() : '';
+          if(storedStatus !== 'assembled' && storedStatus !== 'served') return;
+          const existing = merged[key] || {};
+          const existingStatus = existing.status ? String(existing.status).toLowerCase() : '';
+          const storedTime = resolveHandoffTimestamp(record);
+          const existingTime = resolveHandoffTimestamp(existing);
+          if(existingStatus && existingStatus !== storedStatus && existingTime >= storedTime){
+            recordPersistedHandoff(key, cloneDeep(existing));
+            return;
+          }
+          if(!existingStatus || storedTime >= existingTime){
+            merged[key] = { ...existing, ...record };
+          }
+        });
+        handoffNext = merged;
+      }
+      Object.keys(handoffNext).forEach(orderId=>{
+        const record = handoffNext[orderId];
+        if(record && shouldPersistHandoff(record)){
+          recordPersistedHandoff(orderId, cloneDeep(record));
+        } else {
+          recordPersistedHandoff(orderId, null);
+        }
+      });
+      Object.keys(persistedHandoff).forEach(orderId=>{
+        if(handoffNext[orderId]) return;
+        recordPersistedHandoff(orderId, null);
+      });
+      expoSourceNext = syncExpoSourceWithHandoff(expoSourceNext, handoffNext);
+      const expoTicketsNext = buildExpoTickets(expoSourceNext, jobsIndexedNext);
       let stationsNext = Array.isArray(state.data.stations)
         ? state.data.stations.map(station=> ({ ...station }))
         : [];
@@ -2176,6 +2376,36 @@
       return nextState;
     });
   };
+
+  const handleLocalSyncMessage = (message)=>{
+    if(!message || typeof message !== 'object' || !message.type) return;
+    if(message.origin === 'kds' && message.source === syncInstanceId) return;
+    const meta = message.meta && typeof message.meta === 'object' ? message.meta : {};
+    if(message.type === 'orders:payload' && message.payload){
+      applyRemoteOrder(app, message.payload, meta);
+      return;
+    }
+    if(message.type === 'job:update' && message.jobId){
+      applyJobUpdateMessage(app, { jobId: message.jobId, payload: message.payload || {} }, meta);
+      return;
+    }
+    if(message.type === 'handoff:update' && message.orderId){
+      applyHandoffUpdateMessage(app, { orderId: message.orderId, payload: message.payload || {} }, meta);
+      return;
+    }
+    if(message.type === 'delivery:update' && message.orderId){
+      applyDeliveryUpdateMessage(app, { orderId: message.orderId, payload: message.payload || {} }, meta);
+    }
+  };
+
+  if(localSyncChannel){
+    localSyncChannel.onmessage = (event)=> handleLocalSyncMessage(event?.data);
+    if(typeof window !== 'undefined'){
+      window.addEventListener('beforeunload', ()=>{
+        try{ localSyncChannel.close(); } catch(_err){}
+      });
+    }
+  }
 
   const describeInteractiveNode = (node)=>{
     if(!node || node.nodeType !== 1) return null;
@@ -2394,12 +2624,18 @@
         const nowIso = new Date().toISOString();
         ctx.setState(state=>{
           const handoff = state.data.handoff || {};
-          const next = { ...handoff, [orderId]: { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso } };
+          const record = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
+          const next = { ...handoff, [orderId]: record };
+          const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'assembled', assembledAt: nowIso, updatedAt: nowIso });
+          const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
+          recordPersistedHandoff(orderId, cloneDeep(record));
           return {
             ...state,
             data:{
               ...state.data,
-              handoff: next
+              handoff: next,
+              expoSource: expoSourceNext,
+              expoTickets: expoTicketsNext
             }
           };
         });
@@ -2420,12 +2656,18 @@
         const nowIso = new Date().toISOString();
         ctx.setState(state=>{
           const handoff = state.data.handoff || {};
-          const next = { ...handoff, [orderId]: { ...(handoff[orderId] || {}), status:'served', servedAt: nowIso, updatedAt: nowIso } };
+          const record = { ...(handoff[orderId] || {}), status:'served', servedAt: nowIso, updatedAt: nowIso };
+          const next = { ...handoff, [orderId]: record };
+          const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'served', servedAt: nowIso, updatedAt: nowIso });
+          const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
+          recordPersistedHandoff(orderId, cloneDeep(record));
           return {
             ...state,
             data:{
               ...state.data,
-              handoff: next
+              handoff: next,
+              expoSource: expoSourceNext,
+              expoTickets: expoTicketsNext
             }
           };
         });
