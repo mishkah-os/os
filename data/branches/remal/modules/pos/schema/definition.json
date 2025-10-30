@@ -5767,5 +5767,254 @@
     ],
     "name": "mishkah_pos",
     "version": 1
-  }
+  },
+  "tables": [
+    {
+      "name": "order_return_header",
+      "label": "Order Return",
+      "comment": "Return transactions associated with completed orders.",
+      "sqlName": "order_return_header",
+      "layout": {
+        "x": 720,
+        "y": 260
+      },
+      "classCode": "",
+      "fields": [
+        {
+          "name": "id",
+          "columnName": "return_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": true,
+          "unique": false,
+          "index": false,
+          "maxLength": 64,
+          "comment": "",
+          "notes": ""
+        },
+        {
+          "name": "orderId",
+          "columnName": "order_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": "",
+          "references": {
+            "table": "order_header",
+            "column": "order_id",
+            "onDelete": "RESTRICT",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "shiftId",
+          "columnName": "shift_id",
+          "type": "string",
+          "nullable": true,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": "",
+          "references": {
+            "table": "pos_shift",
+            "column": "shift_id",
+            "onDelete": "SET NULL",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "branchSequence",
+          "columnName": "branch_seq",
+          "type": "integer",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "defaultValue": 0,
+          "comment": "Sequential return number for the branch.",
+          "notes": ""
+        },
+        {
+          "name": "orderSequence",
+          "columnName": "order_seq",
+          "type": "integer",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "defaultValue": 0,
+          "comment": "Return sequence number scoped to the order.",
+          "notes": ""
+        },
+        {
+          "name": "totalAmount",
+          "columnName": "total_amount",
+          "type": "decimal",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "precision": 14,
+          "scale": 2,
+          "comment": "Total value of the returned items.",
+          "notes": ""
+        },
+        {
+          "name": "createdAt",
+          "columnName": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": ""
+        },
+        {
+          "name": "createdBy",
+          "columnName": "created_by",
+          "type": "string",
+          "nullable": true,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "maxLength": 64,
+          "comment": "User who issued the return.",
+          "notes": "",
+          "references": {
+            "table": "employee",
+            "column": "employee_id",
+            "onDelete": "SET NULL",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "meta",
+          "columnName": "meta",
+          "type": "json",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "defaultValue": {},
+          "comment": "Arbitrary structured metadata for integrations.",
+          "notes": ""
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "order_return_line",
+      "label": "Order Return Line",
+      "comment": "Individual line items linked to an order return header.",
+      "sqlName": "order_return_line",
+      "layout": {
+        "x": 900,
+        "y": 260
+      },
+      "classCode": "",
+      "fields": [
+        {
+          "name": "id",
+          "columnName": "return_line_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": true,
+          "unique": false,
+          "index": false,
+          "maxLength": 64,
+          "comment": "",
+          "notes": ""
+        },
+        {
+          "name": "returnId",
+          "columnName": "return_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": "",
+          "references": {
+            "table": "order_return_header",
+            "column": "return_id",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "orderLineId",
+          "columnName": "order_line_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": "",
+          "references": {
+            "table": "order_line",
+            "column": "line_id",
+            "onDelete": "RESTRICT",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "quantity",
+          "columnName": "quantity",
+          "type": "decimal",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "precision": 10,
+          "scale": 3,
+          "comment": "Quantity returned from the original line.",
+          "notes": ""
+        },
+        {
+          "name": "unitPrice",
+          "columnName": "unit_price",
+          "type": "decimal",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "precision": 12,
+          "scale": 2,
+          "comment": "Unit price at the time of return for reporting.",
+          "notes": ""
+        },
+        {
+          "name": "createdAt",
+          "columnName": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": ""
+        },
+        {
+          "name": "meta",
+          "columnName": "meta",
+          "type": "json",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "defaultValue": {},
+          "comment": "Extensible metadata for the return line.",
+          "notes": ""
+        }
+      ],
+      "indexes": []
+    }
+  ]
 }
