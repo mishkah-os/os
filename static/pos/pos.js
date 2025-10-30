@@ -287,13 +287,13 @@
     const rawOrderTypes = Array.isArray(MOCK.order_types) && MOCK.order_types.length ? MOCK.order_types : [
       { id:'dine_in', type_name:{ ar:'صالة', en:'Dine-in' }, allows_save:true, allows_finalize_later:true, allows_line_additions:true, allows_returns:true, workflow:'multi-step' },
       { id:'delivery', type_name:{ ar:'دليفري', en:'Delivery' }, allows_save:false, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' },
-      { id:'takeaway', type_name:{ ar:'تيك أواي', en:'Takeaway' }, allows_save:false, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' }
+      { id:'takeaway', type_name:{ ar:'تيك أواي', en:'Takeaway' }, allows_save:true, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' }
     ];
     const ORDER_TYPES = rawOrderTypes.map(type=>({
       id: type.id,
       icon: ORDER_TYPE_ICON_MAP[type.id] || '🧾',
       workflow: type.workflow || 'single-step',
-      allowsSave: type.allows_save !== false,
+      allowsSave: type.id === 'takeaway' ? true : type.allows_save !== false,
       allowsFinalizeLater: !!type.allows_finalize_later,
       allowsLineAdditions: !!type.allows_line_additions,
       allowsReturns: !!type.allows_returns,
@@ -430,6 +430,8 @@
           order_saved:'تم حفظ الطلب محليًا', order_finalized:'تم إنهاء الطلب', sync_complete:'تم تحديث المزامنة', payment_recorded:'تم تسجيل الدفعة',
           amount_required:'من فضلك أدخل قيمة صحيحة', payment_exceeds_limit:'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%', payment_deleted:'تم حذف الدفعة', payment_locked:'لا يمكن حذف الدفعة بعد إنهاء الطلب', indexeddb_missing:'IndexedDB غير متاحة في هذا المتصفح', order_conflict_refreshed:'تم تعديل هذا الطلب من جهاز آخر، تم تحديث النسخة الحالية.', order_conflict_blocked:'تم تحديث هذه الفاتورة من جهاز آخر. يرجى مراجعة التغييرات قبل الحفظ.',
           indexeddb_error:'تعذر حفظ البيانات محليًا', print_stub:'سيتم التكامل مع الطابعة لاحقًا',
+          line_missing_item:'لا يمكن حفظ السطر لأن الصنف غير معروف. يرجى حذف السطر وإعادة إضافته من القائمة.',
+          line_missing_kitchen:'يجب تحديد قسم المطبخ لكل صنف قبل الحفظ. يرجى تحديث الصنف ثم إعادة المحاولة.',
           discount_stub:'سيتم تفعيل الخصومات لاحقًا', notes_updated:'تم تحديث الملاحظات', add_note:'أدخل ملاحظة ترسل للمطبخ',
           set_qty:'أدخل الكمية الجديدة', line_actions:'سيتم فتح إجراءات السطر لاحقًا', line_modifiers_applied:'تم تحديث الإضافات والمنزوعات', confirm_clear:'هل تريد مسح الطلب الحالي؟',
           order_locked:'لا يمكن تعديل هذا الطلب بعد حفظه', line_locked:'لا يمكن تعديل هذا السطر بعد حفظه',
@@ -567,6 +569,8 @@
           order_saved:'Order stored locally', order_finalized:'Order finalized', sync_complete:'Sync completed', payment_recorded:'Payment recorded',
           amount_required:'Enter a valid amount', payment_exceeds_limit:'Payment exceeds allowed limit. Maximum: %max%', payment_deleted:'Payment deleted', payment_locked:'Cannot delete payment after order is finalized', indexeddb_missing:'IndexedDB is not available in this browser', order_conflict_refreshed:'This order was updated on another device. Your copy has been refreshed.', order_conflict_blocked:'This ticket has changed on another device. Please review the updates before saving.',
           indexeddb_error:'Failed to persist locally', print_stub:'Printer integration coming soon',
+          line_missing_item:'Cannot save a line without a linked menu item. Remove it and add the item again.',
+          line_missing_kitchen:'Each line must have a kitchen section before saving. Update the item configuration and retry.',
           discount_stub:'Discount workflow coming soon', notes_updated:'Notes updated', add_note:'Add a note for the kitchen',
           set_qty:'Enter the new quantity', line_actions:'Line actions coming soon', line_modifiers_applied:'Line modifiers updated', confirm_clear:'Clear the current order?',
           order_locked:'This order is locked after saving', line_locked:'This line can no longer be modified',
@@ -4835,14 +4839,43 @@
         return { status:'error', reason:'stale-version' };
       }
       const now = Date.now();
-      const safeLines = (order.lines || []).map(line=>({
+      let missingItemLine = null;
+      let missingKitchenLine = null;
+      let safeLines = (order.lines || []).map(line=>({
         ...line,
         locked:true,
         status: line.status || 'draft',
         notes: Array.isArray(line.notes) ? line.notes : (line.notes ? [line.notes] : []),
         discount: normalizeDiscount(line.discount),
         updatedAt: now
-      }));
+      })).map(line=>{
+        const itemToken = line.itemId || line.item_id;
+        if(!itemToken && !missingItemLine){
+          missingItemLine = line;
+        }
+        const itemId = itemToken != null ? String(itemToken) : itemToken;
+        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id;
+        if(!kitchenSection && !missingKitchenLine){
+          missingKitchenLine = line;
+        }
+        kitchenSection = kitchenSection ? String(kitchenSection) : undefined;
+        return {
+          ...line,
+          itemId,
+          item_id: itemId,
+          kitchenSection: kitchenSection || 'expo',
+          kitchenSectionId: kitchenSection || 'expo',
+          kitchen_section_id: kitchenSection || 'expo'
+        };
+      });
+      if(missingItemLine){
+        UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف مرتبط', icon:'⚠️' });
+        return { status:'error', reason:'line-missing-item' };
+      }
+      if(missingKitchenLine){
+        UI.pushToast(ctx, { title:t.toast.line_missing_kitchen || 'لا يمكن حفظ سطر بدون قسم مطبخ', icon:'⚠️' });
+        return { status:'error', reason:'line-missing-kitchen' };
+      }
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
       const normalizedPayments = paymentSplit.map(entry=>({
@@ -5755,8 +5788,12 @@
       const isDineIn = orderType === 'dine_in';
       const isFinalized = order.status === 'finalized' || order.status === 'closed';
       const deliveredStage = order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed';
-      // Only show "Save" button for dine-in orders. Takeaway and delivery should only have "Save & Finish"
-      const canShowSave = isDineIn && !isFinalized && !deliveredStage;
+      const paymentEntries = getActivePaymentEntries(order, db.data.payments);
+      const paymentSnapshot = summarizePayments(order.totals || {}, paymentEntries);
+      const outstanding = paymentSnapshot.remaining || 0;
+      const requiresFullPaymentBeforeFinish = !isTakeaway;
+      const finishDisabled = requiresFullPaymentBeforeFinish && outstanding > 0.0001;
+      const canShowSave = (isDineIn || isTakeaway) && !isFinalized && !deliveredStage;
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
@@ -5776,8 +5813,17 @@
         primaryActions.push(saveButton);
       }
       if(canShowFinish){
+        const finishAttrs = {
+          gkey:'pos:order:save',
+          'data-save-mode': finishMode,
+          class: tw`min-w-[180px] flex items-center justify-center gap-2`
+        };
+        if(finishDisabled){
+          finishAttrs.disabled = 'disabled';
+          finishAttrs.title = t.ui.balance_due;
+        }
         primaryActions.push(UI.Button({
-          attrs:{ gkey:'pos:order:save', 'data-save-mode':finishMode, class: tw`min-w-[180px] flex items-center justify-center gap-2` },
+          attrs: finishAttrs,
           variant:'solid',
           size:'md'
         }, [D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [finishLabel])]));
