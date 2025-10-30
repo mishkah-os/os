@@ -370,7 +370,8 @@
           settle_and_print:'تحصيل وطباعة', finish_order:'إنهاء الطلب', finish_and_print:'إنهاء وطباعة', print:'طباعة فقط', notes:'ملاحظات', discount_action:'خصم', clear:'مسح', new_order:'طلب جديد',
           balance_due:'المتبقي غير المسدد', exchange_due:'باقي الفكة',
           line_modifiers:'الإضافات والمنزوعات', line_modifiers_title:'تعديل الإضافات والمنزوعات', line_modifiers_addons:'الإضافات', line_modifiers_removals:'المنزوعات', line_modifiers_apply:'تطبيق التعديلات', line_modifiers_empty:'لا توجد خيارات متاحة', line_modifiers_free:'بدون رسوم', line_modifiers_missing:'السطر غير متاح', line_modifiers_unit:'السعر للوحدة',
-          amount:'قيمة الدفعة', capture_payment:'تأكيد الدفع', close:'إغلاق', theme:'الثيم', light:'نهاري', dark:'ليلي', language:'اللغة',
+          amount:'قيمة الدفعة', capture_payment:'تأكيد الدفع', close:'إغلاق', apply:'تطبيق', theme:'الثيم', light:'نهاري', dark:'ليلي', language:'اللغة',
+          discount_amount:'مبلغ', discount_percent:'نسبة %', discount_percent_hint:'أدخل النسبة المئوية', discount_amount_hint:'أدخل قيمة الخصم', remove_discount:'إزالة الخصم',
           arabic:'عربي', english:'English', service_type:'نوع الطلب', guests:'عدد الأفراد', kds:'نظام المطبخ (KDS)',
           status_online:'متصل', status_offline:'غير متصل', status_idle:'انتظار', order_id:'طلب', order_id_pending:'مسودة', last_orders:'الطلبات الأخيرة',
           connect_kds:'اتصال', reconnect:'إعادة الاتصال', print_size:'مقاس الطباعة', thermal_80:'حرارية 80مم', a5:'A5', a4:'A4',
@@ -505,7 +506,8 @@
           customer_edit:'Edit customer', customer_remove_address:'Remove address',
           avg_ticket:'Average ticket', top_selling:'Top seller', sales_today:'Sales today', save_order:'Save order',
           settle_and_print:'Settle & print', finish_order:'Finish order', finish_and_print:'Finish & print', print:'Print only', notes:'Notes', discount_action:'Discount', clear:'Clear',
-          new_order:'New order', balance_due:'Outstanding balance', exchange_due:'Change due', line_modifiers:'Add-ons & removals', line_modifiers_title:'Customize add-ons & removals', line_modifiers_addons:'Add-ons', line_modifiers_removals:'Removals', line_modifiers_apply:'Apply changes', line_modifiers_empty:'No options available', line_modifiers_free:'No charge', line_modifiers_missing:'Line is no longer available', line_modifiers_unit:'Unit price', amount:'Payment amount', capture_payment:'Capture payment', close:'Close', theme:'Theme',
+          new_order:'New order', balance_due:'Outstanding balance', exchange_due:'Change due', line_modifiers:'Add-ons & removals', line_modifiers_title:'Customize add-ons & removals', line_modifiers_addons:'Add-ons', line_modifiers_removals:'Removals', line_modifiers_apply:'Apply changes', line_modifiers_empty:'No options available', line_modifiers_free:'No charge', line_modifiers_missing:'Line is no longer available', line_modifiers_unit:'Unit price', amount:'Payment amount', capture_payment:'Capture payment', close:'Close', apply:'Apply', theme:'Theme',
+          discount_amount:'Amount', discount_percent:'Percent %', discount_percent_hint:'Enter percentage', discount_amount_hint:'Enter discount amount', remove_discount:'Remove discount',
           light:'Light', dark:'Dark', language:'Language', arabic:'Arabic', english:'English', service_type:'Service type',
           guests:'Guests', kds:'Kitchen display', status_online:'Online', status_offline:'Offline', status_idle:'Idle',
           order_id:'Order', order_id_pending:'Draft', last_orders:'Recent orders', connect_kds:'Connect', reconnect:'Reconnect', print_size:'Print size',
@@ -6309,7 +6311,8 @@
         title:`${t.ui.orders_jobs_title} — ${orderId}`,
         description:t.ui.orders_jobs_description,
         content,
-        actions:[ UI.Button({ attrs:{ gkey:'ui:modal:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close]) ]
+        closeGkey:'pos:order:jobs:details:close',  // Specific closeGkey for this modal
+        actions:[ UI.Button({ attrs:{ gkey:'pos:order:jobs:details:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close]) ]
       });
     }
 
@@ -6433,6 +6436,57 @@
           }),
           UI.Button({ attrs:{ gkey:'pos:payments:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])
         ].filter(Boolean))
+      });
+    }
+
+    function DiscountOrderModal(db){
+      const t = getTexts(db);
+      if(!db.ui.modals.discountOrder) return null;
+      const order = db.data.order || {};
+      const lines = order.lines || [];
+      const baseTotals = calculateTotals(lines, db.data.settings || {}, order.type || 'dine_in', { orderDiscount: null });
+      const baseSubtotal = baseTotals.subtotal || 0;
+      const currentDiscount = normalizeDiscount(order.discount);
+      const displayValue = currentDiscount
+        ? currentDiscount.type === 'percent'
+          ? String(currentDiscount.value)
+          : String(currentDiscount.value)
+        : '';
+      const discountType = db.ui.discountDraft?.type || (currentDiscount?.type || 'amount');
+      const inputValue = db.ui.discountDraft?.value || displayValue;
+
+      return UI.Modal({
+        open:true,
+        size:'sm',
+        title:t.ui.discount_action,
+        description: t.toast.enter_order_discount || 'أدخل قيمة الخصم',
+        closeGkey:'pos:discount:close',
+        content: D.Containers.Div({ attrs:{ class: tw`space-y-4` }}, [
+          UI.Segmented({
+            items:[
+              { id:'amount', label: t.ui.discount_amount || 'مبلغ', attrs:{ gkey:'pos:discount:type', 'data-type':'amount' } },
+              { id:'percent', label: t.ui.discount_percent || 'نسبة %', attrs:{ gkey:'pos:discount:type', 'data-type':'percent' } }
+            ],
+            activeId: discountType
+          }),
+          D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')}` }}, [
+            discountType === 'percent'
+              ? (t.ui.discount_percent_hint || 'أدخل النسبة المئوية')
+              : (t.ui.discount_amount_hint || `الحد الأقصى: ${formatCurrencyValue(db, baseSubtotal)}`)
+          ]),
+          UI.NumpadDecimal({
+            attrs:{ class: tw`w-full` },
+            value: inputValue,
+            placeholder: discountType === 'percent' ? '0%' : formatCurrencyValue(db, 0),
+            gkey:'pos:discount:input',
+            confirmLabel: t.ui.apply || 'تطبيق',
+            confirmAttrs:{ gkey:'pos:discount:apply', variant:'solid', size:'md', class: tw`w-full` }
+          })
+        ]),
+        actions:[
+          UI.Button({ attrs:{ gkey:'pos:discount:remove', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.remove_discount || 'إزالة الخصم']),
+          UI.Button({ attrs:{ gkey:'pos:discount:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])
+        ]
       });
     }
 
@@ -7080,6 +7134,7 @@
           ReservationsModal(db),
           PrintModal(db),
           LineModifiersModal(db),
+          DiscountOrderModal(db),
           PaymentsSheet(db),
           ReportsDrawer(db),
           OrdersQueueModal(db),
@@ -7151,6 +7206,23 @@
           e.preventDefault();
           e.stopPropagation();
           closeActiveModals(ctx);
+        }
+      },
+      'pos.order.jobs.details.close':{
+        on:['click'],
+        gkeys:['pos:order:jobs:details:close'],
+        handler:(e,ctx)=>{
+          e.preventDefault();
+          e.stopPropagation();
+          // Only close jobStatus modal, keep orders modal open
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              modals:{ ...(s.ui?.modals || {}), jobStatus: false },
+              jobStatus: null
+            }
+          }));
         }
       },
       'ui.modal.size':{
@@ -7899,20 +7971,77 @@
         gkeys:['pos:order:discount'],
         handler:(e,ctx)=>{
           const state = ctx.getState();
+          const order = state.data.order || {};
+          const currentDiscount = normalizeDiscount(order.discount);
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              modals:{ ...(s.ui?.modals || {}), discountOrder: true },
+              discountDraft:{
+                type: currentDiscount?.type || 'amount',
+                value: currentDiscount ? String(currentDiscount.value) : ''
+              }
+            }
+          }));
+        }
+      },
+      'pos.discount.type':{
+        on:['click'],
+        gkeys:['pos:discount:type'],
+        handler:(e,ctx)=>{
+          const btn = e.target.closest('[data-type]');
+          if(!btn) return;
+          const type = btn.getAttribute('data-type');
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              discountDraft:{
+                ...(s.ui?.discountDraft || {}),
+                type: type || 'amount',
+                value: ''  // Reset value when changing type
+              }
+            }
+          }));
+        }
+      },
+      'pos.discount.input':{
+        on:['input', 'change'],
+        gkeys:['pos:discount:input'],
+        handler:(e,ctx)=>{
+          const value = e.target.value;
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              discountDraft:{
+                ...(s.ui?.discountDraft || {}),
+                value: value
+              }
+            }
+          }));
+        }
+      },
+      'pos.discount.apply':{
+        on:['click'],
+        gkeys:['pos:discount:apply'],
+        handler:(e,ctx)=>{
+          const state = ctx.getState();
           const t = getTexts(state);
           const order = state.data.order || {};
           const lines = order.lines || [];
           const baseTotals = calculateTotals(lines, state.data.settings || {}, order.type || 'dine_in', { orderDiscount: null });
           const baseSubtotal = baseTotals.subtotal || 0;
           const allowedRate = Number(state.data.user?.allowedDiscountRate);
-          const currentDiscount = normalizeDiscount(order.discount);
-          const defaultValue = currentDiscount
-            ? currentDiscount.type === 'percent'
-              ? `${currentDiscount.value}%`
-              : String(currentDiscount.value)
-            : '';
-          const input = window.prompt(t.toast.enter_order_discount, defaultValue);
-          if(input == null) return;
+          const discountDraft = state.ui.discountDraft || {};
+          const type = discountDraft.type || 'amount';
+          const valueStr = (discountDraft.value || '').trim();
+          if(!valueStr){
+            UI.pushToast(ctx, { title: t.toast.discount_invalid || 'قيمة غير صحيحة', icon:'⚠️' });
+            return;
+          }
+          const input = type === 'percent' ? `${valueStr}%` : valueStr;
           const { discount, error, limit } = parseDiscountInput(input, baseSubtotal, allowedRate);
           if(error === 'invalid'){
             UI.pushToast(ctx, { title:t.toast.discount_invalid, icon:'⚠️' });
@@ -7941,10 +8070,64 @@
                   paymentState: paymentSnapshot.state,
                   updatedAt: now
                 }
+              },
+              ui:{
+                ...(s.ui || {}),
+                modals:{ ...(s.ui?.modals || {}), discountOrder: false },
+                discountDraft: null
               }
             };
           });
-          UI.pushToast(ctx, { title: discount ? t.toast.discount_applied : t.toast.discount_removed, icon: discount ? '✅' : '♻️' });
+          UI.pushToast(ctx, { title: t.toast.discount_applied || 'تم تطبيق الخصم', icon: '✅' });
+        }
+      },
+      'pos.discount.remove':{
+        on:['click'],
+        gkeys:['pos:discount:remove'],
+        handler:(e,ctx)=>{
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const now = Date.now();
+          ctx.setState(s=>{
+            const data = s.data || {};
+            const nextOrder = data.order || {};
+            const totals = calculateTotals(nextOrder.lines || [], data.settings || {}, nextOrder.type || 'dine_in', { orderDiscount: null });
+            const paymentEntries = getActivePaymentEntries({ ...nextOrder, discount: null, totals }, data.payments);
+            const paymentSnapshot = summarizePayments(totals, paymentEntries);
+            return {
+              ...s,
+              data:{
+                ...data,
+                order:{
+                  ...nextOrder,
+                  discount: null,
+                  totals,
+                  paymentState: paymentSnapshot.state,
+                  updatedAt: now
+                }
+              },
+              ui:{
+                ...(s.ui || {}),
+                modals:{ ...(s.ui?.modals || {}), discountOrder: false },
+                discountDraft: null
+              }
+            };
+          });
+          UI.pushToast(ctx, { title: t.toast.discount_removed || 'تم إزالة الخصم', icon: '♻️' });
+        }
+      },
+      'pos.discount.close':{
+        on:['click'],
+        gkeys:['pos:discount:close'],
+        handler:(e,ctx)=>{
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              modals:{ ...(s.ui?.modals || {}), discountOrder: false },
+              discountDraft: null
+            }
+          }));
         }
       },
       'pos.order.table.remove':{
