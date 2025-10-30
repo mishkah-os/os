@@ -61,6 +61,50 @@
       .join('');
   }
 
+  /**
+   * Flexible Component Name Resolution
+   * حل اسم المكون بشكل مرن يدعم عدة أنماط:
+   *
+   * JSX-style: <Modal> → Modal
+   * Vue-style: <modal> → Modal
+   * Web Components: <m-modal> → Modal
+   * Legacy: <comp-Modal> → Modal
+   *
+   * @param {string} tag - اسم الوسم
+   * @returns {string|null} - اسم المكون إذا وُجد، null إذا لم يُجد
+   */
+  function resolveComponentName(tag) {
+    if (!tag) return null;
+
+    var tagLower = tag.toLowerCase();
+
+    // 1. Legacy support: comp-Modal → Modal
+    if (tagLower.indexOf('comp-') === 0) {
+      return pascalCase(tag.slice(5));
+    }
+
+    // 2. Web Components: m-modal → Modal (prefix م يرمز لـ Mishkah)
+    if (tagLower.indexOf('m-') === 0) {
+      return pascalCase(tag.slice(2));
+    }
+
+    // 3. JSX-style: Modal → Modal (already PascalCase)
+    // 4. Vue-style: modal → Modal (convert to PascalCase)
+    var componentName = pascalCase(tag);
+
+    // تحقق من وجود المكون في Mishkah.UI
+    if (Mishkah && Mishkah.UI && typeof Mishkah.UI[componentName] === 'function') {
+      return componentName;
+    }
+
+    // تحقق إذا كان الوسم نفسه موجود (حالة PascalCase مباشرة)
+    if (tag !== tagLower && Mishkah && Mishkah.UI && typeof Mishkah.UI[tag] === 'function') {
+      return tag;
+    }
+
+    return null;
+  }
+
   var ATOM_FAMILIES = {
     div: ['Containers', 'Div'],
     section: ['Containers', 'Section'],
@@ -1346,31 +1390,32 @@
     if (node.nodeType !== 1) return null;
 
     var tag = node.tagName.toLowerCase();
+    var originalTag = node.tagName; // احتفظ بالـ tag الأصلي للتحليل
     var nextPath = path.length ? path + '.' + tag : tag;
 
     if (tag === 'template') return null;
     if (tag === 'style' || tag === 'script') return null;
 
     var descriptor;
-    if (tag.indexOf('comp-') === 0) {
-      descriptor = { type: 'component', component: pascalCase(tag.slice(5)), attrs: {}, events: [], children: [], path: nextPath };
+
+    // محاولة حل اسم المكون بشكل مرن
+    var resolvedComponent = resolveComponentName(originalTag);
+
+    if (resolvedComponent) {
+      // وُجد مكون في Mishkah.UI
+      descriptor = { type: 'component', component: resolvedComponent, attrs: {}, events: [], children: [], path: nextPath };
     } else if (ATOM_FAMILIES[tag]) {
+      // عنصر HTML قياسي معروف
       descriptor = { type: 'atom', family: ATOM_FAMILIES[tag][0], atom: ATOM_FAMILIES[tag][1], attrs: {}, events: [], children: [], path: nextPath };
     } else {
-      var componentName = pascalCase(tag);
-      var hasUiComponent = Mishkah && Mishkah.UI && typeof Mishkah.UI[componentName] === 'function';
+      // عنصر غير معروف - تعامل معه كعنصر HTML مخصص
       var isCustomElement = tag.indexOf('-') !== -1;
-      if (hasUiComponent) {
-        warnings.push('W_COMPONENT_PREFIX(' + nextPath + '): تم افتراض المكوّن ' + componentName + ' رغم غياب البادئة comp-.');
-        descriptor = { type: 'component', component: componentName, attrs: {}, events: [], children: [], path: nextPath };
-      } else {
-        if (!isCustomElement) {
-          warnings.push('E_ATOM_MISMATCH(' + nextPath + '): عنصر ' + tag + ' غير مصنف في DSL. سيتم تصييره كعنصر خام.');
-        } else if (!global.customElements || !global.customElements.get(tag)) {
-          warnings.push('W_CUSTOM_ELEMENT(' + nextPath + '): العنصر ' + tag + ' غير مسجل. سيتم التعامل معه كعنصر HTML مخصص.');
-        }
-        descriptor = { type: 'element', tag: tag, attrs: {}, events: [], children: [], path: nextPath };
+      if (!isCustomElement) {
+        warnings.push('E_ATOM_MISMATCH(' + nextPath + '): عنصر ' + tag + ' غير مصنف في DSL. سيتم تصييره كعنصر خام.');
+      } else if (!global.customElements || !global.customElements.get(tag)) {
+        warnings.push('W_CUSTOM_ELEMENT(' + nextPath + '): العنصر ' + tag + ' غير مسجل. سيتم التعامل معه كعنصر HTML مخصص.');
       }
+      descriptor = { type: 'element', tag: tag, attrs: {}, events: [], children: [], path: nextPath };
     }
 
     var attrs = node.attributes || [];
@@ -1400,6 +1445,12 @@
         if (!xFor) warnings.push('E_BAD_XFOR(' + nextPath + '): صيغة x-for غير صحيحة.');
         continue;
       }
+      // دعم @ syntax للأحداث (مثل Vue.js)
+      // @click="handler" → x-on:click="handler"
+      if (name.charAt(0) === '@') {
+        descriptor.events.push({ name: name.slice(1), value: value, owner: descriptor });
+        continue;
+      }
       if (name.indexOf('x-on:') === 0) {
         descriptor.events.push({ name: name.slice(5), value: value, owner: descriptor });
         continue;
@@ -1418,11 +1469,27 @@
         descriptor.key = keyExpr ? [{ type: 'expr', code: keyExpr }] : null;
         continue;
       }
+
+      // دعم : syntax للربط (مثل Vue.js)
+      // :value="data.name" → value="{{data.name}}"
+      // :class="className" → class="{{className}}"
+      var actualName = name;
+      var isDynamicBind = false;
+      if (name.charAt(0) === ':') {
+        actualName = name.slice(1);
+        isDynamicBind = true;
+      }
+
       var tokenized = parseMustache(value);
-      if (tokenized.length === 1 && tokenized[0].type === 'text') {
-        descriptor.attrs[name] = value;
+
+      // إذا كان : binding، حول القيمة إلى expression
+      if (isDynamicBind) {
+        // قيمة ديناميكية - حولها إلى mustache token
+        descriptor.attrs[actualName] = [{ type: 'expr', code: value }];
+      } else if (tokenized.length === 1 && tokenized[0].type === 'text') {
+        descriptor.attrs[actualName] = value;
       } else {
-        descriptor.attrs[name] = tokenized;
+        descriptor.attrs[actualName] = tokenized;
       }
     }
 
