@@ -1,5 +1,5 @@
 import { createServer } from 'http';
-import { readFile, writeFile, access, mkdir, readdir, rename, rm } from 'fs/promises';
+import { readFile, writeFile, access, mkdir, readdir, rename, rm, stat } from 'fs/promises';
 import { constants as FS_CONSTANTS } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -405,6 +405,24 @@ async function ensureBranchModuleLayout(branchId, moduleId) {
   await mkdir(getModuleHistoryDir(branchId, moduleId), { recursive: true });
   await mkdir(path.join(getModuleHistoryDir(branchId, moduleId), 'events'), { recursive: true });
   await mkdir(getModulePurgeHistoryDir(branchId, moduleId), { recursive: true });
+}
+
+async function describeFile(filePath) {
+  if (!filePath) {
+    return { exists: false, mtimeMs: null };
+  }
+  try {
+    const stats = await stat(filePath);
+    if (stats.isFile()) {
+      return { exists: true, mtimeMs: stats.mtimeMs };
+    }
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return { exists: false, mtimeMs: null };
+    }
+    throw error;
+  }
+  return { exists: false, mtimeMs: null };
 }
 
 async function readJsonSafe(filePath, fallback = null) {
@@ -3050,8 +3068,8 @@ const branchConfig = (await readJsonSafe(BRANCHES_CONFIG_PATH, { branches: {}, p
 const moduleStores = new Map(); // key => `${branchId}::${moduleId}`
 const clients = new Map();
 const branchClients = new Map();
-const loadedModuleSchemas = new Set();
-const moduleSeeds = new Map();
+const moduleSchemaCache = new Map(); // key => `${branchId}::${moduleId}`
+const moduleSeedCache = new Map();
 
 function getModuleConfig(moduleId) {
   const def = modulesConfig.modules?.[moduleId];
@@ -3066,59 +3084,80 @@ function getModuleConfig(moduleId) {
 
 async function ensureModuleSchema(branchId, moduleId) {
   const cacheKey = `${branchId}::${moduleId}`;
-  if (loadedModuleSchemas.has(cacheKey)) return;
   const schemaPath = getModuleSchemaPath(branchId, moduleId);
-  let loaded = false;
-  try {
-    await schemaEngine.loadFromFile(schemaPath);
-    loaded = true;
-  } catch (error) {
-    if (error?.code !== 'ENOENT') {
-      throw error;
-    }
-  }
-  if (!loaded) {
-    const fallback = getModuleSchemaFallbackPath(moduleId);
-    if (fallback) {
-      await schemaEngine.loadFromFile(fallback);
-      loaded = true;
-    }
-  }
-  if (!loaded) {
-    throw new Error(`Schema for module "${moduleId}" not found for branch "${branchId}"`);
-  }
-  const moduleDefinition = getModuleConfig(moduleId);
-  for (const tableName of moduleDefinition.tables || []) {
-    try {
-      schemaEngine.getTable(tableName);
-    } catch (error) {
-      if (error?.message?.includes('Unknown table')) {
-        throw new Error(
-          `Schema for module "${moduleId}" is missing required table "${tableName}" for branch "${branchId}"`
-        );
+  const branchDescriptor = await describeFile(schemaPath);
+  const cached = moduleSchemaCache.get(cacheKey);
+
+  const loadSchema = async (filePath, source, mtimeMs) => {
+    await schemaEngine.loadFromFile(filePath);
+    const moduleDefinition = getModuleConfig(moduleId);
+    for (const tableName of moduleDefinition.tables || []) {
+      try {
+        schemaEngine.getTable(tableName);
+      } catch (error) {
+        if (error?.message?.includes('Unknown table')) {
+          throw new Error(
+            `Schema for module "${moduleId}" is missing required table "${tableName}" for branch "${branchId}"`
+          );
+        }
+        throw error;
       }
-      throw error;
     }
+    moduleSchemaCache.set(cacheKey, { source, mtimeMs, validated: true });
+  };
+
+  if (branchDescriptor.exists) {
+    if (cached?.source === 'branch' && cached?.validated && cached?.mtimeMs === branchDescriptor.mtimeMs) {
+      return;
+    }
+    await loadSchema(schemaPath, 'branch', branchDescriptor.mtimeMs);
+    return;
   }
-  loadedModuleSchemas.add(cacheKey);
+
+  const fallbackPath = getModuleSchemaFallbackPath(moduleId);
+  const fallbackDescriptor = await describeFile(fallbackPath);
+  if (fallbackDescriptor.exists) {
+    if (cached?.source === 'fallback' && cached?.validated && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
+      return;
+    }
+    await loadSchema(fallbackPath, 'fallback', fallbackDescriptor.mtimeMs);
+    return;
+  }
+
+  throw new Error(`Schema for module "${moduleId}" not found for branch "${branchId}"`);
 }
 
 async function ensureModuleSeed(branchId, moduleId) {
   const cacheKey = `${branchId}::${moduleId}`;
-  if (moduleSeeds.has(cacheKey)) return moduleSeeds.get(cacheKey);
   const seedPath = getModuleSeedPath(branchId, moduleId);
-  let seed = await readJsonSafe(seedPath, undefined);
-  if (!seed || typeof seed !== 'object') {
-    const fallback = getModuleSeedFallbackPath(moduleId);
-    if (fallback) {
-      seed = await readJsonSafe(fallback, null);
+  const branchDescriptor = await describeFile(seedPath);
+  const cached = moduleSeedCache.get(cacheKey);
+
+  const readSeed = async (filePath, source, mtimeMs) => {
+    const payload = await readJsonSafe(filePath, null);
+    const normalized = payload && typeof payload === 'object' ? payload : null;
+    moduleSeedCache.set(cacheKey, { source, mtimeMs, seed: normalized });
+    return normalized;
+  };
+
+  if (branchDescriptor.exists) {
+    if (cached?.source === 'branch' && cached?.mtimeMs === branchDescriptor.mtimeMs) {
+      return cached.seed ?? null;
     }
+    return readSeed(seedPath, 'branch', branchDescriptor.mtimeMs);
   }
-  if (!seed || typeof seed !== 'object') {
-    seed = null;
+
+  const fallbackPath = getModuleSeedFallbackPath(moduleId);
+  const fallbackDescriptor = await describeFile(fallbackPath);
+  if (fallbackDescriptor.exists) {
+    if (cached?.source === 'fallback' && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
+      return cached.seed ?? null;
+    }
+    return readSeed(fallbackPath, 'fallback', fallbackDescriptor.mtimeMs);
   }
-  moduleSeeds.set(cacheKey, seed);
-  return seed;
+
+  moduleSeedCache.set(cacheKey, { source: 'missing', mtimeMs: null, seed: null });
+  return null;
 }
 
 function getBranchModules(branchId) {
@@ -3773,13 +3812,17 @@ async function handleManagementApi(req, res, url) {
     const results = [];
     for (const moduleId of modules) {
       try {
-        const store = await resetModule(branchId, moduleId);
+        const { store, historyEntry } = await resetModule(branchId, moduleId, { requestedBy, reason });
         const summary = {
           moduleId,
           version: store.version,
           resetAt: nowIso(),
           status: 'ok'
         };
+        if (historyEntry) {
+          const { filePath, ...historySummary } = historyEntry;
+          summary.historyEntry = historySummary;
+        }
         if (flagOnReset) {
           const flag = upsertFullSyncFlag(branchId, moduleId, { reason, requestedBy, enabled: true });
           emitFullSyncDirective(flag, { toggledVia: 'management-api', reason: 'post-reset' });
@@ -4295,7 +4338,7 @@ async function handleBranchesApi(req, res, url) {
       jsonResponse(res, 405, { error: 'method-not-allowed' });
       return;
     }
-    await resetModule(branchId, moduleId);
+    await resetModule(branchId, moduleId, { reason: 'branch-api-reset' });
     const snapshot = await buildBranchSnapshot(branchId);
     jsonResponse(res, 200, snapshot);
     return;
@@ -5018,9 +5061,25 @@ async function purgeModuleLiveData(branchId, moduleId, tableNames = [], options 
   };
 }
 
-async function resetModule(branchId, moduleId) {
+async function resetModule(branchId, moduleId, options = {}) {
   const store = await ensureModuleStore(branchId, moduleId);
   const moduleSeed = await ensureModuleSeed(branchId, moduleId);
+  if (typeof store.refreshPersistedTables === 'function') {
+    try {
+      store.refreshPersistedTables(true);
+    } catch (error) {
+      logger.warn({ err: error, branchId, moduleId }, 'Failed to refresh persisted tables before reset');
+    }
+  }
+  let historyEntry = null;
+  try {
+    historyEntry = await recordPurgeHistoryEntry(store, store.tables, {
+      reason: options.reason || 'module-reset',
+      requestedBy: options.requestedBy || null
+    });
+  } catch (error) {
+    logger.warn({ err: error, branchId, moduleId }, 'Failed to record reset history entry');
+  }
   await archiveModuleFile(branchId, moduleId);
   store.reset();
   if (moduleSeed) {
@@ -5036,9 +5095,15 @@ async function resetModule(branchId, moduleId) {
     version: store.version,
     snapshot,
     record: null,
-    meta: { serverId: SERVER_ID, reason: 'module-reset', moduleId }
+    meta: {
+      serverId: SERVER_ID,
+      reason: options.reason || 'module-reset',
+      moduleId,
+      historyEntryId: historyEntry?.id || null,
+      requestedBy: options.requestedBy || null
+    }
   });
-  return store;
+  return { store, historyEntry };
 }
 
 async function handleModuleEvent(branchId, moduleId, payload = {}, client = null, options = {}) {
