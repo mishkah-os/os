@@ -2067,7 +2067,17 @@
       if(payload.handoff && typeof payload.handoff === 'object'){
         const merged = { ...handoffNext };
         Object.keys(payload.handoff).forEach(orderId=>{
-          merged[orderId] = { ...(handoffNext[orderId] || {}), ...(payload.handoff[orderId] || {}) };
+          const existing = handoffNext[orderId] || {};
+          const incoming = payload.handoff[orderId] || {};
+          // Preserve assembled and served statuses - don't let watcher overwrite them
+          const preservedStatus = (existing.status === 'assembled' || existing.status === 'served')
+            ? existing.status
+            : incoming.status;
+          merged[orderId] = {
+            ...existing,
+            ...incoming,
+            status: preservedStatus
+          };
         });
         handoffNext = merged;
       }
