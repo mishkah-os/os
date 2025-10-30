@@ -1,7 +1,26 @@
-import './pos-fin-comp.js';
-import { ensureArray, localizeText } from './pos-mini-utils.js';
-
 (function (global) {
+  const ensureArray =
+    (global.PosMiniUtils && typeof global.PosMiniUtils.ensureArray === 'function')
+      ? global.PosMiniUtils.ensureArray
+      : (value) => (Array.isArray(value) ? value : []);
+
+  const localizeText =
+    (global.PosMiniUtils && typeof global.PosMiniUtils.localizeText === 'function')
+      ? global.PosMiniUtils.localizeText
+      : (entry, lang = 'ar') => {
+          if (!entry) return '';
+          if (typeof entry === 'string') return entry;
+          if (typeof entry === 'object') {
+            if (lang === 'ar' && entry.ar) return entry.ar;
+            if (lang === 'en' && entry.en) return entry.en;
+            const first = Object.values(entry).find(
+              (value) => typeof value === 'string' && value.trim()
+            );
+            return first || '';
+          }
+          return String(entry);
+        };
+
   const M = global.Mishkah;
   if (!M || !M.utils || !M.DSL) {
     console.warn('[POS Finance] Mishkah runtime is unavailable.');
@@ -121,6 +140,8 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
   const initialPayments = db ? ensureArray(db.list('order_payment')) : [];
   const initialLines = db ? ensureArray(db.list('order_line')) : [];
   const initialShifts = db ? ensureArray(db.list('pos_shift')) : [];
+  const initialDataset = enrichOrdersSnapshot(initialOrders, initialLines, initialPayments);
+  let normalizedOrders = initialDataset.orders;
 
   const settings = initialPayload.settings || {};
   const branchSync = settings.sync || {};
@@ -145,6 +166,117 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
   const ensureNumber = (value) => {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : 0;
+  };
+
+  const getOrderId = (order) => {
+    if (!order || typeof order !== 'object') return null;
+    return order.id || order.orderId || order.order_id || null;
+  };
+
+  const groupByOrderId = (items, resolveId) => {
+    const map = new Map();
+    for (const item of ensureArray(items)) {
+      if (!item) continue;
+      const orderId = resolveId(item);
+      if (!orderId) continue;
+      const key = String(orderId);
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key).push(item);
+    }
+    return map;
+  };
+
+  const getLineTotal = (line) => {
+    if (!line || typeof line !== 'object') return 0;
+    const quantity = ensureNumber(line.quantity ?? line.qty ?? 0);
+    const unitPrice = ensureNumber(line.unitPrice ?? line.unit_price ?? line.price ?? 0);
+    const total = ensureNumber(
+      line.total ?? line.lineTotal ?? line.line_total ?? quantity * unitPrice
+    );
+    if (total) return total;
+    if (quantity && unitPrice) return quantity * unitPrice;
+    return 0;
+  };
+
+  const getPaymentAmount = (payment) => {
+    if (!payment || typeof payment !== 'object') return 0;
+    return ensureNumber(
+      payment.amount ??
+        payment.total ??
+        payment.value ??
+        payment.paidAmount ??
+        payment.amount_paid ??
+        0
+    );
+  };
+
+  const normalizeOrderFinancials = (order, lines = [], payments = []) => {
+    const lineTotal = ensureArray(lines).reduce((sum, line) => sum + getLineTotal(line), 0);
+    const paymentsTotal = ensureArray(payments).reduce(
+      (sum, payment) => sum + getPaymentAmount(payment),
+      0
+    );
+    const baseSubtotal = ensureNumber(
+      order?.subtotal ?? order?.totalBeforeTax ?? order?.total_before_tax ?? order?.totals?.subtotal ?? 0
+    );
+    const baseDue = ensureNumber(
+      order?.totalDue ??
+        order?.total_due ??
+        order?.total ??
+        order?.total_amount ??
+        order?.totals?.due ??
+        0
+    );
+    const basePaid = ensureNumber(
+      order?.totalPaid ?? order?.total_paid ?? order?.amount_paid ?? order?.totals?.paid ?? 0
+    );
+    const subtotal = baseSubtotal > 0 ? baseSubtotal : lineTotal;
+    const due = baseDue > 0 ? baseDue : subtotal;
+    const paid = basePaid > 0 ? basePaid : paymentsTotal;
+    return {
+      subtotal,
+      due,
+      paid,
+      lineTotal,
+      paymentsTotal,
+      linesCount: ensureArray(lines).length,
+      paymentsCount: ensureArray(payments).length
+    };
+  };
+
+  const enrichOrdersSnapshot = (orders = [], lines = [], payments = []) => {
+    const linesByOrder = groupByOrderId(lines, (line) => line?.orderId || line?.order_id);
+    const paymentsByOrder = groupByOrderId(
+      payments,
+      (payment) => payment?.orderId || payment?.order_id
+    );
+    const normalizedOrders = ensureArray(orders).map((order) => {
+      if (!order || typeof order !== 'object') return order;
+      const orderId = getOrderId(order);
+      const lineBucket = orderId ? linesByOrder.get(String(orderId)) || [] : [];
+      const paymentBucket = orderId ? paymentsByOrder.get(String(orderId)) || [] : [];
+      const metrics = normalizeOrderFinancials(order, lineBucket, paymentBucket);
+      const normalized = { ...order };
+      normalized.subtotal = metrics.subtotal;
+      normalized.totalDue = metrics.due;
+      normalized.totalPaid = metrics.paid;
+      normalized.total_due = metrics.due;
+      normalized.total_paid = metrics.paid;
+      normalized.totals = {
+        ...(order.totals || {}),
+        subtotal: metrics.subtotal,
+        due: metrics.due,
+        paid: metrics.paid,
+        lines: metrics.linesCount,
+        payments: metrics.paymentsTotal
+      };
+      normalized.linesCount = metrics.linesCount;
+      normalized.paymentsCount = metrics.paymentsCount;
+      return normalized;
+    });
+    return { orders: normalizedOrders, linesByOrder, paymentsByOrder };
   };
 
   const translateResetMessage = (type, context = {}) => {
@@ -217,7 +349,7 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     for (const order of ensureArray(orders)) {
       const methodId = order.defaultPaymentMethodId || order.paymentMethodId || order.payment_method_id || null;
       if (!methodId) continue;
-      const paid = ensureNumber(order.totalPaid ?? order.total_paid ?? 0);
+      const paid = ensureNumber(order.totalPaid ?? order.total_paid ?? order.totals?.paid ?? 0);
       if (!paid) continue;
       totals.set(String(methodId), ensureNumber(totals.get(String(methodId)) || 0) + paid);
     }
@@ -255,9 +387,10 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
   };
 
   const computeFinancialSummary = ({ orders, payments, shifts }) => {
+    const ordersList = ensureArray(orders).filter(Boolean);
     const summary = {
       totals: {
-        totalOrders: orders.length,
+        totalOrders: ordersList.length,
         subtotal: 0,
         totalDue: 0,
         totalPaid: 0,
@@ -275,23 +408,39 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
       currencyCode: currency.code || 'EGP'
     };
 
-    for (const order of orders) {
-      const subtotal = ensureNumber(order.subtotal ?? order.totalBeforeTax ?? order.total_before_tax);
-      const due = ensureNumber(order.totalDue ?? order.total_due ?? order.total ?? order.total_amount);
-      const paid = ensureNumber(order.totalPaid ?? order.total_paid ?? order.amount_paid);
+    const closedStates = new Set(['closed', 'finalized', 'completed']);
+    const paidStates = new Set(['paid', 'settled', 'complete']);
+
+    for (const order of ordersList) {
+      const subtotal = ensureNumber(
+        order.subtotal ?? order.totals?.subtotal ?? order.totalBeforeTax ?? order.total_before_tax
+      );
+      const due = ensureNumber(
+        order.totalDue ??
+          order.totals?.due ??
+          order.total_due ??
+          order.total ??
+          order.total_amount ??
+          subtotal
+      );
+      const paid = ensureNumber(
+        order.totalPaid ?? order.totals?.paid ?? order.total_paid ?? order.amount_paid ?? 0
+      );
       summary.totals.subtotal += subtotal;
       summary.totals.totalDue += due;
       summary.totals.totalPaid += paid;
-      summary.totals.outstanding += Math.max(due - paid, 0);
+      const outstanding = Math.max(due - paid, 0);
+      summary.totals.outstanding += outstanding;
       const statusId = order.statusId || order.status_id;
-      if (statusId && ['closed', 'finalized'].includes(String(statusId))) {
+      if (statusId && closedStates.has(String(statusId))) {
         summary.totals.closedOrders += 1;
       }
       const paymentState = order.paymentStateId || order.payment_state_id;
-      if (paymentState && ['paid', 'settled'].includes(String(paymentState))) {
+      const stateKey = paymentState ? String(paymentState) : '';
+      const isPaid = paidStates.has(stateKey) || outstanding <= 0;
+      if (isPaid) {
         summary.totals.paidOrders += 1;
-      }
-      if (!paymentState || ['unpaid', 'open', 'pending'].includes(String(paymentState))) {
+      } else {
         summary.totals.openOrders += 1;
       }
     }
@@ -300,7 +449,7 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
       ? summary.totals.totalDue / summary.totals.totalOrders
       : 0;
 
-    summary.paymentBreakdown = computePaymentBreakdown(payments, orders, currentPaymentMethods);
+    summary.paymentBreakdown = computePaymentBreakdown(payments, ordersList, currentPaymentMethods);
     summary.totals.totalPayments = summary.paymentBreakdown.reduce(
       (sum, entry) => sum + ensureNumber(entry.amount),
       0
@@ -357,13 +506,13 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
   });
 
   const summary = computeFinancialSummary({
-    orders: initialOrders,
+    orders: normalizedOrders,
     payments: initialPayments,
     shifts: initialShifts
   });
 
   const initialState = buildState({
-    orders: initialOrders,
+    orders: normalizedOrders,
     payments: initialPayments,
     lines: initialLines,
     shifts: initialShifts,
@@ -388,12 +537,18 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     const payments = db ? ensureArray(db.list('order_payment')) : [];
     const lines = db ? ensureArray(db.list('order_line')) : [];
     const shifts = db ? ensureArray(db.list('pos_shift')) : [];
-    const summary = computeFinancialSummary({ orders, payments, shifts });
+    const dataset = enrichOrdersSnapshot(orders, lines, payments);
+    normalizedOrders = dataset.orders;
+    const summary = computeFinancialSummary({
+      orders: normalizedOrders,
+      payments,
+      shifts
+    });
     app.setState((state) => ({
       ...state,
       data: {
         ...state.data,
-        orders,
+        orders: normalizedOrders,
         orderLines: lines,
         payments,
         shifts,
@@ -577,6 +732,20 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
         lastResetResponse: body,
         lastResetHistoryEntry: historySummary
       });
+      if (db && Array.isArray(DEFAULT_PURGE_TABLES)) {
+        for (const tableName of DEFAULT_PURGE_TABLES) {
+          try {
+            if (typeof db.clear === 'function') {
+              db.clear(tableName);
+            }
+          } catch (clearError) {
+            console.warn('[POS Finance] Failed to clear local table after reset', {
+              table: tableName,
+              error: clearError
+            });
+          }
+        }
+      }
       updateData();
       console.log('[POS Finance] Reset orders completed', { payload, response: body });
     } catch (error) {
@@ -597,11 +766,12 @@ import { ensureArray, localizeText } from './pos-mini-utils.js';
     const paymentsData = db ? ensureArray(db.list('order_payment')) : [];
     const linesData = db ? ensureArray(db.list('order_line')) : [];
     const shiftsData = db ? ensureArray(db.list('pos_shift')) : [];
+    const normalizedSnapshot = enrichOrdersSnapshot(ordersData, linesData, paymentsData);
 
     const summary = state?.data?.summary || computeFinancialSummary({
-      orders: ensureArray(db?.list('order_header') || []),
-      payments: ensureArray(db?.list('order_payment') || []),
-      shifts: ensureArray(db?.list('pos_shift') || [])
+      orders: normalizedSnapshot.orders,
+      payments: paymentsData,
+      shifts: shiftsData
     });
     setUiState({ closingStatus: 'pending', closingMessage: translateCloseMessage('pending') });
     let responsePayload = null;
