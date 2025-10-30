@@ -64,6 +64,9 @@ function normalizeSchemaTables(schema, moduleEntry, requiredTables = []) {
 
   schema.schema = schemaContainer;
   schema.schema.tables = nextTables;
+  if (!Array.isArray(schema.tables) || schema.tables !== nextTables) {
+    schema.tables = nextTables;
+  }
   return schema;
 }
 
@@ -111,8 +114,26 @@ export async function createPosDb(options = {}) {
   ];
 
   const { schema, moduleEntry } = await fetchModuleSchema(branchId, moduleId);
-  normalizeSchemaTables(schema, moduleEntry, tables);
-  const db = createDBAuto(schema, tables, {
+  const normalizedSchema = normalizeSchemaTables(schema, moduleEntry, tables);
+  const tableEntries = Array.isArray(normalizedSchema?.schema?.tables)
+    ? normalizedSchema.schema.tables
+    : [];
+
+  if (!tableEntries.length) {
+    const synthesized = tables
+      .map((name) => toTableName(name))
+      .filter(Boolean)
+      .map((name) => ({ name }));
+    if (!normalizedSchema.schema || typeof normalizedSchema.schema !== 'object') {
+      normalizedSchema.schema = {};
+    }
+    normalizedSchema.schema.tables = synthesized;
+    normalizedSchema.tables = synthesized;
+  } else if (!Array.isArray(normalizedSchema.tables) || normalizedSchema.tables !== tableEntries) {
+    normalizedSchema.tables = tableEntries;
+  }
+
+  const db = createDBAuto(normalizedSchema, tables, {
     branchId,
     moduleId,
     historyLimit: options.historyLimit || 200,
