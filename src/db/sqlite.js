@@ -8,6 +8,22 @@ const statementCache = new Map();
 
 const DEFAULT_TABLES = new Set(['order_header', 'order_line', 'order_payment']);
 
+function normalizeKey(value) {
+  if (value === undefined || value === null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  return trimmed.toLowerCase();
+}
+
+function normalizeContext(context = {}) {
+  const branchId = normalizeKey(context.branchId);
+  const moduleId = normalizeKey(context.moduleId);
+  if (!branchId || !moduleId) {
+    return { branchId: null, moduleId: null };
+  }
+  return { branchId, moduleId };
+}
+
 function resolveDatabasePath(options = {}) {
   if (options.path) return options.path;
   const rootDir = options.rootDir || process.cwd();
@@ -104,6 +120,10 @@ function buildHeaderRow(record = {}, context = {}) {
   if (!record || record.id == null) {
     throw new Error('order_header record requires an id');
   }
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) {
+    throw new Error('order_header record requires branchId and moduleId');
+  }
   const status = record.status || record.statusId || record.metadata?.status || null;
   const stage = record.fulfillmentStage || record.stage || null;
   const paymentState = record.paymentState || record.payment_state || null;
@@ -112,8 +132,8 @@ function buildHeaderRow(record = {}, context = {}) {
   const shiftId = record.shiftId || record.shift_id || record.metadata?.shiftId || null;
   const version = Number.isFinite(Number(record.version)) ? Math.trunc(Number(record.version)) : 1;
   return {
-    branch_id: context.branchId,
-    module_id: context.moduleId,
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId,
     id: String(record.id),
     shift_id: shiftId ? String(shiftId) : null,
     status: status ? String(status) : null,
@@ -134,14 +154,18 @@ function buildLineRow(record = {}, context = {}) {
   if (!orderId) {
     throw new Error('order_line record requires an orderId');
   }
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) {
+    throw new Error('order_line record requires branchId and moduleId');
+  }
   const status = record.status || record.statusId || null;
   const stage = record.stage || record.fulfillmentStage || null;
   const createdAt = record.createdAt || record.created_at || null;
   const updatedAt = record.updatedAt || record.updated_at || createdAt;
   const version = Number.isFinite(Number(record.version)) ? Math.trunc(Number(record.version)) : 1;
   return {
-    branch_id: context.branchId,
-    module_id: context.moduleId,
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId,
     id: String(record.id),
     order_id: String(orderId),
     status: status ? String(status) : null,
@@ -161,6 +185,10 @@ function buildPaymentRow(record = {}, context = {}) {
   if (!orderId) {
     throw new Error('order_payment record requires an orderId');
   }
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) {
+    throw new Error('order_payment record requires branchId and moduleId');
+  }
   const method =
     record.paymentMethodId ||
     record.method ||
@@ -171,8 +199,8 @@ function buildPaymentRow(record = {}, context = {}) {
   const amount = Number.isFinite(amountValue) ? amountValue : null;
   const capturedAt = record.capturedAt || record.captured_at || record.processedAt || null;
   return {
-    branch_id: context.branchId,
-    module_id: context.moduleId,
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId,
     id: String(record.id),
     order_id: String(orderId),
     method: method ? String(method) : null,
@@ -218,11 +246,13 @@ function getStatements(tableName) {
             payload = excluded.payload
         `),
         remove: db.prepare(
-          'DELETE FROM order_header WHERE branch_id = @branch_id AND module_id = @module_id AND id = @id'
+          'DELETE FROM order_header WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE AND id = @id'
         ),
-        truncate: db.prepare('DELETE FROM order_header WHERE branch_id = @branch_id AND module_id = @module_id'),
+        truncate: db.prepare(
+          'DELETE FROM order_header WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
+        ),
         load: db.prepare(
-          'SELECT payload FROM order_header WHERE branch_id = ? AND module_id = ? ORDER BY updated_at DESC'
+          'SELECT payload FROM order_header WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY updated_at DESC'
         )
       };
       break;
@@ -240,10 +270,14 @@ function getStatements(tableName) {
             version = excluded.version,
             payload = excluded.payload
         `),
-        remove: db.prepare('DELETE FROM order_line WHERE branch_id = @branch_id AND module_id = @module_id AND id = @id'),
-        truncate: db.prepare('DELETE FROM order_line WHERE branch_id = @branch_id AND module_id = @module_id'),
+        remove: db.prepare(
+          'DELETE FROM order_line WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE AND id = @id'
+        ),
+        truncate: db.prepare(
+          'DELETE FROM order_line WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
+        ),
         load: db.prepare(
-          'SELECT payload FROM order_line WHERE branch_id = ? AND module_id = ? ORDER BY updated_at DESC'
+          'SELECT payload FROM order_line WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY updated_at DESC'
         )
       };
       break;
@@ -260,11 +294,13 @@ function getStatements(tableName) {
             payload = excluded.payload
         `),
         remove: db.prepare(
-          'DELETE FROM order_payment WHERE branch_id = @branch_id AND module_id = @module_id AND id = @id'
+          'DELETE FROM order_payment WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE AND id = @id'
         ),
-        truncate: db.prepare('DELETE FROM order_payment WHERE branch_id = @branch_id AND module_id = @module_id'),
+        truncate: db.prepare(
+          'DELETE FROM order_payment WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
+        ),
         load: db.prepare(
-          'SELECT payload FROM order_payment WHERE branch_id = ? AND module_id = ? ORDER BY captured_at DESC'
+          'SELECT payload FROM order_payment WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY captured_at DESC'
         )
       };
       break;
@@ -286,7 +322,11 @@ export function persistRecord(tableName, record, context = {}) {
   const builder = getBuilder(tableName);
   const statements = getStatements(tableName);
   if (!builder || !statements) return false;
-  const row = builder(record, context);
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) {
+    throw new Error('persistRecord requires branchId and moduleId');
+  }
+  const row = builder(record, normalizedContext);
   statements.upsert.run(row);
   return true;
 }
@@ -295,7 +335,13 @@ export function deleteRecord(tableName, key, context = {}) {
   if (!isManagedTable(tableName)) return false;
   const statements = getStatements(tableName);
   if (!statements) return false;
-  statements.remove.run({ branch_id: context.branchId, module_id: context.moduleId, id: String(key) });
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) return false;
+  statements.remove.run({
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId,
+    id: String(key)
+  });
   return true;
 }
 
@@ -303,7 +349,12 @@ export function truncateTable(tableName, context = {}) {
   if (!isManagedTable(tableName)) return false;
   const statements = getStatements(tableName);
   if (!statements) return false;
-  statements.truncate.run({ branch_id: context.branchId, module_id: context.moduleId });
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) return false;
+  statements.truncate.run({
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId
+  });
   return true;
 }
 
@@ -311,7 +362,9 @@ export function loadTableRecords(tableName, context = {}) {
   if (!isManagedTable(tableName)) return [];
   const statements = getStatements(tableName);
   if (!statements) return [];
-  const rows = statements.load.all(context.branchId, context.moduleId);
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) return [];
+  const rows = statements.load.all(normalizedContext.branchId, normalizedContext.moduleId);
   const records = [];
   for (const row of rows) {
     if (!row || typeof row.payload !== 'string') continue;
@@ -332,11 +385,16 @@ export function replaceTableRecords(tableName, records = [], context = {}) {
   const builder = getBuilder(tableName);
   const statements = getStatements(tableName);
   if (!builder || !statements) return false;
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) return false;
   const db = getDatabaseInstance();
   const tx = db.transaction((rows) => {
-    statements.truncate.run({ branch_id: context.branchId, module_id: context.moduleId });
+    statements.truncate.run({
+      branch_id: normalizedContext.branchId,
+      module_id: normalizedContext.moduleId
+    });
     for (const record of rows) {
-      const row = builder(record, context);
+      const row = builder(record, normalizedContext);
       statements.upsert.run(row);
     }
   });

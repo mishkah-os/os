@@ -107,3 +107,88 @@ test('clearTables purges persisted rows after loading the cold cache', async () 
   assert.equal(loadTableRecords('order_line', context).length, 0);
   assert.equal(loadTableRecords('order_payment', context).length, 0);
 });
+
+test('clearTables purges rows even when SQLite stored branch/module ids with different casing', async () => {
+  const schemaEngine = new SchemaEngine();
+  await schemaEngine.loadFromFile(path.join(ROOT_DIR, 'data/schemas/pos_schema.json'));
+
+  const definition = {
+    tables: ['order_header', 'order_line', 'order_payment']
+  };
+  const store = new HybridStore(
+    schemaEngine,
+    'test-branch',
+    'pos',
+    definition,
+    { version: 1, meta: {}, tables: {} },
+    null,
+    { cacheTtlMs: 5 }
+  );
+
+  const legacyContext = { branchId: 'TEST-BRANCH', moduleId: 'POS' };
+  const db = initializeSqlite();
+  db
+    .prepare(
+      `INSERT INTO order_header (branch_id, module_id, id, status, stage, payment_state, created_at, updated_at, version, payload)
+       VALUES (@branch_id, @module_id, @id, @status, @stage, @payment_state, @created_at, @updated_at, @version, @payload)`
+    )
+    .run({
+      branch_id: legacyContext.branchId,
+      module_id: legacyContext.moduleId,
+      id: 'ord-legacy',
+      status: 'open',
+      stage: 'draft',
+      payment_state: 'pending',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
+      version: 1,
+      payload: JSON.stringify({ id: 'ord-legacy', status: 'open', stage: 'draft', paymentState: 'pending', version: 1 })
+    });
+
+  db
+    .prepare(
+      `INSERT INTO order_line (branch_id, module_id, id, order_id, status, stage, created_at, updated_at, version, payload)
+       VALUES (@branch_id, @module_id, @id, @order_id, @status, @stage, @created_at, @updated_at, @version, @payload)`
+    )
+    .run({
+      branch_id: legacyContext.branchId,
+      module_id: legacyContext.moduleId,
+      id: 'line-legacy',
+      order_id: 'ord-legacy',
+      status: 'open',
+      stage: 'draft',
+      created_at: '2024-01-01T00:00:00.000Z',
+      updated_at: '2024-01-01T00:00:00.000Z',
+      version: 1,
+      payload: JSON.stringify({ id: 'line-legacy', orderId: 'ord-legacy', status: 'open', stage: 'draft', version: 1 })
+    });
+
+  db
+    .prepare(
+      `INSERT INTO order_payment (branch_id, module_id, id, order_id, method, captured_at, amount, payload)
+       VALUES (@branch_id, @module_id, @id, @order_id, @method, @captured_at, @amount, @payload)`
+    )
+    .run({
+      branch_id: legacyContext.branchId,
+      module_id: legacyContext.moduleId,
+      id: 'payment-legacy',
+      order_id: 'ord-legacy',
+      method: 'cash',
+      captured_at: '2024-01-01T00:00:00.000Z',
+      amount: 25,
+      payload: JSON.stringify({ id: 'payment-legacy', orderId: 'ord-legacy', method: 'cash', amount: 25, version: 1 })
+    });
+
+  assert.equal(loadTableRecords('order_header', { branchId: 'test-branch', moduleId: 'pos' }).length, 1);
+  assert.equal(loadTableRecords('order_line', { branchId: 'test-branch', moduleId: 'pos' }).length, 1);
+  assert.equal(loadTableRecords('order_payment', { branchId: 'test-branch', moduleId: 'pos' }).length, 1);
+
+  const result = store.clearTables(['order_header', 'order_line', 'order_payment']);
+
+  assert.equal(result.totalRemoved, 3);
+  assert.equal(result.changed, true);
+
+  assert.equal(loadTableRecords('order_header', { branchId: 'test-branch', moduleId: 'pos' }).length, 0);
+  assert.equal(loadTableRecords('order_line', { branchId: 'test-branch', moduleId: 'pos' }).length, 0);
+  assert.equal(loadTableRecords('order_payment', { branchId: 'test-branch', moduleId: 'pos' }).length, 0);
+});
