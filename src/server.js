@@ -3230,9 +3230,13 @@ async function ensureModuleStore(branchId, moduleId) {
       tables: existing.tables || {}
     };
   }
-  const store = new HybridStore(schemaEngine, branchId, moduleId, moduleDefinition, seed, moduleSeed, {
+  const storeOptions = {
     cacheTtlMs: HYBRID_CACHE_TTL_MS
-  });
+  };
+  if (moduleId === 'pos') {
+    storeOptions.persistedTables = ['order_header', 'order_line', 'order_payment', 'pos_shift'];
+  }
+  const store = new HybridStore(schemaEngine, branchId, moduleId, moduleDefinition, seed, moduleSeed, storeOptions);
   moduleStores.set(key, store);
   if (!existing) {
     await persistModuleStore(store);
