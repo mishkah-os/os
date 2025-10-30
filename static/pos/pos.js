@@ -997,19 +997,28 @@
     }
 
     function createOrderLine(item, qty, overrides){
-      if(!item || item.id == null){
+      if(!item || item.id == null || item.id === ''){
+        console.error('[POS] Cannot create order line without an item id', item);
         throw new Error('[POS] Cannot create order line without an item id');
+      }
+      const itemId = String(item.id);
+      if(!itemId || itemId === 'null' || itemId === 'undefined'){
+        console.error('[POS] Invalid item id', item);
+        throw new Error('[POS] Invalid item id');
       }
       const quantity = qty || 1;
       const price = Number(item.price) || 0;
       const now = Date.now();
-      const itemId = String(item.id);
       const uniqueId = overrides?.id || `ln-${itemId}-${now.toString(36)}-${Math.random().toString(16).slice(2,6)}`;
-      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection;
+      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection ?? item.kitchen_section ?? item.kitchen_section_id;
       const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+      if(!kitchenSection || kitchenSection === 'null' || kitchenSection === 'undefined'){
+        console.warn('[POS] Invalid kitchenSection, defaulting to expo', { item, kitchenSource });
+      }
       const baseLine = {
         id: uniqueId,
         itemId,
+        item_id: itemId,
         name: item.name,
         description: item.description,
         price,
@@ -1022,6 +1031,8 @@
         status: overrides?.status || 'draft',
         stage: overrides?.stage || 'new',
         kitchenSection,
+        kitchenSectionId: kitchenSection,
+        kitchen_section_id: kitchenSection,
         locked: overrides?.locked || false,
         createdAt: overrides?.createdAt || now,
         updatedAt: overrides?.updatedAt || now
@@ -2648,7 +2659,7 @@
           paymentState = 'unpaid';
         }
       }
-      return {
+      const composedOrder = {
         ...header,
         totals,
         paymentState,
@@ -2657,6 +2668,7 @@
         dirty:false,
         isPersisted: header.isPersisted !== false
       };
+      return enrichOrderWithMenu(composedOrder);
     }
 
     function cloneOrderSnapshot(order){
@@ -5414,16 +5426,7 @@
               },
               variant:'ghost',
               size:'sm'
-            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['📝'])]),
-            UI.Button({
-              attrs:{
-                gkey:'pos:order:line:discount',
-                'data-line-id':line.id,
-                title: t.ui.discount_action
-              },
-              variant:'ghost',
-              size:'sm'
-            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['٪'])])
+            }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['📝'])])
           ];
       return UI.ListItem({
         leading: D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['🍲']),
@@ -6811,6 +6814,20 @@
       const order = db.data.order || {};
       const isOrderFinalized = order.status === 'finalized' || order.isPersisted;
       const currentPayments = Array.isArray(db.data.payments?.split) ? db.data.payments.split : [];
+      const totals = order.totals || {};
+      const paymentsEntries = getActivePaymentEntries(order, db.data.payments);
+      const paymentSnapshot = summarizePayments(totals, paymentsEntries);
+      const totalDue = paymentSnapshot.due;
+      const totalPaid = paymentSnapshot.paid;
+      const remaining = paymentSnapshot.remaining;
+      const remainingAmountSection = D.Containers.Div({ attrs:{ class: tw`p-4 rounded-[var(--radius)] bg-gradient-to-br from-[var(--accent)] to-[var(--accent-hover)] text-white space-y-1 shadow-lg` }}, [
+        D.Text.Span({ attrs:{ class: tw`text-sm opacity-90` }}, [t.ui.balance_due || 'المتبقي غير المسدد']),
+        D.Text.Strong({ attrs:{ class: tw`text-3xl font-bold block` }}, [formatCurrencyValue(db, remaining)]),
+        D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between text-xs opacity-80 pt-2 border-t border-white/20` }}, [
+          D.Text.Span({}, [`${t.ui.total || 'الإجمالي'}: ${formatCurrencyValue(db, totalDue)}`]),
+          D.Text.Span({}, [`${t.ui.paid || 'مدفوع'}: ${formatCurrencyValue(db, totalPaid)}`])
+        ])
+      ]);
       const paymentsListSection = currentPayments.length > 0
         ? D.Containers.Div({ attrs:{ class: tw`space-y-2` }}, [
             D.Text.Strong({ attrs:{ class: tw`text-sm` }}, [t.ui.recorded_payments || 'الدفعات المسجلة']),
@@ -6846,13 +6863,14 @@
           UI.Button({ attrs:{ gkey:'pos:payments:close' }, variant:'ghost', size:'md' }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['✕'])])
         ]),
         content: D.Containers.Div({ attrs:{ class: tw`space-y-3` }}, [
+          remainingAmountSection,
           paymentsListSection,
           UI.ChipGroup({
-            attrs:{ class: tw`text-base sm:text-lg` },
+            attrs:{ class: tw`text-base sm:text-lg border-2 border-[var(--accent)]/20 rounded-lg p-2` },
             items: methods.map(method=>({
               id: method.id,
               label: `${method.icon} ${localize(method.label, db.env.lang)}`,
-              attrs:{ gkey:'pos:payments:method', 'data-method-id':method.id }
+              attrs:{ gkey:'pos:payments:method', 'data-method-id':method.id, class: tw`ring-2 ring-transparent data-[active=true]:ring-[var(--accent)] data-[active=true]:ring-offset-2 data-[active=true]:scale-105 transition-all` }
             })),
             activeId: db.data.payments.activeMethod
           }),
@@ -6920,67 +6938,6 @@
       });
     }
 
-    function LineDiscountModal(db){
-      const t = getTexts(db);
-      if(!db.ui.modals.lineDiscount) return null;
-      const draft = db.ui.lineDiscount || {};
-      const lineId = draft.lineId;
-      const order = db.data.order || {};
-      const line = (order.lines || []).find(entry=> entry.id === lineId);
-      if(!line){
-        return UI.Modal({
-          open:true,
-          size:'sm',
-          title: t.ui.discount_action,
-          description: t.toast.order_nav_not_found,
-          closeGkey:'pos:line-discount:close',
-          actions:[UI.Button({ attrs:{ gkey:'pos:line-discount:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])]
-        });
-      }
-      const lang = db.env.lang;
-      const unitPrice = getLineUnitPrice(line);
-      const maxAmount = draft.baseAmount != null ? Number(draft.baseAmount) : Math.max(0, round(unitPrice * (Number(line.qty) || 0)));
-      const discountInfo = normalizeDiscount(line.discount);
-      const type = draft.type || discountInfo?.type || 'amount';
-      const value = draft.value ?? (discountInfo ? String(discountInfo.value) : '');
-      const hint = type === 'percent'
-        ? (t.ui.discount_percent_hint || 'أدخل النسبة المئوية')
-        : `${t.ui.discount_amount_hint || 'أدخل قيمة الخصم'} – ≤ ${formatCurrencyValue(db, maxAmount)}`;
-      const summaryRows = D.Containers.Div({ attrs:{ class: tw`space-y-1 text-xs ${token('muted')}` }}, [
-        D.Text.Span({}, [`${localize(line.name, lang)} × ${line.qty}`]),
-        D.Text.Span({}, [`${t.ui.total}: ${formatCurrencyValue(db, line.total)}`])
-      ]);
-      return UI.Modal({
-        open:true,
-        size:'sm',
-        title: t.ui.discount_action,
-        description: localize(line.name, lang),
-        closeGkey:'pos:line-discount:close',
-        content: D.Containers.Div({ attrs:{ class: tw`space-y-4` }}, [
-          summaryRows,
-          UI.Segmented({
-            items:[
-              { id:'amount', label: t.ui.discount_amount || 'مبلغ', attrs:{ gkey:'pos:line-discount:type', 'data-type':'amount' } },
-              { id:'percent', label: t.ui.discount_percent || 'نسبة %', attrs:{ gkey:'pos:line-discount:type', 'data-type':'percent' } }
-            ],
-            activeId: type
-          }),
-          D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')}` }}, [hint]),
-          UI.NumpadDecimal({
-            attrs:{ class: tw`w-full` },
-            value: value,
-            placeholder: type === 'percent' ? '0%' : formatCurrencyValue(db, 0),
-            gkey:'pos:line-discount:input',
-            confirmLabel: t.ui.discount_action,
-            confirmAttrs:{ gkey:'pos:line-discount:apply', variant:'solid', size:'md', class: tw`w-full` }
-          })
-        ]),
-        actions:[
-          UI.Button({ attrs:{ gkey:'pos:line-discount:clear', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.remove_discount || 'إزالة الخصم']),
-          UI.Button({ attrs:{ gkey:'pos:line-discount:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])
-        ]
-      });
-    }
 
     function ReturnsModal(db){
       const t = getTexts(db);
@@ -7716,7 +7673,6 @@
           ReservationsModal(db),
           PrintModal(db),
           LineModifiersModal(db),
-          LineDiscountModal(db),
           ReturnsModal(db),
           DiscountOrderModal(db),
           PaymentsSheet(db),
@@ -8288,44 +8244,6 @@
             };
           });
           UI.pushToast(ctx, { title:t.toast.notes_updated, icon:'📝' });
-        }
-      },
-      'pos.order.line.discount':{
-        on:['click'],
-        gkeys:['pos:order:line:discount'],
-        handler:(e,ctx)=>{
-          const btn = e.target.closest('[data-line-id]');
-          if(!btn) return;
-          const lineId = btn.getAttribute('data-line-id');
-          const state = ctx.getState();
-          const t = getTexts(state);
-          const order = state.data.order || {};
-          const line = (order.lines || []).find(entry=> entry.id === lineId);
-          if(!line){
-            UI.pushToast(ctx, { title:t.toast.order_nav_not_found, icon:'❓' });
-            return;
-          }
-          if(line.locked || (order.isPersisted && order.lockLineEdits) || (line.status && line.status !== 'draft')){
-            UI.pushToast(ctx, { title:t.toast.line_locked, icon:'🔒' });
-            return;
-          }
-          const unitPrice = getLineUnitPrice(line);
-          const baseAmount = Math.max(0, round(unitPrice * (Number(line.qty) || 0)));
-          const currentDiscount = normalizeDiscount(line.discount);
-          ctx.setState(s=>({
-            ...s,
-            ui:{
-              ...(s.ui || {}),
-              modals:{ ...(s.ui?.modals || {}), lineDiscount:true },
-              lineDiscount:{
-                lineId,
-                type: currentDiscount?.type || 'amount',
-                value: currentDiscount ? String(currentDiscount.value) : '',
-                baseAmount,
-                allowedRate: Number(state.data.user?.allowedDiscountRate)
-              }
-            }
-          }));
         }
       },
       'pos.order.line.modifiers.toggle':{
