@@ -234,7 +234,7 @@
             ])
           ]),
           D.Text.Span(
-            { attrs: { class: tw`text-base font-bold text-slate-100` } },
+            { attrs: { class: cx(tw`text-base font-bold text-slate-100`, 'finance-positive') } },
             [formatCurrency(entry.amount, { currency, lang })]
           )
         ]),
@@ -287,7 +287,7 @@
         D.Tables.Td({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [orderType || '—']),
         D.Tables.Td({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [status || '—']),
         D.Tables.Td({ attrs: { class: tw`py-3 text-sm text-slate-300` } }, [payment || '—']),
-        D.Tables.Td({ attrs: { class: tw`py-3 text-sm font-semibold text-emerald-300` } }, [paid]),
+        D.Tables.Td({ attrs: { class: cx(tw`py-3 text-sm font-semibold text-emerald-300`, 'finance-positive') } }, [paid]),
         D.Tables.Td({ attrs: { class: tw`py-3 text-sm text-slate-200` } }, [due]),
         D.Tables.Td({ attrs: { class: tw`py-3 text-xs text-slate-400` } }, [opened])
       ]);
