@@ -211,18 +211,13 @@ Click the sun/moon icon in the top bar
 
 ### Frontend
 - **Mishkah UI Framework** - نظام مكونات مخصص
-- **Vanilla JavaScript** - بدون مكتبات خارجية
-- **CSS Variables** - لنظام الألوان الديناميكي
-- **ES6 Modules** - للتنظيم والأداء
 
 ### Backend
 - **Node.js + WebSocket** - للبث المباشر
-- **SQLite** - للتخزين الدائم
-- **HybridStore** - نظام تخزين هجين
 
 ### Data Flow
 ```
-Browser (UI) ←→ WebSocket ←→ HybridStore ←→ SQLite
+Browser (UI) ←→ WebSocket ←→ HybridStore ←→ SQL
 ```
 
 ---
