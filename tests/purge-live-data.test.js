@@ -84,14 +84,30 @@ test('clearTables purges persisted rows after loading the cold cache', async () 
     },
     context
   );
+  persistSqlRecord(
+    'pos_shift',
+    {
+      id: 'shift-1',
+      posId: 'POS-01',
+      status: 'open',
+      isClosed: false,
+      openedAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      totalsByType: {},
+      countsByType: {},
+      paymentsByMethod: {}
+    },
+    context
+  );
 
   assert.equal(loadTableRecords('order_header', context).length, 1);
   assert.equal(loadTableRecords('order_line', context).length, 1);
   assert.equal(loadTableRecords('order_payment', context).length, 1);
+  assert.equal(loadTableRecords('pos_shift', context).length, 1);
 
-  const result = store.clearTables(['order_header', 'order_line', 'order_payment']);
+  const result = store.clearTables(['order_header', 'order_line', 'order_payment', 'pos_shift']);
 
-  assert.equal(result.totalRemoved, 3);
+  assert.equal(result.totalRemoved, 4);
   assert.equal(result.changed, true);
 
   const clearedCounts = Object.fromEntries(
@@ -100,12 +116,14 @@ test('clearTables purges persisted rows after loading the cold cache', async () 
   assert.deepEqual(clearedCounts, {
     order_header: 1,
     order_line: 1,
-    order_payment: 1
+    order_payment: 1,
+    pos_shift: 1
   });
 
   assert.equal(loadTableRecords('order_header', context).length, 0);
   assert.equal(loadTableRecords('order_line', context).length, 0);
   assert.equal(loadTableRecords('order_payment', context).length, 0);
+  assert.equal(loadTableRecords('pos_shift', context).length, 0);
 });
 
 test('clearTables purges rows even when SQLite stored branch/module ids with different casing', async () => {
@@ -113,7 +131,7 @@ test('clearTables purges rows even when SQLite stored branch/module ids with dif
   await schemaEngine.loadFromFile(path.join(ROOT_DIR, 'data/schemas/pos_schema.json'));
 
   const definition = {
-    tables: ['order_header', 'order_line', 'order_payment']
+    tables: ['order_header', 'order_line', 'order_payment', 'pos_shift']
   };
   const store = new HybridStore(
     schemaEngine,
@@ -182,13 +200,40 @@ test('clearTables purges rows even when SQLite stored branch/module ids with dif
   assert.equal(loadTableRecords('order_header', { branchId: 'test-branch', moduleId: 'pos' }).length, 1);
   assert.equal(loadTableRecords('order_line', { branchId: 'test-branch', moduleId: 'pos' }).length, 1);
   assert.equal(loadTableRecords('order_payment', { branchId: 'test-branch', moduleId: 'pos' }).length, 1);
+  db
+    .prepare(
+      `INSERT INTO pos_shift (branch_id, module_id, id, pos_id, status, is_closed, opened_at, closed_at, updated_at, payload)
+       VALUES (@branch_id, @module_id, @id, @pos_id, @status, @is_closed, @opened_at, @closed_at, @updated_at, @payload)`
+    )
+    .run({
+      branch_id: legacyContext.branchId,
+      module_id: legacyContext.moduleId,
+      id: 'shift-legacy',
+      pos_id: 'POS-X',
+      status: 'closed',
+      is_closed: 1,
+      opened_at: '2023-12-31T23:00:00.000Z',
+      closed_at: '2024-01-01T01:00:00.000Z',
+      updated_at: '2024-01-01T01:00:00.000Z',
+      payload: JSON.stringify({
+        id: 'shift-legacy',
+        posId: 'POS-X',
+        status: 'closed',
+        isClosed: true,
+        openedAt: '2023-12-31T23:00:00.000Z',
+        closedAt: '2024-01-01T01:00:00.000Z'
+      })
+    });
 
-  const result = store.clearTables(['order_header', 'order_line', 'order_payment']);
+  assert.equal(loadTableRecords('pos_shift', { branchId: 'test-branch', moduleId: 'pos' }).length, 1);
 
-  assert.equal(result.totalRemoved, 3);
+  const result = store.clearTables(['order_header', 'order_line', 'order_payment', 'pos_shift']);
+
+  assert.equal(result.totalRemoved, 4);
   assert.equal(result.changed, true);
 
   assert.equal(loadTableRecords('order_header', { branchId: 'test-branch', moduleId: 'pos' }).length, 0);
   assert.equal(loadTableRecords('order_line', { branchId: 'test-branch', moduleId: 'pos' }).length, 0);
   assert.equal(loadTableRecords('order_payment', { branchId: 'test-branch', moduleId: 'pos' }).length, 0);
+  assert.equal(loadTableRecords('pos_shift', { branchId: 'test-branch', moduleId: 'pos' }).length, 0);
 });

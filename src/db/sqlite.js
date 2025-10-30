@@ -109,15 +109,15 @@ function createTables(db) {
       is_closed INTEGER DEFAULT 0,
       opened_at TEXT,
       closed_at TEXT,
-      created_at TEXT,
       updated_at TEXT,
-      version INTEGER DEFAULT 1,
       payload TEXT NOT NULL,
       PRIMARY KEY (branch_id, module_id, id)
     );
   `);
-  db.exec('CREATE INDEX IF NOT EXISTS pos_shift_pos_status_idx ON pos_shift (branch_id, module_id, pos_id, is_closed)');
-  db.exec('CREATE INDEX IF NOT EXISTS pos_shift_updated_idx ON pos_shift (branch_id, module_id, updated_at DESC)');
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS pos_shift_branch_pos_idx ON pos_shift (branch_id, module_id, pos_id, is_closed, opened_at)'
+  );
+  db.exec('CREATE INDEX IF NOT EXISTS pos_shift_opened_idx ON pos_shift (branch_id, module_id, opened_at DESC)');
 }
 
 export function initializeSqlite(options = {}) {
@@ -238,26 +238,45 @@ function buildShiftRow(record = {}, context = {}) {
   if (!normalizedContext.branchId || !normalizedContext.moduleId) {
     throw new Error('pos_shift record requires branchId and moduleId');
   }
-  const posId = record.posId || record.pos_id || null;
-  const status = record.status || null;
-  const isClosed = record.isClosed || record.is_closed || false;
-  const openedAt = record.openedAt || record.opened_at || null;
-  const closedAt = record.closedAt || record.closed_at || null;
-  const createdAt = record.createdAt || record.created_at || null;
-  const updatedAt = record.updatedAt || record.updated_at || record.savedAt || record.saved_at || createdAt;
-  const version = Number.isFinite(Number(record.version)) ? Math.trunc(Number(record.version)) : 1;
+  const posId =
+    record.posId ||
+    record.pos_id ||
+    record.pos?.id ||
+    record.terminalId ||
+    record.terminal_id ||
+    record.metadata?.posId ||
+    null;
+  const status = record.status || record.state || record.shiftStatus || null;
+  const openedAt = record.openedAt || record.opened_at || record.startedAt || record.started_at || null;
+  const closedAt = record.closedAt || record.closed_at || record.endedAt || record.ended_at || null;
+  const updatedAt =
+    record.updatedAt ||
+    record.updated_at ||
+    record.savedAt ||
+    record.saved_at ||
+    closedAt ||
+    openedAt ||
+    null;
+
+  let closedFlag = null;
+  if (record.isClosed !== undefined) closedFlag = record.isClosed;
+  else if (record.is_closed !== undefined) closedFlag = record.is_closed;
+  else if (record.closed !== undefined) closedFlag = record.closed;
+  else if (record.shiftStatus) closedFlag = String(record.shiftStatus).toLowerCase() === 'closed';
+  else if (status) closedFlag = String(status).toLowerCase() === 'closed';
+
+  const isClosed = closedFlag ? 1 : 0;
+
   return {
     branch_id: normalizedContext.branchId,
     module_id: normalizedContext.moduleId,
     id: String(record.id),
     pos_id: posId ? String(posId) : null,
     status: status ? String(status) : null,
-    is_closed: isClosed ? 1 : 0,
+    is_closed: isClosed,
     opened_at: openedAt || null,
     closed_at: closedAt || null,
-    created_at: createdAt || null,
-    updated_at: updatedAt || createdAt || null,
-    version,
+    updated_at: updatedAt || null,
     payload: JSON.stringify(record)
   };
 }
@@ -361,17 +380,15 @@ function getStatements(tableName) {
     case 'pos_shift':
       statements = {
         upsert: db.prepare(`
-          INSERT INTO pos_shift (branch_id, module_id, id, pos_id, status, is_closed, opened_at, closed_at, created_at, updated_at, version, payload)
-          VALUES (@branch_id, @module_id, @id, @pos_id, @status, @is_closed, @opened_at, @closed_at, @created_at, @updated_at, @version, @payload)
+          INSERT INTO pos_shift (branch_id, module_id, id, pos_id, status, is_closed, opened_at, closed_at, updated_at, payload)
+          VALUES (@branch_id, @module_id, @id, @pos_id, @status, @is_closed, @opened_at, @closed_at, @updated_at, @payload)
           ON CONFLICT(branch_id, module_id, id) DO UPDATE SET
             pos_id = excluded.pos_id,
             status = excluded.status,
             is_closed = excluded.is_closed,
             opened_at = excluded.opened_at,
             closed_at = excluded.closed_at,
-            created_at = excluded.created_at,
             updated_at = excluded.updated_at,
-            version = excluded.version,
             payload = excluded.payload
         `),
         remove: db.prepare(
@@ -381,7 +398,7 @@ function getStatements(tableName) {
           'DELETE FROM pos_shift WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
         ),
         load: db.prepare(
-          'SELECT payload FROM pos_shift WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY updated_at DESC'
+          'SELECT payload FROM pos_shift WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY opened_at DESC, updated_at DESC'
         )
       };
       break;
