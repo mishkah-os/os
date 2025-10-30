@@ -14,7 +14,7 @@ const ROOT_DIR = path.resolve(__dirname, '..', '..');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const BRANCHES_DIR = path.join(DATA_DIR, 'branches');
 const MODULES_CONFIG_PATH = path.join(DATA_DIR, 'modules.json');
-const PERSISTED_TABLES = ['order_header', 'order_line', 'order_payment'];
+const PERSISTED_TABLES = ['order_header', 'order_line', 'order_payment', 'pos_shift'];
 
 initializeSqlite({ rootDir: ROOT_DIR });
 

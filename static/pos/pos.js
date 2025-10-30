@@ -287,13 +287,13 @@
     const rawOrderTypes = Array.isArray(MOCK.order_types) && MOCK.order_types.length ? MOCK.order_types : [
       { id:'dine_in', type_name:{ ar:'صالة', en:'Dine-in' }, allows_save:true, allows_finalize_later:true, allows_line_additions:true, allows_returns:true, workflow:'multi-step' },
       { id:'delivery', type_name:{ ar:'دليفري', en:'Delivery' }, allows_save:false, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' },
-      { id:'takeaway', type_name:{ ar:'تيك أواي', en:'Takeaway' }, allows_save:false, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' }
+      { id:'takeaway', type_name:{ ar:'تيك أواي', en:'Takeaway' }, allows_save:true, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' }
     ];
     const ORDER_TYPES = rawOrderTypes.map(type=>({
       id: type.id,
       icon: ORDER_TYPE_ICON_MAP[type.id] || '🧾',
       workflow: type.workflow || 'single-step',
-      allowsSave: type.allows_save !== false,
+      allowsSave: type.id === 'takeaway' ? true : type.allows_save !== false,
       allowsFinalizeLater: !!type.allows_finalize_later,
       allowsLineAdditions: !!type.allows_line_additions,
       allowsReturns: !!type.allows_returns,
@@ -430,6 +430,8 @@
           order_saved:'تم حفظ الطلب محليًا', order_finalized:'تم إنهاء الطلب', sync_complete:'تم تحديث المزامنة', payment_recorded:'تم تسجيل الدفعة',
           amount_required:'من فضلك أدخل قيمة صحيحة', payment_exceeds_limit:'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%', payment_deleted:'تم حذف الدفعة', payment_locked:'لا يمكن حذف الدفعة بعد إنهاء الطلب', indexeddb_missing:'IndexedDB غير متاحة في هذا المتصفح', order_conflict_refreshed:'تم تعديل هذا الطلب من جهاز آخر، تم تحديث النسخة الحالية.', order_conflict_blocked:'تم تحديث هذه الفاتورة من جهاز آخر. يرجى مراجعة التغييرات قبل الحفظ.',
           indexeddb_error:'تعذر حفظ البيانات محليًا', print_stub:'سيتم التكامل مع الطابعة لاحقًا',
+          line_missing_item:'لا يمكن حفظ السطر لأن الصنف غير معروف. يرجى حذف السطر وإعادة إضافته من القائمة.',
+          line_missing_kitchen:'يجب تحديد قسم المطبخ لكل صنف قبل الحفظ. يرجى تحديث الصنف ثم إعادة المحاولة.',
           discount_stub:'سيتم تفعيل الخصومات لاحقًا', notes_updated:'تم تحديث الملاحظات', add_note:'أدخل ملاحظة ترسل للمطبخ',
           set_qty:'أدخل الكمية الجديدة', line_actions:'سيتم فتح إجراءات السطر لاحقًا', line_modifiers_applied:'تم تحديث الإضافات والمنزوعات', confirm_clear:'هل تريد مسح الطلب الحالي؟',
           order_locked:'لا يمكن تعديل هذا الطلب بعد حفظه', line_locked:'لا يمكن تعديل هذا السطر بعد حفظه',
@@ -567,6 +569,8 @@
           order_saved:'Order stored locally', order_finalized:'Order finalized', sync_complete:'Sync completed', payment_recorded:'Payment recorded',
           amount_required:'Enter a valid amount', payment_exceeds_limit:'Payment exceeds allowed limit. Maximum: %max%', payment_deleted:'Payment deleted', payment_locked:'Cannot delete payment after order is finalized', indexeddb_missing:'IndexedDB is not available in this browser', order_conflict_refreshed:'This order was updated on another device. Your copy has been refreshed.', order_conflict_blocked:'This ticket has changed on another device. Please review the updates before saving.',
           indexeddb_error:'Failed to persist locally', print_stub:'Printer integration coming soon',
+          line_missing_item:'Cannot save a line without a linked menu item. Remove it and add the item again.',
+          line_missing_kitchen:'Each line must have a kitchen section before saving. Update the item configuration and retry.',
           discount_stub:'Discount workflow coming soon', notes_updated:'Notes updated', add_note:'Add a note for the kitchen',
           set_qty:'Enter the new quantity', line_actions:'Line actions coming soon', line_modifiers_applied:'Line modifiers updated', confirm_clear:'Clear the current order?',
           order_locked:'This order is locked after saving', line_locked:'This line can no longer be modified',
@@ -993,19 +997,28 @@
     }
 
     function createOrderLine(item, qty, overrides){
-      if(!item || item.id == null){
+      if(!item || item.id == null || item.id === ''){
+        console.error('[POS] Cannot create order line without an item id', item);
         throw new Error('[POS] Cannot create order line without an item id');
+      }
+      const itemId = String(item.id);
+      if(!itemId || itemId === 'null' || itemId === 'undefined'){
+        console.error('[POS] Invalid item id', item);
+        throw new Error('[POS] Invalid item id');
       }
       const quantity = qty || 1;
       const price = Number(item.price) || 0;
       const now = Date.now();
-      const itemId = String(item.id);
       const uniqueId = overrides?.id || `ln-${itemId}-${now.toString(36)}-${Math.random().toString(16).slice(2,6)}`;
-      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection;
+      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection ?? item.kitchen_section ?? item.kitchen_section_id;
       const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+      if(!kitchenSection || kitchenSection === 'null' || kitchenSection === 'undefined'){
+        console.warn('[POS] Invalid kitchenSection, defaulting to expo', { item, kitchenSource });
+      }
       const baseLine = {
         id: uniqueId,
         itemId,
+        item_id: itemId,
         name: item.name,
         description: item.description,
         price,
@@ -1018,6 +1031,8 @@
         status: overrides?.status || 'draft',
         stage: overrides?.stage || 'new',
         kitchenSection,
+        kitchenSectionId: kitchenSection,
+        kitchen_section_id: kitchenSection,
         locked: overrides?.locked || false,
         createdAt: overrides?.createdAt || now,
         updatedAt: overrides?.updatedAt || now
@@ -2526,6 +2541,13 @@
         totals.paid = round(paidAmount);
       }
       totals.total = totals.due;
+      console.log('[Mishkah][POS] normalizeRealtimeOrderHeader totals:', {
+        orderId: String(rawId),
+        rawSubtotal: raw.subtotal,
+        rawTotalDue: raw.totalDue,
+        rawTotal: raw.total,
+        computedTotals: totals
+      });
       const guests = Number(raw.guests ?? metadata.guests ?? 0) || 0;
       const versionValue = Number(raw.version ?? metadata.version ?? metadata.currentVersion ?? metadata.versionCurrent);
       const header = {
@@ -2644,7 +2666,7 @@
           paymentState = 'unpaid';
         }
       }
-      return {
+      const composedOrder = {
         ...header,
         totals,
         paymentState,
@@ -2653,6 +2675,21 @@
         dirty:false,
         isPersisted: header.isPersisted !== false
       };
+      console.log('[Mishkah][POS] composeRealtimeOrder before enrich:', {
+        orderId,
+        headerTotals: header.totals,
+        composedTotals: totals,
+        linesCount: lines.length,
+        firstLine: lines[0]
+      });
+      const enriched = enrichOrderWithMenu(composedOrder);
+      console.log('[Mishkah][POS] composeRealtimeOrder after enrich:', {
+        orderId,
+        totals: enriched.totals,
+        linesCount: enriched.lines?.length,
+        firstLine: enriched.lines?.[0]
+      });
+      return enriched;
     }
 
     function cloneOrderSnapshot(order){
@@ -4835,14 +4872,51 @@
         return { status:'error', reason:'stale-version' };
       }
       const now = Date.now();
-      const safeLines = (order.lines || []).map(line=>({
+      let missingItemLine = null;
+      let missingKitchenLine = null;
+      let safeLines = (order.lines || []).map(line=>({
         ...line,
         locked:true,
         status: line.status || 'draft',
         notes: Array.isArray(line.notes) ? line.notes : (line.notes ? [line.notes] : []),
         discount: normalizeDiscount(line.discount),
         updatedAt: now
-      }));
+      })).map(line=>{
+        const itemToken = line.itemId || line.item_id;
+        if(!itemToken && !missingItemLine){
+          missingItemLine = line;
+        }
+        const itemId = itemToken != null ? String(itemToken) : itemToken;
+        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id;
+        if(!kitchenSection && !missingKitchenLine){
+          missingKitchenLine = line;
+        }
+        kitchenSection = kitchenSection ? String(kitchenSection) : undefined;
+        console.log('[Mishkah][POS] Preparing line for save:', {
+          lineId: line.id,
+          itemToken,
+          itemId,
+          name: line.name,
+          kitchenSection,
+          hasName: !!line.name
+        });
+        return {
+          ...line,
+          itemId,
+          item_id: itemId,
+          kitchenSection: kitchenSection || 'expo',
+          kitchenSectionId: kitchenSection || 'expo',
+          kitchen_section_id: kitchenSection || 'expo'
+        };
+      });
+      if(missingItemLine){
+        UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف مرتبط', icon:'⚠️' });
+        return { status:'error', reason:'line-missing-item' };
+      }
+      if(missingKitchenLine){
+        UI.pushToast(ctx, { title:t.toast.line_missing_kitchen || 'لا يمكن حفظ سطر بدون قسم مطبخ', icon:'⚠️' });
+        return { status:'error', reason:'line-missing-kitchen' };
+      }
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
       const normalizedPayments = paymentSplit.map(entry=>({
@@ -4947,9 +5021,25 @@
       try{
         const persistableOrder = { ...orderPayload };
         delete persistableOrder.dirty;
+        console.log('[Mishkah][POS] Saving order to DB:', {
+          orderId: persistableOrder.id,
+          totals: persistableOrder.totals,
+          linesCount: persistableOrder.lines?.length,
+          firstLine: persistableOrder.lines?.[0],
+          subtotal: persistableOrder.subtotal,
+          totalDue: persistableOrder.totalDue
+        });
         let savedOrder = null;
         try {
           savedOrder = await posDB.saveOrder(persistableOrder);
+          console.log('[Mishkah][POS] Order saved to DB, returned data:', {
+            orderId: savedOrder?.id,
+            totals: savedOrder?.totals,
+            linesCount: savedOrder?.lines?.length,
+            firstLine: savedOrder?.lines?.[0],
+            subtotal: savedOrder?.subtotal,
+            totalDue: savedOrder?.totalDue
+          });
         } catch(error){
           if(error && (error.code === 'order-version-conflict' || error.code === 'VERSION_CONFLICT')){
             await refreshFromRemote(error.order || null, 'order_conflict_refreshed');
@@ -4973,10 +5063,22 @@
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
           ? mergePreferRemote(orderPayload, savedOrder)
           : orderPayload;
+        console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
+          orderId: remoteResolved.id,
+          totals: remoteResolved.totals,
+          linesCount: remoteResolved.lines?.length,
+          firstLine: remoteResolved.lines?.[0]
+        });
         const normalizedOrderForState = enrichOrderWithMenu({
           ...remoteResolved,
           allowAdditions,
           lockLineEdits: finalize ? true : (remoteResolved.lockLineEdits ?? order.lockLineEdits)
+        });
+        console.log('[Mishkah][POS] After enrichOrderWithMenu:', {
+          orderId: normalizedOrderForState.id,
+          totals: normalizedOrderForState.totals,
+          linesCount: normalizedOrderForState.lines?.length,
+          firstLine: normalizedOrderForState.lines?.[0]
         });
         const mergedTotals = normalizedOrderForState.totals && typeof normalizedOrderForState.totals === 'object'
           ? { ...normalizedOrderForState.totals }
@@ -4992,6 +5094,12 @@
         normalizedOrderForState.allowAdditions = allowAdditions;
         normalizedOrderForState.lockLineEdits = finalize ? true : (normalizedOrderForState.lockLineEdits !== undefined ? normalizedOrderForState.lockLineEdits : true);
         const syncedOrderForState = syncOrderVersionMetadata(normalizedOrderForState);
+        console.log('[Mishkah][POS] Final order for state:', {
+          orderId: syncedOrderForState.id,
+          totals: syncedOrderForState.totals,
+          linesCount: syncedOrderForState.lines?.length,
+          firstLine: syncedOrderForState.lines?.[0]
+        });
         const latestSnapshot = getRealtimeOrdersSnapshot();
         const latestOrders = latestSnapshot.active.map(order=> ({ ...order }));
         ctx.setState(s=>{
@@ -5755,8 +5863,12 @@
       const isDineIn = orderType === 'dine_in';
       const isFinalized = order.status === 'finalized' || order.status === 'closed';
       const deliveredStage = order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed';
-      // Only show "Save" button for dine-in orders. Takeaway and delivery should only have "Save & Finish"
-      const canShowSave = isDineIn && !isFinalized && !deliveredStage;
+      const paymentEntries = getActivePaymentEntries(order, db.data.payments);
+      const paymentSnapshot = summarizePayments(order.totals || {}, paymentEntries);
+      const outstanding = paymentSnapshot.remaining || 0;
+      const requiresFullPaymentBeforeFinish = !isTakeaway;
+      const finishDisabled = requiresFullPaymentBeforeFinish && outstanding > 0.0001;
+      const canShowSave = !isFinalized && !deliveredStage;
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
@@ -5776,8 +5888,17 @@
         primaryActions.push(saveButton);
       }
       if(canShowFinish){
+        const finishAttrs = {
+          gkey:'pos:order:save',
+          'data-save-mode': finishMode,
+          class: tw`min-w-[180px] flex items-center justify-center gap-2`
+        };
+        if(finishDisabled){
+          finishAttrs.disabled = 'disabled';
+          finishAttrs.title = t.ui.balance_due;
+        }
         primaryActions.push(UI.Button({
-          attrs:{ gkey:'pos:order:save', 'data-save-mode':finishMode, class: tw`min-w-[180px] flex items-center justify-center gap-2` },
+          attrs: finishAttrs,
           variant:'solid',
           size:'md'
         }, [D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [finishLabel])]));
@@ -6765,6 +6886,20 @@
       const order = db.data.order || {};
       const isOrderFinalized = order.status === 'finalized' || order.isPersisted;
       const currentPayments = Array.isArray(db.data.payments?.split) ? db.data.payments.split : [];
+      const totals = order.totals || {};
+      const paymentsEntries = getActivePaymentEntries(order, db.data.payments);
+      const paymentSnapshot = summarizePayments(totals, paymentsEntries);
+      const totalDue = paymentSnapshot.due;
+      const totalPaid = paymentSnapshot.paid;
+      const remaining = paymentSnapshot.remaining;
+      const remainingAmountSection = D.Containers.Div({ attrs:{ class: tw`p-4 rounded-[var(--radius)] bg-gradient-to-br from-[var(--accent)] to-[var(--accent-hover)] text-white space-y-1 shadow-lg` }}, [
+        D.Text.Span({ attrs:{ class: tw`text-sm opacity-90` }}, [t.ui.balance_due || 'المتبقي غير المسدد']),
+        D.Text.Strong({ attrs:{ class: tw`text-3xl font-bold block` }}, [formatCurrencyValue(db, remaining)]),
+        D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between text-xs opacity-80 pt-2 border-t border-white/20` }}, [
+          D.Text.Span({}, [`${t.ui.total || 'الإجمالي'}: ${formatCurrencyValue(db, totalDue)}`]),
+          D.Text.Span({}, [`${t.ui.paid || 'مدفوع'}: ${formatCurrencyValue(db, totalPaid)}`])
+        ])
+      ]);
       const paymentsListSection = currentPayments.length > 0
         ? D.Containers.Div({ attrs:{ class: tw`space-y-2` }}, [
             D.Text.Strong({ attrs:{ class: tw`text-sm` }}, [t.ui.recorded_payments || 'الدفعات المسجلة']),
@@ -6800,13 +6935,14 @@
           UI.Button({ attrs:{ gkey:'pos:payments:close' }, variant:'ghost', size:'md' }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['✕'])])
         ]),
         content: D.Containers.Div({ attrs:{ class: tw`space-y-3` }}, [
+          remainingAmountSection,
           paymentsListSection,
           UI.ChipGroup({
-            attrs:{ class: tw`text-base sm:text-lg` },
+            attrs:{ class: tw`text-base sm:text-lg border-2 border-[var(--accent)]/20 rounded-lg p-2` },
             items: methods.map(method=>({
               id: method.id,
               label: `${method.icon} ${localize(method.label, db.env.lang)}`,
-              attrs:{ gkey:'pos:payments:method', 'data-method-id':method.id }
+              attrs:{ gkey:'pos:payments:method', 'data-method-id':method.id, class: tw`ring-2 ring-transparent data-[active=true]:ring-[var(--accent)] data-[active=true]:ring-offset-2 data-[active=true]:scale-105 transition-all` }
             })),
             activeId: db.data.payments.activeMethod
           }),
