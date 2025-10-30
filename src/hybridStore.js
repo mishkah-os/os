@@ -32,6 +32,46 @@ export default class HybridStore extends ModuleStore {
     this.persistedTables = normalizePersistedTables(options.persistedTables, this.tables);
     this.tableCache = new Map();
     this.cacheHits = 0;
+
+    this.bootstrapPersistedTables();
+  }
+
+  bootstrapPersistedTables() {
+    if (!this.persistedTables.size) {
+      return;
+    }
+    const context = { branchId: this.branchId, moduleId: this.moduleId };
+    const now = Date.now();
+    for (const tableName of this.persistedTables) {
+      const persisted = loadSqlTable(tableName, context);
+      if (Array.isArray(persisted) && persisted.length) {
+        const normalized = [];
+        for (const record of persisted) {
+          const clone = deepClone(record);
+          this.initializeRecordVersion(tableName, clone);
+          normalized.push(clone);
+        }
+        this.data[tableName] = normalized;
+        this.tableCache.set(tableName, {
+          expiresAt: now + this.cacheTtlMs,
+          size: normalized.length,
+          loadedAt: now
+        });
+        continue;
+      }
+
+      const current = Array.isArray(this.data?.[tableName]) ? this.data[tableName].map((entry) => deepClone(entry)) : [];
+      if (!current.length) {
+        continue;
+      }
+
+      replaceSqlTable(tableName, current, context);
+      this.tableCache.set(tableName, {
+        expiresAt: now + this.cacheTtlMs,
+        size: current.length,
+        loadedAt: now
+      });
+    }
   }
 
   createTableBackup(tableName) {
@@ -177,6 +217,19 @@ export default class HybridStore extends ModuleStore {
   }
 
   clearTables(tableNames = []) {
+    if (Array.isArray(tableNames) && tableNames.length) {
+      const refreshTargets = new Set();
+      for (const entry of tableNames) {
+        if (entry === undefined || entry === null) continue;
+        const name = String(entry).trim();
+        if (!name || refreshTargets.has(name)) continue;
+        refreshTargets.add(name);
+        if (!this.tables.includes(name)) continue;
+        if (this.persistedTables.has(name)) {
+          this.refreshTableIfNeeded(name, { force: true });
+        }
+      }
+    }
     const result = super.clearTables(tableNames);
     if (result && Array.isArray(result.cleared)) {
       for (const entry of result.cleared) {
