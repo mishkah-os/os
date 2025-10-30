@@ -993,13 +993,19 @@
     }
 
     function createOrderLine(item, qty, overrides){
+      if(!item || item.id == null){
+        throw new Error('[POS] Cannot create order line without an item id');
+      }
       const quantity = qty || 1;
       const price = Number(item.price) || 0;
       const now = Date.now();
-      const uniqueId = overrides?.id || `ln-${item.id}-${now.toString(36)}-${Math.random().toString(16).slice(2,6)}`;
+      const itemId = String(item.id);
+      const uniqueId = overrides?.id || `ln-${itemId}-${now.toString(36)}-${Math.random().toString(16).slice(2,6)}`;
+      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection;
+      const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
       const baseLine = {
         id: uniqueId,
-        itemId: item.id,
+        itemId,
         name: item.name,
         description: item.description,
         price,
@@ -1011,7 +1017,7 @@
         discount: normalizeDiscount(overrides?.discount),
         status: overrides?.status || 'draft',
         stage: overrides?.stage || 'new',
-        kitchenSection: overrides?.kitchenSection || item.kitchenSection || null,
+        kitchenSection,
         locked: overrides?.locked || false,
         createdAt: overrides?.createdAt || now,
         updatedAt: overrides?.updatedAt || now
@@ -1456,23 +1462,55 @@
       }
 
       function hydrateLine(record){
-      return {
-        id: record.id,
-        itemId: record.itemId,
-        name: record.name,
-        description: record.description,
-        qty: record.qty,
-        price: record.price,
-        total: record.total,
-        status: record.status,
-        stage: record.stage,
-        kitchenSection: record.kitchenSection,
-        locked: !!record.locked,
-        notes: Array.isArray(record.notes) ? record.notes : [],
-        discount: normalizeDiscount(record.discount),
-        createdAt: record.createdAt,
-        updatedAt: record.updatedAt
-      };
+        if(!record) return null;
+        const metadata = ensurePlainObject(record.metadata || record.meta);
+        const rawItemId = record.itemId
+          ?? record.item_id
+          ?? metadata.itemId
+          ?? metadata.item_id
+          ?? metadata.menuItemId
+          ?? metadata.productId
+          ?? metadata.itemCode;
+        if(rawItemId == null){
+          console.warn('[Mishkah][POS] Ignoring persisted order line without item id', record);
+          return null;
+        }
+        const itemId = String(rawItemId);
+        const menuItem = menuIndex?.get(itemId);
+        const qty = Math.max(1, Number(record.qty) || 1);
+        const basePrice = Number(record.basePrice != null ? record.basePrice : record.price != null ? record.price : menuItem?.price || 0);
+        const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
+        const kitchenSource = record.kitchenSection
+          ?? record.kitchenSectionId
+          ?? record.kitchen_section_id
+          ?? metadata.kitchenSectionId
+          ?? metadata.sectionId
+          ?? metadata.stationId
+          ?? menuItem?.kitchenSection;
+        const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+        const baseLine = {
+          id: record.id,
+          itemId,
+          name: menuItem ? menuItem.name : cloneName(record.name),
+          description: menuItem ? menuItem.description : cloneName(record.description),
+          qty,
+          price: round(basePrice),
+          basePrice: round(basePrice),
+          modifiers,
+          status: record.status,
+          stage: record.stage,
+          kitchenSection,
+          locked: !!record.locked,
+          notes: Array.isArray(record.notes) ? record.notes : [],
+          discount: normalizeDiscount(record.discount),
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt
+        };
+        const priced = applyLinePricing(baseLine);
+        if(record.total != null && Number.isFinite(Number(record.total))){
+          priced.total = round(record.total);
+        }
+        return priced;
       }
 
       async function hydrateOrder(header){
@@ -1484,7 +1522,7 @@
         ]);
         return {
           ...header,
-          lines: linesRaw.map(hydrateLine),
+          lines: linesRaw.map(hydrateLine).filter(Boolean),
           notes: notesRaw.map(note=>({
             id: note.id,
             message: note.message,
@@ -2274,6 +2312,18 @@
       normalized.id = String(id);
       const orderId = row.orderId ?? row.order_id ?? row.id;
       if(orderId != null) normalized.orderId = String(orderId);
+      if(normalized.shiftId == null && (row.shiftId != null || row.shift_id != null)){
+        normalized.shiftId = String(row.shiftId ?? row.shift_id);
+      }
+      if(normalized.posId == null && (row.posId != null || row.pos_id != null)){
+        normalized.posId = String(row.posId ?? row.pos_id);
+      }
+      if(normalized.posLabel == null && row.pos_label != null){
+        normalized.posLabel = row.pos_label;
+      }
+      if(normalized.posNumber == null && row.pos_number != null){
+        normalized.posNumber = row.pos_number;
+      }
       if(normalized.metadata == null && row.meta !== undefined){
         normalized.metadata = ensurePlainObject(row.meta);
       }
@@ -2303,6 +2353,22 @@
       normalized.orderId = orderId != null ? String(orderId) : undefined;
       if(normalized.metadata == null && row.meta !== undefined){
         normalized.metadata = ensurePlainObject(row.meta);
+      }
+      const metadata = ensurePlainObject(normalized.metadata);
+      const rawItemId = row.itemId ?? row.item_id ?? metadata.itemId ?? metadata.item_id ?? metadata.menuItemId ?? metadata.productId ?? metadata.itemCode ?? null;
+      if(rawItemId == null){
+        console.warn('[Mishkah][POS] Dropping realtime order line without item id', row);
+        return null;
+      }
+      const itemId = String(rawItemId);
+      normalized.itemId = itemId;
+      normalized.item_id = itemId;
+      const sectionSource = row.kitchenSection ?? row.kitchen_section ?? row.kitchenSectionId ?? row.kitchen_section_id ?? metadata.kitchenSectionId ?? metadata.sectionId ?? metadata.stationId;
+      const kitchenSection = sectionSource != null && sectionSource !== '' ? String(sectionSource) : 'expo';
+      normalized.kitchenSectionId = kitchenSection;
+      normalized.kitchen_section_id = kitchenSection;
+      if(normalized.status == null && (row.statusId != null || row.status_id != null)){
+        normalized.status = row.statusId ?? row.status_id;
       }
       return normalized;
     }
@@ -3804,11 +3870,16 @@
 
     function enrichOrderLineWithMenu(line){
       if(!line || typeof line !== 'object') return line;
-      const itemId = line.itemId ?? line.item_id ?? null;
+      const itemIdRaw = line.itemId ?? line.item_id ?? null;
+      const itemId = itemIdRaw != null ? String(itemIdRaw) : null;
       const menuItem = itemId != null ? menuIndex.get(String(itemId)) : null;
       const name = menuItem ? menuItem.name : cloneName(line.name || itemId || '');
       const description = menuItem ? menuItem.description : cloneName(line.description || '');
-      const kitchenSection = line.kitchenSection ?? line.kitchen_section_id ?? menuItem?.kitchenSection ?? null;
+      const kitchenSection = line.kitchenSection
+        ?? line.kitchen_section_id
+        ?? line.kitchenSectionId
+        ?? menuItem?.kitchenSection
+        ?? 'expo';
       return {
         ...line,
         itemId,
@@ -3854,23 +3925,46 @@
 
     function normalizeOrderLine(raw, context){
       if(!raw) return null;
-      const itemId = raw.item_id || raw.itemId;
-      const menuItem = menuIndex.get(String(itemId));
+      const metadata = ensurePlainObject(raw.metadata || raw.meta);
+      const rawItemId = raw.item_id || raw.itemId || metadata.itemId || metadata.item_id || metadata.menuItemId || metadata.productId || metadata.itemCode;
+      if(rawItemId == null){
+        console.warn('[POS] Skipping line without item id', raw);
+        return null;
+      }
+      const itemId = String(rawItemId);
+      const menuItem = menuIndex?.get(String(itemId));
       const qty = Math.max(1, Number(raw.qty) || 1);
-      const price = raw.price != null ? Number(raw.price) : menuItem?.price || 0;
+      const basePrice = raw.base_price != null ? Number(raw.base_price)
+        : raw.basePrice != null ? Number(raw.basePrice)
+          : raw.price != null ? Number(raw.price)
+            : menuItem?.price || 0;
+      const price = raw.price != null ? Number(raw.price) : basePrice;
       const total = raw.total != null ? Number(raw.total) : round(price * qty);
       const stageId = raw.stage_id || raw.stageId || context.stageId || 'new';
       const statusId = raw.status_id || raw.statusId || 'draft';
       const notes = Array.isArray(raw.notes) ? raw.notes.map(note=> normalizeNote(note, context.actorId)).filter(Boolean) : [];
       const discount = normalizeDiscount(raw.discount);
-      const kitchenSection = raw.kitchen_section_id || raw.kitchenSectionId || menuItem?.kitchenSection || context.kitchenSection || null;
-      return {
+      const kitchenSectionSource = (
+        raw.kitchen_section_id
+        || raw.kitchenSectionId
+        || metadata.kitchenSectionId
+        || metadata.sectionId
+        || metadata.stationId
+        || menuItem?.kitchenSection
+        || context.kitchenSection
+        || 'expo'
+      );
+      const kitchenSection = kitchenSectionSource != null && kitchenSectionSource !== ''
+        ? String(kitchenSectionSource)
+        : 'expo';
+      const baseLine = {
         id: raw.id || `ln-${context.orderId}-${itemId || Math.random().toString(16).slice(2,8)}`,
         itemId,
         name: menuItem ? menuItem.name : cloneName(raw.name),
         description: menuItem ? menuItem.description : cloneName(raw.description),
         qty,
-        price,
+        price: round(price),
+        basePrice: round(basePrice),
         total: round(total),
         status: statusId,
         stage: stageId,
@@ -3881,6 +3975,53 @@
         createdAt: toMillis(raw.created_at || raw.createdAt, context.createdAt),
         updatedAt: toMillis(raw.updated_at || raw.updatedAt, context.updatedAt)
       };
+      const modifiersSource = Array.isArray(raw.modifiers)
+        ? raw.modifiers
+        : Array.isArray(metadata.modifiers)
+          ? metadata.modifiers
+          : [];
+      if(modifiersSource.length){
+        baseLine.modifiers = modifiersSource.map(entry=> ({
+          ...entry,
+          priceChange: round(Number(entry.priceChange ?? entry.price_change ?? entry.amount ?? 0) || 0)
+        }));
+      } else {
+        baseLine.modifiers = [];
+      }
+      const priced = applyLinePricing(baseLine);
+      if(raw.total != null && Number.isFinite(Number(raw.total))){
+        priced.total = round(raw.total);
+      }
+      return priced;
+    }
+
+    function aggregateLineReturns(order){
+      const totals = new Map();
+      const returns = Array.isArray(order?.returns) ? order.returns : [];
+      returns.forEach(entry=>{
+        if(!entry) return;
+        const lines = Array.isArray(entry.lines) ? entry.lines : [];
+        lines.forEach(line=>{
+          const lineId = line.lineId || line.id;
+          if(!lineId) return;
+          const qty = Number(line.quantity ?? line.qty ?? 0) || 0;
+          if(qty <= 0) return;
+          totals.set(lineId, (totals.get(lineId) || 0) + qty);
+        });
+      });
+      return totals;
+    }
+
+    function calculateReturnOptions(order){
+      const lines = Array.isArray(order?.lines) ? order.lines : [];
+      const totals = aggregateLineReturns(order);
+      return lines
+        .map(line=>{
+          const returned = totals.get(line.id) || 0;
+          const maxQty = Math.max(0, round((Number(line.qty) || 0) - returned));
+          return { line, remaining:maxQty, returned };
+        })
+        .filter(entry=> entry.remaining > 0);
     }
 
     function normalizeMockOrder(raw){
@@ -3909,6 +4050,20 @@
             amount: round(Number(entry.amount) || 0)
           }))
         : [];
+      const returns = Array.isArray(raw.returns)
+        ? raw.returns.map(ret=> ({
+            id: ret.id || `ret-${id}-${Math.random().toString(16).slice(2,8)}`,
+            orderId: id,
+            shiftId: ret.shiftId || ret.shift_id || header.shift_id || header.shiftId || null,
+            createdAt: toMillis(ret.createdAt || ret.created_at || updatedAt, updatedAt),
+            total: round(Number(ret.total) || 0),
+            lines: Array.isArray(ret.lines) ? ret.lines.map(line=> ({
+              lineId: line.lineId || line.id,
+              quantity: Number(line.quantity ?? line.qty ?? 0) || 0,
+              unitPrice: Number(line.unitPrice ?? line.unit_price ?? 0) || 0
+            })) : []
+          }))
+        : [];
       const events = Array.isArray(raw.events) ? raw.events.map(evt=>({
         id: evt.id || `${id}::evt::${toMillis(evt.at)}`,
         stage: evt.stage_id || evt.stageId || stageId,
@@ -3933,6 +4088,7 @@
         notes,
         discount,
         payments,
+        returns,
         events,
         createdAt,
         updatedAt,
@@ -4388,10 +4544,11 @@
           current: activeShift,
           history: shiftHistoryFromDb,
           config:{ pinLength: SHIFT_PIN_LENGTH, openingFloat: SHIFT_OPEN_FLOAT_DEFAULT }
-        }
+        },
+        returnSequence:0
       },
       ui:{
-        modals:{ tables:false, payments:false, reports:false, print:false, reservations:false, orders:false, modifiers:false, jobStatus:false },
+        modals:{ tables:false, payments:false, print:false, reservations:false, orders:false, modifiers:false, jobStatus:false, lineDiscount:false, returns:false },
         modalSizes: savedModalSizes,
         drawers:{},
         settings:{ open:false, activeTheme: initialTheme },
@@ -4404,6 +4561,8 @@
         customer:{ open:false, mode:'search', search:'', keypad:'', selectedCustomerId:null, selectedAddressId:null, form:createEmptyCustomerForm() },
         orderNav:{ showPad:false, value:'' },
         lineModifiers:{ lineId:null, addOns:[], removals:[] },
+        lineDiscount:null,
+        returnsDraft:null,
         pendingAction:null,
         jobStatus:null
       }
@@ -5380,6 +5539,14 @@
       const paymentState = db.data.orderPaymentStates?.find(state=> state.id === paymentStateId);
       const paymentStateLabel = paymentState ? localize(paymentState.name, db.env.lang) : paymentStateId;
       const paymentsLocked = isPaymentsLocked(db.data.order);
+      const returnOptions = db.data.order?.isPersisted
+        ? calculateReturnOptions(db.data.order)
+        : [];
+      const allowReturns = getOrderTypeConfig(db.data.order?.type || 'dine_in').allowsReturns !== false;
+      const showReturnButton = allowReturns
+        && db.data.order?.isPersisted
+        && (db.data.order?.fulfillmentStage && db.data.order.fulfillmentStage !== 'new')
+        && returnOptions.length > 0;
       const balanceSummary = remaining > 0 || change > 0
         ? D.Containers.Div({ attrs:{ class: tw`space-y-2 rounded-[var(--radius)] bg-[color-mix(in oklab,var(--surface-2) 92%, transparent)] px-3 py-2 text-sm` }}, [
             remaining > 0 ? UI.HStack({ attrs:{ class: tw`${token('split')} font-semibold text-[var(--accent-foreground)]` }}, [
@@ -5428,7 +5595,13 @@
           UI.Button({ attrs:{ gkey:'pos:payments:open', class: tw`w-full flex items-center justify-center gap-2` }, variant:'soft', size:'sm' }, [
             D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['💳']),
             D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [t.ui.open_payments])
-          ])
+          ]),
+          showReturnButton
+            ? UI.Button({ attrs:{ gkey:'pos:returns:open', class: tw`w-full flex items-center justify-center gap-2` }, variant:'ghost', size:'sm' }, [
+                D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['↩️']),
+                D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [t.ui.returns || 'المرتجعات'])
+              ])
+            : null
         ].filter(Boolean))
       });
     }
@@ -5575,9 +5748,6 @@
 
     function FooterBar(db){
       const t = getTexts(db);
-      const reports = computeRealtimeReports(db);
-      const salesToday = new Intl.NumberFormat(getLocale(db)).format(reports.salesToday || 0);
-      const currencyLabel = getCurrencySymbol(db);
       const order = db.data.order || {};
       const orderType = order.type || 'dine_in';
       const isTakeaway = orderType === 'takeaway';
@@ -5592,13 +5762,6 @@
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
       const showPrintButton = !isTakeaway || isFinalized;
       const saveLabel = t.ui.save_order;
-      const reportsSummary = D.Containers.Div({ attrs:{ class: tw`flex flex-col items-end gap-1 text-xs text-[var(--muted-foreground)]` }}, [
-        D.Text.Span({ attrs:{ class: tw`text-sm font-semibold text-[var(--foreground)]` }}, [`${t.ui.sales_today}: ${salesToday} ${currencyLabel}`]),
-        D.Containers.Div({ attrs:{ class: tw`flex items-center gap-2` }}, [
-          D.Text.Span({}, [`${t.ui.orders_count}: ${reports.ordersCount || 0}`]),
-          UI.Button({ attrs:{ gkey:'pos:reports:toggle' }, variant:'ghost', size:'sm' }, [t.ui.open_reports])
-        ])
-      ]);
       const primaryActions = [];
       primaryActions.push(UI.Button({ attrs:{ gkey:'pos:order:new', class: tw`min-w-[120px] flex items-center justify-center gap-2` }, variant:'ghost', size:'md' }, [
         D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['🆕']),
@@ -5630,10 +5793,7 @@
           statusBadge(db, db.data.status.kds.state, t.ui.kds),
           statusBadge(db, db.data.status.indexeddb.state, t.ui.indexeddb)
         ],
-        right:[
-          reportsSummary,
-          ...primaryActions
-        ]
+        right: primaryActions
       });
     }
 
@@ -6714,6 +6874,179 @@
       });
     }
 
+    function LineDiscountModal(db){
+      const t = getTexts(db);
+      if(!db.ui.modals.lineDiscount) return null;
+      const draft = db.ui.lineDiscount || {};
+      const lineId = draft.lineId;
+      const order = db.data.order || {};
+      const line = (order.lines || []).find(entry=> entry.id === lineId);
+      if(!line){
+        return UI.Modal({
+          open:true,
+          size:'sm',
+          title: t.ui.discount_action,
+          description: t.toast.order_nav_not_found,
+          closeGkey:'pos:line-discount:close',
+          actions:[UI.Button({ attrs:{ gkey:'pos:line-discount:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])]
+        });
+      }
+      const lang = db.env.lang;
+      const unitPrice = getLineUnitPrice(line);
+      const maxAmount = draft.baseAmount != null ? Number(draft.baseAmount) : Math.max(0, round(unitPrice * (Number(line.qty) || 0)));
+      const discountInfo = normalizeDiscount(line.discount);
+      const type = draft.type || discountInfo?.type || 'amount';
+      const value = draft.value ?? (discountInfo ? String(discountInfo.value) : '');
+      const hint = type === 'percent'
+        ? (t.ui.discount_percent_hint || 'أدخل النسبة المئوية')
+        : `${t.ui.discount_amount_hint || 'أدخل قيمة الخصم'} – ≤ ${formatCurrencyValue(db, maxAmount)}`;
+      const summaryRows = D.Containers.Div({ attrs:{ class: tw`space-y-1 text-xs ${token('muted')}` }}, [
+        D.Text.Span({}, [`${localize(line.name, lang)} × ${line.qty}`]),
+        D.Text.Span({}, [`${t.ui.total}: ${formatCurrencyValue(db, line.total)}`])
+      ]);
+      return UI.Modal({
+        open:true,
+        size:'sm',
+        title: t.ui.discount_action,
+        description: localize(line.name, lang),
+        closeGkey:'pos:line-discount:close',
+        content: D.Containers.Div({ attrs:{ class: tw`space-y-4` }}, [
+          summaryRows,
+          UI.Segmented({
+            items:[
+              { id:'amount', label: t.ui.discount_amount || 'مبلغ', attrs:{ gkey:'pos:line-discount:type', 'data-type':'amount' } },
+              { id:'percent', label: t.ui.discount_percent || 'نسبة %', attrs:{ gkey:'pos:line-discount:type', 'data-type':'percent' } }
+            ],
+            activeId: type
+          }),
+          D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')}` }}, [hint]),
+          UI.NumpadDecimal({
+            attrs:{ class: tw`w-full` },
+            value: value,
+            placeholder: type === 'percent' ? '0%' : formatCurrencyValue(db, 0),
+            gkey:'pos:line-discount:input',
+            confirmLabel: t.ui.discount_action,
+            confirmAttrs:{ gkey:'pos:line-discount:apply', variant:'solid', size:'md', class: tw`w-full` }
+          })
+        ]),
+        actions:[
+          UI.Button({ attrs:{ gkey:'pos:line-discount:clear', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.remove_discount || 'إزالة الخصم']),
+          UI.Button({ attrs:{ gkey:'pos:line-discount:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])
+        ]
+      });
+    }
+
+    function ReturnsModal(db){
+      const t = getTexts(db);
+      if(!db.ui.modals.returns) return null;
+      const order = db.data.order || {};
+      const draft = db.ui.returnsDraft || { options: calculateReturnOptions(order), selections:{} };
+      const lang = db.env.lang;
+      const options = Array.isArray(draft.options) && draft.options.length ? draft.options : calculateReturnOptions(order);
+      const selections = draft.selections || {};
+      const previousReturns = Array.isArray(order.returns) ? order.returns : [];
+      if(!options.length){
+        return UI.Modal({
+          open:true,
+          size:'md',
+          title:t.ui.returns || 'المرتجعات',
+          description:t.ui.orders_no_results,
+          closeGkey:'pos:returns:close',
+          content: UI.EmptyState({ icon:'↩️', title:t.ui.returns || 'المرتجعات', description:t.ui.orders_no_results }),
+          actions:[UI.Button({ attrs:{ gkey:'pos:returns:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])]
+        });
+      }
+      const selectedLines = options.filter(opt=> (selections?.[opt.line.id] || 0) > 0);
+      const totalAmount = selectedLines.reduce((sum, opt)=>{
+        const qty = selections?.[opt.line.id] || 0;
+        if(qty <= 0) return sum;
+        const unit = getLineUnitPrice(opt.line);
+        return sum + qty * unit;
+      }, 0);
+      const hasSelection = totalAmount > 0;
+      const optionItems = options.map(opt=>{
+        const line = opt.line;
+        const qtySelected = selections?.[line.id] || 0;
+        const checked = qtySelected > 0;
+        const unitPrice = getLineUnitPrice(line);
+        return UI.Card({
+          variant:'card/soft-2',
+          content: D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, [
+            D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between gap-2` }}, [
+              D.Forms.Label({ attrs:{ class: tw`flex items-center gap-2 font-semibold` }}, [
+                D.Inputs.Input({ attrs:{ type:'checkbox', checked: checked ? 'checked' : undefined, 'data-line-id':line.id, gkey:'pos:returns:toggle' } }),
+                D.Text.Span({}, [localize(line.name, lang)])
+              ]),
+              D.Text.Span({ attrs:{ class: tw`text-sm ${token('muted')}` }}, [`${formatCurrencyValue(db, unitPrice)} × ${line.qty}`])
+            ]),
+            D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')}` }}, [
+              `${t.ui.orders_line_count || 'الكمية'}: ${line.qty} • ${t.ui.returns || 'المرتجعات'}: ${opt.returned} • ${t.ui.balance_due || 'المتبقي'}: ${opt.remaining}`
+            ]),
+            checked
+              ? UI.HStack({ attrs:{ class: tw`items-center justify-between gap-3` }}, [
+                  UI.HStack({ attrs:{ class: tw`items-center gap-2` }}, [
+                    UI.Button({
+                      attrs:{ gkey:'pos:returns:qty:dec', 'data-line-id':line.id, disabled: qtySelected <= 1 ? 'disabled' : undefined },
+                      variant:'ghost',
+                      size:'sm'
+                    }, ['−']),
+                    D.Text.Strong({}, [String(qtySelected)]),
+                    UI.Button({
+                      attrs:{ gkey:'pos:returns:qty:inc', 'data-line-id':line.id, disabled: qtySelected >= opt.remaining ? 'disabled' : undefined },
+                      variant:'ghost',
+                      size:'sm'
+                    }, ['＋'])
+                  ]),
+                  D.Text.Strong({}, [formatCurrencyValue(db, qtySelected * unitPrice)])
+                ])
+              : null
+          ].filter(Boolean))
+        });
+      });
+      const previousReturnsList = previousReturns.length
+        ? UI.Card({
+            variant:'card/soft-1',
+            content: D.Containers.Div({ attrs:{ class: tw`space-y-2` }}, previousReturns.map(ret=>{
+              const lines = Array.isArray(ret.lines) ? ret.lines : [];
+              const amount = lines.reduce((sum, entry)=>{
+                const baseLine = (order.lines || []).find(line=> line.id === (entry.lineId || entry.id));
+                const unit = baseLine ? getLineUnitPrice(baseLine) : 0;
+                return sum + unit * (Number(entry.quantity) || 0);
+              }, 0);
+              return UI.ListItem({
+                leading:'↩️',
+                content:[
+                  D.Text.Strong({}, [ret.id || 'RET']),
+                  D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')}` }}, [formatDateTime(ret.createdAt || ret.savedAt || Date.now(), lang)])
+                ],
+                trailing:D.Text.Span({}, [formatCurrencyValue(db, amount)])
+              });
+            }))
+          })
+        : null;
+      return UI.Modal({
+        open:true,
+        size:'lg',
+        title:t.ui.returns || 'المرتجعات',
+        description: order.id ? `${t.ui.order_id || 'طلب'} ${order.id}` : '',
+        closeGkey:'pos:returns:close',
+        content: D.Containers.Div({ attrs:{ class: tw`space-y-4` }}, [
+          D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')}` }}, [t.ui.orders_line_count || 'اختر الأصناف لإرجاعها']),
+          D.Containers.Div({ attrs:{ class: tw`space-y-2` }}, optionItems),
+          UI.Divider(),
+          UI.HStack({ attrs:{ class: tw`${token('split')} text-sm font-semibold` }}, [
+            D.Text.Span({}, [t.ui.total || 'الإجمالي']),
+            UI.PriceText({ amount: round(totalAmount), currency:getCurrency(db), locale:getLocale(db) })
+          ]),
+          previousReturnsList
+        ].filter(Boolean)),
+        actions:[
+          UI.Button({ attrs:{ gkey:'pos:returns:save', class: tw`w-full`, disabled: hasSelection ? undefined : 'disabled' }, variant:'solid', size:'sm' }, [t.ui.save || 'حفظ']),
+          UI.Button({ attrs:{ gkey:'pos:returns:close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close])
+        ]
+      });
+    }
+
     function LineModifiersModal(db){
       const t = getTexts(db);
       if(!db.ui.modals.modifiers) return null;
@@ -6796,27 +7129,6 @@
           UI.Button({ attrs:{ gkey:'pos:order:line:modifiers.close', class: tw`w-full` }, variant:'ghost', size:'sm' }, [t.ui.close]),
           line ? UI.Button({ attrs:{ gkey:'pos:order:line:modifiers.apply', 'data-line-id':lineId, class: tw`w-full` }, variant:'solid', size:'sm' }, [t.ui.line_modifiers_apply]) : null
         ].filter(Boolean)
-      });
-    }
-
-    function ReportsDrawer(db){
-      const t = getTexts(db);
-      if(!db.ui.modals.reports) return null;
-      const reports = computeRealtimeReports(db);
-      const topItem = reports.topItemId ? (db.data.menu.items || []).find(it=> String(it.id) === String(reports.topItemId)) : null;
-      return UI.Drawer({
-        open:true,
-        side:'start',
-        header: D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between` }}, [
-          D.Text.Strong({}, [t.ui.reports]),
-          UI.Button({ attrs:{ gkey:'pos:reports:toggle' }, variant:'ghost', size:'sm' }, ['×'])
-        ]),
-        content: D.Containers.Div({ attrs:{ class: tw`space-y-3` }}, [
-          UI.StatCard({ title: t.ui.sales_today, value: `${new Intl.NumberFormat(getLocale(db)).format(reports.salesToday)} ${getCurrencySymbol(db)}` }),
-          UI.StatCard({ title: t.ui.orders_count, value: String(reports.ordersCount) }),
-          UI.StatCard({ title: t.ui.avg_ticket, value: `${new Intl.NumberFormat(getLocale(db)).format(reports.avgTicket)} ${getCurrencySymbol(db)}` }),
-          topItem ? UI.StatCard({ title: t.ui.top_selling, value: localize(topItem.name, db.env.lang) }) : null
-        ].filter(Boolean))
       });
     }
 
@@ -7358,9 +7670,10 @@
           ReservationsModal(db),
           PrintModal(db),
           LineModifiersModal(db),
+          LineDiscountModal(db),
+          ReturnsModal(db),
           DiscountOrderModal(db),
           PaymentsSheet(db),
-          ReportsDrawer(db),
           OrdersQueueModal(db),
           OrdersJobStatusModal(db),
           db.ui?.toasts ? UI.ToastHost({ toasts: db.ui.toasts }) : null
@@ -7630,7 +7943,10 @@
           const itemId = card.getAttribute('data-item-id');
           const state = ctx.getState();
           const item = (state.data.menu.items || []).find(it=> String(it.id) === String(itemId));
-          if(!item) return;
+          if(!item || item.id == null){
+            UI.pushToast(ctx, { title:getTexts(state).toast.menu_load_error_short, icon:'⚠️' });
+            return;
+          }
           const t = getTexts(state);
           ctx.setState(s=>{
             const data = s.data || {};
@@ -7949,51 +8265,21 @@
           }
           const unitPrice = getLineUnitPrice(line);
           const baseAmount = Math.max(0, round(unitPrice * (Number(line.qty) || 0)));
-          const allowedRate = Number(state.data.user?.allowedDiscountRate);
           const currentDiscount = normalizeDiscount(line.discount);
-          const defaultValue = currentDiscount
-            ? currentDiscount.type === 'percent'
-              ? `${currentDiscount.value}%`
-              : String(currentDiscount.value)
-            : '';
-          const input = window.prompt(t.toast.enter_line_discount, defaultValue);
-          if(input == null) return;
-          const { discount, error, limit } = parseDiscountInput(input, baseAmount, allowedRate);
-          if(error === 'invalid'){
-            UI.pushToast(ctx, { title:t.toast.discount_invalid, icon:'⚠️' });
-            return;
-          }
-          if(error === 'limit'){
-            const message = t.toast.discount_limit.replace('%limit%', String(Math.round((limit + Number.EPSILON) * 100) / 100));
-            UI.pushToast(ctx, { title:message, icon:'⚠️' });
-            return;
-          }
-          const now = Date.now();
-          ctx.setState(s=>{
-            const data = s.data || {};
-            const nextOrder = data.order || {};
-            const lines = (nextOrder.lines || []).map(item=>{
-              if(item.id !== lineId) return item;
-              return updateLineWithPricing(item, { discount: normalizeDiscount(discount), updatedAt: now });
-            });
-            const totals = calculateTotals(lines, data.settings || {}, nextOrder.type, { orderDiscount: nextOrder.discount });
-            const paymentEntries = getActivePaymentEntries({ ...nextOrder, lines, totals }, data.payments);
-            const paymentSnapshot = summarizePayments(totals, paymentEntries);
-            return {
-              ...s,
-              data:{
-                ...data,
-                order:{
-                  ...nextOrder,
-                  lines,
-                  totals,
-                  paymentState: paymentSnapshot.state,
-                  updatedAt: now
-                }
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              modals:{ ...(s.ui?.modals || {}), lineDiscount:true },
+              lineDiscount:{
+                lineId,
+                type: currentDiscount?.type || 'amount',
+                value: currentDiscount ? String(currentDiscount.value) : '',
+                baseAmount,
+                allowedRate: Number(state.data.user?.allowedDiscountRate)
               }
-            };
-          });
-          UI.pushToast(ctx, { title: discount ? t.toast.discount_applied : t.toast.discount_removed, icon: discount ? '✅' : '♻️' });
+            }
+          }));
         }
       },
       'pos.order.line.modifiers.toggle':{
@@ -8168,6 +8454,7 @@
                   posLabel: data.pos?.label || POS_INFO.label,
                   posNumber: Number.isFinite(Number(data.pos?.number)) ? Number(data.pos.number) : POS_INFO.number,
                   payments:[],
+                  returns:[],
                   customerId:null,
                   customerAddressId:null,
                   customerName:'',
@@ -8352,6 +8639,394 @@
               discountDraft: null
             }
           }));
+        }
+      },
+      'pos.line-discount.type':{
+        on:['click'],
+        gkeys:['pos:line-discount:type'],
+        handler:(e,ctx)=>{
+          const btn = e.target.closest('[data-type]');
+          if(!btn) return;
+          const type = btn.getAttribute('data-type') || 'amount';
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              lineDiscount:{
+                ...(s.ui?.lineDiscount || {}),
+                type,
+                value:''
+              }
+            }
+          }));
+        }
+      },
+      'pos.line-discount.input':{
+        on:['input','change'],
+        gkeys:['pos:line-discount:input'],
+        handler:(e,ctx)=>{
+          const value = e.target.value;
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              lineDiscount:{
+                ...(s.ui?.lineDiscount || {}),
+                value
+              }
+            }
+          }));
+        }
+      },
+      'pos.line-discount.apply':{
+        on:['click'],
+        gkeys:['pos:line-discount:apply'],
+        handler:(e,ctx)=>{
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const order = state.data.order || {};
+          const draft = state.ui.lineDiscount || {};
+          const lineId = draft.lineId;
+          const line = (order.lines || []).find(entry=> entry.id === lineId);
+          if(!line){
+            UI.pushToast(ctx, { title:t.toast.order_nav_not_found, icon:'❓' });
+            ctx.setState(s=>({
+              ...s,
+              ui:{
+                ...(s.ui || {}),
+                modals:{ ...(s.ui?.modals || {}), lineDiscount:false },
+                lineDiscount:null
+              }
+            }));
+            return;
+          }
+          const type = draft.type || 'amount';
+          const valueStr = (draft.value || '').trim();
+          if(!valueStr){
+            UI.pushToast(ctx, { title:t.toast.discount_invalid, icon:'⚠️' });
+            return;
+          }
+          const baseAmount = draft.baseAmount != null ? Number(draft.baseAmount) : Math.max(0, round(getLineUnitPrice(line) * (Number(line.qty) || 0)));
+          const input = type === 'percent' ? `${valueStr}%` : valueStr;
+          const { discount, error, limit } = parseDiscountInput(input, baseAmount, draft.allowedRate);
+          if(error === 'invalid'){
+            UI.pushToast(ctx, { title:t.toast.discount_invalid, icon:'⚠️' });
+            return;
+          }
+          if(error === 'limit'){
+            const message = t.toast.discount_limit.replace('%limit%', String(Math.round((limit + Number.EPSILON) * 100) / 100));
+            UI.pushToast(ctx, { title:message, icon:'⚠️' });
+            return;
+          }
+          const now = Date.now();
+          ctx.setState(s=>{
+            const data = s.data || {};
+            const nextOrder = data.order || {};
+            const lines = (nextOrder.lines || []).map(item=>{
+              if(item.id !== lineId) return item;
+              return updateLineWithPricing(item, { discount: normalizeDiscount(discount), updatedAt: now });
+            });
+            const totals = calculateTotals(lines, data.settings || {}, nextOrder.type, { orderDiscount: nextOrder.discount });
+            const paymentEntries = getActivePaymentEntries({ ...nextOrder, lines, totals }, data.payments);
+            const paymentSnapshot = summarizePayments(totals, paymentEntries);
+            return {
+              ...s,
+              data:{
+                ...data,
+                order:{
+                  ...nextOrder,
+                  lines,
+                  totals,
+                  paymentState: paymentSnapshot.state,
+                  updatedAt: now
+                }
+              },
+              ui:{
+                ...(s.ui || {}),
+                modals:{ ...(s.ui?.modals || {}), lineDiscount:false },
+                lineDiscount:null
+              }
+            };
+          });
+          UI.pushToast(ctx, { title: discount ? t.toast.discount_applied : t.toast.discount_removed, icon: discount ? '✅' : '♻️' });
+        }
+      },
+      'pos.line-discount.clear':{
+        on:['click'],
+        gkeys:['pos:line-discount:clear'],
+        handler:(e,ctx)=>{
+          const state = ctx.getState();
+          const order = state.data.order || {};
+          const draft = state.ui.lineDiscount || {};
+          const lineId = draft.lineId;
+          const now = Date.now();
+          ctx.setState(s=>{
+            const data = s.data || {};
+            const nextOrder = data.order || {};
+            const lines = (nextOrder.lines || []).map(item=> item.id === lineId ? updateLineWithPricing(item, { discount:null, updatedAt: now }) : item);
+            const totals = calculateTotals(lines, data.settings || {}, nextOrder.type, { orderDiscount: nextOrder.discount });
+            const paymentEntries = getActivePaymentEntries({ ...nextOrder, lines, totals }, data.payments);
+            const paymentSnapshot = summarizePayments(totals, paymentEntries);
+            return {
+              ...s,
+              data:{
+                ...data,
+                order:{
+                  ...nextOrder,
+                  lines,
+                  totals,
+                  paymentState: paymentSnapshot.state,
+                  updatedAt: now
+                }
+              },
+              ui:{
+                ...(s.ui || {}),
+                modals:{ ...(s.ui?.modals || {}), lineDiscount:false },
+                lineDiscount:null
+              }
+            };
+          });
+        }
+      },
+      'pos.line-discount.close':{
+        on:['click'],
+        gkeys:['pos:line-discount:close'],
+        handler:(e,ctx)=>{
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              modals:{ ...(s.ui?.modals || {}), lineDiscount:false },
+              lineDiscount:null
+            }
+          }));
+        }
+      },
+      'pos.returns.open':{
+        on:['click'],
+        gkeys:['pos:returns:open'],
+        handler:(e,ctx)=>{
+          const state = ctx.getState();
+          const order = state.data.order || {};
+          const options = calculateReturnOptions(order).map(opt=> ({
+            line:{ ...opt.line },
+            remaining: opt.remaining,
+            returned: opt.returned
+          }));
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              modals:{ ...(s.ui?.modals || {}), returns:true },
+              returnsDraft:{
+                orderId: order.id,
+                options,
+                selections:{}
+              }
+            }
+          }));
+        }
+      },
+      'pos.returns.close':{
+        on:['click'],
+        gkeys:['pos:returns:close'],
+        handler:(e,ctx)=>{
+          ctx.setState(s=>({
+            ...s,
+            ui:{
+              ...(s.ui || {}),
+              modals:{ ...(s.ui?.modals || {}), returns:false },
+              returnsDraft:null
+            }
+          }));
+        }
+      },
+      'pos.returns.toggle':{
+        on:['change'],
+        gkeys:['pos:returns:toggle'],
+        handler:(e,ctx)=>{
+          const input = e.target.closest('[data-line-id]');
+          if(!input) return;
+          const lineId = input.getAttribute('data-line-id');
+          const checked = input.checked;
+          ctx.setState(s=>{
+            const draft = s.ui?.returnsDraft || {};
+            const selections = { ...(draft.selections || {}) };
+            if(checked){
+              selections[lineId] = selections[lineId] && selections[lineId] > 0 ? selections[lineId] : 1;
+            } else {
+              delete selections[lineId];
+            }
+            return {
+              ...s,
+              ui:{
+                ...(s.ui || {}),
+                returnsDraft:{
+                  ...draft,
+                  selections
+                }
+              }
+            };
+          });
+        }
+      },
+      'pos.returns.qty.inc':{
+        on:['click'],
+        gkeys:['pos:returns:qty:inc'],
+        handler:(e,ctx)=>{
+          const btn = e.target.closest('[data-line-id]');
+          if(!btn || btn.hasAttribute('disabled')) return;
+          const lineId = btn.getAttribute('data-line-id');
+          ctx.setState(s=>{
+            const draft = s.ui?.returnsDraft || {};
+            const options = draft.options || [];
+            const target = options.find(opt=> opt.line.id === lineId);
+            if(!target) return s;
+            const max = target.remaining;
+            const selections = { ...(draft.selections || {}) };
+            const current = selections[lineId] || 0;
+            if(current >= max) return s;
+            selections[lineId] = current + 1;
+            return {
+              ...s,
+              ui:{
+                ...(s.ui || {}),
+                returnsDraft:{
+                  ...draft,
+                  selections
+                }
+              }
+            };
+          });
+        }
+      },
+      'pos.returns.qty.dec':{
+        on:['click'],
+        gkeys:['pos:returns:qty:dec'],
+        handler:(e,ctx)=>{
+          const btn = e.target.closest('[data-line-id]');
+          if(!btn || btn.hasAttribute('disabled')) return;
+          const lineId = btn.getAttribute('data-line-id');
+          ctx.setState(s=>{
+            const draft = s.ui?.returnsDraft || {};
+            const selections = { ...(draft.selections || {}) };
+            const current = selections[lineId] || 0;
+            if(current <= 1){
+              selections[lineId] = 1;
+              return {
+                ...s,
+                ui:{
+                  ...(s.ui || {}),
+                  returnsDraft:{
+                    ...draft,
+                    selections
+                  }
+                }
+              };
+            }
+            selections[lineId] = current - 1;
+            return {
+              ...s,
+              ui:{
+                ...(s.ui || {}),
+                returnsDraft:{
+                  ...draft,
+                  selections
+                }
+              }
+            };
+          });
+        }
+      },
+      'pos.returns.save':{
+        on:['click'],
+        gkeys:['pos:returns:save'],
+        handler:(e,ctx)=>{
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const order = state.data.order || {};
+          const draft = state.ui.returnsDraft || {};
+          const options = draft.options || [];
+          const selections = draft.selections || {};
+          const lang = state.env.lang;
+          const selected = options.filter(opt=> (selections[opt.line.id] || 0) > 0);
+          if(!selected.length){
+            UI.pushToast(ctx, { title:t.toast.discount_invalid || 'لم يتم اختيار أصناف', icon:'⚠️' });
+            return;
+          }
+          const now = Date.now();
+          let totalAmount = 0;
+          const lines = selected.map(opt=>{
+            const qty = Math.min(selections[opt.line.id] || 0, opt.remaining);
+            const unit = getLineUnitPrice(opt.line);
+            totalAmount += qty * unit;
+            return {
+              lineId: opt.line.id,
+              quantity: qty,
+              unitPrice: unit,
+              itemName: localize(opt.line.name, lang)
+            };
+          }).filter(entry=> entry.quantity > 0);
+          if(!lines.length){
+            UI.pushToast(ctx, { title:t.toast.discount_invalid || 'لم يتم اختيار أصناف', icon:'⚠️' });
+            return;
+          }
+          const branchSeq = (state.data.returnSequence || 0) + 1;
+          const orderSeq = (Array.isArray(order.returns) ? order.returns.length : 0) + 1;
+          const shiftId = state.data.shift?.current?.id || order.shiftId || null;
+          const record = {
+            id: `RET-${order.id || 'draft'}-${branchSeq.toString(36).toUpperCase()}`,
+            orderId: order.id,
+            shiftId,
+            createdAt: now,
+            total: round(totalAmount),
+            lines,
+            seq: orderSeq,
+            branchSeq
+          };
+          ctx.setState(s=>{
+            const data = s.data || {};
+            const nextOrder = data.order || {};
+            const returns = Array.isArray(nextOrder.returns) ? nextOrder.returns.slice() : [];
+            returns.push(record);
+            const ordersHistory = Array.isArray(data.ordersHistory)
+              ? data.ordersHistory.map(entry=> entry.id === nextOrder.id ? { ...entry, returns:(Array.isArray(entry.returns) ? entry.returns.concat([record]) : [record]) } : entry)
+              : data.ordersHistory;
+            const currentShift = data.shift?.current;
+            let nextShift = currentShift;
+            let shiftHistory = data.shift?.history;
+            if(currentShift){
+              const shiftReturns = Array.isArray(currentShift.returns) ? currentShift.returns.slice() : [];
+              shiftReturns.push({ id: record.id, orderId: record.orderId, amount: record.total, createdAt: record.createdAt });
+              nextShift = { ...currentShift, returns: shiftReturns };
+              shiftHistory = Array.isArray(data.shift?.history)
+                ? data.shift.history.map(entry=> entry.id === currentShift.id ? { ...entry, returns: shiftReturns } : entry)
+                : data.shift?.history;
+            }
+            return {
+              ...s,
+              data:{
+                ...data,
+                returnSequence: branchSeq,
+                order:{
+                  ...nextOrder,
+                  returns
+                },
+                ordersHistory,
+                shift:{
+                  ...(data.shift || {}),
+                  current: nextShift,
+                  history: shiftHistory
+                }
+              },
+              ui:{
+                ...(s.ui || {}),
+                modals:{ ...(s.ui?.modals || {}), returns:false },
+                returnsDraft:null
+              }
+            };
+          });
+          UI.pushToast(ctx, { title:t.ui.save || 'تم الحفظ', icon:'✅' });
         }
       },
       'pos.order.table.remove':{
@@ -10676,16 +11351,6 @@
           ctx.setState(s=>({
             ...s,
             ui:{ ...(s.ui || {}), modals:{ ...(s.ui?.modals || {}), payments:true } }
-          }));
-        }
-      },
-      'pos.reports.toggle':{
-        on:['click'],
-        gkeys:['pos:reports:toggle'],
-        handler:(e,ctx)=>{
-          ctx.setState(s=>({
-            ...s,
-            ui:{ ...(s.ui || {}), modals:{ ...(s.ui?.modals || {}), reports: !s.ui?.modals?.reports } }
           }));
         }
       },
