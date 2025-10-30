@@ -5805,7 +5805,7 @@
       const outstanding = paymentSnapshot.remaining || 0;
       const requiresFullPaymentBeforeFinish = !isTakeaway;
       const finishDisabled = requiresFullPaymentBeforeFinish && outstanding > 0.0001;
-      const canShowSave = (isDineIn || isTakeaway) && !isFinalized && !deliveredStage;
+      const canShowSave = !isFinalized && !deliveredStage;
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
