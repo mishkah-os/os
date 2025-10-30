@@ -428,7 +428,7 @@
         toast:{
           item_added:'تمت إضافة الصنف', quantity_updated:'تم تحديث الكمية', cart_cleared:'تم مسح الطلب',
           order_saved:'تم حفظ الطلب محليًا', order_finalized:'تم إنهاء الطلب', sync_complete:'تم تحديث المزامنة', payment_recorded:'تم تسجيل الدفعة',
-          amount_required:'من فضلك أدخل قيمة صحيحة', payment_exceeds_limit:'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%', payment_deleted:'تم حذف الدفعة', payment_locked:'لا يمكن حذف الدفعة بعد إنهاء الطلب', indexeddb_missing:'IndexedDB غير متاحة في هذا المتصفح',
+          amount_required:'من فضلك أدخل قيمة صحيحة', payment_exceeds_limit:'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%', payment_deleted:'تم حذف الدفعة', payment_locked:'لا يمكن حذف الدفعة بعد إنهاء الطلب', indexeddb_missing:'IndexedDB غير متاحة في هذا المتصفح', order_conflict_refreshed:'تم تعديل هذا الطلب من جهاز آخر، تم تحديث النسخة الحالية.', order_conflict_blocked:'تم تحديث هذه الفاتورة من جهاز آخر. يرجى مراجعة التغييرات قبل الحفظ.',
           indexeddb_error:'تعذر حفظ البيانات محليًا', print_stub:'سيتم التكامل مع الطابعة لاحقًا',
           discount_stub:'سيتم تفعيل الخصومات لاحقًا', notes_updated:'تم تحديث الملاحظات', add_note:'أدخل ملاحظة ترسل للمطبخ',
           set_qty:'أدخل الكمية الجديدة', line_actions:'سيتم فتح إجراءات السطر لاحقًا', line_modifiers_applied:'تم تحديث الإضافات والمنزوعات', confirm_clear:'هل تريد مسح الطلب الحالي؟',
@@ -565,7 +565,7 @@
         toast:{
           item_added:'Item added to cart', quantity_updated:'Quantity updated', cart_cleared:'Cart cleared',
           order_saved:'Order stored locally', order_finalized:'Order finalized', sync_complete:'Sync completed', payment_recorded:'Payment recorded',
-          amount_required:'Enter a valid amount', payment_exceeds_limit:'Payment exceeds allowed limit. Maximum: %max%', payment_deleted:'Payment deleted', payment_locked:'Cannot delete payment after order is finalized', indexeddb_missing:'IndexedDB is not available in this browser',
+          amount_required:'Enter a valid amount', payment_exceeds_limit:'Payment exceeds allowed limit. Maximum: %max%', payment_deleted:'Payment deleted', payment_locked:'Cannot delete payment after order is finalized', indexeddb_missing:'IndexedDB is not available in this browser', order_conflict_refreshed:'This order was updated on another device. Your copy has been refreshed.', order_conflict_blocked:'This ticket has changed on another device. Please review the updates before saving.',
           indexeddb_error:'Failed to persist locally', print_stub:'Printer integration coming soon',
           discount_stub:'Discount workflow coming soon', notes_updated:'Notes updated', add_note:'Add a note for the kitchen',
           set_qty:'Enter the new quantity', line_actions:'Line actions coming soon', line_modifiers_applied:'Line modifiers updated', confirm_clear:'Clear the current order?',
@@ -1256,11 +1256,31 @@
           headers:{ 'content-type':'application/json' },
           body: JSON.stringify(payload)
         });
-        if(!response.ok){
-          const message = await response.text().catch(()=> response.statusText || '');
-          throw new Error(message || `Request failed (${response.status})`);
+        let text = '';
+        let data = null;
+        try {
+          text = await response.text();
+          if(text){
+            data = JSON.parse(text);
+          }
+        } catch(_err){
+          data = null;
         }
-        return response.json();
+        if(!response.ok){
+          const error = new Error(data?.message || text || `Request failed (${response.status})`);
+          error.status = response.status;
+          if(data && typeof data === 'object'){
+            if(data.error) error.code = data.error;
+            if(data.details && typeof data.details === 'object'){
+              Object.assign(error, data.details);
+              error.details = data.details;
+            }
+            if(data.order) error.order = data.order;
+          }
+          throw error;
+        }
+        if(data !== null) return data;
+        return text ? JSON.parse(text) : {};
       }
 
       async function getJson(url){
@@ -1484,7 +1504,15 @@
           throw new Error('Order payload requires an active shift');
         }
         const endpoint = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders`;
-        const payload = await postJson(endpoint, { order });
+        const outgoing = { ...order };
+        const expectedVersion = Number(order?.expectedVersion);
+        const currentVersion = Number(order?.version);
+        if(Number.isFinite(expectedVersion) && expectedVersion > 0){
+          outgoing.version = expectedVersion;
+        } else if(Number.isFinite(currentVersion) && currentVersion > 0){
+          outgoing.version = currentVersion;
+        }
+        const payload = await postJson(endpoint, { order: outgoing });
         return payload?.order || order;
       }
       function sanitizeTempOrder(order){
@@ -2433,7 +2461,8 @@
       }
       totals.total = totals.due;
       const guests = Number(raw.guests ?? metadata.guests ?? 0) || 0;
-      return {
+      const versionValue = Number(raw.version ?? metadata.version ?? metadata.currentVersion ?? metadata.versionCurrent);
+      const header = {
         id: String(rawId),
         shiftId: raw.shiftId || raw.shift_id || metadata.shiftId || null,
         posId: raw.posId || raw.pos_id || metadata.posId || null,
@@ -2463,6 +2492,12 @@
         isPersisted: normalizeStatusId(raw.statusId || raw.status_id || raw.status || metadata.status) !== 'draft',
         dirty:false
       };
+      if(Number.isFinite(versionValue) && versionValue > 0){
+        header.version = Math.trunc(versionValue);
+        header.currentVersion = Math.trunc(versionValue);
+        header.expectedVersion = Math.trunc(versionValue);
+      }
+      return header;
     }
 
     function normalizeRealtimeOrderLine(raw, header){
@@ -3741,6 +3776,68 @@
       };
     }
 
+    function syncOrderVersionMetadata(order){
+      if(!order || typeof order !== 'object') return order;
+      const next = { ...order };
+      const currentVersion = Number(order.currentVersion ?? order.version);
+      const expectedVersion = Number(order.expectedVersion);
+      if(Number.isFinite(currentVersion) && currentVersion > 0){
+        next.version = Math.trunc(currentVersion);
+        if(!Number.isFinite(expectedVersion) || expectedVersion < currentVersion){
+          next.expectedVersion = Math.trunc(currentVersion);
+        } else {
+          next.expectedVersion = Math.trunc(expectedVersion);
+        }
+        next.currentVersion = Math.trunc(currentVersion);
+      } else if(Number.isFinite(expectedVersion) && expectedVersion > 0){
+        const normalized = Math.trunc(expectedVersion);
+        next.version = normalized;
+        next.expectedVersion = normalized;
+        next.currentVersion = normalized;
+      } else {
+        if(next.version != null && !Number.isFinite(Number(next.version))) delete next.version;
+        if(next.expectedVersion != null && !Number.isFinite(Number(next.expectedVersion))) delete next.expectedVersion;
+        if(next.currentVersion != null && !Number.isFinite(Number(next.currentVersion))) delete next.currentVersion;
+      }
+      return next;
+    }
+
+    function enrichOrderLineWithMenu(line){
+      if(!line || typeof line !== 'object') return line;
+      const itemId = line.itemId ?? line.item_id ?? null;
+      const menuItem = itemId != null ? menuIndex.get(String(itemId)) : null;
+      const name = menuItem ? menuItem.name : cloneName(line.name || itemId || '');
+      const description = menuItem ? menuItem.description : cloneName(line.description || '');
+      const kitchenSection = line.kitchenSection ?? line.kitchen_section_id ?? menuItem?.kitchenSection ?? null;
+      return {
+        ...line,
+        itemId,
+        name,
+        description,
+        kitchenSection
+      };
+    }
+
+    function enrichOrderWithMenu(order){
+      if(!order || typeof order !== 'object') return order;
+      const next = { ...order };
+      if(Array.isArray(order.lines)){
+        next.lines = order.lines.map(enrichOrderLineWithMenu);
+      }
+      if(next.paymentsLocked === undefined){
+        next.paymentsLocked = isPaymentsLocked(next);
+      }
+      return syncOrderVersionMetadata(next);
+    }
+
+    function isPaymentsLocked(order){
+      if(!order || typeof order !== 'object') return false;
+      if(order.paymentsLocked === true) return true;
+      const status = String(order.status || '').toLowerCase();
+      const stage = String(order.fulfillmentStage || '').toLowerCase();
+      return status === 'finalized' || status === 'closed' || stage === 'delivered' || stage === 'closed';
+    }
+
     function normalizeNote(raw, fallbackAuthor){
       if(!raw) return null;
       const message = raw.message || raw.text || '';
@@ -3822,7 +3919,8 @@
       const normalizedTotals = totals && typeof totals === 'object'
         ? totals
         : calculateTotals(lines, settings, typeId, { orderDiscount: discount });
-      return {
+      const versionValue = Number(raw.version ?? header.version ?? raw.header?.version ?? header.metadata?.version);
+      const orderResult = {
         id,
         status: statusId,
         fulfillmentStage: stageId,
@@ -3858,6 +3956,12 @@
           return Number.isFinite(Number(rawNumber)) ? Number(rawNumber) : POS_INFO.number;
         })()
       };
+      if(Number.isFinite(versionValue) && versionValue > 0){
+        orderResult.version = Math.trunc(versionValue);
+        orderResult.currentVersion = Math.trunc(versionValue);
+        orderResult.expectedVersion = Math.trunc(versionValue);
+      }
+      return enrichOrderWithMenu(orderResult);
     }
 
     function normalizeMockShift(raw){
@@ -4508,6 +4612,69 @@
           return { status:'error', reason:'customer-required' };
         }
       }
+      const currentVersion = Number(order.currentVersion ?? order.version);
+      const expectedVersion = Number(order.expectedVersion ?? (order.isPersisted ? currentVersion : null));
+      const applyRemoteOrder = (remoteOrder)=>{
+        if(!remoteOrder) return false;
+        const enriched = enrichOrderWithMenu(remoteOrder);
+        const totalsRef = enriched.totals && typeof enriched.totals === 'object'
+          ? { ...enriched.totals }
+          : calculateTotals(enriched.lines || [], state.data.settings || {}, enriched.type || 'dine_in', { orderDiscount: enriched.discount });
+        const paymentsList = Array.isArray(enriched.payments)
+          ? enriched.payments.map(entry=>({
+              id: entry.id || `pm-${enriched.id}-${Math.random().toString(36).slice(2,8)}`,
+              method: entry.method || entry.id || entry.type || 'cash',
+              amount: round(Number(entry.amount) || 0)
+            }))
+          : [];
+        const paymentSnapshot = summarizePayments(totalsRef, paymentsList);
+        ctx.setState(s=>({
+          ...s,
+          data:{
+            ...s.data,
+            order:{
+              ...(s.data.order || {}),
+              ...enriched,
+              totals: totalsRef,
+              paymentState: paymentSnapshot.state,
+              paymentsLocked: isPaymentsLocked(enriched),
+              allowAdditions: enriched.allowAdditions !== undefined
+                ? enriched.allowAdditions
+                : (s.data.order?.allowAdditions ?? true)
+            },
+            payments:{
+              ...(s.data.payments || {}),
+              split: paymentsList
+            }
+          }
+        }));
+        return true;
+      };
+      const refreshFromRemote = async (remoteOverride=null, toastKey='order_conflict_refreshed')=>{
+        let latest = remoteOverride;
+        if(!latest && previousOrderId){
+          try {
+            latest = await posDB.getOrder(previousOrderId);
+          } catch(fetchError){
+            console.warn('[Mishkah][POS] Failed to fetch order after conflict', fetchError);
+          }
+        }
+        if(latest){
+          const applied = applyRemoteOrder(latest);
+          if(applied && toastKey){
+            UI.pushToast(ctx, { title: t.toast[toastKey] || t.toast.order_conflict_refreshed || toastKey, icon:'🔄' });
+          }
+          return applied;
+        }
+        if(toastKey){
+          UI.pushToast(ctx, { title: t.toast[toastKey] || t.toast.order_conflict_refreshed || toastKey, icon:'🔄' });
+        }
+        return false;
+      };
+      if(order.isPersisted && Number.isFinite(currentVersion) && Number.isFinite(expectedVersion) && expectedVersion < currentVersion){
+        await refreshFromRemote(null, 'order_conflict_blocked');
+        return { status:'error', reason:'stale-version' };
+      }
       const now = Date.now();
       const safeLines = (order.lines || []).map(line=>({
         ...line,
@@ -4558,6 +4725,11 @@
       }
       const idChanged = previousOrderId !== finalOrderId;
       const primaryTableId = assignedTables.length ? assignedTables[0] : (order.tableId || null);
+      const outgoingVersion = order.isPersisted
+        ? (Number.isFinite(expectedVersion) && expectedVersion > 0
+          ? Math.trunc(expectedVersion)
+          : (Number.isFinite(currentVersion) && currentVersion > 0 ? Math.trunc(currentVersion) : 1))
+        : 1;
       const orderPayload = {
         ...order,
         id: finalOrderId,
@@ -4599,17 +4771,33 @@
         tableId: primaryTableId,
         table_id: primaryTableId,
         serviceMode: orderType,
-        version: order.isPersisted ? (Number(order.version) || 1) + 1 : 1,
+        version: outgoingVersion,
+        currentVersion: outgoingVersion,
+        expectedVersion: outgoingVersion,
+        paymentsLocked: finalize ? true : isPaymentsLocked(order),
         metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType }
       };
       if(finalize){
         orderPayload.finalizedAt = now;
         orderPayload.finishedAt = now;
       }
+      if(Number.isFinite(outgoingVersion)){
+        orderPayload.metadata = { ...(orderPayload.metadata || {}) };
+        orderPayload.metadata.version = Math.trunc(outgoingVersion);
+      }
       try{
         const persistableOrder = { ...orderPayload };
         delete persistableOrder.dirty;
-        await posDB.saveOrder(persistableOrder);
+        let savedOrder = null;
+        try {
+          savedOrder = await posDB.saveOrder(persistableOrder);
+        } catch(error){
+          if(error && (error.code === 'order-version-conflict' || error.code === 'VERSION_CONFLICT')){
+            await refreshFromRemote(error.order || null, 'order_conflict_refreshed');
+            return { status:'error', reason:'version-conflict' };
+          }
+          throw error;
+        }
         if(posDB.available && typeof posDB.deleteTempOrder === 'function'){
           try { await posDB.deleteTempOrder(orderPayload.id); } catch(_tempErr){ }
           if(idChanged && previousOrderId){
@@ -4623,6 +4811,28 @@
           }
         }
         await posDB.markSync();
+        const remoteResolved = savedOrder && typeof savedOrder === 'object'
+          ? mergePreferRemote(orderPayload, savedOrder)
+          : orderPayload;
+        const normalizedOrderForState = enrichOrderWithMenu({
+          ...remoteResolved,
+          allowAdditions,
+          lockLineEdits: finalize ? true : (remoteResolved.lockLineEdits ?? order.lockLineEdits)
+        });
+        const mergedTotals = normalizedOrderForState.totals && typeof normalizedOrderForState.totals === 'object'
+          ? { ...normalizedOrderForState.totals }
+          : calculateTotals(normalizedOrderForState.lines || [], state.data.settings || {}, normalizedOrderForState.type || orderType, { orderDiscount: normalizedOrderForState.discount });
+        const mergedPayments = Array.isArray(normalizedOrderForState.payments)
+          ? normalizedOrderForState.payments.map(pay=> ({ ...pay, amount: round(Number(pay.amount) || 0) }))
+          : normalizedPayments;
+        const mergedPaymentSnapshot = summarizePayments(mergedTotals, mergedPayments);
+        normalizedOrderForState.totals = mergedTotals;
+        normalizedOrderForState.payments = mergedPayments;
+        normalizedOrderForState.paymentState = mergedPaymentSnapshot.state;
+        normalizedOrderForState.paymentsLocked = finalize ? true : isPaymentsLocked(normalizedOrderForState);
+        normalizedOrderForState.allowAdditions = allowAdditions;
+        normalizedOrderForState.lockLineEdits = finalize ? true : (normalizedOrderForState.lockLineEdits !== undefined ? normalizedOrderForState.lockLineEdits : true);
+        const syncedOrderForState = syncOrderVersionMetadata(normalizedOrderForState);
         const latestSnapshot = getRealtimeOrdersSnapshot();
         const latestOrders = latestSnapshot.active.map(order=> ({ ...order }));
         ctx.setState(s=>{
@@ -4640,7 +4850,7 @@
           const seq = historyIndex >= 0
             ? (history[historyIndex].seq || historyIndex + 1)
             : (seqFromDraft || history.length + 1);
-          const historyEntry = { ...orderPayload, seq, payments: orderPayload.payments.map(pay=> ({ ...pay })) };
+          const historyEntry = { ...syncedOrderForState, seq, payments: mergedPayments.map(pay=> ({ ...pay })) };
           if(historyIndex >= 0){
             history[historyIndex] = historyEntry;
           } else {
@@ -4679,9 +4889,7 @@
             data:{
               ...data,
               order:{
-                ...orderPayload,
-                allowAdditions,
-                lockLineEdits:true
+                ...syncedOrderForState
               },
               tableLocks: idChanged
                 ? (data.tableLocks || []).map(lock=> lock.orderId === previousOrderId ? { ...lock, orderId: orderPayload.id } : lock)
@@ -5171,6 +5379,7 @@
       const paymentStateId = db.data.order?.paymentState || 'unpaid';
       const paymentState = db.data.orderPaymentStates?.find(state=> state.id === paymentStateId);
       const paymentStateLabel = paymentState ? localize(paymentState.name, db.env.lang) : paymentStateId;
+      const paymentsLocked = isPaymentsLocked(db.data.order);
       const balanceSummary = remaining > 0 || change > 0
         ? D.Containers.Div({ attrs:{ class: tw`space-y-2 rounded-[var(--radius)] bg-[color-mix(in oklab,var(--surface-2) 92%, transparent)] px-3 py-2 text-sm` }}, [
             remaining > 0 ? UI.HStack({ attrs:{ class: tw`${token('split')} font-semibold text-[var(--accent-foreground)]` }}, [
@@ -5192,9 +5401,23 @@
           ...split.map(entry=>{
             const method = methods.find(m=> m.id === entry.method);
             const label = method ? `${method.icon} ${localize(method.label, db.env.lang)}` : entry.method;
-            return UI.HStack({ attrs:{ class: tw`${token('split')} text-sm` }}, [
+            const deleteButton = !paymentsLocked
+              ? UI.Button({
+                  attrs:{
+                    gkey:'pos:payments:delete',
+                    'data-payment-id': entry.id,
+                    class: tw`h-7 w-7 rounded-full border border-transparent text-xs`
+                  },
+                  variant:'ghost',
+                  size:'xs'
+                }, ['🗑️'])
+              : null;
+            return UI.HStack({ attrs:{ class: tw`${token('split')} items-center justify-between gap-2 text-sm` }}, [
               D.Text.Span({}, [label]),
-              UI.PriceText({ amount: entry.amount, currency:getCurrency(db), locale:getLocale(db) })
+              UI.HStack({ attrs:{ class: tw`items-center gap-2` }}, [
+                UI.PriceText({ amount: entry.amount, currency:getCurrency(db), locale:getLocale(db) }),
+                deleteButton
+              ].filter(Boolean))
             ]);
           }),
           split.length ? UI.Divider() : null,
@@ -6319,7 +6542,7 @@
     function activateOrder(ctx, order, options={}){
       if(!order) return;
       const typeConfig = getOrderTypeConfig(order.type || 'dine_in');
-      const safeOrder = {
+      let safeOrder = {
         ...order,
         lines: Array.isArray(order.lines) ? order.lines.map(line=> ({ ...line })) : [],
         notes: Array.isArray(order.notes) ? order.notes.map(note=> ({ ...note })) : [],
@@ -6327,6 +6550,7 @@
         dirty:false,
         discount: normalizeDiscount(order.discount)
       };
+      safeOrder = enrichOrderWithMenu(safeOrder);
       ctx.setState(s=>{
         const data = s.data || {};
         const modals = { ...(s.ui?.modals || {}) };
@@ -10348,15 +10572,20 @@
             UI.pushToast(ctx, { title:t.toast.amount_required, icon:'⚠️' });
             return;
           }
-          // Validate payment amount - max overpayment is 100 (largest bill denomination)
           const order = state.data.order || {};
+          if(isPaymentsLocked(order)){
+            UI.pushToast(ctx, { title:t.toast.payment_locked || 'لا يمكن حذف الدفعة بعد إنهاء الطلب', icon:'🔒' });
+            return;
+          }
           const totals = order.totals || {};
           const currentSplit = state.data.payments?.split || [];
           const currentPaid = currentSplit.reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0);
-          const remaining = Math.max(0, (totals.due || 0) - currentPaid);
-          const maxAllowed = remaining + 100;
-          if(amount > maxAllowed){
-            const message = (t.toast.payment_exceeds_limit || 'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%').replace('%max%', String(Math.round(maxAllowed)));
+          const totalDue = Math.max(0, Number(totals.due) || 0);
+          const maxAllowed = totalDue > 0 ? Math.ceil(totalDue / 100) * 100 : 0;
+          const projectedPaid = round(currentPaid + amount);
+          const exceedsLimit = totalDue === 0 ? amount > 0 : projectedPaid > maxAllowed + 0.0001;
+          if(exceedsLimit){
+            const message = (t.toast.payment_exceeds_limit || 'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%').replace('%max%', String(round(maxAllowed)));
             UI.pushToast(ctx, { title: message, icon:'⚠️' });
             return;
           }
@@ -10411,7 +10640,7 @@
           const state = ctx.getState();
           const t = getTexts(state);
           const order = state.data.order || {};
-          if(order.status === 'finalized' || order.isPersisted){
+          if(isPaymentsLocked(order)){
             UI.pushToast(ctx, { title:t.toast.payment_locked || 'لا يمكن حذف الدفعة بعد إنهاء الطلب', icon:'🔒' });
             return;
           }
