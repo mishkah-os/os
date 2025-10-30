@@ -1,5 +1,75 @@
 import { createDBAuto } from '../lib/mishkah.simple-store.js';
 
+function ensureArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function toTableName(entry) {
+  if (!entry) return null;
+  if (typeof entry === 'string') {
+    const name = entry.trim();
+    return name.length ? name : null;
+  }
+  if (typeof entry === 'object') {
+    const name =
+      entry.name ||
+      entry.table ||
+      entry.tableName ||
+      entry.sqlName ||
+      entry.id ||
+      null;
+    return name ? String(name).trim() : null;
+  }
+  return null;
+}
+
+function normalizeSchemaTables(schema, moduleEntry, requiredTables = []) {
+  if (!schema || typeof schema !== 'object') return schema;
+  const schemaContainer = schema.schema && typeof schema.schema === 'object' ? schema.schema : {};
+  const existing = ensureArray(schemaContainer.tables);
+  const normalizedMap = new Map();
+
+  for (const entry of existing) {
+    if (entry && typeof entry === 'object') {
+      const key = toTableName(entry);
+      if (key && !normalizedMap.has(key)) {
+        normalizedMap.set(key, entry);
+      }
+      continue;
+    }
+    const fallbackName = toTableName(entry);
+    if (fallbackName && !normalizedMap.has(fallbackName)) {
+      normalizedMap.set(fallbackName, { name: fallbackName });
+    }
+  }
+
+  const registerName = (name) => {
+    const key = toTableName(name);
+    if (!key || normalizedMap.has(key)) return;
+    normalizedMap.set(key, { name: key });
+  };
+
+  ensureArray(schema.tables).forEach(registerName);
+  ensureArray(moduleEntry?.tables).forEach(registerName);
+  ensureArray(requiredTables).forEach(registerName);
+
+  if (!normalizedMap.size) {
+    return schema;
+  }
+
+  const nextTables = Array.from(normalizedMap.values());
+  if (existing.length === nextTables.length && existing.every((entry, idx) => entry === nextTables[idx])) {
+    return schema;
+  }
+
+  schema.schema = schemaContainer;
+  schema.schema.tables = nextTables;
+  if (!Array.isArray(schema.tables) || schema.tables !== nextTables) {
+    schema.tables = nextTables;
+  }
+  return schema;
+}
+
 async function fetchModuleSchema(branchId, moduleId) {
   const params = new URLSearchParams({
     branch: branchId,
@@ -14,7 +84,8 @@ async function fetchModuleSchema(branchId, moduleId) {
   if (!moduleEntry || !moduleEntry.schema) {
     throw new Error(`Schema for module "${moduleId}" not found in /api/schema response`);
   }
-  return { schema: moduleEntry.schema, moduleEntry };
+  const schema = normalizeSchemaTables(moduleEntry.schema, moduleEntry);
+  return { schema, moduleEntry };
 }
 
 export async function createPosDb(options = {}) {
@@ -43,7 +114,26 @@ export async function createPosDb(options = {}) {
   ];
 
   const { schema, moduleEntry } = await fetchModuleSchema(branchId, moduleId);
-  const db = createDBAuto(schema, tables, {
+  const normalizedSchema = normalizeSchemaTables(schema, moduleEntry, tables);
+  const tableEntries = Array.isArray(normalizedSchema?.schema?.tables)
+    ? normalizedSchema.schema.tables
+    : [];
+
+  if (!tableEntries.length) {
+    const synthesized = tables
+      .map((name) => toTableName(name))
+      .filter(Boolean)
+      .map((name) => ({ name }));
+    if (!normalizedSchema.schema || typeof normalizedSchema.schema !== 'object') {
+      normalizedSchema.schema = {};
+    }
+    normalizedSchema.schema.tables = synthesized;
+    normalizedSchema.tables = synthesized;
+  } else if (!Array.isArray(normalizedSchema.tables) || normalizedSchema.tables !== tableEntries) {
+    normalizedSchema.tables = tableEntries;
+  }
+
+  const db = createDBAuto(normalizedSchema, tables, {
     branchId,
     moduleId,
     historyLimit: options.historyLimit || 200,
