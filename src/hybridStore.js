@@ -177,6 +177,19 @@ export default class HybridStore extends ModuleStore {
   }
 
   clearTables(tableNames = []) {
+    if (Array.isArray(tableNames) && tableNames.length) {
+      const refreshTargets = new Set();
+      for (const entry of tableNames) {
+        if (entry === undefined || entry === null) continue;
+        const name = String(entry).trim();
+        if (!name || refreshTargets.has(name)) continue;
+        refreshTargets.add(name);
+        if (!this.tables.includes(name)) continue;
+        if (this.persistedTables.has(name)) {
+          this.refreshTableIfNeeded(name, { force: true });
+        }
+      }
+    }
     const result = super.clearTables(tableNames);
     if (result && Array.isArray(result.cleared)) {
       for (const entry of result.cleared) {
