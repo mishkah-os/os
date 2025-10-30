@@ -27,6 +27,88 @@ const { default: SchemaEngine } = await import('../src/schema/engine.js');
 
 initializeSqlite({ path: TEST_DB_PATH });
 
+test('hybrid store bootstraps persisted tables from existing seed data', async () => {
+  const schemaEngine = new SchemaEngine();
+  await schemaEngine.loadFromFile(path.join(ROOT_DIR, 'data/schemas/pos_schema.json'));
+
+  const definition = {
+    tables: ['order_header', 'order_line', 'order_payment', 'pos_shift']
+  };
+
+  const seed = {
+    version: 3,
+    meta: {},
+    tables: {
+      order_header: [
+        {
+          id: 'seed-ord-1',
+          status: 'open',
+          stage: 'draft',
+          paymentState: 'pending',
+          shiftId: 'seed-shift-1',
+          createdAt: '2024-02-01T10:00:00.000Z',
+          updatedAt: '2024-02-01T10:00:00.000Z',
+          version: 2
+        }
+      ],
+      order_line: [
+        {
+          id: 'seed-line-1',
+          orderId: 'seed-ord-1',
+          status: 'open',
+          stage: 'draft',
+          createdAt: '2024-02-01T10:00:00.000Z',
+          updatedAt: '2024-02-01T10:00:00.000Z',
+          version: 2
+        }
+      ],
+      order_payment: [
+        {
+          id: 'seed-pay-1',
+          orderId: 'seed-ord-1',
+          method: 'cash',
+          capturedAt: '2024-02-01T10:00:00.000Z',
+          amount: 125,
+          version: 1
+        }
+      ],
+      pos_shift: [
+        {
+          id: 'seed-shift-1',
+          posId: 'POS-SEED-01',
+          status: 'open',
+          isClosed: false,
+          openedAt: '2024-02-01T09:00:00.000Z',
+          updatedAt: '2024-02-01T10:00:00.000Z'
+        }
+      ]
+    }
+  };
+
+  const store = new HybridStore(schemaEngine, 'seed-branch', 'pos', definition, seed, null, { cacheTtlMs: 5 });
+
+  const context = { branchId: 'seed-branch', moduleId: 'pos' };
+
+  assert.equal(store.listTable('order_header').length, 1);
+  assert.equal(store.listTable('order_line').length, 1);
+  assert.equal(store.listTable('order_payment').length, 1);
+  assert.equal(store.listTable('pos_shift').length, 1);
+
+  assert.equal(loadTableRecords('order_header', context).length, 1);
+  assert.equal(loadTableRecords('order_line', context).length, 1);
+  assert.equal(loadTableRecords('order_payment', context).length, 1);
+  assert.equal(loadTableRecords('pos_shift', context).length, 1);
+
+  const purgeResult = store.clearTables(['order_header', 'order_line', 'order_payment', 'pos_shift']);
+
+  assert.equal(purgeResult.totalRemoved, 4);
+  assert.equal(purgeResult.changed, true);
+  assert.equal(loadTableRecords('order_header', context).length, 0);
+  assert.equal(loadTableRecords('order_line', context).length, 0);
+  assert.equal(loadTableRecords('order_payment', context).length, 0);
+  assert.equal(loadTableRecords('pos_shift', context).length, 0);
+});
+
 test('clearTables purges persisted rows after loading the cold cache', async () => {
   const schemaEngine = new SchemaEngine();
   await schemaEngine.loadFromFile(path.join(ROOT_DIR, 'data/schemas/pos_schema.json'));
