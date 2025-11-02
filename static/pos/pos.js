@@ -4791,6 +4791,28 @@
     };
     const cashier = defaultCashier;
 
+    if(typeof window !== 'undefined' && window.console){
+      console.group('[Mishkah][POS] 🚀 INITIAL DATA LOAD - COMPLETE STRUCTURE');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('📦 MOCK DATA SOURCE (window.database):');
+      console.log('  • Complete MOCK object:', MOCK);
+      console.log('  • Keys in MOCK:', Object.keys(MOCK));
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('👥 EMPLOYEES DATA:');
+      console.log('  • rawEmployees (from resolveEmployeeList):', rawEmployees);
+      console.log('  • employees (normalized):', employees);
+      console.log('  • defaultCashier:', defaultCashier);
+      console.log('  • cashier (final):', cashier);
+      console.table(employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false })));
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('🔑 SHIFT SETTINGS:');
+      console.log('  • SHIFT_SETTINGS:', SHIFT_SETTINGS);
+      console.log('  • SHIFT_PIN_FALLBACK:', SHIFT_PIN_FALLBACK);
+      console.log('  • SHIFT_PIN_LENGTH:', SHIFT_PIN_LENGTH);
+      console.log('═══════════════════════════════════════════════════════════');
+      console.groupEnd();
+    }
+
     function createDraftOrderId(){
       return `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
     }
@@ -9797,10 +9819,45 @@
           const matchedEmployee = employees.find(emp=> emp.pin === normalizedPin);
           if(typeof window !== 'undefined' && window.console){
             const debugEmployees = employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false }));
-            console.groupCollapsed('[Mishkah][POS] shift pin confirm');
-            console.log('Entered PIN', { raw: rawPin, normalized: normalizedPin, pinLength: normalizedPin.length });
+            console.group('[Mishkah][POS] 🔐 SHIFT PIN VALIDATION - DETAILED DEBUGGING');
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('📌 ENTERED PIN:', { raw: rawPin, normalized: normalizedPin, pinLength: normalizedPin.length });
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('📊 DATA SOURCES:');
+            console.log('  • state.data.employees:', stateEmployees);
+            console.log('  • state.data.remotes:', state.data?.remotes);
+            console.log('  • remoteSource (posDatabase):', remoteSource);
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('🔍 RESOLVED DATA:');
+            console.log('  • resolveEmployeeList(remoteSource) returned:', resolveEmployeeList(remoteSource));
+            console.log('  • remoteEmployees (normalized):', remoteEmployees);
+            console.log('  • stateEmployees:', stateEmployees);
+            console.log('  • FINAL employees array (combined & normalized):', employees);
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('👥 EMPLOYEES TABLE:');
             console.table(debugEmployees);
-            console.log('Fallback PINs', Array.from(fallbackPins));
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('🔑 SHIFT SETTINGS:');
+            console.log('  • SHIFT_PIN_FALLBACK (global):', SHIFT_PIN_FALLBACK);
+            console.log('  • remoteShiftSettings:', remoteShiftSettings);
+            console.log('  • state.data.shift.config:', config);
+            console.log('  • Fallback PINs (Set):', Array.from(fallbackPins));
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('✅ PIN MATCHING:');
+            console.log('  • Entered PIN (normalized):', normalizedPin);
+            console.log('  • Matched Employee:', matchedEmployee);
+            console.log('  • Is fallback PIN?', fallbackPins.has(normalizedPin));
+            if(!matchedEmployee){
+              console.warn('❌ NO EMPLOYEE MATCHED THE PIN!');
+              console.log('  • PIN comparison details:');
+              employees.forEach((emp, i)=>{
+                const match = emp.pin === normalizedPin;
+                console.log(`    [${i}] ${emp.name} (${emp.id}): pin="${emp.pin}" ${match ? '✅ MATCH' : `❌ (pin type: ${typeof emp.pin}, entered type: ${typeof normalizedPin})`}`);
+              });
+            } else {
+              console.log('✅ EMPLOYEE MATCHED:', matchedEmployee);
+            }
+            console.log('═══════════════════════════════════════════════════════════');
             console.groupEnd();
           }
           let effectiveEmployee = matchedEmployee;
