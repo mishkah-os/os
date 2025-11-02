@@ -1635,10 +1635,10 @@
         ]
       },
       {
-        "name": "menu_item",
+        "name": "items",
         "label": "Menu Item",
         "comment": "Sellable menu items with pricing metadata.",
-        "sqlName": "menu_item",
+        "sqlName": "items",
         "layout": {
           "x": 800,
           "y": 260
