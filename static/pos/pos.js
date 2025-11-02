@@ -574,7 +574,7 @@
     
     async function fetchPosSchemaFromBackend(){
       const branchId = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || 'dar') : 'dar';
-      const url = '../pos/api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
+      const url = '../api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
       try{
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
         const body = await res.json().catch(()=>null);
