@@ -23,26 +23,26 @@ const TABLE_ALIAS_GROUPS = {
 };
 
 const DEFAULT_TABLES = [
-  'pos_database',
-  'pos_shift',
-  'order_header',
-  'order_line',
-  'order_line_modifier',
-  'order_line_status_log',
-  'order_payment',
-  'order_delivery',
-  'order_status_log',
-  'job_order_header',
-  'job_order_detail',
-  'job_order_detail_modifier',
-  'job_order_status_history',
-  'expo_pass_ticket',
-  'kitchen_section',
-  'dining_table',
-  'table_lock',
-  'customer_profile',
-  'customer_address'
-];
+    'pos_database',
+    'employees',
+    'order_types',
+    'order_statuses',
+    'order_stages',
+    'order_payment_states',
+    'order_line_statuses',
+    'payment_methods',
+    'categories',
+    'category_sections',
+    'items',
+    'kitchen_sections',
+    'dining_table',
+    'tableLocks',
+    'auditEvents',
+    'settings',
+    'shift_settings',
+    'removals',
+    'stores'
+  ];;
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
