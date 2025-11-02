@@ -1,5 +1,5 @@
 
-  (async function(){
+(async function(){
     const M = Mishkah;
     const UI = M.UI;
     const U = M.utils;
@@ -561,16 +561,33 @@
       ]
     });
     const SHIFT_SCHEMA_REGISTRY = new Schema.Registry({ tables:[SHIFT_TABLE] });
-    const POS_SCHEMA_SOURCE = (typeof window !== 'undefined' && window.MishkahPOSSchema)
+    let POS_SCHEMA_SOURCE = (typeof window !== 'undefined' && window.MishkahPOSSchema)
       ? window.MishkahPOSSchema
       : SHIFT_SCHEMA_REGISTRY.toJSON();
-    const POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
+    let POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
     const REMOTE_DB = (typeof window !== 'undefined'
       && window.__POS_DB__
       && typeof window.__POS_DB__ === 'object')
       ? window.__POS_DB__
       : null;
-    const POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
+    let POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
+    
+    async function fetchPosSchemaFromBackend(){
+      const branchId = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || 'dar') : 'dar';
+      const url = './api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
+      try{
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const body = await res.json().catch(()=>null);
+        const schemaJson = body?.schema || body?.data || body;
+        if(schemaJson && typeof schemaJson === 'object'){
+          POS_SCHEMA_SOURCE = schemaJson;
+          POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
+          POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
+          if(typeof window !== 'undefined') window.MishkahPOSSchema = POS_SCHEMA_SOURCE;
+          DATASET_PAYLOAD_KEY_CACHE.clear();
+        }
+      } catch(_err){}
+    }
     const FALLBACK_CURRENCY = 'EGP';
     const normalizeCurrencyCode = (value)=>{
       if(typeof value !== 'string') return null;
@@ -5326,8 +5343,11 @@
       console.groupEnd();
     }
 
-    installRealtimeOrderWatchers();
-    installRealtimeJobOrderWatchers();
+    // Defer installing watchers until after schema fetch attempt
+    fetchPosSchemaFromBackend().finally(()=>{
+      installRealtimeOrderWatchers();
+      installRealtimeJobOrderWatchers();
+    });
 
     function flushRemoteUpdate(){
       if(!pendingRemoteResult) return;
