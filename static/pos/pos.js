@@ -23,6 +23,81 @@
       const digits = text.replace(/\D/g, '');
       return digits.length ? digits : text;
     };
+    const toBoolean = (value)=>{
+      if(value === true) return true;
+      if(value === false) return false;
+      if(typeof value === 'number') return value === 1;
+      if(typeof value === 'string'){
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true'
+          || normalized === '1'
+          || normalized === 'yes'
+          || normalized === 'y'
+          || normalized === 'on';
+      }
+      return false;
+    };
+    const pickFirstDefined = (source, keys)=>{
+      if(!source || typeof source !== 'object') return undefined;
+      for(const key of keys){
+        if(key == null) continue;
+        if(source[key] != null) return source[key];
+        const lower = typeof key === 'string' ? key.toLowerCase() : null;
+        if(lower && source[lower] != null) return source[lower];
+      }
+      return undefined;
+    };
+    const normalizeEmployeeRecord = (source, index = 0)=>{
+      if(!source || typeof source !== 'object') return null;
+      const pinSource = pickFirstDefined(source, [
+        'pin','pin_code','pinCode','pin_number','pinNumber','pinValue','pin_value','passcode','passCode','pass_code','passPin','pass_pin'
+      ]);
+      const normalizedPin = normalizePinValue(pinSource);
+      if(!normalizedPin) return null;
+      const idRaw = pickFirstDefined(source, [
+        'id','employee_id','employeeId','user_id','userId','staff_id','staffId','cashier_id','cashierId','code','uid'
+      ]);
+      const nameRaw = pickFirstDefined(source, [
+        'full_name','fullName','name','display_name','displayName','username','user_name','userName','first_name','firstName','label'
+      ]);
+      const roleRaw = pickFirstDefined(source, [
+        'role','position','job_title','jobTitle','type','title','designation','staffType','staff_type'
+      ]);
+      const discountRaw = pickFirstDefined(source, [
+        'allowedDiscountRate','allowed_discount_rate','max_discount_rate','maxDiscountRate','discount_rate','discountRate'
+      ]);
+      const discountValue = Number.parseFloat(discountRaw);
+      const normalized = {
+        id: (idRaw != null ? String(idRaw).trim() : '') || `emp-${normalizedPin}-${index + 1}`,
+        name: (nameRaw != null ? String(nameRaw).trim() : '') || `موظف ${index + 1}`,
+        role: (roleRaw != null ? String(roleRaw).trim() : '') || 'staff',
+        pin: normalizedPin,
+        allowedDiscountRate: Number.isFinite(discountValue) ? discountValue : 0
+      };
+      if(toBoolean(pickFirstDefined(source, [
+        'isFallback','is_fallback','fallback','is_default','isDefault','default','isPrimary','is_primary','isMaster','is_master','defaultCashier','default_cashier'
+      ]))){
+        normalized.isFallback = true;
+      }
+      return normalized;
+    };
+    const normalizeEmployeesList = (list, options={})=>{
+      const dedupeByPin = options.dedupeByPin !== false;
+      const entries = Array.isArray(list) ? list : [];
+      const normalized = [];
+      const seenKeys = new Set();
+      entries.forEach((entry, index)=>{
+        const record = normalizeEmployeeRecord(entry, index);
+        if(!record) return;
+        const keys = [];
+        if(record.id) keys.push(`id:${String(record.id).toLowerCase()}`);
+        if(dedupeByPin && record.pin) keys.push(`pin:${record.pin}`);
+        if(keys.some(key=> seenKeys.has(key))) return;
+        keys.forEach(key=> seenKeys.add(key));
+        normalized.push(record);
+      });
+      return normalized;
+    };
     const cloneDeep = (value)=>{
       if(value == null) return value;
       if(JSONX && typeof JSONX.clone === 'function') return JSONX.clone(value);
@@ -4694,21 +4769,7 @@
       meta: evt.meta || {}
     })) : [];
     const rawEmployees = resolveEmployeeList(MOCK);
-    const employees = rawEmployees.map(emp=>{
-      const pinSource = emp.pin_code ?? emp.pin ?? emp.pinCode ?? emp.passcode ?? '';
-      const pinText = typeof pinSource === 'number'
-        ? String(pinSource)
-        : String(pinSource || '').trim();
-      return {
-        id: emp.id || emp.employee_id || `emp-${Math.random().toString(36).slice(2,8)}`,
-        name: emp.full_name || emp.name || emp.display_name || emp.username || 'موظف',
-        role: emp.role || 'staff',
-        pin: normalizePinValue(pinText),
-        allowedDiscountRate: typeof emp.allowed_discount_rate === 'number'
-          ? emp.allowed_discount_rate
-          : (typeof emp.allowedDiscountRate === 'number' ? emp.allowedDiscountRate : 0)
-      };
-    }).filter(emp=> emp.pin && emp.pin.length);
+    const employees = normalizeEmployeesList(rawEmployees);
     if(SHIFT_PIN_FALLBACK && !employees.some(emp=> emp.pin === SHIFT_PIN_FALLBACK)){
       employees.push({
         id:'cashier-default',
@@ -9714,25 +9775,48 @@
             UI.pushToast(ctx, { title:t.toast.shift_pin_invalid, icon:'⚠️' });
             return;
           }
-          const employees = Array.isArray(state.data.employees) ? state.data.employees : [];
-          const matchedEmployee = employees.find(emp=> normalizePinValue(emp.pin) === normalizedPin);
+          const stateEmployees = Array.isArray(state.data.employees) ? state.data.employees : [];
+          const remoteSource = state.data?.remotes?.posDatabase || {};
+          const remoteEmployees = normalizeEmployeesList(resolveEmployeeList(remoteSource));
+          const employees = normalizeEmployeesList([...remoteEmployees, ...stateEmployees]);
+          const remoteShiftSettings = resolveShiftSettings(remoteSource);
+          const fallbackPins = new Set();
+          const registerFallbackPin = (pinValue)=>{
+            const normalized = normalizePinValue(pinValue);
+            if(normalized) fallbackPins.add(normalized);
+          };
+          registerFallbackPin(SHIFT_PIN_FALLBACK);
+          registerFallbackPin(remoteShiftSettings?.pin);
+          registerFallbackPin(remoteShiftSettings?.default_pin);
+          registerFallbackPin(remoteShiftSettings?.defaultPin);
+          registerFallbackPin(remoteShiftSettings?.fallback_pin);
+          registerFallbackPin(remoteShiftSettings?.fallbackPin);
+          registerFallbackPin(state.data?.shift?.config?.fallbackPin);
+          registerFallbackPin(state.data?.shift?.config?.defaultPin);
+          employees.forEach(emp=>{ if(emp.isFallback) registerFallbackPin(emp.pin); });
+          const matchedEmployee = employees.find(emp=> emp.pin === normalizedPin);
           if(typeof window !== 'undefined' && window.console){
             const debugEmployees = employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false }));
             console.groupCollapsed('[Mishkah][POS] shift pin confirm');
             console.log('Entered PIN', { raw: rawPin, normalized: normalizedPin, pinLength: normalizedPin.length });
             console.table(debugEmployees);
-            console.log('Fallback PIN', SHIFT_PIN_FALLBACK);
+            console.log('Fallback PINs', Array.from(fallbackPins));
             console.groupEnd();
           }
           let effectiveEmployee = matchedEmployee;
-          if(!effectiveEmployee && SHIFT_PIN_FALLBACK && normalizePinValue(SHIFT_PIN_FALLBACK) === normalizedPin){
-            effectiveEmployee = matchedEmployee || employees.find(emp=> (emp.isFallback || false) && normalizePinValue(emp.pin) === normalizedPin) || {
-              id: state.data.user?.id || 'cashier-guest',
-              name: state.data.user?.name || 'أحمد محمود',
-              role: state.data.user?.role || 'cashier',
-              allowedDiscountRate: state.data.user?.allowedDiscountRate ?? 0,
-              pin: SHIFT_PIN_FALLBACK
-            };
+          if(!effectiveEmployee && fallbackPins.has(normalizedPin)){
+            effectiveEmployee = matchedEmployee || employees.find(emp=> (emp.isFallback || false) && emp.pin === normalizedPin);
+            if(!effectiveEmployee){
+              const fallbackUser = state.data.user || {};
+              effectiveEmployee = {
+                id: fallbackUser.id || 'cashier-guest',
+                name: fallbackUser.name || 'أحمد محمود',
+                role: fallbackUser.role || 'cashier',
+                allowedDiscountRate: fallbackUser.allowedDiscountRate ?? 0,
+                pin: normalizedPin,
+                isFallback:true
+              };
+            }
           }
           if(!effectiveEmployee){
             UI.pushToast(ctx, { title:t.toast.shift_pin_invalid, icon:'⚠️' });
