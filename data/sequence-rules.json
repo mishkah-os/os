@@ -15,7 +15,7 @@
   "branches": {
     "dar": {
       "pos": {
-        "order_header": {
+        "orders": {
           "id": {
             "prefix": "DAR",
             "start": 1001,
@@ -27,7 +27,7 @@
     },
     "remal": {
       "pos": {
-        "order_header": {
+        "orders": {
           "id": {
             "prefix": "REM",
             "start": 2001,
