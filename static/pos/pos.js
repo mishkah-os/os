@@ -16,6 +16,13 @@
     const JSONX = U.JSON || {};
     const hasStructuredClone = typeof structuredClone === 'function';
     const isPlainObject = value => value && typeof value === 'object' && !Array.isArray(value);
+    const normalizePinValue = (value)=>{
+      if(value == null) return '';
+      const text = String(value).trim();
+      if(!text) return '';
+      const digits = text.replace(/\D/g, '');
+      return digits.length ? digits : text;
+    };
     const cloneDeep = (value)=>{
       if(value == null) return value;
       if(JSONX && typeof JSONX.clone === 'function') return JSONX.clone(value);
@@ -559,11 +566,15 @@
     ];
 
     const SHIFT_SETTINGS = resolveShiftSettings(MOCK);
-    const SHIFT_PIN_FALLBACK = typeof SHIFT_SETTINGS.pin === 'string'
+    const SHIFT_PIN_FALLBACK_RAW = typeof SHIFT_SETTINGS.pin === 'string'
       ? SHIFT_SETTINGS.pin
       : (typeof SHIFT_SETTINGS.default_pin === 'string' ? SHIFT_SETTINGS.default_pin : '');
-    let SHIFT_PIN_LENGTH = Number(SHIFT_SETTINGS.pin_length || SHIFT_SETTINGS.pinLength || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0)) || 0;
-    if(!SHIFT_PIN_LENGTH || SHIFT_PIN_LENGTH < 4) SHIFT_PIN_LENGTH = 4;
+    const SHIFT_PIN_FALLBACK = normalizePinValue(SHIFT_PIN_FALLBACK_RAW);
+    let SHIFT_PIN_LENGTH = Number(SHIFT_SETTINGS.pin_length || SHIFT_SETTINGS.pinLength || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0)) || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0);
+    if(!SHIFT_PIN_LENGTH || SHIFT_PIN_LENGTH < 4){
+      const fallbackLength = SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0;
+      SHIFT_PIN_LENGTH = fallbackLength > 4 ? fallbackLength : 4;
+    }
     const SHIFT_OPEN_FLOAT_DEFAULT = Number(SHIFT_SETTINGS.opening_float ?? SHIFT_SETTINGS.openingFloat ?? 0);
 
     const TEXTS = {
@@ -4685,24 +4696,36 @@
     const rawEmployees = resolveEmployeeList(MOCK);
     const employees = rawEmployees.map(emp=>{
       const pinSource = emp.pin_code ?? emp.pin ?? emp.pinCode ?? emp.passcode ?? '';
-      const pin = typeof pinSource === 'number' ? String(pinSource).padStart(SHIFT_PIN_LENGTH, '0') : String(pinSource || '').trim();
+      const pinText = typeof pinSource === 'number'
+        ? String(pinSource)
+        : String(pinSource || '').trim();
       return {
         id: emp.id || emp.employee_id || `emp-${Math.random().toString(36).slice(2,8)}`,
         name: emp.full_name || emp.name || emp.display_name || emp.username || 'موظف',
         role: emp.role || 'staff',
-        pin: pin.replace(/\D/g,''),
+        pin: normalizePinValue(pinText),
         allowedDiscountRate: typeof emp.allowed_discount_rate === 'number'
           ? emp.allowed_discount_rate
           : (typeof emp.allowedDiscountRate === 'number' ? emp.allowedDiscountRate : 0)
       };
     }).filter(emp=> emp.pin && emp.pin.length);
+    if(SHIFT_PIN_FALLBACK && !employees.some(emp=> emp.pin === SHIFT_PIN_FALLBACK)){
+      employees.push({
+        id:'cashier-default',
+        name:'Cashier',
+        role:'cashier',
+        pin: SHIFT_PIN_FALLBACK,
+        allowedDiscountRate:0,
+        isFallback:true
+      });
+    }
     const maxEmployeePinLength = employees.reduce((max, emp)=> Math.max(max, emp.pin.length), 0);
     if(maxEmployeePinLength) SHIFT_PIN_LENGTH = Math.max(SHIFT_PIN_LENGTH, maxEmployeePinLength);
     const defaultCashier = employees.find(emp=> emp.role === 'cashier') || employees[0] || {
       id:'cashier-guest',
       name:'أحمد محمود',
       role:'cashier',
-      pin: (SHIFT_PIN_FALLBACK || '0000').replace(/\D/g,''),
+      pin: normalizePinValue(SHIFT_PIN_FALLBACK || '0000'),
       allowedDiscountRate:0
     };
     const cashier = defaultCashier;
@@ -4939,6 +4962,20 @@
         jobStatus:null
       }
     };
+
+    if(typeof window !== 'undefined' && window.console){
+      const debugEmployees = Array.isArray(posState.data?.employees)
+        ? posState.data.employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: !!emp.isFallback }))
+        : [];
+      console.groupCollapsed('[Mishkah][POS] bootstrap snapshot');
+      console.log('Shift state', posState.data?.shift || {});
+      if(debugEmployees.length){
+        console.table(debugEmployees);
+      } else {
+        console.log('No employees available on bootstrap');
+      }
+      console.groupEnd();
+    }
 
     installRealtimeOrderWatchers();
     installRealtimeJobOrderWatchers();
@@ -9672,14 +9709,32 @@
           const t = getTexts(state);
           const config = state.data.shift?.config || {};
           const rawPin = String(state.ui?.shift?.pin || '').trim();
-          const sanitizedPin = rawPin.replace(/\D/g,'');
-          if(!sanitizedPin){
+          const normalizedPin = normalizePinValue(rawPin);
+          if(!normalizedPin){
             UI.pushToast(ctx, { title:t.toast.shift_pin_invalid, icon:'⚠️' });
             return;
           }
           const employees = Array.isArray(state.data.employees) ? state.data.employees : [];
-          const matchedEmployee = employees.find(emp=> emp.pin === sanitizedPin);
-          if(!matchedEmployee){
+          const matchedEmployee = employees.find(emp=> normalizePinValue(emp.pin) === normalizedPin);
+          if(typeof window !== 'undefined' && window.console){
+            const debugEmployees = employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false }));
+            console.groupCollapsed('[Mishkah][POS] shift pin confirm');
+            console.log('Entered PIN', { raw: rawPin, normalized: normalizedPin, pinLength: normalizedPin.length });
+            console.table(debugEmployees);
+            console.log('Fallback PIN', SHIFT_PIN_FALLBACK);
+            console.groupEnd();
+          }
+          let effectiveEmployee = matchedEmployee;
+          if(!effectiveEmployee && SHIFT_PIN_FALLBACK && normalizePinValue(SHIFT_PIN_FALLBACK) === normalizedPin){
+            effectiveEmployee = matchedEmployee || employees.find(emp=> (emp.isFallback || false) && normalizePinValue(emp.pin) === normalizedPin) || {
+              id: state.data.user?.id || 'cashier-guest',
+              name: state.data.user?.name || 'أحمد محمود',
+              role: state.data.user?.role || 'cashier',
+              allowedDiscountRate: state.data.user?.allowedDiscountRate ?? 0,
+              pin: SHIFT_PIN_FALLBACK
+            };
+          }
+          if(!effectiveEmployee){
             UI.pushToast(ctx, { title:t.toast.shift_pin_invalid, icon:'⚠️' });
             return;
           }
@@ -9705,10 +9760,10 @@
               orders:[],
               countsByType:{},
               ordersCount:0,
-              cashierId: matchedEmployee.id,
-              cashierName: matchedEmployee.name,
-              employeeId: matchedEmployee.id,
-              cashierRole: matchedEmployee.role,
+              cashierId: effectiveEmployee.id,
+              cashierName: effectiveEmployee.name,
+              employeeId: effectiveEmployee.id,
+              cashierRole: effectiveEmployee.role,
               status:'open',
               closingCash:null,
               isClosed:false
@@ -9739,10 +9794,10 @@
               ...s.data,
               user:{
                 ...(s.data.user || {}),
-                id: matchedEmployee.id,
-                name: matchedEmployee.name,
-                role: matchedEmployee.role,
-                allowedDiscountRate: matchedEmployee.allowedDiscountRate ?? s.data.user?.allowedDiscountRate,
+                id: effectiveEmployee.id,
+                name: effectiveEmployee.name,
+                role: effectiveEmployee.role,
+                allowedDiscountRate: effectiveEmployee.allowedDiscountRate ?? s.data.user?.allowedDiscountRate,
                 shift:normalizedShift.id
               },
               order:{ ...(s.data.order || {}), shiftId:normalizedShift.id },
