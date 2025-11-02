@@ -4696,12 +4696,14 @@
     const rawEmployees = resolveEmployeeList(MOCK);
     const employees = rawEmployees.map(emp=>{
       const pinSource = emp.pin_code ?? emp.pin ?? emp.pinCode ?? emp.passcode ?? '';
-      const pin = typeof pinSource === 'number' ? String(pinSource).padStart(SHIFT_PIN_LENGTH, '0') : String(pinSource || '').trim();
+      const pinText = typeof pinSource === 'number'
+        ? String(pinSource)
+        : String(pinSource || '').trim();
       return {
         id: emp.id || emp.employee_id || `emp-${Math.random().toString(36).slice(2,8)}`,
         name: emp.full_name || emp.name || emp.display_name || emp.username || 'موظف',
         role: emp.role || 'staff',
-        pin: normalizePinValue(pin),
+        pin: normalizePinValue(pinText),
         allowedDiscountRate: typeof emp.allowed_discount_rate === 'number'
           ? emp.allowed_discount_rate
           : (typeof emp.allowedDiscountRate === 'number' ? emp.allowedDiscountRate : 0)
