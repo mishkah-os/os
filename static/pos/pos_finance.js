@@ -32,9 +32,303 @@
     console.warn('[POS Finance] POS database is not ready.');
   }
 
+  const moduleEntry =
+    global.__POS_MODULE_ENTRY__ && typeof global.__POS_MODULE_ENTRY__ === 'object'
+      ? global.__POS_MODULE_ENTRY__
+      : null;
+  const runtimeStatus =
+    global.__POS_DATA_STATUS__ && typeof global.__POS_DATA_STATUS__ === 'object'
+      ? global.__POS_DATA_STATUS__
+      : null;
+  const branchHintFromGlobal =
+    typeof global.__POS_BRANCH_ID__ === 'string' ? global.__POS_BRANCH_ID__.trim() : '';
+  const branchHintFromStatus =
+    runtimeStatus && typeof runtimeStatus.branchId === 'string' ? runtimeStatus.branchId.trim() : '';
+  const branchParamFromLocation = (() => {
+    try {
+      const params = new global.URLSearchParams(global.location?.search || '');
+      return (params.get('brname') || '').trim();
+    } catch (_err) {
+      return '';
+    }
+  })();
+  if (runtimeStatus && branchParamFromLocation && !runtimeStatus.branchId) {
+    runtimeStatus.branchId = branchParamFromLocation;
+  }
+
   const initialPayload = typeof global.database === 'object' && global.database ? global.database : {};
 
-  const DEFAULT_PURGE_TABLES = ['order_header', 'order_line', 'order_payment', 'pos_shift'];
+  const TABLE_NAME_GROUPS = {
+    dataset: {
+      canonical: 'pos_database',
+      aliases: ['pos_dataset', 'pos_data', 'dataset']
+    },
+    orders: {
+      canonical: 'order_header',
+      aliases: ['orders', 'order_header_live', 'orderHeaders', 'orderHeader']
+    },
+    lines: {
+      canonical: 'order_line',
+      aliases: ['order_lines', 'order_line_items', 'orderDetails', 'orderLines']
+    },
+    payments: {
+      canonical: 'order_payment',
+      aliases: ['order_payments', 'payments', 'orderPayments', 'paymentTransactions']
+    },
+    shifts: {
+      canonical: 'pos_shift',
+      aliases: ['pos_shifts', 'shifts', 'shift_header', 'shiftHeaders']
+    }
+  };
+
+  const uniqueArray = (values = []) => {
+    const list = Array.isArray(values) ? values : [];
+    return Array.from(new Set(list.filter((value) => value != null)));
+  };
+
+  const canonicalizeTableName = (name) => {
+    if (name == null) return null;
+    const normalized = String(name).trim();
+    if (!normalized) return null;
+    const lower = normalized.toLowerCase();
+    for (const descriptor of Object.values(TABLE_NAME_GROUPS)) {
+      const candidates = [descriptor.canonical, ...(descriptor.aliases || [])];
+      if (
+        candidates.some((candidate) => typeof candidate === 'string' && candidate.toLowerCase() === lower)
+      ) {
+        return descriptor.canonical;
+      }
+    }
+    return normalized;
+  };
+
+  const collectModuleTableNames = (entry) => {
+    const names = new Set();
+    if (!entry || typeof entry !== 'object') return names;
+    const push = (value) => {
+      if (value == null) return;
+      const normalized = String(value).trim();
+      if (normalized) names.add(normalized);
+    };
+    const processTableEntry = (table) => {
+      if (!table) return;
+      if (typeof table === 'string') {
+        push(table);
+        return;
+      }
+      if (typeof table === 'object') {
+        push(table.name);
+        push(table.table);
+        push(table.tableName);
+        push(table.sqlName);
+        if (Array.isArray(table.aliases)) {
+          table.aliases.forEach(push);
+        }
+        if (Array.isArray(table.synonyms)) {
+          table.synonyms.forEach(push);
+        }
+      }
+    };
+    ensureArray(entry.tables).forEach(processTableEntry);
+    if (entry.schema && typeof entry.schema === 'object') {
+      ensureArray(entry.schema.tables).forEach(processTableEntry);
+      if (entry.schema.schema && typeof entry.schema.schema === 'object') {
+        ensureArray(entry.schema.schema.tables).forEach(processTableEntry);
+      }
+    }
+    return names;
+  };
+
+  const buildTableHandles = (dbInstance, entry) => {
+    const handles = {};
+    const moduleNames = collectModuleTableNames(entry);
+    const dbObjects =
+      dbInstance && dbInstance.config && typeof dbInstance.config.objects === 'object'
+        ? { ...dbInstance.config.objects }
+        : {};
+    const knownNames = new Set(Object.keys(dbObjects));
+    const registerAlias = typeof dbInstance?.register === 'function' ? dbInstance.register.bind(dbInstance) : null;
+
+    const resolveOptions = (descriptor) => {
+      const options = new Set();
+      options.add(descriptor.canonical);
+      (descriptor.aliases || []).forEach((alias) => {
+        if (alias) options.add(String(alias));
+      });
+      for (const name of moduleNames) {
+        if (canonicalizeTableName(name) === descriptor.canonical) {
+          options.add(name);
+        }
+      }
+      return Array.from(options);
+    };
+
+    for (const [key, descriptor] of Object.entries(TABLE_NAME_GROUPS)) {
+      const options = resolveOptions(descriptor);
+      let alias = null;
+      let sourceTable = descriptor.canonical;
+
+      const findMatchingOption = () => {
+        for (const option of options) {
+          if (knownNames.has(option)) {
+            return option;
+          }
+        }
+        for (const option of options) {
+          const match = Array.from(knownNames).find(
+            (candidate) => candidate.toLowerCase() === option.toLowerCase()
+          );
+          if (match) return match;
+        }
+        return null;
+      };
+
+      const matched = findMatchingOption();
+      if (matched) {
+        alias = matched;
+        sourceTable = dbObjects[matched]?.table || matched;
+      }
+
+      if (!alias && registerAlias) {
+        const moduleCandidate = Array.from(moduleNames).find(
+          (name) => canonicalizeTableName(name) === descriptor.canonical
+        );
+        if (moduleCandidate) {
+          sourceTable = moduleCandidate;
+        }
+        try {
+          registerAlias(descriptor.canonical, { table: sourceTable });
+          alias = descriptor.canonical;
+          knownNames.add(descriptor.canonical);
+          dbObjects[descriptor.canonical] = { table: sourceTable };
+        } catch (error) {
+          console.warn('[POS Finance] Failed to register table alias', {
+            canonical: descriptor.canonical,
+            sourceTable,
+            error
+          });
+          alias = descriptor.canonical;
+        }
+      } else if (alias && alias !== descriptor.canonical && registerAlias && !knownNames.has(descriptor.canonical)) {
+        try {
+          registerAlias(descriptor.canonical, { table: sourceTable });
+          knownNames.add(descriptor.canonical);
+          dbObjects[descriptor.canonical] = { table: sourceTable };
+          alias = descriptor.canonical;
+        } catch (error) {
+          console.warn('[POS Finance] Failed to bind canonical table alias', {
+            canonical: descriptor.canonical,
+            sourceTable,
+            error
+          });
+        }
+      }
+
+      if (!alias) {
+        alias = descriptor.canonical;
+      }
+
+      handles[key] = {
+        canonical: descriptor.canonical,
+        alias,
+        sourceTable,
+        names: options
+      };
+    }
+
+    return handles;
+  };
+
+  const tableHandles = buildTableHandles(db, moduleEntry);
+
+  const getTableAlias = (key) => {
+    const handle = tableHandles[key];
+    if (!handle) return key;
+    return handle.alias || handle.canonical || key;
+  };
+
+  const getTableNamesForPayload = (key) => {
+    const handle = tableHandles[key];
+    if (!handle) return [key];
+    const variants = new Set(handle.names || []);
+    variants.add(handle.canonical);
+    variants.add(handle.alias);
+    return Array.from(variants).filter(Boolean);
+  };
+
+  const extractDatasetArray = (payload = {}, key) => {
+    if (!payload || typeof payload !== 'object') return [];
+    const candidates = getTableNamesForPayload(key);
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      const value = payload[candidate];
+      if (Array.isArray(value)) return value;
+      if (value && typeof value === 'object') {
+        if (Array.isArray(value.rows)) return value.rows;
+        if (Array.isArray(value.records)) return value.records;
+        if (Array.isArray(value.list)) return value.list;
+        if (Array.isArray(value.data)) return value.data;
+      }
+    }
+    return [];
+  };
+
+  const listRecords = (key) => {
+    if (!db || typeof db.list !== 'function') return [];
+    const alias = getTableAlias(key);
+    try {
+      return ensureArray(db.list(alias));
+    } catch (error) {
+      console.warn('[POS Finance] Failed to list table records', { key, alias, error });
+      return [];
+    }
+  };
+
+  const initialRecords = (key, fallback = []) => {
+    const records = listRecords(key);
+    if (records.length) return records;
+    return ensureArray(fallback);
+  };
+
+  const resolveBranchId = (candidates = []) => {
+    for (const candidate of candidates) {
+      if (candidate == null) continue;
+      const normalized = String(candidate).trim();
+      if (normalized) return normalized;
+    }
+    return '';
+  };
+
+  const watchTable = (key, handler) => {
+    if (!db || typeof db.watch !== 'function' || typeof handler !== 'function') return null;
+    const alias = getTableAlias(key);
+    try {
+      return db.watch(alias, handler);
+    } catch (error) {
+      console.warn('[POS Finance] Failed to register table watcher', { key, alias, error });
+      return null;
+    }
+  };
+
+  const getAliasForCanonical = (canonical) => {
+    if (!canonical) return canonical;
+    const normalized = canonicalizeTableName(canonical);
+    for (const handle of Object.values(tableHandles)) {
+      if (handle.canonical === normalized) {
+        return handle.alias || handle.canonical || canonical;
+      }
+    }
+    return canonical;
+  };
+
+  const CANONICAL_PURGE_TABLES = [
+    TABLE_NAME_GROUPS.orders.canonical,
+    TABLE_NAME_GROUPS.lines.canonical,
+    TABLE_NAME_GROUPS.payments.canonical,
+    TABLE_NAME_GROUPS.shifts.canonical
+  ];
+
+  let DEFAULT_PURGE_TABLES = CANONICAL_PURGE_TABLES.slice();
 
   const defaultLang = (initialPayload.settings && initialPayload.settings.lang) || 'ar';
 
@@ -136,16 +430,66 @@
   let currentPaymentMethods = localizedInitial.paymentMethods;
   let lookups = localizedInitial.lookups;
 
-  const initialOrders = db ? ensureArray(db.list('order_header')) : [];
-  const initialPayments = db ? ensureArray(db.list('order_payment')) : [];
-  const initialLines = db ? ensureArray(db.list('order_line')) : [];
-  const initialShifts = db ? ensureArray(db.list('pos_shift')) : [];
+  const fallbackOrders = extractDatasetArray(initialPayload, 'orders');
+  const fallbackPayments = extractDatasetArray(initialPayload, 'payments');
+  const fallbackLines = extractDatasetArray(initialPayload, 'lines');
+  const fallbackShifts = extractDatasetArray(initialPayload, 'shifts');
+
+  const initialOrders = initialRecords('orders', fallbackOrders);
+  const initialPayments = initialRecords('payments', fallbackPayments);
+  const initialLines = initialRecords('lines', fallbackLines);
+  const initialShifts = initialRecords('shifts', fallbackShifts);
   let normalizedOrders = [];
 
   const settings = initialPayload.settings || {};
   const branchSync = settings.sync || {};
+  const resolvedBranchId =
+    resolveBranchId([
+      branchParamFromLocation,
+      branchHintFromGlobal,
+      branchHintFromStatus,
+      db?.config?.branchId,
+      branchSync.branch_id,
+      branchSync.branchId,
+      branchSync.id,
+      settings.branch_id,
+      settings.branchId,
+      initialPayload.branch_id,
+      initialPayload.branchId
+    ]) || 'branch-main';
+  const resolvedBranchCode =
+    resolveBranchId([
+      branchSync.branch_code,
+      branchSync.branchCode,
+      settings.branch_code,
+      settings.branchCode,
+      initialPayload.branch_code,
+      initialPayload.branchCode,
+      resolvedBranchId
+    ]) || resolvedBranchId;
+  const resolvedBranchSlug =
+    resolveBranchId([
+      branchSync.branch_slug,
+      branchSync.branchSlug,
+      settings.branch_slug,
+      settings.branchSlug,
+      resolvedBranchCode,
+      resolvedBranchId
+    ]) || resolvedBranchCode;
+  const resolvedBranchChannel =
+    resolveBranchId([
+      branchSync.channel,
+      branchSync.branch_channel,
+      settings.channel,
+      settings.branch_channel,
+      resolvedBranchSlug,
+      resolvedBranchId
+    ]) || resolvedBranchId;
   const branch = {
-    id: branchSync.branch_id || branchSync.branchId || branchSync.id || settings.branch_id || settings.branchId || 'branch-main',
+    id: resolvedBranchId,
+    code: resolvedBranchCode,
+    slug: resolvedBranchSlug,
+    channel: resolvedBranchChannel,
     nameAr:
       (branchSync.branch_name && branchSync.branch_name.ar) ||
       (branchSync.branchName && branchSync.branchName.ar) ||
@@ -159,6 +503,25 @@
       settings.branchName?.en ||
       'Main Branch'
   };
+  if (runtimeStatus) {
+    runtimeStatus.branchId = branch.id;
+  }
+  global.__POS_BRANCH_ID__ = branch.id;
+
+  const financeSettings = settings.finance || settings.financial || settings.financials || {};
+  const configuredPurgeTables = uniqueArray([
+    ...ensureArray(financeSettings.purgeTables),
+    ...ensureArray(financeSettings.resetTables),
+    ...ensureArray(settings.purgeTables),
+    ...ensureArray(settings.resetTables),
+    ...ensureArray(initialPayload.purgeTables),
+    ...ensureArray(initialPayload.resetTables)
+  ])
+    .map(canonicalizeTableName)
+    .filter(Boolean);
+  if (configuredPurgeTables.length) {
+    DEFAULT_PURGE_TABLES = Array.from(new Set(configuredPurgeTables));
+  }
 
   const currency = settings.currency || { code: 'EGP', symbols: { ar: 'ج.م', en: 'E£' } };
 
@@ -535,10 +898,10 @@
   }
 
   const updateData = () => {
-    const orders = db ? ensureArray(db.list('order_header')) : [];
-    const payments = db ? ensureArray(db.list('order_payment')) : [];
-    const lines = db ? ensureArray(db.list('order_line')) : [];
-    const shifts = db ? ensureArray(db.list('pos_shift')) : [];
+    const orders = listRecords('orders');
+    const payments = listRecords('payments');
+    const lines = listRecords('lines');
+    const shifts = listRecords('shifts');
     const dataset = enrichOrdersSnapshot(orders, lines, payments);
     normalizedOrders = dataset.orders;
     const summary = computeFinancialSummary({
@@ -579,34 +942,30 @@
 
   const watchers = [];
   if (db) {
-    watchers.push(
-      db.watch('order_header', () => {
-        updateData();
-      })
-    );
-    watchers.push(
-      db.watch('order_payment', () => {
-        updateData();
-      })
-    );
-    watchers.push(
-      db.watch('order_line', () => {
-        updateData();
-      })
-    );
-    watchers.push(
-      db.watch('pos_shift', () => {
-        updateData();
-      })
-    );
-    watchers.push(
-      db.watch('pos_database', (rows) => {
-        if (!rows || !rows.length) return;
-        const latest = rows[rows.length - 1];
-        if (!latest || !latest.payload) return;
-        updateLookupsFromPayload(latest.payload);
-      })
-    );
+    const registerWatcher = (key, handler) => {
+      const unsubscribe = watchTable(key, handler);
+      if (typeof unsubscribe === 'function') {
+        watchers.push(unsubscribe);
+      }
+    };
+    registerWatcher('orders', () => {
+      updateData();
+    });
+    registerWatcher('payments', () => {
+      updateData();
+    });
+    registerWatcher('lines', () => {
+      updateData();
+    });
+    registerWatcher('shifts', () => {
+      updateData();
+    });
+    registerWatcher('dataset', (rows) => {
+      if (!rows || !rows.length) return;
+      const latest = rows[rows.length - 1];
+      if (!latest || !latest.payload) return;
+      updateLookupsFromPayload(latest.payload);
+    });
   }
 
   const setUiState = (patch) => {
@@ -736,13 +1095,15 @@
       });
       if (db && Array.isArray(DEFAULT_PURGE_TABLES)) {
         for (const tableName of DEFAULT_PURGE_TABLES) {
+          const alias = getAliasForCanonical(tableName);
           try {
             if (typeof db.clear === 'function') {
-              db.clear(tableName);
+              db.clear(alias);
             }
           } catch (clearError) {
             console.warn('[POS Finance] Failed to clear local table after reset', {
               table: tableName,
+              alias,
               error: clearError
             });
           }
@@ -764,10 +1125,10 @@
 
   const handleCloseDay = async () => {
     const state = app.getState ? app.getState() : app.state;
-    const ordersData = db ? ensureArray(db.list('order_header')) : [];
-    const paymentsData = db ? ensureArray(db.list('order_payment')) : [];
-    const linesData = db ? ensureArray(db.list('order_line')) : [];
-    const shiftsData = db ? ensureArray(db.list('pos_shift')) : [];
+    const ordersData = listRecords('orders');
+    const paymentsData = listRecords('payments');
+    const linesData = listRecords('lines');
+    const shiftsData = listRecords('shifts');
     const normalizedSnapshot = enrichOrdersSnapshot(ordersData, linesData, paymentsData);
 
     const summary = state?.data?.summary || computeFinancialSummary({
