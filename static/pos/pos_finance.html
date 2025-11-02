@@ -200,6 +200,7 @@
       };
 
       window.__POS_DATA_STATUS__ = status;
+      window.__POS_BRANCH_ID__ = BRANCH_ID;
 
       try {
         const { db, moduleEntry } = await createPosDb({ branchId: BRANCH_ID, role: 'finance-shell' });
