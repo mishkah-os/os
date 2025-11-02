@@ -3868,13 +3868,13 @@
       })
     );
     watcherUnsubscribers.push(
-      store.watch('order_header', (rows) => {
+      store.watch('orders', (rows) => {
         watcherState.headers = ensureArray(rows);
         updateFromWatchers();
       })
     );
     watcherUnsubscribers.push(
-      store.watch('order_line', (rows) => {
+      store.watch('orderLine', (rows) => {
         watcherState.lines = ensureArray(rows);
         updateFromWatchers();
       })
