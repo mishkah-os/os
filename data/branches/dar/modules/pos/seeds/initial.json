@@ -8,7 +8,7 @@
   },
   "tables": {
     "pos_database": [
-      {
+{
     "payload": {
         "settings": {
             "tax_rate": 0.14,
