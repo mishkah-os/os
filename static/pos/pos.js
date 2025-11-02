@@ -2596,7 +2596,8 @@
       payments:new Map(),
       snapshot:{ orders:[], active:[], history:[] },
       unsubscribes:[],
-      debugLogged:{ headers:false, lines:false, payments:false }
+      debugLogged:{ headers:false, lines:false, payments:false, dataset:false },
+      datasetPrimed:{ headers:false, lines:false, payments:false }
     };
 
     const realtimeJobOrders = {
@@ -3190,6 +3191,180 @@
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
+      const datasetTableName = POS_TABLE_HANDLES.dataset || 'pos_database';
+      const datasetPrimed = realtimeOrders.datasetPrimed || { headers:false, lines:false, payments:false };
+      realtimeOrders.datasetPrimed = datasetPrimed;
+      const datasetHeaderKeys = ['orders','order_header','orderHeader','orderHeaders'];
+      const datasetLineKeys = ['orderLines','order_line','orderLine','order_lines','lines'];
+      const datasetPaymentKeys = ['orderPayments','order_payment','orderPayment','order_payments','payments'];
+      const toArrayCandidate = (value)=>{
+        if(Array.isArray(value)) return value;
+        if(typeof value === 'string'){
+          const parsed = parseMaybeJSONish(value);
+          if(parsed && typeof parsed === 'object'){ return toArrayCandidate(parsed); }
+          return [];
+        }
+        if(value && typeof value === 'object'){
+          return Object.values(value);
+        }
+        return [];
+      };
+      const gatherDatasetSources = (root)=>{
+        const visited = new WeakSet();
+        const queue = [];
+        const sources = [];
+        const enqueue = (value)=>{
+          if(!value || typeof value !== 'object') return;
+          if(visited.has(value)) return;
+          visited.add(value);
+          queue.push(value);
+        };
+        enqueue(root);
+        while(queue.length){
+          const current = queue.shift();
+          if(!current) continue;
+          sources.push(current);
+          if(Array.isArray(current)) continue;
+          enqueue(current.payload);
+          enqueue(current.data);
+          enqueue(current.dataset);
+          enqueue(current.snapshot);
+          enqueue(current.result);
+          enqueue(current.value);
+          enqueue(current.content);
+          enqueue(current.tables);
+          enqueue(current.stores);
+        }
+        return sources;
+      };
+      const extractDatasetEntries = (record, names)=>{
+        if(!record) return [];
+        const sources = gatherDatasetSources(record);
+        for(const source of sources){
+          if(!source || typeof source !== 'object') continue;
+          for(const name of names){
+            if(!(name in source)) continue;
+            const list = toArrayCandidate(source[name]);
+            if(list.length) return list;
+          }
+        }
+        return [];
+      };
+      const applyDatasetOrders = (record)=>{
+        if(!record || typeof record !== 'object') return;
+        let headerRows = extractDatasetEntries(record, datasetHeaderKeys);
+        let lineRows = extractDatasetEntries(record, datasetLineKeys);
+        let paymentRows = extractDatasetEntries(record, datasetPaymentKeys);
+        if(headerRows.length){
+          const nestedLines = [];
+          const nestedPayments = [];
+          headerRows.forEach(order=>{
+            if(!order || typeof order !== 'object') return;
+            const orderId = order.id ?? order.orderId ?? order.order_id ?? null;
+            const linesList = toArrayCandidate(order.lines || order.order_lines || order.items);
+            linesList.forEach(line=>{
+              if(!line || typeof line !== 'object') return;
+              const merged = { ...line };
+              if(merged.orderId == null && orderId != null) merged.orderId = orderId;
+              nestedLines.push(merged);
+            });
+            const paymentsList = toArrayCandidate(order.payments || order.order_payments || order.payment_records);
+            paymentsList.forEach(payment=>{
+              if(!payment || typeof payment !== 'object') return;
+              const merged = { ...payment };
+              if(merged.orderId == null && orderId != null) merged.orderId = orderId;
+              nestedPayments.push(merged);
+            });
+          });
+          if(!lineRows.length && nestedLines.length) lineRows = nestedLines;
+          if(!paymentRows.length && nestedPayments.length) paymentRows = nestedPayments;
+        }
+        let changed = false;
+        if(headerRows.length){
+          datasetPrimed.headers = true;
+          realtimeOrders.headers.clear();
+          headerRows.forEach(row=>{
+            const normalized = sanitizeOrderHeaderRow(row);
+            if(!normalized) return;
+            realtimeOrders.headers.set(String(normalized.id), normalized);
+          });
+          changed = true;
+        } else if(datasetPrimed.headers){
+          datasetPrimed.headers = false;
+          if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
+            realtimeOrders.headers.clear();
+            changed = true;
+          }
+        }
+        if(lineRows.length){
+          datasetPrimed.lines = true;
+          const grouped = new Map();
+          lineRows.forEach(row=>{
+            const normalized = sanitizeOrderLineRow(row);
+            if(!normalized || !normalized.orderId) return;
+            const orderId = String(normalized.orderId);
+            if(!grouped.has(orderId)) grouped.set(orderId, []);
+            grouped.get(orderId).push(normalized);
+          });
+          realtimeOrders.lines = grouped;
+          changed = true;
+        } else if(datasetPrimed.lines){
+          datasetPrimed.lines = false;
+          if(realtimeOrders.lines instanceof Map && realtimeOrders.lines.size){
+            realtimeOrders.lines = new Map();
+            changed = true;
+          } else {
+            realtimeOrders.lines = new Map();
+          }
+        }
+        if(paymentRows.length){
+          datasetPrimed.payments = true;
+          const grouped = new Map();
+          paymentRows.forEach(row=>{
+            const normalized = sanitizeOrderPaymentRow(row);
+            if(!normalized || !normalized.orderId) return;
+            const orderId = String(normalized.orderId);
+            if(!grouped.has(orderId)) grouped.set(orderId, []);
+            grouped.get(orderId).push(normalized);
+          });
+          realtimeOrders.payments = grouped;
+          changed = true;
+        } else if(datasetPrimed.payments){
+          datasetPrimed.payments = false;
+          if(realtimeOrders.payments instanceof Map && realtimeOrders.payments.size){
+            realtimeOrders.payments = new Map();
+            changed = true;
+          } else {
+            realtimeOrders.payments = new Map();
+          }
+        }
+        if(changed){
+          scheduleRealtimeSnapshot();
+        }
+      };
+      let unsubDataset = null;
+      if(datasetTableName && typeof store.watch === 'function'){
+        unsubDataset = store.watch(datasetTableName, (rows)=>{
+          logIndexedDbSample(realtimeOrders.debugLogged, datasetTableName, rows, (row)=> (row && typeof row === 'object' && row.payload)
+            ? { ...row, payload: Array.isArray(row.payload?.orders) ? { ordersCount: row.payload.orders.length } : row.payload }
+            : row);
+          const list = Array.isArray(rows) ? rows : [];
+          const latest = list.length ? list[list.length - 1] : null;
+          if(latest && typeof latest === 'object'){
+            applyDatasetOrders(latest);
+          } else if(datasetPrimed.headers || datasetPrimed.lines || datasetPrimed.payments){
+            datasetPrimed.headers = false;
+            datasetPrimed.lines = false;
+            datasetPrimed.payments = false;
+            if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
+              realtimeOrders.headers.clear();
+            }
+            realtimeOrders.lines = new Map();
+            realtimeOrders.payments = new Map();
+            scheduleRealtimeSnapshot();
+          }
+        });
+      }
       const headerTableName = POS_TABLE_HANDLES.order_header || 'order_header';
       const lineTableName = POS_TABLE_HANDLES.order_line || 'order_line';
       const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
@@ -3229,7 +3404,7 @@
         realtimeOrders.payments = grouped;
         scheduleRealtimeSnapshot();
       });
-      realtimeOrders.unsubscribes = [unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
+      realtimeOrders.unsubscribes = [unsubDataset, unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
       realtimeOrders.installed = true;
     }
 
