@@ -252,14 +252,14 @@
     };
     const TABLE_ALIAS_GROUPS = {
       dataset:{ canonical:'pos_database', aliases:['pos_dataset','pos_data','dataset','pos_snapshot'] },
-      orderHeader:{ canonical:'order_header', aliases:['orders','order_headers','orderHeader','order_header_live','pos_order_header'] },
-      orderLine:{ canonical:'order_line', aliases:['order_lines','order_line_items','orderDetails','order_items'] },
+      orderHeader:{ canonical:'orders', aliases:['orders','orderss','orderHeader','orders_live','pos_orders'] },
+      orderLine:{ canonical:'orderLines', aliases:['orderLines','orderLines_items','orderDetails','order_items'] },
       orderPayment:{ canonical:'order_payment', aliases:['order_payments','payments','orderPayments','payment_transactions'] },
-      orderLineModifier:{ canonical:'order_line_modifier', aliases:['order_line_modifiers','orderModifiers','order_line_addons'] },
+      orderLineModifier:{ canonical:'orderLines_modifier', aliases:['orderLines_modifiers','orderModifiers','orderLines_addons'] },
       orderStatusLog:{ canonical:'order_status_log', aliases:['order_status_history','orderStatusHistory'] },
-      orderLineStatusLog:{ canonical:'order_line_status_log', aliases:['order_line_status_history','line_status_history'] },
+      orderLineStatusLog:{ canonical:'orderLines_status_log', aliases:['orderLines_status_history','line_status_history'] },
       posShift:{ canonical:'pos_shift', aliases:['pos_shifts','shifts','shift_header','shiftHeaders'] },
-      jobOrderHeader:{ canonical:'job_order_header', aliases:['job_orders','job_order_headers','production_order_header'] },
+      jobOrderHeader:{ canonical:'job_orders', aliases:['job_orders','job_orderss','production_orders'] },
       jobOrderDetail:{ canonical:'job_order_detail', aliases:['job_order_details','jobOrderDetails','production_order_detail'] },
       jobOrderDetailModifier:{ canonical:'job_order_detail_modifier', aliases:['job_order_modifiers','jobOrderModifiers'] },
       jobOrderStatusHistory:{ canonical:'job_order_status_history', aliases:['job_order_status_log','jobStatusHistory'] },
@@ -574,7 +574,7 @@
     
     async function fetchPosSchemaFromBackend(){
       const branchId = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || 'dar') : 'dar';
-      const url = './api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
+      const url = '../pos/api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
       try{
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
         const body = await res.json().catch(()=>null);
@@ -1785,7 +1785,7 @@
         const payload = await postJson(
           `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/sequences`,
           {
-            table:'order_header',
+            table:'orders',
             field:'id',
             record:{
               posId: posId || POS_INFO.id,
@@ -2718,7 +2718,7 @@
       if(!row) return null;
       const orderId = row.orderId ?? row.order_id;
       if(orderId == null) return null;
-      const id = row.id ?? row.line_id ?? row.order_line_id ?? `${orderId}-${row.item_id ?? Math.random().toString(16).slice(2,8)}`;
+      const id = row.id ?? row.line_id ?? row.orderLines_id ?? `${orderId}-${row.item_id ?? Math.random().toString(16).slice(2,8)}`;
       const normalized = { ...row };
       normalized.id = String(id);
       normalized.orderId = orderId != null ? String(orderId) : undefined;
@@ -3360,8 +3360,8 @@
       };
       const applyDatasetOrders = (record)=>{
         if(!record || typeof record !== 'object') return;
-        let headerRows = extractDatasetEntries(record, 'order_header');
-        let lineRows = extractDatasetEntries(record, 'order_line');
+        let headerRows = extractDatasetEntries(record, 'orders');
+        let lineRows = extractDatasetEntries(record, 'orderLines');
         let paymentRows = extractDatasetEntries(record, 'order_payment');
         if(headerRows.length){
           const nestedLines = [];
@@ -3369,7 +3369,7 @@
           headerRows.forEach(order=>{
             if(!order || typeof order !== 'object') return;
             const orderId = order.id ?? order.orderId ?? order.order_id ?? null;
-            const linesList = readDatasetArray(order.lines || order.order_lines || order.items);
+            const linesList = readDatasetArray(order.lines || order.orderLines || order.items);
             linesList.forEach(line=>{
               if(!line || typeof line !== 'object') return;
               const merged = { ...line };
@@ -3473,11 +3473,11 @@
           }
         });
       }
-      const headerTableName = POS_TABLE_HANDLES.order_header || 'order_header';
-      const lineTableName = POS_TABLE_HANDLES.order_line || 'order_line';
+      const headerTableName = POS_TABLE_HANDLES.orders || 'orders';
+      const lineTableName = POS_TABLE_HANDLES.orderLines || 'orderLines';
       const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
       const unsubHeaders = store.watch(headerTableName, (rows)=>{
-        logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
+        logIndexedDbSample(realtimeOrders.debugLogged, 'orders', rows, sanitizeOrderHeaderRow);
         realtimeOrders.headers.clear();
         (rows || []).forEach(row=>{
           const normalized = sanitizeOrderHeaderRow(row);
@@ -3487,7 +3487,7 @@
         scheduleRealtimeSnapshot();
       });
       const unsubLines = store.watch(lineTableName, (rows)=>{
-        logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
+        logIndexedDbSample(realtimeOrders.debugLogged, 'orderLines', rows, sanitizeOrderLineRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
           const normalized = sanitizeOrderLineRow(row);
@@ -3543,13 +3543,13 @@
       if(realtimeJobOrders.installed) return;
       if(!realtimeJobOrders.store) return;
       const store = realtimeJobOrders.store;
-      const jobHeaderTable = POS_TABLE_HANDLES.job_order_header || 'job_order_header';
+      const jobHeaderTable = POS_TABLE_HANDLES.job_orders || 'job_orders';
       const jobDetailTable = POS_TABLE_HANDLES.job_order_detail || 'job_order_detail';
       const jobModifierTable = POS_TABLE_HANDLES.job_order_detail_modifier || 'job_order_detail_modifier';
       const jobStatusTable = POS_TABLE_HANDLES.job_order_status_history || 'job_order_status_history';
       const expoTicketTable = POS_TABLE_HANDLES.expo_pass_ticket || 'expo_pass_ticket';
       const unsubHeaders = store.watch(jobHeaderTable, (rows)=>{
-        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
+        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_orders', rows, sanitizeJobOrderHeaderRow);
         realtimeJobOrders.headers.clear();
         (rows || []).forEach(row=>{
           const normalized = sanitizeJobOrderHeaderRow(row);
@@ -4133,7 +4133,7 @@
       const response = await fetch(endpoint, {
         method:'POST',
         headers:{ 'content-type':'application/json' },
-        body: JSON.stringify({ table:'order_header', field:'id', record:{ posId: POS_INFO.id, posNumber: POS_INFO.number } })
+        body: JSON.stringify({ table:'orders', field:'id', record:{ posId: POS_INFO.id, posNumber: POS_INFO.number } })
       });
       if(!response.ok){
         const message = await response.text().catch(()=> response.statusText || '');
@@ -4554,7 +4554,7 @@
     }));
     const orderPaymentMap = new Map(orderPaymentStates.map(state=> [state.id, state]));
 
-    const orderLineStatuses = (Array.isArray(MOCK.order_line_statuses) && MOCK.order_line_statuses.length ? MOCK.order_line_statuses : [
+    const orderLineStatuses = (Array.isArray(MOCK.orderLines_statuses) && MOCK.orderLines_statuses.length ? MOCK.orderLines_statuses : [
       { id:'draft', status_name:{ ar:'مسودة', en:'Draft' } },
       { id:'queued', status_name:{ ar:'بانتظار التحضير', en:'Queued' } },
       { id:'preparing', status_name:{ ar:'جاري التحضير', en:'Preparing' } },
