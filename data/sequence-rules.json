@@ -2,7 +2,7 @@
   "version": 1,
   "defaults": {
     "pos": {
-      "order_header": {
+      "orders": {
         "id": {
           "prefix": "POS",
           "start": 1,
