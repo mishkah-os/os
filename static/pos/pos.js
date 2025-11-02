@@ -2955,13 +2955,6 @@
         totals.paid = round(paidAmount);
       }
       totals.total = totals.due;
-      console.log('[Mishkah][POS] normalizeRealtimeOrderHeader totals:', {
-        orderId: String(rawId),
-        rawSubtotal: raw.subtotal,
-        rawTotalDue: raw.totalDue,
-        rawTotal: raw.total,
-        computedTotals: totals
-      });
       const guests = Number(raw.guests ?? metadata.guests ?? 0) || 0;
       const versionValue = Number(raw.version ?? metadata.version ?? metadata.currentVersion ?? metadata.versionCurrent);
       const header = {
@@ -3055,6 +3048,74 @@
       };
     }
 
+    function computeRealtimeLineTotal(line){
+      if(!line || typeof line !== 'object') return 0;
+      const quantity = Number(line.qty ?? line.quantity ?? line.count ?? 0) || 0;
+      const unitPrice = Number(line.price ?? line.unitPrice ?? line.unit_price ?? 0) || 0;
+      const totalValue = Number(line.total ?? line.lineTotal ?? line.line_total ?? 0);
+      if(Number.isFinite(totalValue) && totalValue !== 0){
+        return round(totalValue);
+      }
+      if(quantity && unitPrice){
+        return round(quantity * unitPrice);
+      }
+      return 0;
+    }
+
+    function computeRealtimePaymentAmount(payment){
+      if(!payment || typeof payment !== 'object') return 0;
+      const amount = Number(payment.amount ?? payment.total ?? payment.value ?? payment.paidAmount ?? payment.amount_paid ?? 0);
+      return Number.isFinite(amount) ? round(amount) : 0;
+    }
+
+    function deriveRealtimeOrderFinancials(header, lines=[], payments=[]){
+      const safeLines = Array.isArray(lines) ? lines : [];
+      const safePayments = Array.isArray(payments) ? payments : [];
+      const lineTotal = round(safeLines.reduce((sum, line)=> sum + computeRealtimeLineTotal(line), 0));
+      const paymentsTotal = round(safePayments.reduce((sum, payment)=> sum + computeRealtimePaymentAmount(payment), 0));
+      const baseTotals = ensurePlainObject(header.totals);
+      let subtotal = firstFiniteNumber(
+        baseTotals.subtotal,
+        header.subtotal,
+        header.totalBeforeTax,
+        header.total_before_tax,
+        header.totals?.subtotal,
+        header.metadata?.subtotal,
+        lineTotal
+      );
+      if(!Number.isFinite(subtotal) || subtotal <= 0) subtotal = lineTotal;
+      let due = firstFiniteNumber(
+        baseTotals.due,
+        header.totalDue,
+        header.total_due,
+        header.total,
+        header.total_amount,
+        header.totals?.due,
+        header.metadata?.totalDue,
+        header.metadata?.total_due,
+        subtotal
+      );
+      if(!Number.isFinite(due) || due <= 0) due = subtotal;
+      let paid = firstFiniteNumber(
+        baseTotals.paid,
+        header.totalPaid,
+        header.total_paid,
+        header.amount_paid,
+        header.totals?.paid,
+        header.metadata?.totalPaid,
+        header.metadata?.total_paid,
+        paymentsTotal
+      );
+      if(!Number.isFinite(paid) || paid < paymentsTotal) paid = paymentsTotal;
+      return {
+        subtotal: round(subtotal),
+        due: round(due),
+        paid: round(paid),
+        lineTotal,
+        paymentsTotal
+      };
+    }
+
     function composeRealtimeOrder(orderId){
       const rawHeader = realtimeOrders.headers.get(orderId);
       if(!rawHeader) return null;
@@ -3064,17 +3125,23 @@
       const paymentRows = realtimeOrders.payments.get(orderId) || [];
       const lines = lineRows.map(row=> normalizeRealtimeOrderLine(row, header)).filter(Boolean);
       const payments = paymentRows.map(normalizeRealtimePayment).filter(Boolean);
-      const paidTotal = round(payments.reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
+      const financials = deriveRealtimeOrderFinancials(header, lines, payments);
       const totals = {
         ...header.totals,
-        paid: paidTotal,
-        remaining: Math.max(0, round((header.totals?.due || 0) - paidTotal))
+        subtotal: financials.subtotal,
+        due: financials.due,
+        total: financials.due,
+        paid: financials.paid,
+        remaining: Math.max(0, round(financials.due - financials.paid)),
+        lines: lines.length,
+        payments: financials.paymentsTotal,
+        lineTotal: financials.lineTotal
       };
       let paymentState = header.paymentState || 'unpaid';
       if(totals.due > 0){
-        if(paidTotal >= totals.due){
+        if(totals.paid >= totals.due){
           paymentState = 'paid';
-        } else if(paidTotal > 0){
+        } else if(totals.paid > 0){
           paymentState = 'partial';
         } else {
           paymentState = 'unpaid';
@@ -3083,26 +3150,19 @@
       const composedOrder = {
         ...header,
         totals,
+        subtotal: totals.subtotal,
+        totalDue: totals.due,
+        total_due: totals.due,
+        totalPaid: totals.paid,
+        total_paid: totals.paid,
+        paymentsTotal: financials.paymentsTotal,
         paymentState,
         payments,
         lines,
         dirty:false,
         isPersisted: header.isPersisted !== false
       };
-      console.log('[Mishkah][POS] composeRealtimeOrder before enrich:', {
-        orderId,
-        headerTotals: header.totals,
-        composedTotals: totals,
-        linesCount: lines.length,
-        firstLine: lines[0]
-      });
       const enriched = enrichOrderWithMenu(composedOrder);
-      console.log('[Mishkah][POS] composeRealtimeOrder after enrich:', {
-        orderId,
-        totals: enriched.totals,
-        linesCount: enriched.lines?.length,
-        firstLine: enriched.lines?.[0]
-      });
       return enriched;
     }
 
@@ -3187,6 +3247,51 @@
       }
     }
 
+    const DATASET_PAYLOAD_KEY_CACHE = new Map();
+
+    const registerDatasetKeyVariant = (bucket, name)=>{
+      if(typeof name !== 'string') return;
+      const trimmed = name.trim();
+      if(!trimmed) return;
+      bucket.add(trimmed);
+      bucket.add(trimmed.toLowerCase());
+      const snakeToCamel = trimmed.replace(/[-_\s]+([A-Za-z0-9])/g, (_match, chr)=> chr ? chr.toUpperCase() : '');
+      if(snakeToCamel){
+        const lowerCamel = snakeToCamel.charAt(0).toLowerCase() + snakeToCamel.slice(1);
+        bucket.add(lowerCamel);
+        bucket.add(lowerCamel.charAt(0).toUpperCase() + lowerCamel.slice(1));
+      }
+    };
+
+    const getDatasetPayloadKeysFor = (canonical)=>{
+      const normalized = canonicalizeTableName(canonical);
+      if(!normalized) return [];
+      if(DATASET_PAYLOAD_KEY_CACHE.has(normalized)){
+        return DATASET_PAYLOAD_KEY_CACHE.get(normalized);
+      }
+      const variants = new Set();
+      registerDatasetKeyVariant(variants, normalized);
+      const descriptor = Object.values(TABLE_ALIAS_GROUPS).find(entry=> entry.canonical === normalized) || null;
+      if(descriptor){
+        (descriptor.aliases || []).forEach(alias=> registerDatasetKeyVariant(variants, alias));
+      }
+      if(POS_TABLE_HANDLES && POS_TABLE_HANDLES[normalized]){
+        registerDatasetKeyVariant(variants, POS_TABLE_HANDLES[normalized]);
+      }
+      const keys = Array.from(variants).filter(Boolean);
+      DATASET_PAYLOAD_KEY_CACHE.set(normalized, keys);
+      return keys;
+    };
+
+    const readDatasetArray = (value)=>{
+      if(Array.isArray(value)) return value;
+      if(typeof value === 'string'){
+        const parsed = parseMaybeJSONish(value);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+      return coerceArray(value);
+    };
+
     function installRealtimeOrderWatchers(){
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
@@ -3194,21 +3299,6 @@
       const datasetTableName = POS_TABLE_HANDLES.dataset || 'pos_database';
       const datasetPrimed = realtimeOrders.datasetPrimed || { headers:false, lines:false, payments:false };
       realtimeOrders.datasetPrimed = datasetPrimed;
-      const datasetHeaderKeys = ['orders','order_header','orderHeader','orderHeaders'];
-      const datasetLineKeys = ['orderLines','order_line','orderLine','order_lines','lines'];
-      const datasetPaymentKeys = ['orderPayments','order_payment','orderPayment','order_payments','payments'];
-      const toArrayCandidate = (value)=>{
-        if(Array.isArray(value)) return value;
-        if(typeof value === 'string'){
-          const parsed = parseMaybeJSONish(value);
-          if(parsed && typeof parsed === 'object'){ return toArrayCandidate(parsed); }
-          return [];
-        }
-        if(value && typeof value === 'object'){
-          return Object.values(value);
-        }
-        return [];
-      };
       const gatherDatasetSources = (root)=>{
         const visited = new WeakSet();
         const queue = [];
@@ -3237,14 +3327,15 @@
         }
         return sources;
       };
-      const extractDatasetEntries = (record, names)=>{
+      const extractDatasetEntries = (record, canonical)=>{
         if(!record) return [];
+        const names = getDatasetPayloadKeysFor(canonical);
         const sources = gatherDatasetSources(record);
         for(const source of sources){
           if(!source || typeof source !== 'object') continue;
           for(const name of names){
-            if(!(name in source)) continue;
-            const list = toArrayCandidate(source[name]);
+            const value = source[name];
+            const list = readDatasetArray(value);
             if(list.length) return list;
           }
         }
@@ -3252,23 +3343,23 @@
       };
       const applyDatasetOrders = (record)=>{
         if(!record || typeof record !== 'object') return;
-        let headerRows = extractDatasetEntries(record, datasetHeaderKeys);
-        let lineRows = extractDatasetEntries(record, datasetLineKeys);
-        let paymentRows = extractDatasetEntries(record, datasetPaymentKeys);
+        let headerRows = extractDatasetEntries(record, 'order_header');
+        let lineRows = extractDatasetEntries(record, 'order_line');
+        let paymentRows = extractDatasetEntries(record, 'order_payment');
         if(headerRows.length){
           const nestedLines = [];
           const nestedPayments = [];
           headerRows.forEach(order=>{
             if(!order || typeof order !== 'object') return;
             const orderId = order.id ?? order.orderId ?? order.order_id ?? null;
-            const linesList = toArrayCandidate(order.lines || order.order_lines || order.items);
+            const linesList = readDatasetArray(order.lines || order.order_lines || order.items);
             linesList.forEach(line=>{
               if(!line || typeof line !== 'object') return;
               const merged = { ...line };
               if(merged.orderId == null && orderId != null) merged.orderId = orderId;
               nestedLines.push(merged);
             });
-            const paymentsList = toArrayCandidate(order.payments || order.order_payments || order.payment_records);
+            const paymentsList = readDatasetArray(order.payments || order.order_payments || order.payment_records);
             paymentsList.forEach(payment=>{
               if(!payment || typeof payment !== 'object') return;
               const merged = { ...payment };
