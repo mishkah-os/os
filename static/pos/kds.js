@@ -1094,7 +1094,21 @@
     const handoff = db?.data?.handoff || {};
     const stationMap = db?.data?.stationMap || {};
     return orders.map(order=>{
-      const record = handoff[order.orderId] || handoff[order.id] || {};
+      const orderKey = normalizeOrderKey(order.orderId || order.id);
+      let record = (orderKey && (handoff[orderKey] || handoff[order.orderId] || handoff[order.id])) || {};
+      const recordStatus = record.status ? String(record.status).toLowerCase() : '';
+      if(orderKey && (recordStatus === 'assembled' || recordStatus === 'served')){
+        const orderTimeCandidates = [order.updatedAt, order.completedAt, order.readyAt, order.acceptedAt, order.createdAt];
+        const orderTimestamp = orderTimeCandidates.reduce((acc, value)=>{
+          const ms = parseTime(value);
+          return ms && ms > acc ? ms : acc;
+        }, 0);
+        const recordTimestamp = resolveHandoffTimestamp(record);
+        if(!recordTimestamp || (orderTimestamp && orderTimestamp > recordTimestamp)){
+          recordPersistedHandoff(orderKey, null);
+          record = {};
+        }
+      }
       let totalItems = 0;
       let readyItems = 0;
       const detailRows = [];
@@ -1716,7 +1730,7 @@
               type:'button',
               gkey:'kds:handoff:assembled',
               'data-order-id': order.orderId,
-              class: tw`w-full rounded-full border border-emerald-400/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-900 shadow-lg shadow-emerald-900/30 hover:bg-emerald-500/30`
+              class: tw`w-full rounded-full border border-emerald-300/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-50 shadow-lg shadow-emerald-900/30 hover:bg-emerald-500/30`
             }
           }, [t.actions.handoffComplete])
         : createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`);
