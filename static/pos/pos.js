@@ -5,6 +5,11 @@
     const U = M.utils;
     const D = M.DSL;
     const Schema = M.schema;
+    const MODULE_ENTRY = (typeof window !== 'undefined'
+      && window.__POS_MODULE_ENTRY__
+      && typeof window.__POS_MODULE_ENTRY__ === 'object')
+      ? window.__POS_MODULE_ENTRY__
+      : null;
     const { tw, token } = U.twcss;
     const BASE_PALETTE = U.twcss?.PALETTE || {};
 
@@ -152,6 +157,233 @@
       const raw = base || fallback || 'default';
       return raw.replace(/[^A-Za-z0-9:_-]+/g, '-').toLowerCase();
     };
+    const coerceArray = (value)=>{
+      if(Array.isArray(value)) return value;
+      if(!value || typeof value !== 'object') return [];
+      if(Array.isArray(value.rows)) return value.rows;
+      if(Array.isArray(value.items)) return value.items;
+      if(Array.isArray(value.list)) return value.list;
+      if(Array.isArray(value.data)) return value.data;
+      if(Array.isArray(value.values)) return value.values;
+      if(Array.isArray(value.records)) return value.records;
+      return [];
+    };
+    const TABLE_ALIAS_GROUPS = {
+      dataset:{ canonical:'pos_database', aliases:['pos_dataset','pos_data','dataset','pos_snapshot'] },
+      orderHeader:{ canonical:'order_header', aliases:['orders','order_headers','orderHeader','order_header_live','pos_order_header'] },
+      orderLine:{ canonical:'order_line', aliases:['order_lines','order_line_items','orderDetails','order_items'] },
+      orderPayment:{ canonical:'order_payment', aliases:['order_payments','payments','orderPayments','payment_transactions'] },
+      orderLineModifier:{ canonical:'order_line_modifier', aliases:['order_line_modifiers','orderModifiers','order_line_addons'] },
+      orderStatusLog:{ canonical:'order_status_log', aliases:['order_status_history','orderStatusHistory'] },
+      orderLineStatusLog:{ canonical:'order_line_status_log', aliases:['order_line_status_history','line_status_history'] },
+      posShift:{ canonical:'pos_shift', aliases:['pos_shifts','shifts','shift_header','shiftHeaders'] },
+      jobOrderHeader:{ canonical:'job_order_header', aliases:['job_orders','job_order_headers','production_order_header'] },
+      jobOrderDetail:{ canonical:'job_order_detail', aliases:['job_order_details','jobOrderDetails','production_order_detail'] },
+      jobOrderDetailModifier:{ canonical:'job_order_detail_modifier', aliases:['job_order_modifiers','jobOrderModifiers'] },
+      jobOrderStatusHistory:{ canonical:'job_order_status_history', aliases:['job_order_status_log','jobStatusHistory'] },
+      expoPassTicket:{ canonical:'expo_pass_ticket', aliases:['expo_pass_tickets','expo_tickets','expoPassTickets'] },
+      kitchenSection:{ canonical:'kitchen_section', aliases:['kitchen_sections','kitchenStations'] },
+      diningTable:{ canonical:'dining_table', aliases:['tables','dining_tables','restaurant_tables'] },
+      tableLock:{ canonical:'table_lock', aliases:['table_locks','locks','tableLocks'] },
+      customerProfile:{ canonical:'customer_profile', aliases:['customer_profiles','customers','customerProfiles'] },
+      customerAddress:{ canonical:'customer_address', aliases:['customer_addresses','addresses','customerAddresses'] }
+    };
+    const canonicalizeTableName = (name)=>{
+      if(name == null) return null;
+      const text = String(name).trim();
+      if(!text) return null;
+      const lower = text.toLowerCase();
+      for(const descriptor of Object.values(TABLE_ALIAS_GROUPS)){
+        const candidates = [descriptor.canonical, ...(descriptor.aliases || [])];
+        if(candidates.some(candidate=> typeof candidate === 'string' && candidate.toLowerCase() === lower)){
+          return descriptor.canonical;
+        }
+      }
+      return text;
+    };
+    const collectTableNamesFromList = (list)=>{
+      const names = new Set();
+      const push = (value)=>{
+        if(!value) return;
+        const text = String(value).trim();
+        if(text) names.add(text);
+      };
+      const visitEntry = (entry)=>{
+        if(!entry) return;
+        if(typeof entry === 'string'){ push(entry); return; }
+        if(typeof entry === 'object'){
+          push(entry.name);
+          push(entry.table);
+          push(entry.tableName);
+          push(entry.sqlName);
+          if(Array.isArray(entry.aliases)) entry.aliases.forEach(push);
+          if(Array.isArray(entry.synonyms)) entry.synonyms.forEach(push);
+        }
+      };
+      (Array.isArray(list) ? list : []).forEach(visitEntry);
+      return names;
+    };
+    const collectSchemaTableNames = (schemaSource)=>{
+      const names = new Set();
+      if(!schemaSource || typeof schemaSource !== 'object') return names;
+      collectTableNamesFromList(schemaSource.tables).forEach(name=> names.add(name));
+      if(schemaSource.schema && typeof schemaSource.schema === 'object'){
+        collectTableNamesFromList(schemaSource.schema.tables).forEach(name=> names.add(name));
+        if(schemaSource.schema.schema && typeof schemaSource.schema.schema === 'object'){
+          collectTableNamesFromList(schemaSource.schema.schema.tables).forEach(name=> names.add(name));
+        }
+      }
+      return names;
+    };
+    const collectModuleTableNames = (entry)=>{
+      if(!entry || typeof entry !== 'object') return new Set();
+      const names = new Set();
+      collectTableNamesFromList(entry.tables).forEach(name=> names.add(name));
+      if(entry.schema && typeof entry.schema === 'object'){
+        collectTableNamesFromList(entry.schema.tables).forEach(name=> names.add(name));
+        if(entry.schema.schema && typeof entry.schema.schema === 'object'){
+          collectTableNamesFromList(entry.schema.schema.tables).forEach(name=> names.add(name));
+        }
+      }
+      return names;
+    };
+    const ensurePosTableAliases = (dbInstance, schemaSource, moduleEntry)=>{
+      const handles = {};
+      if(!dbInstance || typeof dbInstance !== 'object') return handles;
+      const register = typeof dbInstance.register === 'function' ? dbInstance.register.bind(dbInstance) : null;
+      const configObjects = dbInstance.config && typeof dbInstance.config === 'object'
+        ? (dbInstance.config.objects || {})
+        : {};
+      const knownNames = new Set(Object.keys(configObjects));
+      const schemaNames = collectSchemaTableNames(schemaSource || {});
+      const moduleNames = collectModuleTableNames(moduleEntry || {});
+      const allKnown = new Set([...schemaNames, ...moduleNames]);
+      const getOptions = (descriptor)=>{
+        const options = new Set();
+        options.add(descriptor.canonical);
+        (descriptor.aliases || []).forEach(alias=>{ if(alias) options.add(String(alias)); });
+        allKnown.forEach(name=>{
+          if(canonicalizeTableName(name) === descriptor.canonical) options.add(name);
+        });
+        return Array.from(options);
+      };
+      const findCaseInsensitive = (options)=>{
+        for(const option of options){
+          const lower = String(option).toLowerCase();
+          const match = Array.from(knownNames).find(candidate=> candidate.toLowerCase() === lower);
+          if(match) return match;
+        }
+        return null;
+      };
+      Object.values(TABLE_ALIAS_GROUPS).forEach(descriptor=>{
+        const options = getOptions(descriptor);
+        let matched = options.find(option=> knownNames.has(option)) || findCaseInsensitive(options);
+        if(matched && matched !== descriptor.canonical && register && !knownNames.has(descriptor.canonical)){
+          const sourceTable = configObjects[matched]?.table || matched;
+          try{
+            register(descriptor.canonical, { table: sourceTable });
+            knownNames.add(descriptor.canonical);
+            matched = descriptor.canonical;
+          } catch(_err){
+            // Ignore registration failure and keep using the discovered table name.
+          }
+        } else if(!matched && register){
+          const fallback = options.find(option=> option && option !== descriptor.canonical);
+          const sourceTable = fallback || descriptor.canonical;
+          try{
+            register(descriptor.canonical, { table: sourceTable });
+            knownNames.add(descriptor.canonical);
+            matched = descriptor.canonical;
+          } catch(_err){
+            matched = descriptor.canonical;
+          }
+        } else if(!matched){
+          matched = descriptor.canonical;
+        }
+        handles[descriptor.canonical] = matched;
+      });
+      return handles;
+    };
+    const EMPLOYEE_KEYS = ['employees','staff','pos_employees','pos_staff','employee_profiles','employee_profile','employeeProfile','employees_list','employeesList','cashiers'];
+    const resolveEmployeeList = (source)=>{
+      if(!source || typeof source !== 'object') return [];
+      for(const key of EMPLOYEE_KEYS){
+        const direct = source[key] || source.settings?.[key];
+        const arr = coerceArray(direct);
+        if(arr.length) return arr;
+      }
+      const seen = new WeakSet();
+      const queue = [];
+      if(source && typeof source === 'object'){ seen.add(source); queue.push({ value: source, depth:0 }); }
+      while(queue.length){
+        const { value, depth } = queue.shift();
+        if(depth > 3) continue;
+        if(Array.isArray(value)){
+          const entries = value.filter(item=> item && typeof item === 'object');
+          if(entries.length && entries.some(item=> ('pin' in item) || ('pin_code' in item) || ('pinCode' in item) || ('passcode' in item))){
+            return entries;
+          }
+          continue;
+        }
+        if(value && typeof value === 'object'){
+          const maybe = value.employees || value.staff || value.cashiers;
+          const arr = coerceArray(maybe);
+          if(arr.length && arr.some(item=> item && typeof item === 'object' && (item.pin != null || item.pin_code != null || item.pinCode != null || item.passcode != null))){
+            return arr;
+          }
+          Object.values(value).forEach(child=>{
+            if(child && typeof child === 'object' && !seen.has(child)){
+              seen.add(child);
+              queue.push({ value: child, depth: depth + 1 });
+            }
+          });
+        }
+      }
+      return [];
+    };
+    const SHIFT_SETTINGS_KEYS = ['shift_settings','shiftSettings','pos_shift_settings','shift_config','shiftConfig','pos_shift_config','shift'];
+    const resolveShiftSettings = (source)=>{
+      const inspect = (candidate)=>{
+        if(!candidate || typeof candidate !== 'object') return null;
+        const hasPin = candidate.pin != null || candidate.pin_code != null || candidate.pinCode != null || candidate.default_pin != null;
+        const hasOpening = candidate.opening_float != null || candidate.openingFloat != null;
+        const hasLength = candidate.pin_length != null || candidate.pinLength != null;
+        return (hasPin || hasOpening || hasLength) ? candidate : null;
+      };
+      if(!source || typeof source !== 'object') return {};
+      for(const key of SHIFT_SETTINGS_KEYS){
+        const direct = source[key] || source.settings?.[key];
+        const resolved = inspect(direct);
+        if(resolved) return resolved;
+      }
+      const seen = new WeakSet();
+      const queue = [];
+      seen.add(source);
+      queue.push({ value: source, depth:0 });
+      while(queue.length){
+        const { value, depth } = queue.shift();
+        if(depth > 3) continue;
+        if(value && typeof value === 'object' && !Array.isArray(value)){
+          const resolved = inspect(value);
+          if(resolved) return resolved;
+          Object.values(value).forEach(child=>{
+            if(child && typeof child === 'object' && !seen.has(child)){
+              seen.add(child);
+              queue.push({ value: child, depth: depth + 1 });
+            }
+          });
+        }
+      }
+      return {};
+    };
+    const firstFiniteNumber = (...values)=>{
+      for(const candidate of values){
+        if(candidate == null) continue;
+        const number = Number(candidate);
+        if(Number.isFinite(number)) return number;
+      }
+      return null;
+    };
     const DEFAULT_PAYMENT_METHODS_SOURCE = [
       { id:'cash', icon:'💵', name:{ ar:'نقدي', en:'Cash' }, type:'cash' },
       { id:'card', icon:'💳', name:{ ar:'بطاقة', en:'Card' }, type:'card' }
@@ -251,6 +483,12 @@
       ? window.MishkahPOSSchema
       : SHIFT_SCHEMA_REGISTRY.toJSON();
     const POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
+    const REMOTE_DB = (typeof window !== 'undefined'
+      && window.__POS_DB__
+      && typeof window.__POS_DB__ === 'object')
+      ? window.__POS_DB__
+      : null;
+    const POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
     const FALLBACK_CURRENCY = 'EGP';
     const normalizeCurrencyCode = (value)=>{
       if(typeof value !== 'string') return null;
@@ -320,7 +558,7 @@
       { id:'october', ar:'٦ أكتوبر', en:'6th of October' }
     ];
 
-    const SHIFT_SETTINGS = typeof MOCK.shift_settings === 'object' && MOCK.shift_settings ? MOCK.shift_settings : {};
+    const SHIFT_SETTINGS = resolveShiftSettings(MOCK);
     const SHIFT_PIN_FALLBACK = typeof SHIFT_SETTINGS.pin === 'string'
       ? SHIFT_SETTINGS.pin
       : (typeof SHIFT_SETTINGS.default_pin === 'string' ? SHIFT_SETTINGS.default_pin : '');
@@ -1503,11 +1741,25 @@
           ?? metadata.stationId
           ?? menuItem?.kitchenSection;
         const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+        const rawName = record.name
+          ?? record.item_name
+          ?? record.itemName
+          ?? metadata.name
+          ?? metadata.itemName
+          ?? metadata.item_name
+          ?? null;
+        const rawDescription = record.description
+          ?? record.item_description
+          ?? record.itemDescription
+          ?? metadata.description
+          ?? metadata.itemDescription
+          ?? metadata.item_description
+          ?? null;
         const baseLine = {
           id: record.id,
           itemId,
-          name: menuItem ? menuItem.name : cloneName(record.name),
-          description: menuItem ? menuItem.description : cloneName(record.description),
+          name: menuItem ? menuItem.name : cloneName(rawName),
+          description: menuItem ? menuItem.description : cloneName(rawDescription),
           qty,
           price: round(basePrice),
           basePrice: round(basePrice),
@@ -2522,21 +2774,96 @@
         : (typeof normalizedNotesSource === 'string' && normalizedNotesSource.trim()
           ? [{ id:`note-${Math.random().toString(16).slice(2,8)}`, message: normalizedNotesSource.trim(), createdAt: updatedAt }]
           : []);
-      const discountValue = Number(
-        raw.discount ?? raw.discountAmount ?? raw.discount_amount ?? metadata.discountAmount ?? metadata.discount ?? metadata.discount_amount ?? 0
+      const discountValue = firstFiniteNumber(
+        raw.discount,
+        raw.discountAmount,
+        raw.discount_amount,
+        raw.order_discount,
+        metadata.discountAmount,
+        metadata.discount_amount,
+        metadata.discount
       ) || 0;
       const discount = discountValue > 0 ? { type:'amount', value: round(discountValue) } : null;
+      const subtotalValue = firstFiniteNumber(
+        raw.subtotal,
+        raw.sub_total,
+        raw.total_before_tax,
+        raw.total_before_vat,
+        metadata.subtotal,
+        metadata.sub_total,
+        metadata.total_before_tax,
+        metadata.total_before_vat
+      ) || 0;
+      const serviceValue = firstFiniteNumber(
+        raw.service,
+        raw.serviceFee,
+        raw.service_amount,
+        raw.service_charge,
+        raw.serviceCharge,
+        metadata.service,
+        metadata.serviceFee,
+        metadata.service_amount,
+        metadata.service_charge
+      ) || 0;
+      const vatValue = firstFiniteNumber(
+        raw.tax,
+        raw.vat,
+        raw.tax_amount,
+        raw.tax_total,
+        raw.total_tax,
+        metadata.tax,
+        metadata.vat,
+        metadata.tax_amount,
+        metadata.tax_total
+      ) || 0;
+      const deliveryValue = firstFiniteNumber(
+        raw.deliveryFee,
+        raw.delivery_fee,
+        raw.delivery,
+        raw.delivery_amount,
+        raw.delivery_total,
+        metadata.deliveryFee,
+        metadata.delivery_fee,
+        metadata.delivery,
+        metadata.delivery_amount
+      ) || 0;
+      const dueValue = firstFiniteNumber(
+        raw.totalDue,
+        raw.total_due,
+        raw.total_amount,
+        raw.total,
+        raw.grand_total,
+        raw.total_due_amount,
+        raw.amount_due,
+        raw.due_total,
+        raw.net_total,
+        metadata.due,
+        metadata.totalDue,
+        metadata.total_due,
+        metadata.total,
+        metadata.grand_total,
+        metadata.amount_due,
+        metadata.net_total
+      ) || 0;
+      const paidAmount = firstFiniteNumber(
+        raw.totalPaid,
+        raw.total_paid,
+        raw.amount_paid,
+        raw.total_payment,
+        raw.paid_total,
+        metadata.totalPaid,
+        metadata.total_paid,
+        metadata.amount_paid,
+        metadata.paid_total
+      );
       const totals = {
-        subtotal: round(raw.subtotal ?? raw.sub_total ?? metadata.subtotal ?? metadata.sub_total ?? 0),
-        service: round(raw.service ?? raw.serviceFee ?? raw.service_amount ?? metadata.service ?? metadata.serviceFee ?? metadata.service_amount ?? 0),
-        vat: round(raw.tax ?? raw.vat ?? raw.tax_amount ?? metadata.tax ?? metadata.vat ?? metadata.tax_amount ?? 0),
+        subtotal: round(subtotalValue),
+        service: round(serviceValue),
+        vat: round(vatValue),
         discount: round(discountValue > 0 ? discountValue : 0),
-        deliveryFee: round(raw.deliveryFee ?? raw.delivery_fee ?? metadata.deliveryFee ?? metadata.delivery_fee ?? 0),
-        due: round(
-          raw.totalDue ?? raw.total_due ?? raw.total_amount ?? raw.total ?? metadata.due ?? metadata.totalDue ?? metadata.total_due ?? 0
-        )
+        deliveryFee: round(deliveryValue),
+        due: round(dueValue)
       };
-      const paidAmount = Number(raw.totalPaid ?? raw.total_paid ?? metadata.totalPaid ?? metadata.total_paid ?? 0);
       if(Number.isFinite(paidAmount) && paidAmount > 0){
         totals.paid = round(paidAmount);
       }
@@ -2777,7 +3104,10 @@
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
-      const unsubHeaders = store.watch('order_header', (rows)=>{
+      const headerTableName = POS_TABLE_HANDLES.order_header || 'order_header';
+      const lineTableName = POS_TABLE_HANDLES.order_line || 'order_line';
+      const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
+      const unsubHeaders = store.watch(headerTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
         realtimeOrders.headers.clear();
         (rows || []).forEach(row=>{
@@ -2787,7 +3117,7 @@
         });
         scheduleRealtimeSnapshot();
       });
-      const unsubLines = store.watch('order_line', (rows)=>{
+      const unsubLines = store.watch(lineTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
@@ -2800,7 +3130,7 @@
         realtimeOrders.lines = grouped;
         scheduleRealtimeSnapshot();
       });
-      const unsubPayments = store.watch('order_payment', (rows)=>{
+      const unsubPayments = store.watch(paymentTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_payment', rows, sanitizeOrderPaymentRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
@@ -2844,7 +3174,12 @@
       if(realtimeJobOrders.installed) return;
       if(!realtimeJobOrders.store) return;
       const store = realtimeJobOrders.store;
-      const unsubHeaders = store.watch('job_order_header', (rows)=>{
+      const jobHeaderTable = POS_TABLE_HANDLES.job_order_header || 'job_order_header';
+      const jobDetailTable = POS_TABLE_HANDLES.job_order_detail || 'job_order_detail';
+      const jobModifierTable = POS_TABLE_HANDLES.job_order_detail_modifier || 'job_order_detail_modifier';
+      const jobStatusTable = POS_TABLE_HANDLES.job_order_status_history || 'job_order_status_history';
+      const expoTicketTable = POS_TABLE_HANDLES.expo_pass_ticket || 'expo_pass_ticket';
+      const unsubHeaders = store.watch(jobHeaderTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
         realtimeJobOrders.headers.clear();
         (rows || []).forEach(row=>{
@@ -2854,7 +3189,7 @@
         });
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubDetails = store.watch('job_order_detail', (rows)=>{
+      const unsubDetails = store.watch(jobDetailTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail', rows, sanitizeJobOrderDetailRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
@@ -2867,7 +3202,7 @@
         realtimeJobOrders.details = grouped;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubModifiers = store.watch('job_order_detail_modifier', (rows)=>{
+      const unsubModifiers = store.watch(jobModifierTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail_modifier', rows, sanitizeJobOrderModifierRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -2878,7 +3213,7 @@
         realtimeJobOrders.modifiers = map;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubStatus = store.watch('job_order_status_history', (rows)=>{
+      const unsubStatus = store.watch(jobStatusTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_status_history', rows, sanitizeJobOrderHistoryRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -2889,7 +3224,7 @@
         realtimeJobOrders.statusHistory = map;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubExpo = store.watch('expo_pass_ticket', (rows)=>{
+      const unsubExpo = store.watch(expoTicketTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'expo_pass_ticket', rows, sanitizeExpoPassTicketRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -4347,7 +4682,7 @@
       at: evt.at ? new Date(evt.at).getTime() : Date.now(),
       meta: evt.meta || {}
     })) : [];
-    const rawEmployees = Array.isArray(MOCK.employees) ? MOCK.employees : [];
+    const rawEmployees = resolveEmployeeList(MOCK);
     const employees = rawEmployees.map(emp=>{
       const pinSource = emp.pin_code ?? emp.pin ?? emp.pinCode ?? emp.passcode ?? '';
       const pin = typeof pinSource === 'number' ? String(pinSource).padStart(SHIFT_PIN_LENGTH, '0') : String(pinSource || '').trim();
