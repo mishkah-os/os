@@ -1,7 +1,7 @@
 {
   "name": "pos",
-  "title": "Point of Sale",
-  "description": "POS module schema with pos_database snapshot container",
+  "title": "pos",
+  "description": "",
   "schema": {
     "tables": [
       {
@@ -24,7 +24,7 @@
             "primaryKey": true,
             "unique": true,
             "index": false,
-            "comment": "Unique record identifier",
+            "comment": "",
             "notes": ""
           },
           {
@@ -36,7 +36,7 @@
             "primaryKey": false,
             "unique": false,
             "index": true,
-            "comment": "Branch identifier",
+            "comment": "",
             "notes": ""
           },
           {
@@ -48,8 +48,8 @@
             "unique": false,
             "index": false,
             "defaultValue": {},
-            "comment": "Complete POS dataset including settings, menu, orders, etc.",
-            "notes": "Contains all POS tables: settings, shift_settings, payment_methods, shifts, kitchen_sections, category_sections, order_types, order_statuses, order_payment_states, order_stages, order_line_statuses, employees, tableLocks, orders, reservations, auditEvents, drivers, categories, items, add_ons, removals"
+            "comment": "",
+            "notes": ""
           },
           {
             "name": "createdAt",
@@ -59,7 +59,7 @@
             "primaryKey": false,
             "unique": false,
             "index": false,
-            "comment": "Record creation timestamp",
+            "comment": "",
             "notes": ""
           },
           {
@@ -70,7 +70,7 @@
             "primaryKey": false,
             "unique": false,
             "index": false,
-            "comment": "Record last update timestamp",
+            "comment": "",
             "notes": ""
           }
         ],
@@ -83,7 +83,2015 @@
             "unique": false
           }
         ]
+      },
+      {
+        "name": "employees",
+        "label": "Employee",
+        "comment": "Employees and roles that can access the POS.",
+        "sqlName": "employees",
+        "layout": {
+          "x": 200,
+          "y": 40
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "employee_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "fullName",
+            "columnName": "full_name",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "role",
+            "columnName": "role",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "staff",
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "pinCode",
+            "columnName": "pin_code",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 16,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "allowedDiscountRate",
+            "columnName": "allowed_discount_rate",
+            "type": "decimal",
+            "nullable": false,
+            "defaultValue": 0,
+            "precision": 5,
+            "scale": 4,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "phone",
+            "columnName": "phone",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "email",
+            "columnName": "email",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 96,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "status",
+            "columnName": "status",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "active",
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "hiredAt",
+            "columnName": "hired_at",
+            "type": "timestamp",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "createdAt",
+            "columnName": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "updatedAt",
+            "columnName": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_employee_role",
+            "columns": [
+              "role"
+            ]
+          },
+          {
+            "name": "idx_employee_status",
+            "columns": [
+              "status"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "order_types",
+        "label": "Order Type",
+        "comment": "Supported POS order types and workflows.",
+        "sqlName": "order_types",
+        "layout": {
+          "x": 80,
+          "y": 160
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "order_type_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "workflow",
+            "columnName": "workflow",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "single-step",
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "allowsSave",
+            "columnName": "allows_save",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "allowsFinalizeLater",
+            "columnName": "allows_finalize_later",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "allowsLineAdditions",
+            "columnName": "allows_line_additions",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "allowsReturns",
+            "columnName": "allows_returns",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "sequence",
+            "columnName": "sequence",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 0,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_order_type_sequence",
+            "columns": [
+              "sequence"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "order_statuses",
+        "label": "Order Status",
+        "comment": "High level status codes for orders.",
+        "sqlName": "order_statuses",
+        "layout": {
+          "x": 200,
+          "y": 160
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "status_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "sequence",
+            "columnName": "sequence",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 0,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "order_stages",
+        "label": "Order Fulfilment Stage",
+        "comment": "Lifecycle stages for kitchen and delivery workflows.",
+        "sqlName": "order_stages",
+        "layout": {
+          "x": 320,
+          "y": 160
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "stage_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "descriptionAr",
+            "columnName": "description_ar",
+            "type": "text",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "descriptionEn",
+            "columnName": "description_en",
+            "type": "text",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "sequence",
+            "columnName": "sequence",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 0,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "lockLineEdits",
+            "columnName": "lock_line_edits",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_order_stage_sequence",
+            "columns": [
+              "sequence"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "order_payment_states",
+        "label": "Order Payment State",
+        "comment": "Possible payment states for orders.",
+        "sqlName": "order_payment_states",
+        "layout": {
+          "x": 440,
+          "y": 160
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "payment_state_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "order_line_statuses",
+        "label": "Order Line Status",
+        "comment": "State machine for individual order lines.",
+        "sqlName": "order_line_statuses",
+        "layout": {
+          "x": 560,
+          "y": 160
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "line_status_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "sequence",
+            "columnName": "sequence",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 0,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "payment_methods",
+        "label": "Payment Method",
+        "comment": "Configured payment methods offered by the venue.",
+        "sqlName": "payment_methods",
+        "layout": {
+          "x": 680,
+          "y": 160
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "payment_method_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "type",
+            "columnName": "method_type",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "cash",
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "icon",
+            "columnName": "icon",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "requiresReference",
+            "columnName": "requires_reference",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "isActive",
+            "columnName": "is_active",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "kitchen_sections",
+        "label": "Kitchen Section",
+        "comment": "Production areas used for routing kitchen tickets.",
+        "sqlName": "kitchen_sections",
+        "layout": {
+          "x": 800,
+          "y": 60
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "section_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "descriptionAr",
+            "columnName": "description_ar",
+            "type": "text",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "descriptionEn",
+            "columnName": "description_en",
+            "type": "text",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "sortOrder",
+            "columnName": "sort_order",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 0,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "categories",
+        "label": "Menu Category",
+        "comment": "Menu taxonomy categories.",
+        "sqlName": "categories",
+        "layout": {
+          "x": 800,
+          "y": 160
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "category_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "sectionId",
+            "columnName": "section_id",
+            "type": "string",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "kitchen_section",
+              "column": "section_id",
+              "onDelete": "SET NULL",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "columnName": "sort_order",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 0,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "isActive",
+            "columnName": "is_active",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "category_sections",
+        "label": "Category Section Map",
+        "comment": "Bridge between menu categories and kitchen sections.",
+        "sqlName": "category_sections",
+        "layout": {
+          "x": 920,
+          "y": 160
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "categoryId",
+            "columnName": "category_id",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "menu_category",
+              "column": "category_id",
+              "onDelete": "CASCADE",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "sectionId",
+            "columnName": "section_id",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "kitchen_section",
+              "column": "section_id",
+              "onDelete": "CASCADE",
+              "onUpdate": "CASCADE"
+            }
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_category_section_unique",
+            "columns": [
+              "category_id",
+              "section_id"
+            ],
+            "unique": true
+          }
+        ]
+      },
+      {
+        "name": "items",
+        "label": "Menu Item",
+        "comment": "Sellable menu items with pricing metadata.",
+        "sqlName": "items",
+        "layout": {
+          "x": 800,
+          "y": 260
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "item_id",
+            "type": "integer",
+            "nullable": false,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "sku",
+            "columnName": "sku",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "categoryId",
+            "columnName": "category_id",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "menu_category",
+              "column": "category_id",
+              "onDelete": "RESTRICT",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "kitchenSectionId",
+            "columnName": "kitchen_section_id",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "kitchen_section",
+              "column": "section_id",
+              "onDelete": "RESTRICT",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "descriptionAr",
+            "columnName": "description_ar",
+            "type": "text",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "descriptionEn",
+            "columnName": "description_en",
+            "type": "text",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "basePrice",
+            "columnName": "base_price",
+            "type": "decimal",
+            "nullable": false,
+            "precision": 12,
+            "scale": 2,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "taxGroupId",
+            "columnName": "tax_group_id",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "isCombo",
+            "columnName": "is_combo",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "isActive",
+            "columnName": "is_active",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "favoriteRank",
+            "columnName": "favorite_rank",
+            "type": "integer",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "createdAt",
+            "columnName": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "updatedAt",
+            "columnName": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_menu_item_category",
+            "columns": [
+              "category_id"
+            ]
+          },
+          {
+            "name": "idx_menu_item_active",
+            "columns": [
+              "is_active"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "add_ons",
+        "label": "Menu Modifier",
+        "comment": "Configurable add-ons and removals.",
+        "sqlName": "add_ons",
+        "layout": {
+          "x": 800,
+          "y": 360
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "modifier_id",
+            "type": "integer",
+            "nullable": false,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameAr",
+            "columnName": "name_ar",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "nameEn",
+            "columnName": "name_en",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "modifierType",
+            "columnName": "modifier_type",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "add_on",
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "priceChange",
+            "columnName": "price_change",
+            "type": "decimal",
+            "nullable": false,
+            "defaultValue": 0,
+            "precision": 12,
+            "scale": 2,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "isActive",
+            "columnName": "is_active",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "tableLocks",
+        "label": "Table Lock",
+        "comment": "Active locks preventing concurrent seating.",
+        "sqlName": "tableLocks",
+        "layout": {
+          "x": 80,
+          "y": 560
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "lock_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "tableId",
+            "columnName": "table_id",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "dining_table",
+              "column": "table_id",
+              "onDelete": "CASCADE",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "lockedBy",
+            "columnName": "locked_by",
+            "type": "string",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "employee",
+              "column": "employee_id",
+              "onDelete": "SET NULL",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "reason",
+            "columnName": "reason",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "lockedAt",
+            "columnName": "locked_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "expiresAt",
+            "columnName": "expires_at",
+            "type": "timestamp",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_table_lock_table",
+            "columns": [
+              "table_id"
+            ]
+          }
+        ]
+      },
+      {
+        "name": "reservations",
+        "label": "Reservation",
+        "comment": "Reservations captured for future seating.",
+        "sqlName": "reservations",
+        "layout": {
+          "x": 80,
+          "y": 660
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "reservation_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "customerName",
+            "columnName": "customer_name",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "phone",
+            "columnName": "phone",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "partySize",
+            "columnName": "party_size",
+            "type": "integer",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "scheduledAt",
+            "columnName": "scheduled_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "holdUntil",
+            "columnName": "hold_until",
+            "type": "timestamp",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "status",
+            "columnName": "status",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "booked",
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "note",
+            "columnName": "note",
+            "type": "text",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "drivers",
+        "label": "Delivery Driver",
+        "comment": "Delivery staff responsible for orders.",
+        "sqlName": "drivers",
+        "layout": {
+          "x": 200,
+          "y": 520
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "driver_id",
+            "type": "integer",
+            "nullable": false,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "name",
+            "columnName": "driver_name",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "phone",
+            "columnName": "phone",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "vehicleId",
+            "columnName": "vehicle_id",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 128,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "isActive",
+            "columnName": "is_active",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "auditEvents",
+        "label": "Audit Event",
+        "comment": "Actions performed within the POS for traceability.",
+        "sqlName": "auditEvents",
+        "layout": {
+          "x": 320,
+          "y": 520
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "event_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "userId",
+            "columnName": "user_id",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "employee",
+              "column": "employee_id",
+              "onDelete": "SET NULL",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "action",
+            "columnName": "action",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 96,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "refType",
+            "columnName": "ref_type",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "refId",
+            "columnName": "ref_id",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "occurredAt",
+            "columnName": "occurred_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "meta",
+            "columnName": "meta",
+            "type": "json",
+            "nullable": false,
+            "defaultValue": {},
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "settings",
+        "label": "Settings",
+        "comment": "settings table",
+        "sqlName": "settings",
+        "layout": {
+          "x": 0,
+          "y": 0
+        },
+        "fields": [
+          {
+            "name": "tax_rate",
+            "columnName": "tax_rate",
+            "type": "number",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          },
+          {
+            "name": "service_charge_rate",
+            "columnName": "service_charge_rate",
+            "type": "number",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          },
+          {
+            "name": "default_delivery_fee",
+            "columnName": "default_delivery_fee",
+            "type": "integer",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          },
+          {
+            "name": "currency",
+            "columnName": "currency",
+            "type": "json",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          },
+          {
+            "name": "sync",
+            "columnName": "sync",
+            "type": "json",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          }
+        ]
+      },
+      {
+        "name": "shift_settings",
+        "label": "Shift Settings",
+        "comment": "shift_settings table",
+        "sqlName": "shift_settings",
+        "layout": {
+          "x": 0,
+          "y": 0
+        },
+        "fields": [
+          {
+            "name": "opening_float",
+            "columnName": "opening_float",
+            "type": "integer",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          },
+          {
+            "name": "pin",
+            "columnName": "pin",
+            "type": "string",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          },
+          {
+            "name": "pin_length",
+            "columnName": "pin_length",
+            "type": "integer",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          }
+        ]
+      },
+      {
+        "name": "removals",
+        "label": "Removals",
+        "comment": "removals table",
+        "sqlName": "removals",
+        "layout": {
+          "x": 0,
+          "y": 0
+        },
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "id",
+            "type": "integer",
+            "nullable": false,
+            "primaryKey": true,
+            "unique": true,
+            "index": false,
+            "comment": ""
+          },
+          {
+            "name": "name",
+            "columnName": "name",
+            "type": "json",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          },
+          {
+            "name": "price_change",
+            "columnName": "price_change",
+            "type": "integer",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": ""
+          }
+        ]
+      },
+      {
+        "name": "stores",
+        "label": "Transactional Stores",
+        "comment": "Container for transactional data (orders, shifts, etc.)",
+        "sqlName": "stores",
+        "layout": {
+          "x": 0,
+          "y": 0
+        },
+        "fields": [
+          {
+            "name": "orders",
+            "columnName": "orders",
+            "type": "json",
+            "nullable": false,
+            "defaultValue": [],
+            "comment": "Current orders"
+          },
+          {
+            "name": "shifts",
+            "columnName": "shifts",
+            "type": "json",
+            "nullable": false,
+            "defaultValue": [],
+            "comment": "Current shifts"
+          },
+          {
+            "name": "orderLines",
+            "columnName": "order_lines",
+            "type": "json",
+            "nullable": false,
+            "defaultValue": [],
+            "comment": "Order lines"
+          }
+        ]
       }
-    ]
-  }
+    ],
+    "name": "mishkah_pos",
+    "version": 1
+  },
+  "tables": [
+    {
+      "name": "order_return_header",
+      "label": "Order Return",
+      "comment": "Return transactions associated with completed orders.",
+      "sqlName": "order_return_header",
+      "layout": {
+        "x": 720,
+        "y": 260
+      },
+      "classCode": "",
+      "fields": [
+        {
+          "name": "id",
+          "columnName": "return_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": true,
+          "unique": false,
+          "index": false,
+          "maxLength": 64,
+          "comment": "",
+          "notes": ""
+        },
+        {
+          "name": "orderId",
+          "columnName": "order_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": "",
+          "references": {
+            "table": "order_header",
+            "column": "order_id",
+            "onDelete": "RESTRICT",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "shiftId",
+          "columnName": "shift_id",
+          "type": "string",
+          "nullable": true,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": "",
+          "references": {
+            "table": "pos_shift",
+            "column": "shift_id",
+            "onDelete": "SET NULL",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "branchSequence",
+          "columnName": "branch_seq",
+          "type": "integer",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "defaultValue": 0,
+          "comment": "Sequential return number for the branch.",
+          "notes": ""
+        },
+        {
+          "name": "orderSequence",
+          "columnName": "order_seq",
+          "type": "integer",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "defaultValue": 0,
+          "comment": "Return sequence number scoped to the order.",
+          "notes": ""
+        },
+        {
+          "name": "totalAmount",
+          "columnName": "total_amount",
+          "type": "decimal",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "precision": 14,
+          "scale": 2,
+          "comment": "Total value of the returned items.",
+          "notes": ""
+        },
+        {
+          "name": "createdAt",
+          "columnName": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": ""
+        },
+        {
+          "name": "createdBy",
+          "columnName": "created_by",
+          "type": "string",
+          "nullable": true,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "maxLength": 64,
+          "comment": "User who issued the return.",
+          "notes": "",
+          "references": {
+            "table": "employee",
+            "column": "employee_id",
+            "onDelete": "SET NULL",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "meta",
+          "columnName": "meta",
+          "type": "json",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "defaultValue": {},
+          "comment": "Arbitrary structured metadata for integrations.",
+          "notes": ""
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "name": "order_return_line",
+      "label": "Order Return Line",
+      "comment": "Individual line items linked to an order return header.",
+      "sqlName": "order_return_line",
+      "layout": {
+        "x": 900,
+        "y": 260
+      },
+      "classCode": "",
+      "fields": [
+        {
+          "name": "id",
+          "columnName": "return_line_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": true,
+          "unique": false,
+          "index": false,
+          "maxLength": 64,
+          "comment": "",
+          "notes": ""
+        },
+        {
+          "name": "returnId",
+          "columnName": "return_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": "",
+          "references": {
+            "table": "order_return_header",
+            "column": "return_id",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "orderLineId",
+          "columnName": "order_line_id",
+          "type": "string",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": "",
+          "references": {
+            "table": "order_line",
+            "column": "line_id",
+            "onDelete": "RESTRICT",
+            "onUpdate": "CASCADE"
+          }
+        },
+        {
+          "name": "quantity",
+          "columnName": "quantity",
+          "type": "decimal",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "precision": 10,
+          "scale": 3,
+          "comment": "Quantity returned from the original line.",
+          "notes": ""
+        },
+        {
+          "name": "unitPrice",
+          "columnName": "unit_price",
+          "type": "decimal",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "precision": 12,
+          "scale": 2,
+          "comment": "Unit price at the time of return for reporting.",
+          "notes": ""
+        },
+        {
+          "name": "createdAt",
+          "columnName": "created_at",
+          "type": "timestamp",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "comment": "",
+          "notes": ""
+        },
+        {
+          "name": "meta",
+          "columnName": "meta",
+          "type": "json",
+          "nullable": false,
+          "primaryKey": false,
+          "unique": false,
+          "index": false,
+          "defaultValue": {},
+          "comment": "Extensible metadata for the return line.",
+          "notes": ""
+        }
+      ],
+      "indexes": []
+    }
+  ]
 }
