@@ -3,21 +3,26 @@
   "meta": {
     "branchId": "dar",
     "moduleId": "pos",
-    "generatedAt": "2024-02-20T09:30:00Z",
-    "source": "pos-mock-data"
+    "lastUpdatedAt": "2025-11-02T12:28:50.591Z",
+    "serverId": "seed",
+    "datasetSource": "seed",
+    "counter": 38,
+    "labCounter": 38
   },
   "tables": {
     "pos_database": [
-{
-    "payload": {
-    "settings": {
-        "tax_rate": 0.14,
-        "service_charge_rate": 0.12,
-        "default_delivery_fee": 30,
-        "currency": {
-            "code": "EGP",
-            "display": "symbol",
-            "name": {
+      {
+        "id": "pos-dar-live",
+        "branchId": "dar",
+        "payload": {
+          "settings": {
+            "tax_rate": 0.14,
+            "service_charge_rate": 0.12,
+            "default_delivery_fee": 30,
+            "currency": {
+              "code": "EGP",
+              "display": "symbol",
+              "name": {
                 "en": "Egyptian Pound",
                 "ar": "الجنيه المصري"
             },
@@ -60,34 +65,33 @@
             "icon": "💳",
             "name": {
                 "ar": "فيزا",
-                "en": "visa"
+                "en": "Visa"
+              },
+              "type": "card"
             },
-            "type": "card"
-        },
-        {
-            "id": "608b58a4-8f49-4d65-9f01-889d79f27350",
-            "icon": "📱",
-            "name": {
-                "ar": "محفظة إلكترونية ",
-                "en": "wallet"
+            {
+              "id": "mastercard",
+              "icon": "💳",
+              "name": {
+                "ar": "ماستر كارد",
+                "en": "Mastercard"
+              },
+              "type": "card"
             },
-            "type": "wallet"
-        },
-        {
-            "id": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59",
-            "icon": "💵",
-            "name": {
-                "ar": "نقدا",
-                "en": "cash"
-            },
-            "type": "cash"
-        }
-    ],
-    "shifts": [],
-    "kitchen_sections": [
-        {
-            "id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
-            "section_name": {
+            {
+              "id": "insta",
+              "icon": "📱",
+              "name": {
+                "ar": "InstaPay",
+                "en": "InstaPay"
+              },
+              "type": "wallet"
+            }
+          ],
+          "kitchen_sections": [
+            {
+              "id": "hot_line",
+              "section_name": {
                 "en": "Hot Line",
                 "ar": "شاشة السخن"
             },
@@ -409,57 +413,56 @@
             "status_name": {
                 "en": "Served",
                 "ar": "مُقدّم"
+              }
             }
-        }
-    ],
-    "employees": [
-        {
-            "id": "e7a8f0b4",
-            "pin_code": "1122",
-            "full_name": "أحمد محمود",
-            "role": "cashier",
-            "allowed_discount_rate": 0.1
-        },
-        {
-            "id": "f3c9d8e1",
-            "pin_code": "3344",
-            "full_name": "سارة علي",
-            "role": "cashier",
-            "allowed_discount_rate": 0.1
-        },
-        {
-            "id": "a1b2c3d4",
-            "pin_code": "9999",
-            "full_name": "خالد إبراهيم",
-            "role": "manager",
-            "allowed_discount_rate": 0.25
-        },
-        {
-            "id": "b5c6d7e8",
-            "pin_code": "5566",
-            "full_name": "فاطمة حسن",
-            "role": "kitchen_staff",
-            "allowed_discount_rate": 0
-        },
-        {
-            "id": "c9d0e1f2",
-            "pin_code": "7788",
-            "full_name": "يوسف كريم",
-            "role": "delivery_driver",
-            "allowed_discount_rate": 0
-        }
-    ],
-    "tableLocks": [],
-    "orders": [],
-    "reservations": [
-        {
-            "id": "res-001",
-            "customerName": "محمد سامي",
-            "phone": "01000200300",
-            "partySize": 4,
-            "scheduledAt": "2024-02-18T19:00:00Z",
-            "holdUntil": "2024-02-18T19:20:00Z",
-            "tableIds": [
+          ],
+          "employees": [
+            {
+              "id": "e7a8f0b4",
+              "pin_code": "1122",
+              "full_name": "أحمد محمود",
+              "role": "cashier",
+              "allowed_discount_rate": 0.1
+            },
+            {
+              "id": "f3c9d8e1",
+              "pin_code": "3344",
+              "full_name": "سارة علي",
+              "role": "cashier",
+              "allowed_discount_rate": 0.1
+            },
+            {
+              "id": "a1b2c3d4",
+              "pin_code": "9999",
+              "full_name": "خالد إبراهيم",
+              "role": "manager",
+              "allowed_discount_rate": 0.25
+            },
+            {
+              "id": "b5c6d7e8",
+              "pin_code": "5566",
+              "full_name": "فاطمة حسن",
+              "role": "kitchen_staff",
+              "allowed_discount_rate": 0
+            },
+            {
+              "id": "c9d0e1f2",
+              "pin_code": "7788",
+              "full_name": "يوسف كريم",
+              "role": "delivery_driver",
+              "allowed_discount_rate": 0
+            }
+          ],
+          "tableLocks": [],
+          "reservations": [
+            {
+              "id": "res-001",
+              "customerName": "محمد سامي",
+              "phone": "01000200300",
+              "partySize": 4,
+              "scheduledAt": "2024-02-18T19:00:00Z",
+              "holdUntil": "2024-02-18T19:20:00Z",
+              "tableIds": [
                 "T7"
             ],
             "status": "booked",
@@ -2432,9 +2435,23 @@
             "name": {
                 "en": "Without Tomatoes",
                 "ar": "بدون طماطم"
-            },
-            "price_change": 0
-        }
+              },
+              "price_change": 0
+            }
+          ],
+          "stores": {
+            "orders": [],
+            "shifts": [],
+            "orderLines": [],
+            "orderNotes": [],
+            "orderStatusLogs": [],
+            "posMeta": [],
+            "syncLog": []
+          }
+        },
+        "createdAt": "2025-11-02T12:28:50.592Z",
+        "updatedAt": "2025-11-02T12:28:50.592Z"
+      }
     ]
 }
 }
