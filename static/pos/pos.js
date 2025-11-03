@@ -3596,6 +3596,7 @@
         let changed = false;
         if(headerRows.length){
           datasetPrimed.headers = true;
+          const beforeCount = realtimeOrders.headers.size;
           const incomingIds = new Set();
           headerRows.forEach(row=>{
             const normalized = sanitizeOrderHeaderRow(row);
@@ -3604,18 +3605,29 @@
             incomingIds.add(id);
             realtimeOrders.headers.set(id, normalized);
           });
+          const deletedIds = [];
           for(const [id] of Array.from(realtimeOrders.headers.entries())){
             if(!incomingIds.has(id)){
+              deletedIds.push(id);
               realtimeOrders.headers.delete(id);
             }
           }
-          changed = true;
-        } else if(headerResult.found && datasetPrimed.headers){
-          datasetPrimed.headers = false;
-          if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
-            realtimeOrders.headers.clear();
-            changed = true;
+          const afterCount = realtimeOrders.headers.size;
+          if(deletedIds.length > 0 || incomingIds.size > 0){
+            console.log('[POS][ORDERS-SYNC]', {
+              source: 'dataset',
+              before: beforeCount,
+              incoming: incomingIds.size,
+              deleted: deletedIds.length,
+              deletedIds: deletedIds.slice(0, 5),
+              after: afterCount
+            });
           }
+          changed = true;
+        } else if(headerResult.found){
+          console.warn('[POS][ORDERS-SYNC] Dataset has order_header key but empty array - KEEPING existing orders', {
+            existingCount: realtimeOrders.headers.size
+          });
         }
         if(lineRows.length){
           datasetPrimed.lines = true;
@@ -3629,14 +3641,6 @@
           });
           realtimeOrders.lines = grouped;
           changed = true;
-        } else if((lineResult.found || headerRows.length) && datasetPrimed.lines){
-          datasetPrimed.lines = false;
-          if(realtimeOrders.lines instanceof Map && realtimeOrders.lines.size){
-            realtimeOrders.lines = new Map();
-            changed = true;
-          } else {
-            realtimeOrders.lines = new Map();
-          }
         }
         if(paymentRows.length){
           datasetPrimed.payments = true;
@@ -3650,14 +3654,6 @@
           });
           realtimeOrders.payments = grouped;
           changed = true;
-        } else if((paymentResult.found || headerRows.length) && datasetPrimed.payments){
-          datasetPrimed.payments = false;
-          if(realtimeOrders.payments instanceof Map && realtimeOrders.payments.size){
-            realtimeOrders.payments = new Map();
-            changed = true;
-          } else {
-            realtimeOrders.payments = new Map();
-          }
         }
         if(changed){
           scheduleRealtimeSnapshot();
@@ -3673,16 +3669,6 @@
           const latest = list.length ? list[list.length - 1] : null;
           if(latest && typeof latest === 'object'){
             applyDatasetOrders(latest);
-          } else if(datasetPrimed.headers || datasetPrimed.lines || datasetPrimed.payments){
-            datasetPrimed.headers = false;
-            datasetPrimed.lines = false;
-            datasetPrimed.payments = false;
-            if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
-              realtimeOrders.headers.clear();
-            }
-            realtimeOrders.lines = new Map();
-            realtimeOrders.payments = new Map();
-            scheduleRealtimeSnapshot();
           }
         });
       }
@@ -3692,6 +3678,7 @@
       const unsubHeaders = store.watch(headerTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
         if(!Array.isArray(rows)) return;
+        const beforeCount = realtimeOrders.headers.size;
         const incomingIds = new Set();
         (rows || []).forEach(row=>{
           const normalized = sanitizeOrderHeaderRow(row);
@@ -3700,12 +3687,26 @@
           incomingIds.add(id);
           realtimeOrders.headers.set(id, normalized);
         });
+        const deletedIds = [];
         if(rows.length > 0 || realtimeOrders.headers.size === 0){
           for(const [id] of Array.from(realtimeOrders.headers.entries())){
             if(!incomingIds.has(id)){
+              deletedIds.push(id);
               realtimeOrders.headers.delete(id);
             }
           }
+        }
+        const afterCount = realtimeOrders.headers.size;
+        if(deletedIds.length > 0 || incomingIds.size > 0 || (rows.length === 0 && beforeCount > 0)){
+          console.log('[POS][ORDERS-SYNC]', {
+            source: 'watch:order_header',
+            before: beforeCount,
+            incoming: incomingIds.size,
+            deleted: deletedIds.length,
+            deletedIds: deletedIds.slice(0, 5),
+            after: afterCount,
+            emptySnapshot: rows.length === 0 && beforeCount > 0
+          });
         }
         scheduleRealtimeSnapshot();
       });
