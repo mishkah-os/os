@@ -1319,12 +1319,14 @@
       const fallbackOrder = buildExpoFallbackOrder(ticket, db);
       if(fallbackOrder) orderMap.set(key, fallbackOrder);
     });
-
-    return Array.from(orderMap.values()).sort((a, b)=>{
+let arrRet =Array.from(orderMap.values()).sort((a, b)=>{
       const aCreated = a.createdMs ?? parseTime(a.createdAt) ?? 0;
       const bCreated = b.createdMs ?? parseTime(b.createdAt) ?? 0;
       return aCreated - bCreated;
     });
+          console.log("arrRet",arrRet);
+
+    return arrRet
   };
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
@@ -1948,6 +1950,9 @@
   };
 
   const renderExpoPanel = (db, t, lang, now)=>{
+
+        console.log("renderExpoPanel");
+
     const orders = getExpoOrders(db);
 
     console.log("renderExpoPanel",orders);
@@ -2135,6 +2140,7 @@
 
   const renderActivePanel = (db, t, lang, now)=>{
     const active = db.data.filters.activeTab;
+    console.log("db.data.filters.activeTab",db.data.filters.activeTab)
     if(active === 'prep') return renderPrepPanel(db, t, lang, now);
     if(active === 'expo') return renderExpoPanel(db, t, lang, now);
     if(active === 'handoff') return renderHandoffPanel(db, t, lang);
