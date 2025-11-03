@@ -1949,6 +1949,8 @@
 
   const renderExpoPanel = (db, t, lang, now)=>{
     const orders = getExpoOrders(db);
+
+    console.log("renderExpoPanel",orders);
     if(!orders.length) return renderEmpty(t.empty.expo);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=>{
       const serviceLabel = t.labels.serviceMode[order.serviceMode] || order.serviceMode;
