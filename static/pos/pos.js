@@ -1815,6 +1815,7 @@
 
       function hydrateLine(record){
         if(!record) return null;
+        console.log("record",record);
         const metadata = ensurePlainObject(record.metadata || record.meta);
         const rawItemId = record.itemId
           ?? record.item_id
@@ -1960,6 +1961,7 @@
             raw.paymentState || raw.payment_state || raw.paymentStateId || raw.payment_state_id || 'unpaid',
           shiftId: raw.shiftId || raw.shift_id || metadata.shiftId || metadata.shift_id || null
         };
+        console.log(base);
         base.createdAt = toTimestamp(raw.createdAt || raw.created_at || raw.openedAt || raw.opened_at || base.createdAt);
         base.updatedAt = toTimestamp(raw.updatedAt || raw.updated_at || base.updatedAt || base.createdAt);
         base.savedAt = toTimestamp(raw.savedAt || raw.saved_at || base.savedAt || base.updatedAt);
@@ -3543,7 +3545,6 @@
 
     function installRealtimeOrderWatchers(){
 
-      console.log("realtimeOrders",realtimeOrders)
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
