@@ -3535,24 +3535,36 @@
         return sources;
       };
       const extractDatasetEntries = (record, canonical)=>{
-        if(!record) return [];
+        const result = { rows:[], found:false };
+        if(!record) return result;
         const names = getDatasetPayloadKeysFor(canonical);
         const sources = gatherDatasetSources(record);
         for(const source of sources){
           if(!source || typeof source !== 'object') continue;
           for(const name of names){
+            if(Object.prototype.hasOwnProperty.call(source, name)){
+              result.found = true;
+            }
             const value = source[name];
             const list = readDatasetArray(value);
-            if(list.length) return list;
+            if(list.length){
+              return { rows:list, found:true };
+            }
+            if(value !== undefined && value !== null){
+              result.found = true;
+            }
           }
         }
-        return [];
+        return result;
       };
       const applyDatasetOrders = (record)=>{
         if(!record || typeof record !== 'object') return;
-        let headerRows = extractDatasetEntries(record, 'order_header');
-        let lineRows = extractDatasetEntries(record, 'order_line');
-        let paymentRows = extractDatasetEntries(record, 'order_payment');
+        const headerResult = extractDatasetEntries(record, 'order_header');
+        const lineResult = extractDatasetEntries(record, 'order_line');
+        const paymentResult = extractDatasetEntries(record, 'order_payment');
+        let headerRows = headerResult.rows;
+        let lineRows = lineResult.rows;
+        let paymentRows = paymentResult.rows;
         if(headerRows.length){
           const nestedLines = [];
           const nestedPayments = [];
@@ -3574,8 +3586,12 @@
               nestedPayments.push(merged);
             });
           });
-          if(!lineRows.length && nestedLines.length) lineRows = nestedLines;
-          if(!paymentRows.length && nestedPayments.length) paymentRows = nestedPayments;
+          if(!lineRows.length && nestedLines.length){
+            lineRows = nestedLines;
+          }
+          if(!paymentRows.length && nestedPayments.length){
+            paymentRows = nestedPayments;
+          }
         }
         let changed = false;
         if(headerRows.length){
@@ -3587,7 +3603,7 @@
             realtimeOrders.headers.set(String(normalized.id), normalized);
           });
           changed = true;
-        } else if(datasetPrimed.headers){
+        } else if(headerResult.found && datasetPrimed.headers){
           datasetPrimed.headers = false;
           if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
             realtimeOrders.headers.clear();
@@ -3606,7 +3622,7 @@
           });
           realtimeOrders.lines = grouped;
           changed = true;
-        } else if(datasetPrimed.lines){
+        } else if((lineResult.found || headerRows.length) && datasetPrimed.lines){
           datasetPrimed.lines = false;
           if(realtimeOrders.lines instanceof Map && realtimeOrders.lines.size){
             realtimeOrders.lines = new Map();
@@ -3627,7 +3643,7 @@
           });
           realtimeOrders.payments = grouped;
           changed = true;
-        } else if(datasetPrimed.payments){
+        } else if((paymentResult.found || headerRows.length) && datasetPrimed.payments){
           datasetPrimed.payments = false;
           if(realtimeOrders.payments instanceof Map && realtimeOrders.payments.size){
             realtimeOrders.payments = new Map();
