@@ -1181,7 +1181,7 @@
     .filter(order=> order.handoffStatus !== 'assembled' && order.handoffStatus !== 'served');
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
-    .filter(order=> order.handoffStatus === 'assembled');
+    .filter(order=> order.handoffStatus !== 'served');
 
   const cloneJob = (job)=>({
     ...job,
@@ -1861,15 +1861,44 @@
     if(!orders.length) return renderEmpty(t.empty.handoff);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=>{
       const serviceLabel = t.labels.serviceMode[order.serviceMode] || order.serviceMode;
+      const statusLabel = t.labels.handoffStatus[order.handoffStatus] || order.handoffStatus;
+      const isAssembled = order.handoffStatus === 'assembled';
+      const isReady = order.handoffStatus === 'ready';
       const headerBadges = [
         createBadge(`${SERVICE_ICONS[order.serviceMode] || '🧾'} ${serviceLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`)
       ];
       if(order.tableLabel) headerBadges.push(createBadge(`${t.labels.table} ${order.tableLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`));
       if(order.customerName && !order.tableLabel) headerBadges.push(createBadge(`${t.labels.customer}: ${order.customerName}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`));
-      return D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
+
+      const cardClass = cx(
+        tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40`,
+        isReady ? tw`border-emerald-300/70 bg-emerald-500/10` : null
+      );
+
+      const actionButton = isAssembled
+        ? D.Forms.Button({
+            attrs:{
+              type:'button',
+              gkey:'kds:handoff:served',
+              'data-order-id': order.orderId,
+              class: tw`w-full rounded-full border border-sky-400/70 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/30`
+            }
+          }, [t.actions.handoffServe])
+        : isReady
+        ? D.Forms.Button({
+            attrs:{
+              type:'button',
+              gkey:'kds:handoff:assembled',
+              'data-order-id': order.orderId,
+              class: tw`w-full rounded-full border border-emerald-300/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-50 hover:bg-emerald-500/30`
+            }
+          }, [t.actions.handoffComplete])
+        : null;
+
+      return D.Containers.Article({ attrs:{ class: cardClass }}, [
         D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
           D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.orderId}`]),
-          createBadge(t.labels.handoffStatus.assembled || t.labels.handoffStatus.ready, HANDOFF_STATUS_CLASS.assembled)
+          createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
         ]),
         headerBadges.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, headerBadges) : null,
         D.Containers.Div({ attrs:{ class: tw`grid gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3 text-xs text-slate-300 sm:grid-cols-2` }}, [
@@ -1882,14 +1911,7 @@
               return renderDetailRow(entry.detail, t, lang, stationLabel);
             }))
           : null,
-        D.Forms.Button({
-          attrs:{
-            type:'button',
-            gkey:'kds:handoff:served',
-            'data-order-id': order.orderId,
-            class: tw`w-full rounded-full border border-sky-400/70 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/30`
-          }
-        }, [t.actions.handoffServe])
+        actionButton
       ].filter(Boolean));
     }));
   };
