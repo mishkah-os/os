@@ -1178,7 +1178,7 @@
   };
 
   const getExpoOrders = (db)=> computeOrdersSnapshot(db)
-    .filter(order=> order.handoffStatus !== 'assembled' && order.handoffStatus !== 'served');
+    .filter(order=> false);
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
     .filter(order=> order.handoffStatus !== 'served');
@@ -1386,8 +1386,14 @@
     };
     const { filters, jobs } = db.data;
     const locked = filters.lockedSection;
+    const servedOrderIds = new Set(
+      computeOrdersSnapshot(db)
+        .filter(order=> order.handoffStatus === 'served')
+        .map(order=> order.orderId || order.id)
+    );
     if(!locked){
-      tabs.push({ id:'prep', label:t.tabs.prep, count: jobs.orders.length });
+      const prepCount = computeOrdersSnapshot(db).filter(order=> order.handoffStatus !== 'served').length;
+      tabs.push({ id:'prep', label:t.tabs.prep, count: prepCount });
       registerLabel(t.tabs.prep);
     }
     let expoIntegrated = false;
@@ -1399,7 +1405,9 @@
         : (station.nameEn || station.nameAr || station.id);
       const isExpoStation = station.isExpo === true || (String(station.stationType || '').toLowerCase() === 'expo');
       const tabId = isExpoStation ? 'expo' : station.id;
-      const activeJobs = (jobs.byStation[station.id] || []).filter(job=> job.status !== 'ready' && job.status !== 'completed');
+      const activeJobs = (jobs.byStation[station.id] || [])
+        .filter(job=> job.status !== 'ready' && job.status !== 'completed')
+        .filter(job=> !servedOrderIds.has(job.orderId));
       const tabCount = isExpoStation ? getExpoOrders(db).length : activeJobs.length;
       if(!tabs.some(tab=> tab.id === tabId)){
         tabs.push({
@@ -1739,7 +1747,7 @@
   };
 
   const renderPrepPanel = (db, t, lang, now)=>{
-    const orders = db.data.jobs.orders || [];
+    const orders = computeOrdersSnapshot(db).filter(order=> order.handoffStatus !== 'served');
     if(!orders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
@@ -1760,7 +1768,14 @@
   };
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
-    const jobs = (db.data.jobs.byStation[stationId] || []).filter(job=> job.status !== 'ready' && job.status !== 'completed');
+    const servedOrderIds = new Set(
+      computeOrdersSnapshot(db)
+        .filter(order=> order.handoffStatus === 'served')
+        .map(order=> order.orderId || order.id)
+    );
+    const jobs = (db.data.jobs.byStation[stationId] || [])
+      .filter(job=> job.status !== 'ready' && job.status !== 'completed')
+      .filter(job=> !servedOrderIds.has(job.orderId));
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, jobs.map(job=> renderJobCard(job, station, t, lang, now)));
