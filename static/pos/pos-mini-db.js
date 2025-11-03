@@ -36,26 +36,32 @@ const TABLE_ALIAS_GROUPS = {
 };
 
 const DEFAULT_TABLES = [
-    'pos_database',
-    'employees',
-    'order_types',
-    'order_statuses',
-    'order_stages',
-    'order_payment_states',
-    'order_line_statuses',
-    'payment_methods',
-    'menu_category',
-    'category_sections',
-    'menu_item',
-    'kitchen_sections',
-    'dining_table',
-    'tableLocks',
-    'auditEvents',
-    'settings',
-    'shift_settings',
-    'removals',
-    'stores'
-  ];
+  'pos_database',
+  'pos_shift',
+  'order_header',
+  'order_line',
+  'order_payment',
+  'order_status_log',
+  'order_line_status_log',
+  'order_delivery',
+  'table_lock',
+  'menu_item',
+  'menu_category',
+  'category_section',
+  'kitchen_section',
+  'dining_table',
+  'employee',
+  'payment_method',
+  'order_type',
+  'order_status',
+  'order_stage',
+  'order_payment_state',
+  'order_line_status',
+  'pos_terminal',
+  'delivery_driver',
+  'audit_event',
+  'expo_pass_ticket'
+];
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];

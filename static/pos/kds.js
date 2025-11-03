@@ -3914,24 +3914,28 @@
           Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
         watcherState.posPayload =
           (latest && latest.payload) || {};
+        console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
         updateFromWatchers();
       })
     );
     watcherUnsubscribers.push(
-      store.watch('orders', (rows) => {
+      store.watch('order_header', (rows) => {
         watcherState.headers = ensureArray(rows);
+        console.log('[KDS][WATCH][order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
         updateFromWatchers();
       })
     );
     watcherUnsubscribers.push(
-      store.watch('orderLine', (rows) => {
+      store.watch('order_line', (rows) => {
         watcherState.lines = ensureArray(rows);
+        console.log('[KDS][WATCH][order_line]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
         updateFromWatchers();
       })
     );
     watcherUnsubscribers.push(
       store.watch('order_delivery', (rows) => {
         watcherState.deliveries = ensureArray(rows);
+        console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
         updateFromWatchers();
       })
     );
