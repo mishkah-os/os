@@ -1305,11 +1305,7 @@
 
   const getExpoOrders = (db)=>{
     const snapshot = computeOrdersSnapshot(db)
-      .filter(order=>{
-        if(!order) return false;
-        const status = order.handoffStatus;
-        return status !== 'assembled'  ;
-      });
+      console.log("snapshot",snapshot);
     const orderMap = new Map();
     snapshot.forEach(order=>{
       const key = normalizeOrderKey(order.orderId || order.id);
