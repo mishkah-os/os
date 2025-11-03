@@ -1252,8 +1252,19 @@
       ? 'served'
       : ((totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending');
     let status = baseStatus;
+
+    // Check if persisted status is still valid by comparing timestamps
     if(persistedStatus === 'served' || persistedStatus === 'assembled'){
-      status = persistedStatus;
+      const ticketTimeCandidates = [ticket.updatedAt, ticket.updated_at, ticket.completedAt, ticket.readyAt, ticket.acceptedAt, ticket.createdAt];
+      const ticketTimestamp = ticketTimeCandidates.reduce((acc, value)=>{
+        const ms = parseTime(value);
+        return ms && ms > acc ? ms : acc;
+      }, 0);
+      const recordTimestamp = resolveHandoffTimestamp(persistedRecord);
+      // Only use persisted status if it's newer than the ticket data
+      if(recordTimestamp && ticketTimestamp && ticketTimestamp <= recordTimestamp){
+        status = persistedStatus;
+      }
     } else if(persistedStatus === 'ready'){
       status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
     } else if(persistedStatus === 'pending'){
@@ -1297,7 +1308,7 @@
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        return status !== 'served';
+        return status !== 'assembled' && status !== 'served';
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
