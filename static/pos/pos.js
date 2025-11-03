@@ -1813,115 +1813,104 @@
         return true;
       }
 
-      function hydrateLine(record){
-        if(!record) return null;
-        console.log("record",record);
-        const metadata = ensurePlainObject(record.metadata || record.meta);
-        const rawItemId = record.itemId
-          ?? record.item_id
-          ?? record.menuItemId
-          ?? record.menu_item_id
-          ?? record.productId
-          ?? record.product_id
-          ?? metadata.itemId
-          ?? metadata.item_id
-          ?? metadata.menuItemId
-          ?? metadata.menu_item_id
-          ?? metadata.productId
-          ?? metadata.product_id
-          ?? metadata.itemCode;
-
-        const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
-          ? String(rawItemId).trim()
-          : null;
-        const menuItem = itemId ? menuIndex?.get(itemId) : null;
-
-        const rawName = record.name
-          ?? record.item_name
-          ?? record.itemName
-          ?? record.item_label
-          ?? record.label
-          ?? metadata.name
-          ?? metadata.itemName
-          ?? metadata.item_name
-          ?? metadata.item_label
-          ?? metadata.label
-          ?? null;
-        const rawDescription = record.description
-          ?? record.item_description
-          ?? record.itemDescription
-          ?? record.lineDescription
-          ?? record.line_description
-          ?? metadata.description
-          ?? metadata.itemDescription
-          ?? metadata.item_description
-          ?? metadata.lineDescription
-          ?? metadata.line_description
-          ?? null;
-
-        if(itemId == null && rawName == null){
-          console.warn('[Mishkah][POS] Ignoring persisted order line without item id and name', record);
-          return null;
-        }
-
-        const quantity = record.quantity != null ? Number(record.quantity) : (record.qty != null ? Number(record.qty) : 1);
-        const unitPrice = Number(record.unitPrice != null ? record.unitPrice
-          : record.unit_price != null ? record.unit_price
-          : record.price != null ? record.price
-          : record.basePrice != null ? record.basePrice
-          : menuItem?.price || menuItem?.basePrice || 0);
-        const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
-        const kitchenSource = record.kitchenSection
-          ?? record.kitchenSectionId
-          ?? record.kitchen_section_id
-          ?? record.stationId
-          ?? record.station_id
-          ?? record.sectionId
-          ?? record.section_id
-          ?? metadata.kitchenSectionId
-          ?? metadata.sectionId
-          ?? metadata.section_id
-          ?? metadata.stationId
-          ?? metadata.station_id
-          ?? menuItem?.kitchenSection;
-        const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
-
-        const resolvedName = menuItem ? menuItem.name : cloneName(rawName) || (itemId ? `صنف ${itemId}` : 'صنف غير معروف');
-        const resolvedDescription = menuItem ? menuItem.description : cloneName(rawDescription);
-        const statusId = record.statusId || record.status_id || record.status || 'draft';
-
-        const baseLine = {
-          id: record.id,
-          itemId: itemId || null,
-          item_id: itemId || null,
-          name: resolvedName,
-          description: resolvedDescription,
-          quantity,
-          qty: quantity,
-          unitPrice: round(unitPrice),
-          unit_price: round(unitPrice),
-          price: round(unitPrice),
-          basePrice: round(unitPrice),
-          modifiers,
-          statusId,
-          status_id: statusId,
-          status: statusId,
-          stage: record.stage,
-          kitchenSection,
-          kitchenSectionId: kitchenSection,
-          kitchen_section_id: kitchenSection,
-          locked: !!record.locked,
-          notes: Array.isArray(record.notes) ? record.notes : [],
-          discount: normalizeDiscount(record.discount),
-          createdAt: record.createdAt,
-          updatedAt: record.updatedAt
-        };
-        const priced = applyLinePricing(baseLine);
-        if(record.total != null && Number.isFinite(Number(record.total))){
-          priced.total = round(record.total);
-        }
-        return priced;
-      }
+ function hydrateLine(record){
+    const metadata = ensurePlainObject(record.metadata || record.meta || record.payload);
+    const rawItemId = record.itemId
+      ?? record.item_id
+      ?? record.menuItemId
+      ?? record.menu_item_id
+      ?? record.productId
+      ?? record.product_id
+      ?? metadata.itemId
+      ?? metadata.item_id
+      ?? metadata.menuItemId
+      ?? metadata.menu_item_id
+      ?? metadata.productId
+      ?? metadata.product_id
+      ?? metadata.itemCode;
+    const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
+      ? String(rawItemId).trim()
+      : null;
+    const menuItem = itemId ? menuIndex?.get(itemId) : null;
+    const rawName = record.name
+      ?? record.item_name
+      ?? record.itemName
+      ?? record.item_label
+      ?? record.label
+      ?? metadata.name
+      ?? metadata.itemName
+      ?? metadata.item_name
+      ?? metadata.item_label
+      ?? metadata.label
+      ?? null;
+    const rawDescription = record.description
+      ?? record.item_description
+      ?? record.itemDescription
+      ?? record.lineDescription
+      ?? record.line_description
+      ?? metadata.description
+      ?? metadata.itemDescription
+      ?? metadata.item_description
+      ?? metadata.lineDescription
+      ?? metadata.line_description
+      ?? null;
+    const quantity = record.quantity != null ? Number(record.quantity) : (record.qty != null ? Number(record.qty) : 1);
+    const unitPriceRaw = Number(record.unitPrice != null ? record.unitPrice
+      : record.unit_price != null ? record.unit_price
+      : record.price != null ? record.price
+      : record.basePrice != null ? record.basePrice
+      : menuItem?.price || menuItem?.basePrice || 0);
+    const unitPrice = unitPriceRaw > 0 ? unitPriceRaw : ((Number(record.total) > 0 && quantity > 0) ? Number(record.total) / quantity : 0);
+    const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
+    const kitchenSource = record.kitchenSection
+      ?? record.kitchenSectionId
+      ?? record.kitchen_section_id
+      ?? record.stationId
+      ?? record.station_id
+      ?? record.sectionId
+      ?? record.section_id
+      ?? metadata.kitchenSectionId
+      ?? metadata.sectionId
+      ?? metadata.section_id
+      ?? metadata.stationId
+      ?? metadata.station_id
+      ?? menuItem?.kitchenSection;
+    const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+    const resolvedName = menuItem ? menuItem.name : cloneName(rawName) || (itemId ? `صنف ${itemId}` : 'صنف غير معروف');
+    const resolvedDescription = menuItem ? menuItem.description : cloneName(rawDescription);
+    const statusId = record.statusId || record.status_id || record.status || 'draft';
+    const baseLine = {
+      id: record.id,
+      itemId: itemId || null,
+      item_id: itemId || null,
+      name: resolvedName,
+      description: resolvedDescription,
+      quantity,
+      qty: quantity,
+      unitPrice: round(unitPrice),
+      unit_price: round(unitPrice),
+      price: round(unitPrice),
+      basePrice: round(unitPrice),
+      modifiers,
+      statusId,
+      status_id: statusId,
+      status: statusId,
+      stage: record.stage,
+      kitchenSection,
+      kitchenSectionId: kitchenSection,
+      kitchen_section_id: kitchenSection,
+      locked: !!record.locked,
+      notes: Array.isArray(record.notes) ? record.notes : [],
+      discount: normalizeDiscount(record.discount),
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt
+    };
+    const priced = applyLinePricing(baseLine);
+    if(record.total != null && Number.isFinite(Number(record.total))){
+      priced.total = round(record.total);
+    }
+    return priced;
+}
 
       async function hydrateOrder(header){
         await ensureReady();
@@ -1977,14 +1966,15 @@
         if(base.posNumber == null && metadata.posNumber != null){
           base.posNumber = metadata.posNumber;
         }
-        const linesSource = Array.isArray(raw.lines) ? raw.lines : [];
-        base.lines = linesSource
-          .map(line=>{
-            if(!line) return null;
-            const payload = { ...line, metadata: ensurePlainObject(line.metadata || line.meta) };
-            return hydrateLine(payload);
-          })
-          .filter(Boolean);
+         const linesSource = Array.isArray(raw.lines) ? raw.lines : [];
+    base.lines = linesSource
+      .map(line=>{
+        if(!line) return null;
+        const payload = { ...line, metadata: ensurePlainObject(line.metadata || line.meta || line.payload) };
+        return hydrateLine(payload);
+      })
+      .filter(Boolean);
+         
         const notes = Array.isArray(raw.notes)
           ? raw.notes
               .map(note=>{
