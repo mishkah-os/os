@@ -1234,30 +1234,45 @@
     }
     const pendingItems = Math.max(0, totalItems - readyItems);
     const normalizeStatus = (value)=> value == null ? '' : String(value).toLowerCase();
-    let status = normalizeStatus(ticket.status);
-    if(status === 'assembled' || status === 'served'){
-      if(pendingItems > 0 || (totalItems > 0 && readyItems < totalItems)){
-        status = 'pending';
-      }
-    } else if(status === 'ready' && readyItems < totalItems){
-      status = 'pending';
-    }
-    if(!status || status === 'awaiting'){
+    const ticketStatus = normalizeStatus(ticket.status);
+    const orderId = ticket.orderId || ticket.order_id || ticket.orderID || ticket.id;
+    const orderKey = normalizeOrderKey(orderId);
+    const handoffMap = db?.data?.handoff || {};
+    const persistedRecord = orderKey
+      ? cloneDeep(
+          handoffMap[orderKey]
+          || handoffMap[ticket.orderId]
+          || handoffMap[ticket.order_id]
+          || handoffMap[ticket.orderID]
+          || handoffMap[ticket.id]
+        )
+      : null;
+    const persistedStatus = normalizeStatus(persistedRecord?.status);
+    const baseStatus = ticketStatus === 'served'
+      ? 'served'
+      : ((totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending');
+    let status = baseStatus;
+    if(persistedStatus === 'served' || persistedStatus === 'assembled'){
+      status = persistedStatus;
+    } else if(persistedStatus === 'ready'){
       status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
+    } else if(persistedStatus === 'pending'){
+      status = 'pending';
     }
 
     const createdAt = ticket.createdAt || ticket.acceptedAt || ticket.updatedAt || null;
     const createdMs = parseTime(createdAt);
-    const orderId = ticket.orderId || ticket.order_id || ticket.orderID || ticket.id;
     const orderNumber = resolveOrderNumber(ticket.orderNumber || ticket.order_number, orderId);
     const serviceModeSource = ticket.serviceMode || ticket.service_mode || ticket.orderType || ticket.order_type || 'dine_in';
     const serviceMode = String(serviceModeSource || 'dine_in').toLowerCase();
-    const handoffRecord = {
-      status,
-      updatedAt: ticket.updatedAt || ticket.updated_at || createdAt || null,
-      assembledAt: ticket.assembledAt || ticket.assembled_at || null,
-      servedAt: ticket.servedAt || ticket.served_at || null
-    };
+    const handoffRecord = persistedRecord
+      ? { ...persistedRecord, status }
+      : {
+          status,
+          updatedAt: ticket.updatedAt || ticket.updated_at || createdAt || null,
+          assembledAt: ticket.assembledAt || ticket.assembled_at || null,
+          servedAt: ticket.servedAt || ticket.served_at || null
+        };
 
     return {
       orderId,
