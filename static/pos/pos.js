@@ -3542,6 +3542,8 @@
     };
 
     function installRealtimeOrderWatchers(){
+
+      console.log("realtimeOrders",realtimeOrders)
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
