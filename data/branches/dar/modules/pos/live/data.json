@@ -132,17 +132,6 @@
                 "en": "All grilled meats prepared by the butchery team.",
                 "ar": "كل اللحوم المشوية التي يجهزها فريق المشويات"
               }
-            },
-            {
-              "id": "c9037972-da7d-40fb-a344-51a8d7a5aadf",
-              "section_name": {
-                "en": "Expeditor",
-                "ar": "شاشة التجميع "
-              },
-              "description": {
-                "en": "Final assembly and hand-off to runners.",
-                "ar": "التجميع النهائي وتسليم الطلبات للمندوبين."
-              }
             }
           ],
           "category_sections": [
