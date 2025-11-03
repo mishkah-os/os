@@ -3534,7 +3534,7 @@
     };
 
     function installRealtimeOrderWatchers(){
-console.log("realtimeOrders",realtimeOrders);
+      console.log('[POS][installRealtimeOrderWatchers] Starting...', realtimeOrders);
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
@@ -3542,6 +3542,80 @@ console.log("realtimeOrders",realtimeOrders);
       const headerTableName = POS_TABLE_HANDLES.order_header || 'order_header';
       const lineTableName = POS_TABLE_HANDLES.order_line || 'order_line';
       const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
+
+      // ===== التعبئة الأولية: قراءة البيانات الموجودة من السيرفر مثل pos_finance =====
+      console.log('[POS][installRealtimeOrderWatchers] Loading initial data from server...');
+
+      // قراءة headers الموجودة
+      let initialHeaderRows = [];
+      try {
+        const rawHeaders = store.list(headerTableName);
+        initialHeaderRows = Array.isArray(rawHeaders) ? rawHeaders : [];
+        console.log('[POS][installRealtimeOrderWatchers] Initial headers loaded:', initialHeaderRows.length);
+      } catch(err) {
+        console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial headers:', err);
+      }
+
+      // قراءة lines الموجودة
+      let initialLineRows = [];
+      try {
+        const rawLines = store.list(lineTableName);
+        initialLineRows = Array.isArray(rawLines) ? rawLines : [];
+        console.log('[POS][installRealtimeOrderWatchers] Initial lines loaded:', initialLineRows.length);
+      } catch(err) {
+        console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial lines:', err);
+      }
+
+      // قراءة payments الموجودة
+      let initialPaymentRows = [];
+      try {
+        const rawPayments = store.list(paymentTableName);
+        initialPaymentRows = Array.isArray(rawPayments) ? rawPayments : [];
+        console.log('[POS][installRealtimeOrderWatchers] Initial payments loaded:', initialPaymentRows.length);
+      } catch(err) {
+        console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial payments:', err);
+      }
+
+      // معالجة وتخزين headers الأولية
+      const headersMap = new Map();
+      (initialHeaderRows || []).forEach(row=>{
+        const normalized = sanitizeOrderHeaderRow(row);
+        if(!normalized) return;
+        const id = String(normalized.id);
+        headersMap.set(id, normalized);
+      });
+      realtimeOrders.headers = headersMap;
+      console.log('[POS][installRealtimeOrderWatchers] Initialized headers:', headersMap.size);
+
+      // معالجة وتخزين lines الأولية
+      const linesMap = new Map();
+      (initialLineRows || []).forEach(row=>{
+        const normalized = sanitizeOrderLineRow(row);
+        if(!normalized || !normalized.orderId) return;
+        const orderId = String(normalized.orderId);
+        if(!linesMap.has(orderId)) linesMap.set(orderId, []);
+        linesMap.get(orderId).push(normalized);
+      });
+      realtimeOrders.lines = linesMap;
+      console.log('[POS][installRealtimeOrderWatchers] Initialized lines groups:', linesMap.size);
+
+      // معالجة وتخزين payments الأولية
+      const paymentsMap = new Map();
+      (initialPaymentRows || []).forEach(row=>{
+        const normalized = sanitizeOrderPaymentRow(row);
+        if(!normalized || !normalized.orderId) return;
+        const orderId = String(normalized.orderId);
+        if(!paymentsMap.has(orderId)) paymentsMap.set(orderId, []);
+        paymentsMap.get(orderId).push(normalized);
+      });
+      realtimeOrders.payments = paymentsMap;
+      console.log('[POS][installRealtimeOrderWatchers] Initialized payment groups:', paymentsMap.size);
+
+      // تحديث الـ snapshot الأولي
+      scheduleRealtimeSnapshot();
+
+      // ===== تسجيل Watchers للتحديثات في الوقت الفعلي =====
+      console.log('[POS][installRealtimeOrderWatchers] Registering watchers...');
 
       const unsubHeaders = store.watch(headerTableName, (rows)=>{
         const beforeCount = realtimeOrders.headers.size;
@@ -3610,6 +3684,7 @@ console.log("realtimeOrders",realtimeOrders);
 
       realtimeOrders.unsubscribes = [unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
       realtimeOrders.installed = true;
+      console.log('[POS][installRealtimeOrderWatchers] Completed successfully');
     }
 
 
