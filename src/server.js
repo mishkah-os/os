@@ -1517,15 +1517,31 @@ function normalizeOrderLineStatusLogEntry(entry, context) {
 
 function normalizeOrderLineRecord(orderId, line, defaults) {
   if (!line) return null;
-  const uid = line.uid || line.storageId || `${orderId}::${line.id || line.itemId || createId('ln')}`;
-  const id = line.id || `${orderId}::${line.itemId || createId('ln')}`;
+  const baseItemKey =
+    line.itemId ||
+    line.item_id ||
+    line.menuItemId ||
+    line.menu_item_id ||
+    line.productId ||
+    line.product_id ||
+    createId('ln');
+  const uid = line.uid || line.storageId || `${orderId}::${line.id || baseItemKey}`;
+  const id = line.id || line.lineId || line.line_id || `${orderId}::${baseItemKey}`;
   const versionValue = Number(line.version);
   const qty = Number(line.qty);
   const price = Number(line.price);
   const total = Number(line.total);
-  const baseStatus = line.status || defaults.status || 'draft';
-  const stage = line.stage || defaults.stage || 'new';
-  const kitchenSection = line.kitchenSection || line.stationId || null;
+  const baseStatus =
+    line.status || line.statusId || line.status_id || defaults.status || 'draft';
+  const stage = line.stage || line.stageId || line.stage_id || defaults.stage || 'new';
+  const kitchenSection =
+    line.kitchenSection ||
+    line.kitchen_section ||
+    line.stationId ||
+    line.station_id ||
+    line.sectionId ||
+    line.section_id ||
+    null;
   const createdAt = toTimestamp(line.createdAt, defaults.createdAt);
   const updatedAt = toTimestamp(line.updatedAt, defaults.updatedAt);
   const logContext = {
@@ -1574,9 +1590,28 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
     uid,
     id,
     orderId,
-    itemId: line.itemId || line.menuItemId || null,
-    name: line.name || null,
-    description: line.description || null,
+    itemId:
+      line.itemId ||
+      line.item_id ||
+      line.menuItemId ||
+      line.menu_item_id ||
+      line.productId ||
+      line.product_id ||
+      null,
+    name:
+      line.name ||
+      line.itemName ||
+      line.item_name ||
+      line.item_label ||
+      line.label ||
+      null,
+    description:
+      line.description ||
+      line.itemDescription ||
+      line.item_description ||
+      line.lineDescription ||
+      line.line_description ||
+      null,
     qty: Number.isFinite(qty) ? qty : 0,
     price: Number.isFinite(price) ? price : 0,
     total: Number.isFinite(total) ? total : (Number.isFinite(qty) ? qty : 0) * (Number.isFinite(price) ? price : 0),
@@ -1630,9 +1665,11 @@ function normalizeIncomingOrder(order, options = {}) {
   const updatedAt = toTimestamp(order.updatedAt, createdAt);
   const savedAt = toTimestamp(order.savedAt, updatedAt);
   const type = order.type || order.orderType || 'dine_in';
-  const status = order.status || order.statusId || 'open';
-  const stage = order.fulfillmentStage || order.stage || 'new';
-  const paymentState = order.paymentState || order.payment_state || 'unpaid';
+  const status = order.status || order.statusId || order.status_id || 'open';
+  const stage =
+    order.fulfillmentStage || order.stage || order.stageId || order.stage_id || 'new';
+  const paymentState =
+    order.paymentState || order.payment_state || order.paymentStateId || order.payment_state_id || 'unpaid';
   const discount = normalizeDiscount(order.discount);
   const rawPayments = Array.isArray(order.payments) ? order.payments : [];
   const payments = rawPayments.map((entry, idx) => ({
@@ -4168,7 +4205,12 @@ async function handleBranchesApi(req, res, url) {
       const normalizeToken = (value) => (value == null ? '' : String(value).trim().toLowerCase());
 
       const retainStatus = (status) => {
-        if (!status) return !onlyActive;
+        if (!status) {
+          if (statusFilters.length) {
+            return statusFilters.includes('') || statusFilters.includes('open');
+          }
+          return true;
+        }
         if (statusFilters.length) {
           return statusFilters.includes(status);
         }
@@ -4196,11 +4238,14 @@ async function handleBranchesApi(req, res, url) {
 
       const filtered = headers.filter((order) => {
         if (!order || typeof order !== 'object') return false;
-        const statusToken = normalizeToken(order.status || order.status_id || order.state);
+        const statusToken =
+          normalizeToken(order.status || order.status_id || order.state) || 'open';
         if (!retainStatus(statusToken)) return false;
-        const stageToken = normalizeToken(order.fulfillmentStage || order.stage || order.stage_id);
+        const stageToken =
+          normalizeToken(order.fulfillmentStage || order.stage || order.stage_id) || 'new';
         if (!retainStage(stageToken)) return false;
-        const typeToken = normalizeToken(order.type || order.orderType || order.order_type);
+        const typeToken =
+          normalizeToken(order.type || order.orderType || order.order_type) || 'dine_in';
         if (!retainType(typeToken)) return false;
         const shiftToken = normalizeToken(order.shiftId || order.shift_id);
         if (!retainShift(shiftToken)) return false;
