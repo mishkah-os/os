@@ -1297,7 +1297,7 @@
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        return status !== 'assembled' && status !== 'served';
+        return status !== 'served';
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
