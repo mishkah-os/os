@@ -1,81 +1,16 @@
 
-(async function(){
+  (async function(){
     const M = Mishkah;
     const UI = M.UI;
     const U = M.utils;
     const D = M.DSL;
     const Schema = M.schema;
-    const MODULE_ENTRY = (typeof window !== 'undefined'
-      && window.__POS_MODULE_ENTRY__
-      && typeof window.__POS_MODULE_ENTRY__ === 'object')
-      ? window.__POS_MODULE_ENTRY__
-      : null;
     const { tw, token } = U.twcss;
     const BASE_PALETTE = U.twcss?.PALETTE || {};
 
     const JSONX = U.JSON || {};
     const hasStructuredClone = typeof structuredClone === 'function';
     const isPlainObject = value => value && typeof value === 'object' && !Array.isArray(value);
-    const normalizePinValue = (value)=>{
-      if(value == null) return '';
-      const text = String(value).trim();
-      if(!text) return '';
-      const digits = text.replace(/\D/g, '');
-      return digits.length ? digits : text;
-    };
-    const toBoolean = (value)=>{
-      if(value === true) return true;
-      if(value === false) return false;
-      if(typeof value === 'number') return value === 1;
-      if(typeof value === 'string'){
-        const normalized = value.trim().toLowerCase();
-        return normalized === 'true'
-          || normalized === '1'
-          || normalized === 'yes'
-          || normalized === 'y'
-          || normalized === 'on';
-      }
-      return false;
-    };
-    const normalizeEmployeeRecord = (source, index = 0)=>{
-      if(!source || typeof source !== 'object') return null;
-      const pinSource = source.pin_code || source.pin || source.pinCode;
-      const normalizedPin = normalizePinValue(pinSource);
-      if(!normalizedPin) return null;
-      const idRaw = source.id || source.employee_id || source.employeeId;
-      const nameRaw = source.full_name || source.fullName || source.name;
-      const roleRaw = source.role || source.position;
-      const discountRaw = source.allowed_discount_rate || source.allowedDiscountRate || 0;
-      const discountValue = Number.parseFloat(discountRaw);
-      const normalized = {
-        id: (idRaw != null ? String(idRaw).trim() : '') || `emp-${normalizedPin}-${index + 1}`,
-        name: (nameRaw != null ? String(nameRaw).trim() : '') || `موظف ${index + 1}`,
-        role: (roleRaw != null ? String(roleRaw).trim() : '') || 'staff',
-        pin: normalizedPin,
-        allowedDiscountRate: Number.isFinite(discountValue) ? discountValue : 0
-      };
-      if(toBoolean(source.is_fallback || source.isFallback || source.fallback)){
-        normalized.isFallback = true;
-      }
-      return normalized;
-    };
-    const normalizeEmployeesList = (list, options={})=>{
-      const dedupeByPin = options.dedupeByPin !== false;
-      const entries = Array.isArray(list) ? list : [];
-      const normalized = [];
-      const seenKeys = new Set();
-      entries.forEach((entry, index)=>{
-        const record = normalizeEmployeeRecord(entry, index);
-        if(!record) return;
-        const keys = [];
-        if(record.id) keys.push(`id:${String(record.id).toLowerCase()}`);
-        if(dedupeByPin && record.pin) keys.push(`pin:${record.pin}`);
-        if(keys.some(key=> seenKeys.has(key))) return;
-        keys.forEach(key=> seenKeys.add(key));
-        normalized.push(record);
-      });
-      return normalized;
-    };
     const cloneDeep = (value)=>{
       if(value == null) return value;
       if(JSONX && typeof JSONX.clone === 'function') return JSONX.clone(value);
@@ -217,233 +152,6 @@
       const raw = base || fallback || 'default';
       return raw.replace(/[^A-Za-z0-9:_-]+/g, '-').toLowerCase();
     };
-    const coerceArray = (value)=>{
-      if(Array.isArray(value)) return value;
-      if(!value || typeof value !== 'object') return [];
-      if(Array.isArray(value.rows)) return value.rows;
-      if(Array.isArray(value.items)) return value.items;
-      if(Array.isArray(value.list)) return value.list;
-      if(Array.isArray(value.data)) return value.data;
-      if(Array.isArray(value.values)) return value.values;
-      if(Array.isArray(value.records)) return value.records;
-      return [];
-    };
-    const TABLE_ALIAS_GROUPS = {
-      dataset:{ canonical:'pos_database', aliases:['pos_dataset','pos_data','dataset','pos_snapshot'] },
-      orderHeader:{ canonical:'orders', aliases:['orders','orderss','orderHeader','orders_live','pos_orders'] },
-      orderLine:{ canonical:'orderLines', aliases:['orderLines','orderLines_items','orderDetails','order_items'] },
-      orderPayment:{ canonical:'order_payment', aliases:['order_payments','payments','orderPayments','payment_transactions'] },
-      orderLineModifier:{ canonical:'orderLines_modifier', aliases:['orderLines_modifiers','orderModifiers','orderLines_addons'] },
-      orderStatusLog:{ canonical:'order_status_log', aliases:['order_status_history','orderStatusHistory'] },
-      orderLineStatusLog:{ canonical:'orderLines_status_log', aliases:['orderLines_status_history','line_status_history'] },
-      posShift:{ canonical:'pos_shift', aliases:['pos_shifts','shifts','shift_header','shiftHeaders'] },
-      jobOrderHeader:{ canonical:'job_orders', aliases:['job_orders','job_orderss','production_orders'] },
-      jobOrderDetail:{ canonical:'job_order_detail', aliases:['job_order_details','jobOrderDetails','production_order_detail'] },
-      jobOrderDetailModifier:{ canonical:'job_order_detail_modifier', aliases:['job_order_modifiers','jobOrderModifiers'] },
-      jobOrderStatusHistory:{ canonical:'job_order_status_history', aliases:['job_order_status_log','jobStatusHistory'] },
-      expoPassTicket:{ canonical:'expo_pass_ticket', aliases:['expo_pass_tickets','expo_tickets','expoPassTickets'] },
-      kitchenSection:{ canonical:'kitchen_section', aliases:['kitchen_sections','kitchenStations'] },
-      diningTable:{ canonical:'dining_table', aliases:['tables','dining_tables','restaurant_tables'] },
-      tableLock:{ canonical:'table_lock', aliases:['table_locks','locks','tableLocks'] },
-      customerProfile:{ canonical:'customer_profile', aliases:['customer_profiles','customers','customerProfiles'] },
-      customerAddress:{ canonical:'customer_address', aliases:['customer_addresses','addresses','customerAddresses'] }
-    };
-    const canonicalizeTableName = (name)=>{
-      if(name == null) return null;
-      const text = String(name).trim();
-      if(!text) return null;
-      const lower = text.toLowerCase();
-      for(const descriptor of Object.values(TABLE_ALIAS_GROUPS)){
-        const candidates = [descriptor.canonical, ...(descriptor.aliases || [])];
-        if(candidates.some(candidate=> typeof candidate === 'string' && candidate.toLowerCase() === lower)){
-          return descriptor.canonical;
-        }
-      }
-      return text;
-    };
-    const collectTableNamesFromList = (list)=>{
-      const names = new Set();
-      const push = (value)=>{
-        if(!value) return;
-        const text = String(value).trim();
-        if(text) names.add(text);
-      };
-      const visitEntry = (entry)=>{
-        if(!entry) return;
-        if(typeof entry === 'string'){ push(entry); return; }
-        if(typeof entry === 'object'){
-          push(entry.name);
-          push(entry.table);
-          push(entry.tableName);
-          push(entry.sqlName);
-          if(Array.isArray(entry.aliases)) entry.aliases.forEach(push);
-          if(Array.isArray(entry.synonyms)) entry.synonyms.forEach(push);
-        }
-      };
-      (Array.isArray(list) ? list : []).forEach(visitEntry);
-      return names;
-    };
-    const collectSchemaTableNames = (schemaSource)=>{
-      const names = new Set();
-      if(!schemaSource || typeof schemaSource !== 'object') return names;
-      collectTableNamesFromList(schemaSource.tables).forEach(name=> names.add(name));
-      if(schemaSource.schema && typeof schemaSource.schema === 'object'){
-        collectTableNamesFromList(schemaSource.schema.tables).forEach(name=> names.add(name));
-        if(schemaSource.schema.schema && typeof schemaSource.schema.schema === 'object'){
-          collectTableNamesFromList(schemaSource.schema.schema.tables).forEach(name=> names.add(name));
-        }
-      }
-      return names;
-    };
-    const collectModuleTableNames = (entry)=>{
-      if(!entry || typeof entry !== 'object') return new Set();
-      const names = new Set();
-      collectTableNamesFromList(entry.tables).forEach(name=> names.add(name));
-      if(entry.schema && typeof entry.schema === 'object'){
-        collectTableNamesFromList(entry.schema.tables).forEach(name=> names.add(name));
-        if(entry.schema.schema && typeof entry.schema.schema === 'object'){
-          collectTableNamesFromList(entry.schema.schema.tables).forEach(name=> names.add(name));
-        }
-      }
-      return names;
-    };
-    const ensurePosTableAliases = (dbInstance, schemaSource, moduleEntry)=>{
-      const handles = {};
-      if(!dbInstance || typeof dbInstance !== 'object') return handles;
-      const register = typeof dbInstance.register === 'function' ? dbInstance.register.bind(dbInstance) : null;
-      const configObjects = dbInstance.config && typeof dbInstance.config === 'object'
-        ? (dbInstance.config.objects || {})
-        : {};
-      const knownNames = new Set(Object.keys(configObjects));
-      const schemaNames = collectSchemaTableNames(schemaSource || {});
-      const moduleNames = collectModuleTableNames(moduleEntry || {});
-      const allKnown = new Set([...schemaNames, ...moduleNames]);
-      const getOptions = (descriptor)=>{
-        const options = new Set();
-        options.add(descriptor.canonical);
-        (descriptor.aliases || []).forEach(alias=>{ if(alias) options.add(String(alias)); });
-        allKnown.forEach(name=>{
-          if(canonicalizeTableName(name) === descriptor.canonical) options.add(name);
-        });
-        return Array.from(options);
-      };
-      const findCaseInsensitive = (options)=>{
-        for(const option of options){
-          const lower = String(option).toLowerCase();
-          const match = Array.from(knownNames).find(candidate=> candidate.toLowerCase() === lower);
-          if(match) return match;
-        }
-        return null;
-      };
-      Object.values(TABLE_ALIAS_GROUPS).forEach(descriptor=>{
-        const options = getOptions(descriptor);
-        let matched = options.find(option=> knownNames.has(option)) || findCaseInsensitive(options);
-        if(matched && matched !== descriptor.canonical && register && !knownNames.has(descriptor.canonical)){
-          const sourceTable = configObjects[matched]?.table || matched;
-          try{
-            register(descriptor.canonical, { table: sourceTable });
-            knownNames.add(descriptor.canonical);
-            matched = descriptor.canonical;
-          } catch(_err){
-            // Ignore registration failure and keep using the discovered table name.
-          }
-        } else if(!matched && register){
-          const fallback = options.find(option=> option && option !== descriptor.canonical);
-          const sourceTable = fallback || descriptor.canonical;
-          try{
-            register(descriptor.canonical, { table: sourceTable });
-            knownNames.add(descriptor.canonical);
-            matched = descriptor.canonical;
-          } catch(_err){
-            matched = descriptor.canonical;
-          }
-        } else if(!matched){
-          matched = descriptor.canonical;
-        }
-        handles[descriptor.canonical] = matched;
-      });
-      return handles;
-    };
-    const EMPLOYEE_KEYS = ['employees','staff','pos_employees','pos_staff','employee_profiles','employee_profile','employeeProfile','employees_list','employeesList','cashiers'];
-    const resolveEmployeeList = (source)=>{
-      if(!source || typeof source !== 'object') return [];
-      for(const key of EMPLOYEE_KEYS){
-        const direct = source[key] || source.settings?.[key];
-        const arr = coerceArray(direct);
-        if(arr.length) return arr;
-      }
-      const seen = new WeakSet();
-      const queue = [];
-      if(source && typeof source === 'object'){ seen.add(source); queue.push({ value: source, depth:0 }); }
-      while(queue.length){
-        const { value, depth } = queue.shift();
-        if(depth > 3) continue;
-        if(Array.isArray(value)){
-          const entries = value.filter(item=> item && typeof item === 'object');
-          if(entries.length && entries.some(item=> ('pin' in item) || ('pin_code' in item) || ('pinCode' in item) || ('passcode' in item))){
-            return entries;
-          }
-          continue;
-        }
-        if(value && typeof value === 'object'){
-          const maybe = value.employees || value.staff || value.cashiers;
-          const arr = coerceArray(maybe);
-          if(arr.length && arr.some(item=> item && typeof item === 'object' && (item.pin != null || item.pin_code != null || item.pinCode != null || item.passcode != null))){
-            return arr;
-          }
-          Object.values(value).forEach(child=>{
-            if(child && typeof child === 'object' && !seen.has(child)){
-              seen.add(child);
-              queue.push({ value: child, depth: depth + 1 });
-            }
-          });
-        }
-      }
-      return [];
-    };
-    const SHIFT_SETTINGS_KEYS = ['shift_settings','shiftSettings','pos_shift_settings','shift_config','shiftConfig','pos_shift_config','shift'];
-    const resolveShiftSettings = (source)=>{
-      const inspect = (candidate)=>{
-        if(!candidate || typeof candidate !== 'object') return null;
-        const hasPin = candidate.pin != null || candidate.pin_code != null || candidate.pinCode != null || candidate.default_pin != null;
-        const hasOpening = candidate.opening_float != null || candidate.openingFloat != null;
-        const hasLength = candidate.pin_length != null || candidate.pinLength != null;
-        return (hasPin || hasOpening || hasLength) ? candidate : null;
-      };
-      if(!source || typeof source !== 'object') return {};
-      for(const key of SHIFT_SETTINGS_KEYS){
-        const direct = source[key] || source.settings?.[key];
-        const resolved = inspect(direct);
-        if(resolved) return resolved;
-      }
-      const seen = new WeakSet();
-      const queue = [];
-      seen.add(source);
-      queue.push({ value: source, depth:0 });
-      while(queue.length){
-        const { value, depth } = queue.shift();
-        if(depth > 3) continue;
-        if(value && typeof value === 'object' && !Array.isArray(value)){
-          const resolved = inspect(value);
-          if(resolved) return resolved;
-          Object.values(value).forEach(child=>{
-            if(child && typeof child === 'object' && !seen.has(child)){
-              seen.add(child);
-              queue.push({ value: child, depth: depth + 1 });
-            }
-          });
-        }
-      }
-      return {};
-    };
-    const firstFiniteNumber = (...values)=>{
-      for(const candidate of values){
-        if(candidate == null) continue;
-        const number = Number(candidate);
-        if(Number.isFinite(number)) return number;
-      }
-      return null;
-    };
     const DEFAULT_PAYMENT_METHODS_SOURCE = [
       { id:'cash', icon:'💵', name:{ ar:'نقدي', en:'Cash' }, type:'cash' },
       { id:'card', icon:'💳', name:{ ar:'بطاقة', en:'Card' }, type:'card' }
@@ -539,30 +247,10 @@
       ]
     });
     const SHIFT_SCHEMA_REGISTRY = new Schema.Registry({ tables:[SHIFT_TABLE] });
-    let POS_SCHEMA_SOURCE = SHIFT_SCHEMA_REGISTRY.toJSON();
-    let POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
-    const REMOTE_DB = (typeof window !== 'undefined'
-      && window.__POS_DB__
-      && typeof window.__POS_DB__ === 'object')
-      ? window.__POS_DB__
-      : null;
-    let POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
-    
-    async function fetchPosSchemaFromBackend(){
-      const branchId = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || 'dar') : 'dar';
-      const url = '../api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
-      try{
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        const body = await res.json().catch(()=>null);
-        const schemaJson = body?.schema || body?.data || body;
-        if(schemaJson && typeof schemaJson === 'object'){
-          POS_SCHEMA_SOURCE = schemaJson;
-          POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
-          POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
-          DATASET_PAYLOAD_KEY_CACHE.clear();
-        }
-      } catch(_err){}
-    }
+    const POS_SCHEMA_SOURCE = (typeof window !== 'undefined' && window.MishkahPOSSchema)
+      ? window.MishkahPOSSchema
+      : SHIFT_SCHEMA_REGISTRY.toJSON();
+    const POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
     const FALLBACK_CURRENCY = 'EGP';
     const normalizeCurrencyCode = (value)=>{
       if(typeof value !== 'string') return null;
@@ -599,13 +287,13 @@
     const rawOrderTypes = Array.isArray(MOCK.order_types) && MOCK.order_types.length ? MOCK.order_types : [
       { id:'dine_in', type_name:{ ar:'صالة', en:'Dine-in' }, allows_save:true, allows_finalize_later:true, allows_line_additions:true, allows_returns:true, workflow:'multi-step' },
       { id:'delivery', type_name:{ ar:'دليفري', en:'Delivery' }, allows_save:false, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' },
-      { id:'takeaway', type_name:{ ar:'تيك أواي', en:'Takeaway' }, allows_save:true, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' }
+      { id:'takeaway', type_name:{ ar:'تيك أواي', en:'Takeaway' }, allows_save:false, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' }
     ];
     const ORDER_TYPES = rawOrderTypes.map(type=>({
       id: type.id,
       icon: ORDER_TYPE_ICON_MAP[type.id] || '🧾',
       workflow: type.workflow || 'single-step',
-      allowsSave: type.id === 'takeaway' ? true : type.allows_save !== false,
+      allowsSave: type.allows_save !== false,
       allowsFinalizeLater: !!type.allows_finalize_later,
       allowsLineAdditions: !!type.allows_line_additions,
       allowsReturns: !!type.allows_returns,
@@ -632,16 +320,12 @@
       { id:'october', ar:'٦ أكتوبر', en:'6th of October' }
     ];
 
-    const SHIFT_SETTINGS = resolveShiftSettings(MOCK);
-    const SHIFT_PIN_FALLBACK_RAW = typeof SHIFT_SETTINGS.pin === 'string'
+    const SHIFT_SETTINGS = typeof MOCK.shift_settings === 'object' && MOCK.shift_settings ? MOCK.shift_settings : {};
+    const SHIFT_PIN_FALLBACK = typeof SHIFT_SETTINGS.pin === 'string'
       ? SHIFT_SETTINGS.pin
       : (typeof SHIFT_SETTINGS.default_pin === 'string' ? SHIFT_SETTINGS.default_pin : '');
-    const SHIFT_PIN_FALLBACK = normalizePinValue(SHIFT_PIN_FALLBACK_RAW);
-    let SHIFT_PIN_LENGTH = Number(SHIFT_SETTINGS.pin_length || SHIFT_SETTINGS.pinLength || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0)) || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0);
-    if(!SHIFT_PIN_LENGTH || SHIFT_PIN_LENGTH < 4){
-      const fallbackLength = SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0;
-      SHIFT_PIN_LENGTH = fallbackLength > 4 ? fallbackLength : 4;
-    }
+    let SHIFT_PIN_LENGTH = Number(SHIFT_SETTINGS.pin_length || SHIFT_SETTINGS.pinLength || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0)) || 0;
+    if(!SHIFT_PIN_LENGTH || SHIFT_PIN_LENGTH < 4) SHIFT_PIN_LENGTH = 4;
     const SHIFT_OPEN_FLOAT_DEFAULT = Number(SHIFT_SETTINGS.opening_float ?? SHIFT_SETTINGS.openingFloat ?? 0);
 
     const TEXTS = {
@@ -746,8 +430,6 @@
           order_saved:'تم حفظ الطلب محليًا', order_finalized:'تم إنهاء الطلب', sync_complete:'تم تحديث المزامنة', payment_recorded:'تم تسجيل الدفعة',
           amount_required:'من فضلك أدخل قيمة صحيحة', payment_exceeds_limit:'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%', payment_deleted:'تم حذف الدفعة', payment_locked:'لا يمكن حذف الدفعة بعد إنهاء الطلب', indexeddb_missing:'IndexedDB غير متاحة في هذا المتصفح', order_conflict_refreshed:'تم تعديل هذا الطلب من جهاز آخر، تم تحديث النسخة الحالية.', order_conflict_blocked:'تم تحديث هذه الفاتورة من جهاز آخر. يرجى مراجعة التغييرات قبل الحفظ.',
           indexeddb_error:'تعذر حفظ البيانات محليًا', print_stub:'سيتم التكامل مع الطابعة لاحقًا',
-          line_missing_item:'لا يمكن حفظ السطر لأن الصنف غير معروف. يرجى حذف السطر وإعادة إضافته من القائمة.',
-          line_missing_kitchen:'يجب تحديد قسم المطبخ لكل صنف قبل الحفظ. يرجى تحديث الصنف ثم إعادة المحاولة.',
           discount_stub:'سيتم تفعيل الخصومات لاحقًا', notes_updated:'تم تحديث الملاحظات', add_note:'أدخل ملاحظة ترسل للمطبخ',
           set_qty:'أدخل الكمية الجديدة', line_actions:'سيتم فتح إجراءات السطر لاحقًا', line_modifiers_applied:'تم تحديث الإضافات والمنزوعات', confirm_clear:'هل تريد مسح الطلب الحالي؟',
           order_locked:'لا يمكن تعديل هذا الطلب بعد حفظه', line_locked:'لا يمكن تعديل هذا السطر بعد حفظه',
@@ -885,8 +567,6 @@
           order_saved:'Order stored locally', order_finalized:'Order finalized', sync_complete:'Sync completed', payment_recorded:'Payment recorded',
           amount_required:'Enter a valid amount', payment_exceeds_limit:'Payment exceeds allowed limit. Maximum: %max%', payment_deleted:'Payment deleted', payment_locked:'Cannot delete payment after order is finalized', indexeddb_missing:'IndexedDB is not available in this browser', order_conflict_refreshed:'This order was updated on another device. Your copy has been refreshed.', order_conflict_blocked:'This ticket has changed on another device. Please review the updates before saving.',
           indexeddb_error:'Failed to persist locally', print_stub:'Printer integration coming soon',
-          line_missing_item:'Cannot save a line without a linked menu item. Remove it and add the item again.',
-          line_missing_kitchen:'Each line must have a kitchen section before saving. Update the item configuration and retry.',
           discount_stub:'Discount workflow coming soon', notes_updated:'Notes updated', add_note:'Add a note for the kitchen',
           set_qty:'Enter the new quantity', line_actions:'Line actions coming soon', line_modifiers_applied:'Line modifiers updated', confirm_clear:'Clear the current order?',
           order_locked:'This order is locked after saving', line_locked:'This line can no longer be modified',
@@ -1313,28 +993,19 @@
     }
 
     function createOrderLine(item, qty, overrides){
-      if(!item || item.id == null || item.id === ''){
-        console.error('[POS] Cannot create order line without an item id', item);
+      if(!item || item.id == null){
         throw new Error('[POS] Cannot create order line without an item id');
-      }
-      const itemId = String(item.id);
-      if(!itemId || itemId === 'null' || itemId === 'undefined'){
-        console.error('[POS] Invalid item id', item);
-        throw new Error('[POS] Invalid item id');
       }
       const quantity = qty || 1;
       const price = Number(item.price) || 0;
       const now = Date.now();
+      const itemId = String(item.id);
       const uniqueId = overrides?.id || `ln-${itemId}-${now.toString(36)}-${Math.random().toString(16).slice(2,6)}`;
-      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection ?? item.kitchen_section ?? item.kitchen_section_id;
+      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection;
       const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
-      if(!kitchenSection || kitchenSection === 'null' || kitchenSection === 'undefined'){
-        console.warn('[POS] Invalid kitchenSection, defaulting to expo', { item, kitchenSource });
-      }
       const baseLine = {
         id: uniqueId,
         itemId,
-        item_id: itemId,
         name: item.name,
         description: item.description,
         price,
@@ -1347,8 +1018,6 @@
         status: overrides?.status || 'draft',
         stage: overrides?.stage || 'new',
         kitchenSection,
-        kitchenSectionId: kitchenSection,
-        kitchen_section_id: kitchenSection,
         locked: overrides?.locked || false,
         createdAt: overrides?.createdAt || now,
         updatedAt: overrides?.updatedAt || now
@@ -1819,25 +1488,11 @@
           ?? metadata.stationId
           ?? menuItem?.kitchenSection;
         const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
-        const rawName = record.name
-          ?? record.item_name
-          ?? record.itemName
-          ?? metadata.name
-          ?? metadata.itemName
-          ?? metadata.item_name
-          ?? null;
-        const rawDescription = record.description
-          ?? record.item_description
-          ?? record.itemDescription
-          ?? metadata.description
-          ?? metadata.itemDescription
-          ?? metadata.item_description
-          ?? null;
         const baseLine = {
           id: record.id,
           itemId,
-          name: menuItem ? menuItem.name : cloneName(rawName),
-          description: menuItem ? menuItem.description : cloneName(rawDescription),
+          name: menuItem ? menuItem.name : cloneName(record.name),
+          description: menuItem ? menuItem.description : cloneName(record.description),
           qty,
           price: round(basePrice),
           basePrice: round(basePrice),
@@ -2588,8 +2243,7 @@
       payments:new Map(),
       snapshot:{ orders:[], active:[], history:[] },
       unsubscribes:[],
-      debugLogged:{ headers:false, lines:false, payments:false, dataset:false },
-      datasetPrimed:{ headers:false, lines:false, payments:false }
+      debugLogged:{ headers:false, lines:false, payments:false }
     };
 
     const realtimeJobOrders = {
@@ -2693,7 +2347,7 @@
       if(!row) return null;
       const orderId = row.orderId ?? row.order_id;
       if(orderId == null) return null;
-      const id = row.id ?? row.line_id ?? row.orderLines_id ?? `${orderId}-${row.item_id ?? Math.random().toString(16).slice(2,8)}`;
+      const id = row.id ?? row.line_id ?? row.order_line_id ?? `${orderId}-${row.item_id ?? Math.random().toString(16).slice(2,8)}`;
       const normalized = { ...row };
       normalized.id = String(id);
       normalized.orderId = orderId != null ? String(orderId) : undefined;
@@ -2853,96 +2507,21 @@
         : (typeof normalizedNotesSource === 'string' && normalizedNotesSource.trim()
           ? [{ id:`note-${Math.random().toString(16).slice(2,8)}`, message: normalizedNotesSource.trim(), createdAt: updatedAt }]
           : []);
-      const discountValue = firstFiniteNumber(
-        raw.discount,
-        raw.discountAmount,
-        raw.discount_amount,
-        raw.order_discount,
-        metadata.discountAmount,
-        metadata.discount_amount,
-        metadata.discount
+      const discountValue = Number(
+        raw.discount ?? raw.discountAmount ?? raw.discount_amount ?? metadata.discountAmount ?? metadata.discount ?? metadata.discount_amount ?? 0
       ) || 0;
       const discount = discountValue > 0 ? { type:'amount', value: round(discountValue) } : null;
-      const subtotalValue = firstFiniteNumber(
-        raw.subtotal,
-        raw.sub_total,
-        raw.total_before_tax,
-        raw.total_before_vat,
-        metadata.subtotal,
-        metadata.sub_total,
-        metadata.total_before_tax,
-        metadata.total_before_vat
-      ) || 0;
-      const serviceValue = firstFiniteNumber(
-        raw.service,
-        raw.serviceFee,
-        raw.service_amount,
-        raw.service_charge,
-        raw.serviceCharge,
-        metadata.service,
-        metadata.serviceFee,
-        metadata.service_amount,
-        metadata.service_charge
-      ) || 0;
-      const vatValue = firstFiniteNumber(
-        raw.tax,
-        raw.vat,
-        raw.tax_amount,
-        raw.tax_total,
-        raw.total_tax,
-        metadata.tax,
-        metadata.vat,
-        metadata.tax_amount,
-        metadata.tax_total
-      ) || 0;
-      const deliveryValue = firstFiniteNumber(
-        raw.deliveryFee,
-        raw.delivery_fee,
-        raw.delivery,
-        raw.delivery_amount,
-        raw.delivery_total,
-        metadata.deliveryFee,
-        metadata.delivery_fee,
-        metadata.delivery,
-        metadata.delivery_amount
-      ) || 0;
-      const dueValue = firstFiniteNumber(
-        raw.totalDue,
-        raw.total_due,
-        raw.total_amount,
-        raw.total,
-        raw.grand_total,
-        raw.total_due_amount,
-        raw.amount_due,
-        raw.due_total,
-        raw.net_total,
-        metadata.due,
-        metadata.totalDue,
-        metadata.total_due,
-        metadata.total,
-        metadata.grand_total,
-        metadata.amount_due,
-        metadata.net_total
-      ) || 0;
-      const paidAmount = firstFiniteNumber(
-        raw.totalPaid,
-        raw.total_paid,
-        raw.amount_paid,
-        raw.total_payment,
-        raw.paid_total,
-        metadata.totalPaid,
-        metadata.total_paid,
-        metadata.amount_paid,
-        metadata.paid_total
-      );
       const totals = {
-        subtotal: round(subtotalValue),
-        service: round(serviceValue),
-        vat: round(vatValue),
+        subtotal: round(raw.subtotal ?? raw.sub_total ?? metadata.subtotal ?? metadata.sub_total ?? 0),
+        service: round(raw.service ?? raw.serviceFee ?? raw.service_amount ?? metadata.service ?? metadata.serviceFee ?? metadata.service_amount ?? 0),
+        vat: round(raw.tax ?? raw.vat ?? raw.tax_amount ?? metadata.tax ?? metadata.vat ?? metadata.tax_amount ?? 0),
         discount: round(discountValue > 0 ? discountValue : 0),
-        deliveryFee: round(deliveryValue),
-        due: round(dueValue)
+        deliveryFee: round(raw.deliveryFee ?? raw.delivery_fee ?? metadata.deliveryFee ?? metadata.delivery_fee ?? 0),
+        due: round(
+          raw.totalDue ?? raw.total_due ?? raw.total_amount ?? raw.total ?? metadata.due ?? metadata.totalDue ?? metadata.total_due ?? 0
+        )
       };
+      const paidAmount = Number(raw.totalPaid ?? raw.total_paid ?? metadata.totalPaid ?? metadata.total_paid ?? 0);
       if(Number.isFinite(paidAmount) && paidAmount > 0){
         totals.paid = round(paidAmount);
       }
@@ -3040,74 +2619,6 @@
       };
     }
 
-    function computeRealtimeLineTotal(line){
-      if(!line || typeof line !== 'object') return 0;
-      const quantity = Number(line.qty ?? line.quantity ?? line.count ?? 0) || 0;
-      const unitPrice = Number(line.price ?? line.unitPrice ?? line.unit_price ?? 0) || 0;
-      const totalValue = Number(line.total ?? line.lineTotal ?? line.line_total ?? 0);
-      if(Number.isFinite(totalValue) && totalValue !== 0){
-        return round(totalValue);
-      }
-      if(quantity && unitPrice){
-        return round(quantity * unitPrice);
-      }
-      return 0;
-    }
-
-    function computeRealtimePaymentAmount(payment){
-      if(!payment || typeof payment !== 'object') return 0;
-      const amount = Number(payment.amount ?? payment.total ?? payment.value ?? payment.paidAmount ?? payment.amount_paid ?? 0);
-      return Number.isFinite(amount) ? round(amount) : 0;
-    }
-
-    function deriveRealtimeOrderFinancials(header, lines=[], payments=[]){
-      const safeLines = Array.isArray(lines) ? lines : [];
-      const safePayments = Array.isArray(payments) ? payments : [];
-      const lineTotal = round(safeLines.reduce((sum, line)=> sum + computeRealtimeLineTotal(line), 0));
-      const paymentsTotal = round(safePayments.reduce((sum, payment)=> sum + computeRealtimePaymentAmount(payment), 0));
-      const baseTotals = ensurePlainObject(header.totals);
-      let subtotal = firstFiniteNumber(
-        baseTotals.subtotal,
-        header.subtotal,
-        header.totalBeforeTax,
-        header.total_before_tax,
-        header.totals?.subtotal,
-        header.metadata?.subtotal,
-        lineTotal
-      );
-      if(!Number.isFinite(subtotal) || subtotal <= 0) subtotal = lineTotal;
-      let due = firstFiniteNumber(
-        baseTotals.due,
-        header.totalDue,
-        header.total_due,
-        header.total,
-        header.total_amount,
-        header.totals?.due,
-        header.metadata?.totalDue,
-        header.metadata?.total_due,
-        subtotal
-      );
-      if(!Number.isFinite(due) || due <= 0) due = subtotal;
-      let paid = firstFiniteNumber(
-        baseTotals.paid,
-        header.totalPaid,
-        header.total_paid,
-        header.amount_paid,
-        header.totals?.paid,
-        header.metadata?.totalPaid,
-        header.metadata?.total_paid,
-        paymentsTotal
-      );
-      if(!Number.isFinite(paid) || paid < paymentsTotal) paid = paymentsTotal;
-      return {
-        subtotal: round(subtotal),
-        due: round(due),
-        paid: round(paid),
-        lineTotal,
-        paymentsTotal
-      };
-    }
-
     function composeRealtimeOrder(orderId){
       const rawHeader = realtimeOrders.headers.get(orderId);
       if(!rawHeader) return null;
@@ -3117,45 +2628,31 @@
       const paymentRows = realtimeOrders.payments.get(orderId) || [];
       const lines = lineRows.map(row=> normalizeRealtimeOrderLine(row, header)).filter(Boolean);
       const payments = paymentRows.map(normalizeRealtimePayment).filter(Boolean);
-      const financials = deriveRealtimeOrderFinancials(header, lines, payments);
+      const paidTotal = round(payments.reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
       const totals = {
         ...header.totals,
-        subtotal: financials.subtotal,
-        due: financials.due,
-        total: financials.due,
-        paid: financials.paid,
-        remaining: Math.max(0, round(financials.due - financials.paid)),
-        lines: lines.length,
-        payments: financials.paymentsTotal,
-        lineTotal: financials.lineTotal
+        paid: paidTotal,
+        remaining: Math.max(0, round((header.totals?.due || 0) - paidTotal))
       };
       let paymentState = header.paymentState || 'unpaid';
       if(totals.due > 0){
-        if(totals.paid >= totals.due){
+        if(paidTotal >= totals.due){
           paymentState = 'paid';
-        } else if(totals.paid > 0){
+        } else if(paidTotal > 0){
           paymentState = 'partial';
         } else {
           paymentState = 'unpaid';
         }
       }
-      const composedOrder = {
+      return {
         ...header,
         totals,
-        subtotal: totals.subtotal,
-        totalDue: totals.due,
-        total_due: totals.due,
-        totalPaid: totals.paid,
-        total_paid: totals.paid,
-        paymentsTotal: financials.paymentsTotal,
         paymentState,
         payments,
         lines,
         dirty:false,
         isPersisted: header.isPersisted !== false
       };
-      const enriched = enrichOrderWithMenu(composedOrder);
-      return enriched;
     }
 
     function cloneOrderSnapshot(order){
@@ -3239,220 +2736,12 @@
       }
     }
 
-    const DATASET_PAYLOAD_KEY_CACHE = new Map();
-
-    const registerDatasetKeyVariant = (bucket, name)=>{
-      if(typeof name !== 'string') return;
-      const trimmed = name.trim();
-      if(!trimmed) return;
-      bucket.add(trimmed);
-      bucket.add(trimmed.toLowerCase());
-      const snakeToCamel = trimmed.replace(/[-_\s]+([A-Za-z0-9])/g, (_match, chr)=> chr ? chr.toUpperCase() : '');
-      if(snakeToCamel){
-        const lowerCamel = snakeToCamel.charAt(0).toLowerCase() + snakeToCamel.slice(1);
-        bucket.add(lowerCamel);
-        bucket.add(lowerCamel.charAt(0).toUpperCase() + lowerCamel.slice(1));
-      }
-    };
-
-    const getDatasetPayloadKeysFor = (canonical)=>{
-      const normalized = canonicalizeTableName(canonical);
-      if(!normalized) return [];
-      if(DATASET_PAYLOAD_KEY_CACHE.has(normalized)){
-        return DATASET_PAYLOAD_KEY_CACHE.get(normalized);
-      }
-      const variants = new Set();
-      registerDatasetKeyVariant(variants, normalized);
-      const descriptor = Object.values(TABLE_ALIAS_GROUPS).find(entry=> entry.canonical === normalized) || null;
-      if(descriptor){
-        (descriptor.aliases || []).forEach(alias=> registerDatasetKeyVariant(variants, alias));
-      }
-      if(POS_TABLE_HANDLES && POS_TABLE_HANDLES[normalized]){
-        registerDatasetKeyVariant(variants, POS_TABLE_HANDLES[normalized]);
-      }
-      const keys = Array.from(variants).filter(Boolean);
-      DATASET_PAYLOAD_KEY_CACHE.set(normalized, keys);
-      return keys;
-    };
-
-    const readDatasetArray = (value)=>{
-      if(Array.isArray(value)) return value;
-      if(typeof value === 'string'){
-        const parsed = parseMaybeJSONish(value);
-        return Array.isArray(parsed) ? parsed : [];
-      }
-      return coerceArray(value);
-    };
-
     function installRealtimeOrderWatchers(){
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
-      const datasetTableName = POS_TABLE_HANDLES.dataset || 'pos_database';
-      const datasetPrimed = realtimeOrders.datasetPrimed || { headers:false, lines:false, payments:false };
-      realtimeOrders.datasetPrimed = datasetPrimed;
-      const gatherDatasetSources = (root)=>{
-        const visited = new WeakSet();
-        const queue = [];
-        const sources = [];
-        const enqueue = (value)=>{
-          if(!value || typeof value !== 'object') return;
-          if(visited.has(value)) return;
-          visited.add(value);
-          queue.push(value);
-        };
-        enqueue(root);
-        while(queue.length){
-          const current = queue.shift();
-          if(!current) continue;
-          sources.push(current);
-          if(Array.isArray(current)) continue;
-          enqueue(current.payload);
-          enqueue(current.data);
-          enqueue(current.dataset);
-          enqueue(current.snapshot);
-          enqueue(current.result);
-          enqueue(current.value);
-          enqueue(current.content);
-          enqueue(current.tables);
-          enqueue(current.stores);
-        }
-        return sources;
-      };
-      const extractDatasetEntries = (record, canonical)=>{
-        if(!record) return [];
-        const names = getDatasetPayloadKeysFor(canonical);
-        const sources = gatherDatasetSources(record);
-        for(const source of sources){
-          if(!source || typeof source !== 'object') continue;
-          for(const name of names){
-            const value = source[name];
-            const list = readDatasetArray(value);
-            if(list.length) return list;
-          }
-        }
-        return [];
-      };
-      const applyDatasetOrders = (record)=>{
-        if(!record || typeof record !== 'object') return;
-        let headerRows = extractDatasetEntries(record, 'orders');
-        let lineRows = extractDatasetEntries(record, 'orderLines');
-        let paymentRows = extractDatasetEntries(record, 'order_payment');
-        if(headerRows.length){
-          const nestedLines = [];
-          const nestedPayments = [];
-          headerRows.forEach(order=>{
-            if(!order || typeof order !== 'object') return;
-            const orderId = order.id ?? order.orderId ?? order.order_id ?? null;
-            const linesList = readDatasetArray(order.lines || order.orderLines || order.items);
-            linesList.forEach(line=>{
-              if(!line || typeof line !== 'object') return;
-              const merged = { ...line };
-              if(merged.orderId == null && orderId != null) merged.orderId = orderId;
-              nestedLines.push(merged);
-            });
-            const paymentsList = readDatasetArray(order.payments || order.order_payments || order.payment_records);
-            paymentsList.forEach(payment=>{
-              if(!payment || typeof payment !== 'object') return;
-              const merged = { ...payment };
-              if(merged.orderId == null && orderId != null) merged.orderId = orderId;
-              nestedPayments.push(merged);
-            });
-          });
-          if(!lineRows.length && nestedLines.length) lineRows = nestedLines;
-          if(!paymentRows.length && nestedPayments.length) paymentRows = nestedPayments;
-        }
-        let changed = false;
-        if(headerRows.length){
-          datasetPrimed.headers = true;
-          realtimeOrders.headers.clear();
-          headerRows.forEach(row=>{
-            const normalized = sanitizeOrderHeaderRow(row);
-            if(!normalized) return;
-            realtimeOrders.headers.set(String(normalized.id), normalized);
-          });
-          changed = true;
-        } else if(datasetPrimed.headers){
-          datasetPrimed.headers = false;
-          if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
-            realtimeOrders.headers.clear();
-            changed = true;
-          }
-        }
-        if(lineRows.length){
-          datasetPrimed.lines = true;
-          const grouped = new Map();
-          lineRows.forEach(row=>{
-            const normalized = sanitizeOrderLineRow(row);
-            if(!normalized || !normalized.orderId) return;
-            const orderId = String(normalized.orderId);
-            if(!grouped.has(orderId)) grouped.set(orderId, []);
-            grouped.get(orderId).push(normalized);
-          });
-          realtimeOrders.lines = grouped;
-          changed = true;
-        } else if(datasetPrimed.lines){
-          datasetPrimed.lines = false;
-          if(realtimeOrders.lines instanceof Map && realtimeOrders.lines.size){
-            realtimeOrders.lines = new Map();
-            changed = true;
-          } else {
-            realtimeOrders.lines = new Map();
-          }
-        }
-        if(paymentRows.length){
-          datasetPrimed.payments = true;
-          const grouped = new Map();
-          paymentRows.forEach(row=>{
-            const normalized = sanitizeOrderPaymentRow(row);
-            if(!normalized || !normalized.orderId) return;
-            const orderId = String(normalized.orderId);
-            if(!grouped.has(orderId)) grouped.set(orderId, []);
-            grouped.get(orderId).push(normalized);
-          });
-          realtimeOrders.payments = grouped;
-          changed = true;
-        } else if(datasetPrimed.payments){
-          datasetPrimed.payments = false;
-          if(realtimeOrders.payments instanceof Map && realtimeOrders.payments.size){
-            realtimeOrders.payments = new Map();
-            changed = true;
-          } else {
-            realtimeOrders.payments = new Map();
-          }
-        }
-        if(changed){
-          scheduleRealtimeSnapshot();
-        }
-      };
-      let unsubDataset = null;
-      if(datasetTableName && typeof store.watch === 'function'){
-        unsubDataset = store.watch(datasetTableName, (rows)=>{
-          logIndexedDbSample(realtimeOrders.debugLogged, datasetTableName, rows, (row)=> (row && typeof row === 'object' && row.payload)
-            ? { ...row, payload: Array.isArray(row.payload?.orders) ? { ordersCount: row.payload.orders.length } : row.payload }
-            : row);
-          const list = Array.isArray(rows) ? rows : [];
-          const latest = list.length ? list[list.length - 1] : null;
-          if(latest && typeof latest === 'object'){
-            applyDatasetOrders(latest);
-          } else if(datasetPrimed.headers || datasetPrimed.lines || datasetPrimed.payments){
-            datasetPrimed.headers = false;
-            datasetPrimed.lines = false;
-            datasetPrimed.payments = false;
-            if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
-              realtimeOrders.headers.clear();
-            }
-            realtimeOrders.lines = new Map();
-            realtimeOrders.payments = new Map();
-            scheduleRealtimeSnapshot();
-          }
-        });
-      }
-      const headerTableName = POS_TABLE_HANDLES.orders || 'orders';
-      const lineTableName = POS_TABLE_HANDLES.orderLines || 'orderLines';
-      const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
-      const unsubHeaders = store.watch(headerTableName, (rows)=>{
-        logIndexedDbSample(realtimeOrders.debugLogged, 'orders', rows, sanitizeOrderHeaderRow);
+      const unsubHeaders = store.watch('order_header', (rows)=>{
+        logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
         realtimeOrders.headers.clear();
         (rows || []).forEach(row=>{
           const normalized = sanitizeOrderHeaderRow(row);
@@ -3461,8 +2750,8 @@
         });
         scheduleRealtimeSnapshot();
       });
-      const unsubLines = store.watch(lineTableName, (rows)=>{
-        logIndexedDbSample(realtimeOrders.debugLogged, 'orderLines', rows, sanitizeOrderLineRow);
+      const unsubLines = store.watch('order_line', (rows)=>{
+        logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
           const normalized = sanitizeOrderLineRow(row);
@@ -3474,7 +2763,7 @@
         realtimeOrders.lines = grouped;
         scheduleRealtimeSnapshot();
       });
-      const unsubPayments = store.watch(paymentTableName, (rows)=>{
+      const unsubPayments = store.watch('order_payment', (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_payment', rows, sanitizeOrderPaymentRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
@@ -3487,7 +2776,7 @@
         realtimeOrders.payments = grouped;
         scheduleRealtimeSnapshot();
       });
-      realtimeOrders.unsubscribes = [unsubDataset, unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
+      realtimeOrders.unsubscribes = [unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
       realtimeOrders.installed = true;
     }
 
@@ -3518,13 +2807,8 @@
       if(realtimeJobOrders.installed) return;
       if(!realtimeJobOrders.store) return;
       const store = realtimeJobOrders.store;
-      const jobHeaderTable = POS_TABLE_HANDLES.job_orders || 'job_orders';
-      const jobDetailTable = POS_TABLE_HANDLES.job_order_detail || 'job_order_detail';
-      const jobModifierTable = POS_TABLE_HANDLES.job_order_detail_modifier || 'job_order_detail_modifier';
-      const jobStatusTable = POS_TABLE_HANDLES.job_order_status_history || 'job_order_status_history';
-      const expoTicketTable = POS_TABLE_HANDLES.expo_pass_ticket || 'expo_pass_ticket';
-      const unsubHeaders = store.watch(jobHeaderTable, (rows)=>{
-        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_orders', rows, sanitizeJobOrderHeaderRow);
+      const unsubHeaders = store.watch('job_order_header', (rows)=>{
+        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
         realtimeJobOrders.headers.clear();
         (rows || []).forEach(row=>{
           const normalized = sanitizeJobOrderHeaderRow(row);
@@ -3533,7 +2817,7 @@
         });
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubDetails = store.watch(jobDetailTable, (rows)=>{
+      const unsubDetails = store.watch('job_order_detail', (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail', rows, sanitizeJobOrderDetailRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
@@ -3546,7 +2830,7 @@
         realtimeJobOrders.details = grouped;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubModifiers = store.watch(jobModifierTable, (rows)=>{
+      const unsubModifiers = store.watch('job_order_detail_modifier', (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail_modifier', rows, sanitizeJobOrderModifierRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -3557,7 +2841,7 @@
         realtimeJobOrders.modifiers = map;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubStatus = store.watch(jobStatusTable, (rows)=>{
+      const unsubStatus = store.watch('job_order_status_history', (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_status_history', rows, sanitizeJobOrderHistoryRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -3568,7 +2852,7 @@
         realtimeJobOrders.statusHistory = map;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubExpo = store.watch(expoTicketTable, (rows)=>{
+      const unsubExpo = store.watch('expo_pass_ticket', (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'expo_pass_ticket', rows, sanitizeExpoPassTicketRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -4229,7 +3513,7 @@
       });
       const categorySectionsRaw = pickArray(dataset.category_sections, menuSource?.category_sections);
       const sectionMap = new Map(categorySectionsRaw.map(entry=> [entry.category_id || entry.categoryId, entry.section_id || entry.sectionId]));
-      const rawCategories = pickArray(dataset.menu_categories, menuSource?.categories);
+      const rawCategories = pickArray(dataset.categories, menuSource?.categories);
       if(!rawCategories.some(cat=> cat && cat.id === 'all')){
         rawCategories.unshift({ id:'all', category_name:{ ar:'الكل', en:'All' }, section_id:'expo' });
       }
@@ -4243,7 +3527,7 @@
           label
         };
       });
-      const itemsRaw = pickArray(dataset.menu_items, menuSource?.items);
+      const itemsRaw = pickArray(dataset.items, menuSource?.items);
       const items = itemsRaw.map(item=>{
         const categoryId = item.category_id || item.category || 'all';
         const pricing = ensurePlainObject(item.pricing);
@@ -4529,7 +3813,7 @@
     }));
     const orderPaymentMap = new Map(orderPaymentStates.map(state=> [state.id, state]));
 
-    const orderLineStatuses = (Array.isArray(MOCK.orderLines_statuses) && MOCK.orderLines_statuses.length ? MOCK.orderLines_statuses : [
+    const orderLineStatuses = (Array.isArray(MOCK.order_line_statuses) && MOCK.order_line_statuses.length ? MOCK.order_line_statuses : [
       { id:'draft', status_name:{ ar:'مسودة', en:'Draft' } },
       { id:'queued', status_name:{ ar:'بانتظار التحضير', en:'Queued' } },
       { id:'preparing', status_name:{ ar:'جاري التحضير', en:'Preparing' } },
@@ -5026,50 +4310,30 @@
       at: evt.at ? new Date(evt.at).getTime() : Date.now(),
       meta: evt.meta || {}
     })) : [];
-    const rawEmployees = resolveEmployeeList(MOCK);
-    const employees = normalizeEmployeesList(rawEmployees);
-    if(SHIFT_PIN_FALLBACK && !employees.some(emp=> emp.pin === SHIFT_PIN_FALLBACK)){
-      employees.push({
-        id:'cashier-default',
-        name:'Cashier',
-        role:'cashier',
-        pin: SHIFT_PIN_FALLBACK,
-        allowedDiscountRate:0,
-        isFallback:true
-      });
-    }
+    const rawEmployees = Array.isArray(MOCK.employees) ? MOCK.employees : [];
+    const employees = rawEmployees.map(emp=>{
+      const pinSource = emp.pin_code ?? emp.pin ?? emp.pinCode ?? emp.passcode ?? '';
+      const pin = typeof pinSource === 'number' ? String(pinSource).padStart(SHIFT_PIN_LENGTH, '0') : String(pinSource || '').trim();
+      return {
+        id: emp.id || emp.employee_id || `emp-${Math.random().toString(36).slice(2,8)}`,
+        name: emp.full_name || emp.name || emp.display_name || emp.username || 'موظف',
+        role: emp.role || 'staff',
+        pin: pin.replace(/\D/g,''),
+        allowedDiscountRate: typeof emp.allowed_discount_rate === 'number'
+          ? emp.allowed_discount_rate
+          : (typeof emp.allowedDiscountRate === 'number' ? emp.allowedDiscountRate : 0)
+      };
+    }).filter(emp=> emp.pin && emp.pin.length);
     const maxEmployeePinLength = employees.reduce((max, emp)=> Math.max(max, emp.pin.length), 0);
     if(maxEmployeePinLength) SHIFT_PIN_LENGTH = Math.max(SHIFT_PIN_LENGTH, maxEmployeePinLength);
     const defaultCashier = employees.find(emp=> emp.role === 'cashier') || employees[0] || {
       id:'cashier-guest',
       name:'أحمد محمود',
       role:'cashier',
-      pin: normalizePinValue(SHIFT_PIN_FALLBACK || '0000'),
+      pin: (SHIFT_PIN_FALLBACK || '0000').replace(/\D/g,''),
       allowedDiscountRate:0
     };
     const cashier = defaultCashier;
-
-    if(typeof window !== 'undefined' && window.console){
-      console.group('[Mishkah][POS] 🚀 INITIAL DATA LOAD - COMPLETE STRUCTURE');
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('📦 MOCK DATA SOURCE (window.database):');
-      console.log('  • Complete MOCK object:', MOCK);
-      console.log('  • Keys in MOCK:', Object.keys(MOCK));
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('👥 EMPLOYEES DATA:');
-      console.log('  • rawEmployees (from resolveEmployeeList):', rawEmployees);
-      console.log('  • employees (normalized):', employees);
-      console.log('  • defaultCashier:', defaultCashier);
-      console.log('  • cashier (final):', cashier);
-      console.table(employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false })));
-      console.log('═══════════════════════════════════════════════════════════');
-      console.log('🔑 SHIFT SETTINGS:');
-      console.log('  • SHIFT_SETTINGS:', SHIFT_SETTINGS);
-      console.log('  • SHIFT_PIN_FALLBACK:', SHIFT_PIN_FALLBACK);
-      console.log('  • SHIFT_PIN_LENGTH:', SHIFT_PIN_LENGTH);
-      console.log('═══════════════════════════════════════════════════════════');
-      console.groupEnd();
-    }
 
     function createDraftOrderId(){
       return `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
@@ -5304,25 +4568,8 @@
       }
     };
 
-    if(typeof window !== 'undefined' && window.console){
-      const debugEmployees = Array.isArray(posState.data?.employees)
-        ? posState.data.employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: !!emp.isFallback }))
-        : [];
-      console.groupCollapsed('[Mishkah][POS] bootstrap snapshot');
-      console.log('Shift state', posState.data?.shift || {});
-      if(debugEmployees.length){
-        console.table(debugEmployees);
-      } else {
-        console.log('No employees available on bootstrap');
-      }
-      console.groupEnd();
-    }
-
-    // Defer installing watchers until after schema fetch attempt
-    fetchPosSchemaFromBackend().finally(()=>{
-      installRealtimeOrderWatchers();
-      installRealtimeJobOrderWatchers();
-    });
+    installRealtimeOrderWatchers();
+    installRealtimeJobOrderWatchers();
 
     function flushRemoteUpdate(){
       if(!pendingRemoteResult) return;
@@ -5588,51 +4835,14 @@
         return { status:'error', reason:'stale-version' };
       }
       const now = Date.now();
-      let missingItemLine = null;
-      let missingKitchenLine = null;
-      let safeLines = (order.lines || []).map(line=>({
+      const safeLines = (order.lines || []).map(line=>({
         ...line,
         locked:true,
         status: line.status || 'draft',
         notes: Array.isArray(line.notes) ? line.notes : (line.notes ? [line.notes] : []),
         discount: normalizeDiscount(line.discount),
         updatedAt: now
-      })).map(line=>{
-        const itemToken = line.itemId || line.item_id;
-        if(!itemToken && !missingItemLine){
-          missingItemLine = line;
-        }
-        const itemId = itemToken != null ? String(itemToken) : itemToken;
-        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id;
-        if(!kitchenSection && !missingKitchenLine){
-          missingKitchenLine = line;
-        }
-        kitchenSection = kitchenSection ? String(kitchenSection) : undefined;
-        console.log('[Mishkah][POS] Preparing line for save:', {
-          lineId: line.id,
-          itemToken,
-          itemId,
-          name: line.name,
-          kitchenSection,
-          hasName: !!line.name
-        });
-        return {
-          ...line,
-          itemId,
-          item_id: itemId,
-          kitchenSection: kitchenSection || 'expo',
-          kitchenSectionId: kitchenSection || 'expo',
-          kitchen_section_id: kitchenSection || 'expo'
-        };
-      });
-      if(missingItemLine){
-        UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف مرتبط', icon:'⚠️' });
-        return { status:'error', reason:'line-missing-item' };
-      }
-      if(missingKitchenLine){
-        UI.pushToast(ctx, { title:t.toast.line_missing_kitchen || 'لا يمكن حفظ سطر بدون قسم مطبخ', icon:'⚠️' });
-        return { status:'error', reason:'line-missing-kitchen' };
-      }
+      }));
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
       const normalizedPayments = paymentSplit.map(entry=>({
@@ -5737,25 +4947,9 @@
       try{
         const persistableOrder = { ...orderPayload };
         delete persistableOrder.dirty;
-        console.log('[Mishkah][POS] Saving order to DB:', {
-          orderId: persistableOrder.id,
-          totals: persistableOrder.totals,
-          linesCount: persistableOrder.lines?.length,
-          firstLine: persistableOrder.lines?.[0],
-          subtotal: persistableOrder.subtotal,
-          totalDue: persistableOrder.totalDue
-        });
         let savedOrder = null;
         try {
           savedOrder = await posDB.saveOrder(persistableOrder);
-          console.log('[Mishkah][POS] Order saved to DB, returned data:', {
-            orderId: savedOrder?.id,
-            totals: savedOrder?.totals,
-            linesCount: savedOrder?.lines?.length,
-            firstLine: savedOrder?.lines?.[0],
-            subtotal: savedOrder?.subtotal,
-            totalDue: savedOrder?.totalDue
-          });
         } catch(error){
           if(error && (error.code === 'order-version-conflict' || error.code === 'VERSION_CONFLICT')){
             await refreshFromRemote(error.order || null, 'order_conflict_refreshed');
@@ -5779,22 +4973,10 @@
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
           ? mergePreferRemote(orderPayload, savedOrder)
           : orderPayload;
-        console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
-          orderId: remoteResolved.id,
-          totals: remoteResolved.totals,
-          linesCount: remoteResolved.lines?.length,
-          firstLine: remoteResolved.lines?.[0]
-        });
         const normalizedOrderForState = enrichOrderWithMenu({
           ...remoteResolved,
           allowAdditions,
           lockLineEdits: finalize ? true : (remoteResolved.lockLineEdits ?? order.lockLineEdits)
-        });
-        console.log('[Mishkah][POS] After enrichOrderWithMenu:', {
-          orderId: normalizedOrderForState.id,
-          totals: normalizedOrderForState.totals,
-          linesCount: normalizedOrderForState.lines?.length,
-          firstLine: normalizedOrderForState.lines?.[0]
         });
         const mergedTotals = normalizedOrderForState.totals && typeof normalizedOrderForState.totals === 'object'
           ? { ...normalizedOrderForState.totals }
@@ -5810,12 +4992,6 @@
         normalizedOrderForState.allowAdditions = allowAdditions;
         normalizedOrderForState.lockLineEdits = finalize ? true : (normalizedOrderForState.lockLineEdits !== undefined ? normalizedOrderForState.lockLineEdits : true);
         const syncedOrderForState = syncOrderVersionMetadata(normalizedOrderForState);
-        console.log('[Mishkah][POS] Final order for state:', {
-          orderId: syncedOrderForState.id,
-          totals: syncedOrderForState.totals,
-          linesCount: syncedOrderForState.lines?.length,
-          firstLine: syncedOrderForState.lines?.[0]
-        });
         const latestSnapshot = getRealtimeOrdersSnapshot();
         const latestOrders = latestSnapshot.active.map(order=> ({ ...order }));
         ctx.setState(s=>{
@@ -6579,12 +5755,8 @@
       const isDineIn = orderType === 'dine_in';
       const isFinalized = order.status === 'finalized' || order.status === 'closed';
       const deliveredStage = order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed';
-      const paymentEntries = getActivePaymentEntries(order, db.data.payments);
-      const paymentSnapshot = summarizePayments(order.totals || {}, paymentEntries);
-      const outstanding = paymentSnapshot.remaining || 0;
-      const requiresFullPaymentBeforeFinish = !isTakeaway;
-      const finishDisabled = requiresFullPaymentBeforeFinish && outstanding > 0.0001;
-      const canShowSave = !isFinalized && !deliveredStage;
+      // Only show "Save" button for dine-in orders. Takeaway and delivery should only have "Save & Finish"
+      const canShowSave = isDineIn && !isFinalized && !deliveredStage;
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
@@ -6604,17 +5776,8 @@
         primaryActions.push(saveButton);
       }
       if(canShowFinish){
-        const finishAttrs = {
-          gkey:'pos:order:save',
-          'data-save-mode': finishMode,
-          class: tw`min-w-[180px] flex items-center justify-center gap-2`
-        };
-        if(finishDisabled){
-          finishAttrs.disabled = 'disabled';
-          finishAttrs.title = t.ui.balance_due;
-        }
         primaryActions.push(UI.Button({
-          attrs: finishAttrs,
+          attrs:{ gkey:'pos:order:save', 'data-save-mode':finishMode, class: tw`min-w-[180px] flex items-center justify-center gap-2` },
           variant:'solid',
           size:'md'
         }, [D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [finishLabel])]));
@@ -7602,20 +6765,6 @@
       const order = db.data.order || {};
       const isOrderFinalized = order.status === 'finalized' || order.isPersisted;
       const currentPayments = Array.isArray(db.data.payments?.split) ? db.data.payments.split : [];
-      const totals = order.totals || {};
-      const paymentsEntries = getActivePaymentEntries(order, db.data.payments);
-      const paymentSnapshot = summarizePayments(totals, paymentsEntries);
-      const totalDue = paymentSnapshot.due;
-      const totalPaid = paymentSnapshot.paid;
-      const remaining = paymentSnapshot.remaining;
-      const remainingAmountSection = D.Containers.Div({ attrs:{ class: tw`p-4 rounded-[var(--radius)] bg-gradient-to-br from-[var(--accent)] to-[var(--accent-hover)] text-white space-y-1 shadow-lg` }}, [
-        D.Text.Span({ attrs:{ class: tw`text-sm opacity-90` }}, [t.ui.balance_due || 'المتبقي غير المسدد']),
-        D.Text.Strong({ attrs:{ class: tw`text-3xl font-bold block` }}, [formatCurrencyValue(db, remaining)]),
-        D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between text-xs opacity-80 pt-2 border-t border-white/20` }}, [
-          D.Text.Span({}, [`${t.ui.total || 'الإجمالي'}: ${formatCurrencyValue(db, totalDue)}`]),
-          D.Text.Span({}, [`${t.ui.paid || 'مدفوع'}: ${formatCurrencyValue(db, totalPaid)}`])
-        ])
-      ]);
       const paymentsListSection = currentPayments.length > 0
         ? D.Containers.Div({ attrs:{ class: tw`space-y-2` }}, [
             D.Text.Strong({ attrs:{ class: tw`text-sm` }}, [t.ui.recorded_payments || 'الدفعات المسجلة']),
@@ -7651,14 +6800,13 @@
           UI.Button({ attrs:{ gkey:'pos:payments:close' }, variant:'ghost', size:'md' }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['✕'])])
         ]),
         content: D.Containers.Div({ attrs:{ class: tw`space-y-3` }}, [
-          remainingAmountSection,
           paymentsListSection,
           UI.ChipGroup({
-            attrs:{ class: tw`text-base sm:text-lg border-2 border-[var(--accent)]/20 rounded-lg p-2` },
+            attrs:{ class: tw`text-base sm:text-lg` },
             items: methods.map(method=>({
               id: method.id,
               label: `${method.icon} ${localize(method.label, db.env.lang)}`,
-              attrs:{ gkey:'pos:payments:method', 'data-method-id':method.id, class: tw`ring-2 ring-transparent data-[active=true]:ring-[var(--accent)] data-[active=true]:ring-offset-2 data-[active=true]:scale-105 transition-all` }
+              attrs:{ gkey:'pos:payments:method', 'data-method-id':method.id }
             })),
             activeId: db.data.payments.activeMethod
           }),
@@ -10053,90 +9201,14 @@
           const t = getTexts(state);
           const config = state.data.shift?.config || {};
           const rawPin = String(state.ui?.shift?.pin || '').trim();
-          const normalizedPin = normalizePinValue(rawPin);
-          if(!normalizedPin){
+          const sanitizedPin = rawPin.replace(/\D/g,'');
+          if(!sanitizedPin){
             UI.pushToast(ctx, { title:t.toast.shift_pin_invalid, icon:'⚠️' });
             return;
           }
-          const stateEmployees = Array.isArray(state.data.employees) ? state.data.employees : [];
-          const remoteSource = state.data?.remotes?.posDatabase || {};
-          const remoteEmployees = normalizeEmployeesList(resolveEmployeeList(remoteSource));
-          const employees = normalizeEmployeesList([...remoteEmployees, ...stateEmployees]);
-          const remoteShiftSettings = resolveShiftSettings(remoteSource);
-          const fallbackPins = new Set();
-          const registerFallbackPin = (pinValue)=>{
-            const normalized = normalizePinValue(pinValue);
-            if(normalized) fallbackPins.add(normalized);
-          };
-          registerFallbackPin(SHIFT_PIN_FALLBACK);
-          registerFallbackPin(remoteShiftSettings?.pin);
-          registerFallbackPin(remoteShiftSettings?.default_pin);
-          registerFallbackPin(remoteShiftSettings?.defaultPin);
-          registerFallbackPin(remoteShiftSettings?.fallback_pin);
-          registerFallbackPin(remoteShiftSettings?.fallbackPin);
-          registerFallbackPin(state.data?.shift?.config?.fallbackPin);
-          registerFallbackPin(state.data?.shift?.config?.defaultPin);
-          employees.forEach(emp=>{ if(emp.isFallback) registerFallbackPin(emp.pin); });
-          const matchedEmployee = employees.find(emp=> emp.pin === normalizedPin);
-          if(typeof window !== 'undefined' && window.console){
-            const debugEmployees = employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false }));
-            console.group('[Mishkah][POS] 🔐 SHIFT PIN VALIDATION - DETAILED DEBUGGING');
-            console.log('═══════════════════════════════════════════════════════════');
-            console.log('📌 ENTERED PIN:', { raw: rawPin, normalized: normalizedPin, pinLength: normalizedPin.length });
-            console.log('═══════════════════════════════════════════════════════════');
-            console.log('📊 DATA SOURCES:');
-            console.log('  • state.data.employees:', stateEmployees);
-            console.log('  • state.data.remotes:', state.data?.remotes);
-            console.log('  • remoteSource (posDatabase):', remoteSource);
-            console.log('═══════════════════════════════════════════════════════════');
-            console.log('🔍 RESOLVED DATA:');
-            console.log('  • resolveEmployeeList(remoteSource) returned:', resolveEmployeeList(remoteSource));
-            console.log('  • remoteEmployees (normalized):', remoteEmployees);
-            console.log('  • stateEmployees:', stateEmployees);
-            console.log('  • FINAL employees array (combined & normalized):', employees);
-            console.log('═══════════════════════════════════════════════════════════');
-            console.log('👥 EMPLOYEES TABLE:');
-            console.table(debugEmployees);
-            console.log('═══════════════════════════════════════════════════════════');
-            console.log('🔑 SHIFT SETTINGS:');
-            console.log('  • SHIFT_PIN_FALLBACK (global):', SHIFT_PIN_FALLBACK);
-            console.log('  • remoteShiftSettings:', remoteShiftSettings);
-            console.log('  • state.data.shift.config:', config);
-            console.log('  • Fallback PINs (Set):', Array.from(fallbackPins));
-            console.log('═══════════════════════════════════════════════════════════');
-            console.log('✅ PIN MATCHING:');
-            console.log('  • Entered PIN (normalized):', normalizedPin);
-            console.log('  • Matched Employee:', matchedEmployee);
-            console.log('  • Is fallback PIN?', fallbackPins.has(normalizedPin));
-            if(!matchedEmployee){
-              console.warn('❌ NO EMPLOYEE MATCHED THE PIN!');
-              console.log('  • PIN comparison details:');
-              employees.forEach((emp, i)=>{
-                const match = emp.pin === normalizedPin;
-                console.log(`    [${i}] ${emp.name} (${emp.id}): pin="${emp.pin}" ${match ? '✅ MATCH' : `❌ (pin type: ${typeof emp.pin}, entered type: ${typeof normalizedPin})`}`);
-              });
-            } else {
-              console.log('✅ EMPLOYEE MATCHED:', matchedEmployee);
-            }
-            console.log('═══════════════════════════════════════════════════════════');
-            console.groupEnd();
-          }
-          let effectiveEmployee = matchedEmployee;
-          if(!effectiveEmployee && fallbackPins.has(normalizedPin)){
-            effectiveEmployee = matchedEmployee || employees.find(emp=> (emp.isFallback || false) && emp.pin === normalizedPin);
-            if(!effectiveEmployee){
-              const fallbackUser = state.data.user || {};
-              effectiveEmployee = {
-                id: fallbackUser.id || 'cashier-guest',
-                name: fallbackUser.name || 'أحمد محمود',
-                role: fallbackUser.role || 'cashier',
-                allowedDiscountRate: fallbackUser.allowedDiscountRate ?? 0,
-                pin: normalizedPin,
-                isFallback:true
-              };
-            }
-          }
-          if(!effectiveEmployee){
+          const employees = Array.isArray(state.data.employees) ? state.data.employees : [];
+          const matchedEmployee = employees.find(emp=> emp.pin === sanitizedPin);
+          if(!matchedEmployee){
             UI.pushToast(ctx, { title:t.toast.shift_pin_invalid, icon:'⚠️' });
             return;
           }
@@ -10162,10 +9234,10 @@
               orders:[],
               countsByType:{},
               ordersCount:0,
-              cashierId: effectiveEmployee.id,
-              cashierName: effectiveEmployee.name,
-              employeeId: effectiveEmployee.id,
-              cashierRole: effectiveEmployee.role,
+              cashierId: matchedEmployee.id,
+              cashierName: matchedEmployee.name,
+              employeeId: matchedEmployee.id,
+              cashierRole: matchedEmployee.role,
               status:'open',
               closingCash:null,
               isClosed:false
@@ -10196,10 +9268,10 @@
               ...s.data,
               user:{
                 ...(s.data.user || {}),
-                id: effectiveEmployee.id,
-                name: effectiveEmployee.name,
-                role: effectiveEmployee.role,
-                allowedDiscountRate: effectiveEmployee.allowedDiscountRate ?? s.data.user?.allowedDiscountRate,
+                id: matchedEmployee.id,
+                name: matchedEmployee.name,
+                role: matchedEmployee.role,
+                allowedDiscountRate: matchedEmployee.allowedDiscountRate ?? s.data.user?.allowedDiscountRate,
                 shift:normalizedShift.id
               },
               order:{ ...(s.data.order || {}), shiftId:normalizedShift.id },
@@ -12370,3 +11442,4 @@
     app.mount('#app');
     await refreshPersistentSnapshot({ focusCurrent:true, syncOrders:true });
   })();
+
