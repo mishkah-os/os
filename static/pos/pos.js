@@ -1332,34 +1332,41 @@
         console.error('[POS] Cannot create order line without an item id', item);
         throw new Error('[POS] Cannot create order line without an item id');
       }
-      const itemId = String(item.id);
-      if(!itemId || itemId === 'null' || itemId === 'undefined'){
-        console.error('[POS] Invalid item id', item);
+      const itemIdNumber = Number(item.id);
+      if(!Number.isFinite(itemIdNumber) || itemIdNumber <= 0){
+        console.error('[POS] Invalid item id - must be positive integer per schema', item);
         throw new Error('[POS] Invalid item id');
       }
+      const itemId = Math.floor(itemIdNumber);
       const quantity = qty || 1;
-      const price = Number(item.price) || 0;
+      const unitPrice = Number(item.basePrice ?? item.price ?? 0);
       const now = Date.now();
       const uniqueId = overrides?.id || `ln-${itemId}-${now.toString(36)}-${Math.random().toString(16).slice(2,6)}`;
-      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection ?? item.kitchen_section ?? item.kitchen_section_id;
+      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSectionId ?? item.kitchenSection ?? item.kitchen_section ?? item.kitchen_section_id;
       const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
       if(!kitchenSection || kitchenSection === 'null' || kitchenSection === 'undefined'){
         console.warn('[POS] Invalid kitchenSection, defaulting to expo', { item, kitchenSource });
       }
+      const statusId = overrides?.statusId || overrides?.status || 'draft';
       const baseLine = {
         id: uniqueId,
         itemId,
         item_id: itemId,
         name: item.name,
         description: item.description,
-        price,
-        basePrice: price,
+        quantity,
         qty: quantity,
-        total: round(price * quantity),
+        unitPrice,
+        unit_price: unitPrice,
+        price: unitPrice,
+        basePrice: unitPrice,
+        total: round(unitPrice * quantity),
         modifiers: overrides?.modifiers || [],
         notes: overrides?.notes || [],
         discount: normalizeDiscount(overrides?.discount),
-        status: overrides?.status || 'draft',
+        statusId,
+        status_id: statusId,
+        status: statusId,
         stage: overrides?.stage || 'new',
         kitchenSection,
         kitchenSectionId: kitchenSection,
@@ -1824,8 +1831,9 @@
           ?? metadata.product_id
           ?? metadata.itemCode;
 
-        const itemId = rawItemId != null ? String(rawItemId) : null;
-        const menuItem = itemId ? menuIndex?.get(itemId) : null;
+        const itemIdNumber = rawItemId != null ? Number(rawItemId) : NaN;
+        const itemId = Number.isFinite(itemIdNumber) && itemIdNumber > 0 ? Math.floor(itemIdNumber) : null;
+        const menuItem = itemId ? menuIndex?.get(String(itemId)) : null;
 
         const rawName = record.name
           ?? record.item_name
@@ -1855,11 +1863,12 @@
           return null;
         }
 
-        const qty = Math.max(1, Number(record.qty) || 1);
-        const basePrice = Number(record.basePrice != null ? record.basePrice
+        const quantity = record.quantity != null ? Number(record.quantity) : (record.qty != null ? Number(record.qty) : 1);
+        const unitPrice = Number(record.unitPrice != null ? record.unitPrice
+          : record.unit_price != null ? record.unit_price
           : record.price != null ? record.price
-          : record.unitPrice != null ? record.unitPrice
-          : menuItem?.price || 0);
+          : record.basePrice != null ? record.basePrice
+          : menuItem?.price || menuItem?.basePrice || 0);
         const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
         const kitchenSource = record.kitchenSection
           ?? record.kitchenSectionId
@@ -1878,19 +1887,28 @@
 
         const resolvedName = menuItem ? menuItem.name : cloneName(rawName) || (itemId ? `صنف ${itemId}` : 'صنف غير معروف');
         const resolvedDescription = menuItem ? menuItem.description : cloneName(rawDescription);
+        const statusId = record.statusId || record.status_id || record.status || 'draft';
 
         const baseLine = {
           id: record.id,
-          itemId: itemId || record.id,
+          itemId: itemId || null,
+          item_id: itemId || null,
           name: resolvedName,
           description: resolvedDescription,
-          qty,
-          price: round(basePrice),
-          basePrice: round(basePrice),
+          quantity,
+          qty: quantity,
+          unitPrice: round(unitPrice),
+          unit_price: round(unitPrice),
+          price: round(unitPrice),
+          basePrice: round(unitPrice),
           modifiers,
-          status: record.status,
+          statusId,
+          status_id: statusId,
+          status: statusId,
           stage: record.stage,
           kitchenSection,
+          kitchenSectionId: kitchenSection,
+          kitchen_section_id: kitchenSection,
           locked: !!record.locked,
           notes: Array.isArray(record.notes) ? record.notes : [],
           discount: normalizeDiscount(record.discount),
@@ -2928,27 +2946,34 @@
       }
       const metadata = ensurePlainObject(normalized.metadata);
       const rawItemId = row.itemId ?? row.item_id ?? metadata.itemId ?? metadata.item_id ?? metadata.menuItemId ?? metadata.productId ?? metadata.itemCode ?? null;
-      const normalizedItemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
-        ? String(rawItemId).trim()
-        : null;
-      if(normalizedItemId == null){
-        console.warn('[Mishkah][POS] Dropping realtime order line without item id', { id, orderId, row });
+      const itemIdNumber = rawItemId != null && rawItemId !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
+        ? Number(rawItemId)
+        : NaN;
+      if(!Number.isFinite(itemIdNumber) || itemIdNumber <= 0){
+        console.warn('[Mishkah][POS] Dropping realtime order line - itemId must be positive integer per schema', { id, orderId, rawItemId, itemIdNumber });
         return null;
       }
-      const itemId = normalizedItemId;
+      const itemId = Math.floor(itemIdNumber);
       normalized.itemId = itemId;
       normalized.item_id = itemId;
       if(!normalized.metadata) normalized.metadata = {};
       normalized.metadata.itemId = itemId;
       normalized.metadata.item_id = itemId;
+      const quantity = row.quantity != null ? Number(row.quantity) : (row.qty != null ? Number(row.qty) : 1);
+      const unitPrice = row.unitPrice != null ? Number(row.unitPrice) : (row.unit_price != null ? Number(row.unit_price) : (row.price != null ? Number(row.price) : 0));
+      const total = row.total != null ? Number(row.total) : round(quantity * unitPrice);
+      const statusId = row.statusId ?? row.status_id ?? row.status ?? '';
+      normalized.quantity = quantity;
+      normalized.unitPrice = unitPrice;
+      normalized.unit_price = unitPrice;
+      normalized.total = total;
+      normalized.statusId = statusId;
+      normalized.status_id = statusId;
       const sectionSource = row.kitchenSection ?? row.kitchen_section ?? row.kitchenSectionId ?? row.kitchen_section_id ?? metadata.kitchenSectionId ?? metadata.sectionId ?? metadata.stationId;
       const kitchenSection = sectionSource != null && sectionSource !== '' ? String(sectionSource) : 'expo';
       normalized.kitchenSectionId = kitchenSection;
       normalized.kitchen_section_id = kitchenSection;
       normalized.metadata.kitchenSectionId = kitchenSection;
-      if(normalized.status == null && (row.statusId != null || row.status_id != null)){
-        normalized.status = row.statusId ?? row.status_id;
-      }
       return normalized;
     }
 
@@ -5866,46 +5891,57 @@
         updatedAt: now
       })).map(line=>{
         const itemToken = line.itemId || line.item_id || line.metadata?.itemId || line.metadata?.item_id;
-        const normalizedItemToken = itemToken != null && itemToken !== '' && itemToken !== 'null' && itemToken !== 'undefined'
-          ? String(itemToken).trim()
-          : null;
-        if(!normalizedItemToken && !missingItemLine){
-          console.error('[Mishkah][POS] Line missing itemId - cannot save', {
+        const itemIdNumber = itemToken != null && itemToken !== '' && String(itemToken) !== 'null' && String(itemToken) !== 'undefined'
+          ? Number(itemToken)
+          : NaN;
+        if(!Number.isFinite(itemIdNumber) || itemIdNumber <= 0){
+          console.error('[Mishkah][POS] Line has invalid itemId (must be positive integer per schema)', {
             lineId: line.id,
             itemToken,
-            normalizedItemToken,
+            itemIdNumber,
             name: line.name,
-            metadata: line.metadata
+            qty: line.qty,
+            quantity: line.quantity
           });
-          missingItemLine = line;
+          if(!missingItemLine) missingItemLine = line;
         }
-        const itemId = normalizedItemToken;
+        const itemId = Number.isFinite(itemIdNumber) ? Math.floor(itemIdNumber) : null;
         let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.metadata?.kitchenSectionId;
-        const normalizedKitchenSection = kitchenSection && String(kitchenSection).trim() !== '' && String(kitchenSection) !== 'null' && String(kitchenSection) !== 'undefined'
-          ? String(kitchenSection).trim()
-          : null;
-        if(!normalizedKitchenSection && !missingKitchenLine){
-          console.warn('[Mishkah][POS] Line missing kitchenSection', {
-            lineId: line.id,
-            itemId,
-            name: line.name
-          });
-          missingKitchenLine = line;
+        if(!kitchenSection || String(kitchenSection).trim() === ''){
+          if(!missingKitchenLine){
+            console.warn('[Mishkah][POS] Line missing kitchenSection, using expo', {
+              lineId: line.id,
+              itemId,
+              name: line.name
+            });
+            missingKitchenLine = line;
+          }
+          kitchenSection = 'expo';
         }
-        kitchenSection = normalizedKitchenSection || 'expo';
-        console.log('[Mishkah][POS] Preparing line for save:', {
+        kitchenSection = String(kitchenSection).trim();
+        const quantity = line.quantity != null ? Number(line.quantity) : (line.qty != null ? Number(line.qty) : 1);
+        const unitPrice = line.unitPrice != null ? Number(line.unitPrice) : (line.unit_price != null ? Number(line.unit_price) : (line.price != null ? Number(line.price) : (line.basePrice != null ? Number(line.basePrice) : 0)));
+        const total = line.total != null ? Number(line.total) : round(quantity * unitPrice);
+        const statusId = line.statusId || line.status_id || line.status || 'draft';
+        console.log('[Mishkah][POS] Preparing line for save (SCHEMA COMPLIANT):', {
           lineId: line.id,
-          itemToken,
           itemId,
-          name: line.name,
-          kitchenSection,
-          hasName: !!line.name,
-          metadata: line.metadata
+          quantity,
+          unitPrice,
+          total,
+          statusId,
+          kitchenSection
         });
         return {
           ...line,
           itemId,
           item_id: itemId,
+          quantity,
+          unitPrice,
+          unit_price: unitPrice,
+          total,
+          statusId,
+          status_id: statusId,
           kitchenSection,
           kitchenSectionId: kitchenSection,
           kitchen_section_id: kitchenSection,
@@ -5918,13 +5954,12 @@
         };
       });
       if(missingItemLine){
-        console.error('[Mishkah][POS] Cannot save order with line missing itemId', missingItemLine);
-        UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف مرتبط', icon:'⚠️' });
+        console.error('[Mishkah][POS] Cannot save order - line has invalid or missing itemId', missingItemLine);
+        UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف صحيح', icon:'⚠️' });
         return { status:'error', reason:'line-missing-item' };
       }
       if(missingKitchenLine){
-        UI.pushToast(ctx, { title:t.toast.line_missing_kitchen || 'لا يمكن حفظ سطر بدون قسم مطبخ', icon:'⚠️' });
-        return { status:'error', reason:'line-missing-kitchen' };
+        console.warn('[Mishkah][POS] Continuing save with expo as default kitchen section');
       }
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
