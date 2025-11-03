@@ -3544,9 +3544,11 @@
       console.log('[POS][installRealtimeOrderWatchers] store.config:', store.config);
       console.log('[POS][installRealtimeOrderWatchers] Registered objects:', Object.keys(store.config?.objects || {}));
 
-      const headerTableName = POS_TABLE_HANDLES.order_header || 'order_header';
-      const lineTableName = POS_TABLE_HANDLES.order_line || 'order_line';
-      const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
+      // استخدام نفس aliases المستخدمة في pos_finance للتوافق
+      // بدلاً من الأسماء الكاملة التي قد لا تكون مسجلة
+      const headerTableName = 'orders';        // alias لـ order_header
+      const lineTableName = 'lines';           // alias لـ order_line
+      const paymentTableName = 'payments';     // alias لـ order_payment
 
       console.log('[POS][installRealtimeOrderWatchers] Using table names:', {
         headerTableName,
