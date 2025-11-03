@@ -3542,13 +3542,41 @@
       // تشخيص: معرفة الجداول المسجلة
       console.log('[POS][installRealtimeOrderWatchers] POS_TABLE_HANDLES:', POS_TABLE_HANDLES);
       console.log('[POS][installRealtimeOrderWatchers] store.config:', store.config);
-      console.log('[POS][installRealtimeOrderWatchers] Registered objects:', Object.keys(store.config?.objects || {}));
+      const registeredObjects = Object.keys(store.config?.objects || {});
+      console.log('[POS][installRealtimeOrderWatchers] Registered objects:', registeredObjects);
 
       // استخدام نفس aliases المستخدمة في pos_finance للتوافق
-      // بدلاً من الأسماء الكاملة التي قد لا تكون مسجلة
       const headerTableName = 'orders';        // alias لـ order_header
       const lineTableName = 'lines';           // alias لـ order_line
       const paymentTableName = 'payments';     // alias لـ order_payment
+
+      // تسجيل الجداول إذا لم تكن مسجلة
+      if(typeof store.register === 'function'){
+        if(!registeredObjects.includes(headerTableName)){
+          console.log('[POS][installRealtimeOrderWatchers] Registering:', headerTableName);
+          try {
+            store.register(headerTableName, { table: 'order_header' });
+          } catch(err) {
+            console.warn('[POS][installRealtimeOrderWatchers] Failed to register', headerTableName, err);
+          }
+        }
+        if(!registeredObjects.includes(lineTableName)){
+          console.log('[POS][installRealtimeOrderWatchers] Registering:', lineTableName);
+          try {
+            store.register(lineTableName, { table: 'order_line' });
+          } catch(err) {
+            console.warn('[POS][installRealtimeOrderWatchers] Failed to register', lineTableName, err);
+          }
+        }
+        if(!registeredObjects.includes(paymentTableName)){
+          console.log('[POS][installRealtimeOrderWatchers] Registering:', paymentTableName);
+          try {
+            store.register(paymentTableName, { table: 'order_payment' });
+          } catch(err) {
+            console.warn('[POS][installRealtimeOrderWatchers] Failed to register', paymentTableName, err);
+          }
+        }
+      }
 
       console.log('[POS][installRealtimeOrderWatchers] Using table names:', {
         headerTableName,
@@ -3559,10 +3587,30 @@
       // ===== التعبئة الأولية: قراءة البيانات الموجودة من السيرفر مثل pos_finance =====
       console.log('[POS][installRealtimeOrderWatchers] Loading initial data from server...');
 
+      // تشخيص: فحص محتويات الـ store الداخلية
+      if(typeof store.tables === 'function'){
+        try {
+          const allTables = store.tables('pos');
+          console.log('[POS][installRealtimeOrderWatchers] Available tables in store:', Object.keys(allTables || {}));
+          if(allTables && allTables.order_header){
+            console.log('[POS][installRealtimeOrderWatchers] order_header in store:', allTables.order_header.length);
+          }
+          if(allTables && allTables.order_line){
+            console.log('[POS][installRealtimeOrderWatchers] order_line in store:', allTables.order_line.length);
+          }
+          if(allTables && allTables.order_payment){
+            console.log('[POS][installRealtimeOrderWatchers] order_payment in store:', allTables.order_payment.length);
+          }
+        } catch(err) {
+          console.warn('[POS][installRealtimeOrderWatchers] Failed to inspect store.tables:', err);
+        }
+      }
+
       // قراءة headers الموجودة
       let initialHeaderRows = [];
       try {
         const rawHeaders = store.list(headerTableName);
+        console.log('[POS][installRealtimeOrderWatchers] store.list returned for', headerTableName, ':', rawHeaders);
         initialHeaderRows = Array.isArray(rawHeaders) ? rawHeaders : [];
         console.log('[POS][installRealtimeOrderWatchers] Initial headers loaded:', initialHeaderRows.length);
         if(initialHeaderRows.length > 0) {
