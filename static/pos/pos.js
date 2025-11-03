@@ -1823,29 +1823,10 @@
           ?? metadata.productId
           ?? metadata.product_id
           ?? metadata.itemCode;
-        if(rawItemId == null){
-          console.warn('[Mishkah][POS] Ignoring persisted order line without item id', record);
-          return null;
-        }
-        const itemId = String(rawItemId);
-        const menuItem = menuIndex?.get(itemId);
-        const qty = Math.max(1, Number(record.qty) || 1);
-        const basePrice = Number(record.basePrice != null ? record.basePrice : record.price != null ? record.price : menuItem?.price || 0);
-        const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
-        const kitchenSource = record.kitchenSection
-          ?? record.kitchenSectionId
-          ?? record.kitchen_section_id
-          ?? record.stationId
-          ?? record.station_id
-          ?? record.sectionId
-          ?? record.section_id
-          ?? metadata.kitchenSectionId
-          ?? metadata.sectionId
-          ?? metadata.section_id
-          ?? metadata.stationId
-          ?? metadata.station_id
-          ?? menuItem?.kitchenSection;
-        const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+
+        const itemId = rawItemId != null ? String(rawItemId) : null;
+        const menuItem = itemId ? menuIndex?.get(itemId) : null;
+
         const rawName = record.name
           ?? record.item_name
           ?? record.itemName
@@ -1868,11 +1849,41 @@
           ?? metadata.lineDescription
           ?? metadata.line_description
           ?? null;
+
+        if(itemId == null && rawName == null){
+          console.warn('[Mishkah][POS] Ignoring persisted order line without item id and name', record);
+          return null;
+        }
+
+        const qty = Math.max(1, Number(record.qty) || 1);
+        const basePrice = Number(record.basePrice != null ? record.basePrice
+          : record.price != null ? record.price
+          : record.unitPrice != null ? record.unitPrice
+          : menuItem?.price || 0);
+        const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
+        const kitchenSource = record.kitchenSection
+          ?? record.kitchenSectionId
+          ?? record.kitchen_section_id
+          ?? record.stationId
+          ?? record.station_id
+          ?? record.sectionId
+          ?? record.section_id
+          ?? metadata.kitchenSectionId
+          ?? metadata.sectionId
+          ?? metadata.section_id
+          ?? metadata.stationId
+          ?? metadata.station_id
+          ?? menuItem?.kitchenSection;
+        const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+
+        const resolvedName = menuItem ? menuItem.name : cloneName(rawName) || (itemId ? `صنف ${itemId}` : 'صنف غير معروف');
+        const resolvedDescription = menuItem ? menuItem.description : cloneName(rawDescription);
+
         const baseLine = {
           id: record.id,
-          itemId,
-          name: menuItem ? menuItem.name : cloneName(rawName),
-          description: menuItem ? menuItem.description : cloneName(rawDescription),
+          itemId: itemId || record.id,
+          name: resolvedName,
+          description: resolvedDescription,
           qty,
           price: round(basePrice),
           basePrice: round(basePrice),

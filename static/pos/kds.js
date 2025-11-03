@@ -1093,6 +1093,7 @@
     const orders = Array.isArray(db?.data?.jobs?.orders) ? db.data.jobs.orders : [];
     const handoff = db?.data?.handoff || {};
     const stationMap = db?.data?.stationMap || {};
+    const menuIndex = db?.data?.menuIndex || {};
     return orders.map(order=>{
       const orderKey = normalizeOrderKey(order.orderId || order.id);
       let record = (orderKey && (handoff[orderKey] || handoff[order.orderId] || handoff[order.id])) || {};
@@ -1111,6 +1112,7 @@
       }
       let totalItems = 0;
       let readyItems = 0;
+      let pendingItems = 0;
       const detailRows = [];
       const jobs = Array.isArray(order.jobs) ? order.jobs : [];
       jobs.forEach(job=>{
@@ -1121,9 +1123,19 @@
         if(jobDetails.length){
           jobDetails.forEach(detail=>{
             const quantity = ensureQuantity(detail.quantity);
-            const detailClone = { ...detail, quantity };
+            const menuItem = detail.itemId ? menuIndex[String(detail.itemId)] : null;
+            const detailClone = {
+              ...detail,
+              quantity,
+              itemNameAr: detail.itemNameAr || menuItem?.nameAr || detail.itemId || stationLabelAr,
+              itemNameEn: detail.itemNameEn || menuItem?.nameEn || detail.itemId || stationLabelEn
+            };
             totalItems += quantity;
-            if(detailClone.status === 'ready' || detailClone.status === 'completed') readyItems += quantity;
+            if(detailClone.status === 'ready' || detailClone.status === 'completed'){
+              readyItems += quantity;
+            } else {
+              pendingItems += quantity;
+            }
             detailRows.push({ detail: detailClone, stationLabelAr, stationLabelEn });
           });
         } else {
@@ -1137,7 +1149,11 @@
             prepNotes: job.notes || '',
             modifiers: []
           };
-          if(job.status === 'ready' || job.status === 'completed') readyItems += quantity;
+          if(job.status === 'ready' || job.status === 'completed'){
+            readyItems += quantity;
+          } else {
+            pendingItems += quantity;
+          }
           totalItems += quantity;
           detailRows.push({ detail: fallbackDetail, stationLabelAr, stationLabelEn });
         }
@@ -1145,12 +1161,19 @@
       if(totalItems === 0){
         totalItems = jobs.reduce((acc, job)=> acc + (Number(job.totalItems) || (Array.isArray(job.details) ? job.details.reduce((dAcc, detail)=> dAcc + ensureQuantity(detail.quantity), 0) : 0)), 0);
         readyItems = jobs.reduce((acc, job)=> acc + (Number(job.completedItems) || 0), 0);
+        pendingItems = Math.max(0, totalItems - readyItems);
       }
       let status = record.status;
-      if(status !== 'assembled' && status !== 'served'){
+      if(status === 'assembled' || status === 'served'){
+        if(pendingItems > 0){
+          status = 'pending';
+        } else if(readyItems < totalItems){
+          status = 'pending';
+        }
+      } else {
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
-      return { ...order, handoffStatus: status, handoffRecord: record, readyItems, totalItems, detailRows };
+      return { ...order, handoffStatus: status, handoffRecord: record, readyItems, totalItems, pendingItems, detailRows };
     });
   };
 
@@ -1329,6 +1352,29 @@
         return acc;
       }, {})
     : {});
+
+  const buildMenuIndex = (items)=>{
+    const index = {};
+    if(!Array.isArray(items)) return index;
+    items.forEach(item=>{
+      if(!item || item.id == null) return;
+      const id = String(item.id);
+      const code = item.code || item.itemCode || item.menuItemCode;
+      index[id] = {
+        id,
+        code,
+        name: item.name || item.itemName || item.nameAr || item.nameEn || id,
+        nameAr: item.nameAr || item.itemNameAr || item.name?.ar || item.name || '',
+        nameEn: item.nameEn || item.itemNameEn || item.name?.en || item.name || '',
+        description: item.description || item.itemDescription || '',
+        price: Number(item.price) || 0
+      };
+      if(code){
+        index[String(code)] = index[id];
+      }
+    });
+    return index;
+  };
 
   const buildTabs = (db, t)=>{
     const tabs = [];
@@ -1979,6 +2025,7 @@
     categories: initialMenuCategories,
     items: initialMenuItems
   };
+  const initialMenuIndex = buildMenuIndex(initialMenuItems);
   const rawJobOrders = cloneDeep(kdsSource.jobOrders || {});
   const jobRecords = buildJobRecords(rawJobOrders);
   const jobsIndexed = indexJobs(jobRecords);
@@ -2017,6 +2064,7 @@
       kitchenSections: initialKitchenSections,
       categorySections: initialCategorySections,
       menu: initialMenu,
+      menuIndex: initialMenuIndex,
       filters:{ activeTab: defaultTab, lockedSection },
       deliveries:{ assignments:{}, settlements:{} },
       handoff: clonePersistedHandoff(),
@@ -2331,6 +2379,7 @@
       if(Array.isArray(payload.master?.items)){
         menuNext = { ...menuNext, items: payload.master.items.map(item=> ({ ...item })) };
       }
+      const menuIndexNext = buildMenuIndex(menuNext.items);
       let metaNext = { ...(state.data.meta || {}) };
       if(payload.master?.metadata){
         metaNext = { ...metaNext, ...payload.master.metadata };
@@ -2370,6 +2419,7 @@
           kitchenSections: kitchenSectionsNext,
           categorySections: categorySectionsNext,
           menu: menuNext,
+          menuIndex: menuIndexNext,
           meta: metaNext,
           sync: syncNext
         }
