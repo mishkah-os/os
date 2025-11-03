@@ -1982,8 +1982,65 @@
       async function deleteTempOrder(){
         return false;
       }
-      async function listOrders(){
-        return [];
+      async function listOrders(options={}){
+        if(!BRANCH_ID) return [];
+        const params = new URLSearchParams();
+        const includeTokens = new Set();
+        const onlyActive = options.onlyActive !== false;
+        if(!onlyActive){
+          params.set('onlyActive', 'false');
+        }
+        if(Number.isFinite(options.limit) && options.limit > 0){
+          params.set('limit', String(Math.trunc(options.limit)));
+        }
+        const ensureListInput = (value)=>{
+          if(value == null) return [];
+          return Array.isArray(value) ? value : [value];
+        };
+        const pushListParam = (key, values)=>{
+          ensureListInput(values).forEach(value=>{
+            if(value == null) return;
+            const text = String(value).trim();
+            if(text){
+              params.append(key, text);
+            }
+          });
+        };
+        pushListParam('status', ensureListInput(options.statuses ?? options.status));
+        pushListParam('stage', ensureListInput(options.stages ?? options.stage));
+        pushListParam('type', ensureListInput(options.types ?? options.type));
+        pushListParam('shiftId', ensureListInput(options.shiftIds ?? options.shiftId));
+        if(options.updatedAfter != null){
+          params.set('updatedAfter', String(options.updatedAfter));
+        }
+        if(options.savedAfter != null){
+          params.set('savedAfter', String(options.savedAfter));
+        }
+        const includeList = Array.isArray(options.include) ? options.include : [];
+        includeList.forEach(entry=>{
+          if(entry == null) return;
+          const text = String(entry).trim().toLowerCase();
+          if(text) includeTokens.add(text);
+        });
+        const includeLines = options.includeLines !== false;
+        const includePayments = options.includePayments !== false;
+        const includeStatusLogs = options.includeStatusLogs === true || includeTokens.has('statuslogs');
+        const includeLineStatusLogs = options.includeLineStatus === true || options.includeLineStatusLogs === true;
+        if(includeLines) includeTokens.add('lines');
+        if(includePayments) includeTokens.add('payments');
+        if(includeStatusLogs) includeTokens.add('statuslogs');
+        if(includeLineStatusLogs){
+          includeTokens.add('linestatuslogs');
+          includeTokens.add('lines');
+        }
+        if(includeTokens.size){
+          params.set('include', Array.from(includeTokens.values()).join(','));
+        }
+        const query = params.toString();
+        const endpoint = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders${query ? `?${query}` : ''}`;
+        const payload = await getJson(endpoint);
+        const list = Array.isArray(payload?.orders) ? payload.orders : [];
+        return list.map(order=> ({ ...order }));
       }
       async function getOrder(orderId){
         if(!BRANCH_ID || !orderId) return null;
