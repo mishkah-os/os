@@ -230,14 +230,29 @@
     };
     const TABLE_ALIAS_GROUPS = {
       dataset:{ canonical:'pos_database', aliases:['pos_dataset','pos_data','dataset','pos_snapshot'] },
-      orderHeader:{ canonical:'orders', aliases:['orders','orderss','orderHeader','orders_live','pos_orders'] },
-      orderLine:{ canonical:'orderLines', aliases:['orderLines','orderLines_items','orderDetails','order_items'] },
+      orderHeader:{
+        canonical:'order_header',
+        aliases:['orders','order_headers','orderHeader','order_header_live','pos_order_header','pos_orders']
+      },
+      orderLine:{
+        canonical:'order_line',
+        aliases:['order_lines','order_line_items','orderLineItems','orderDetails','order_items','orderLines']
+      },
       orderPayment:{ canonical:'order_payment', aliases:['order_payments','payments','orderPayments','payment_transactions'] },
-      orderLineModifier:{ canonical:'orderLines_modifier', aliases:['orderLines_modifiers','orderModifiers','orderLines_addons'] },
+      orderLineModifier:{
+        canonical:'order_line_modifier',
+        aliases:['order_line_modifiers','orderModifiers','order_line_addons','orderLines_modifier','orderLines_modifiers']
+      },
       orderStatusLog:{ canonical:'order_status_log', aliases:['order_status_history','orderStatusHistory'] },
-      orderLineStatusLog:{ canonical:'orderLines_status_log', aliases:['orderLines_status_history','line_status_history'] },
+      orderLineStatusLog:{
+        canonical:'order_line_status_log',
+        aliases:['order_line_status_history','line_status_history','orderLines_status_log','orderLines_status_history']
+      },
       posShift:{ canonical:'pos_shift', aliases:['pos_shifts','shifts','shift_header','shiftHeaders'] },
-      jobOrderHeader:{ canonical:'job_orders', aliases:['job_orders','job_orderss','production_orders'] },
+      jobOrderHeader:{
+        canonical:'job_order_header',
+        aliases:['job_orders','job_order_headers','production_orders','production_order_header','jobOrders']
+      },
       jobOrderDetail:{ canonical:'job_order_detail', aliases:['job_order_details','jobOrderDetails','production_order_detail'] },
       jobOrderDetailModifier:{ canonical:'job_order_detail_modifier', aliases:['job_order_modifiers','jobOrderModifiers'] },
       jobOrderStatusHistory:{ canonical:'job_order_status_history', aliases:['job_order_status_log','jobStatusHistory'] },
@@ -3535,8 +3550,8 @@
       };
       const applyDatasetOrders = (record)=>{
         if(!record || typeof record !== 'object') return;
-        let headerRows = extractDatasetEntries(record, 'orders');
-        let lineRows = extractDatasetEntries(record, 'orderLines');
+        let headerRows = extractDatasetEntries(record, 'order_header');
+        let lineRows = extractDatasetEntries(record, 'order_line');
         let paymentRows = extractDatasetEntries(record, 'order_payment');
         if(headerRows.length){
           const nestedLines = [];
@@ -3648,11 +3663,11 @@
           }
         });
       }
-      const headerTableName = POS_TABLE_HANDLES.orders || 'orders';
-      const lineTableName = POS_TABLE_HANDLES.orderLines || 'orderLines';
+      const headerTableName = POS_TABLE_HANDLES.order_header || POS_TABLE_HANDLES.orders || 'orders';
+      const lineTableName = POS_TABLE_HANDLES.order_line || POS_TABLE_HANDLES.orderLines || 'orderLines';
       const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
       const unsubHeaders = store.watch(headerTableName, (rows)=>{
-        logIndexedDbSample(realtimeOrders.debugLogged, 'orders', rows, sanitizeOrderHeaderRow);
+        logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
         realtimeOrders.headers.clear();
         (rows || []).forEach(row=>{
           const normalized = sanitizeOrderHeaderRow(row);
@@ -3662,7 +3677,7 @@
         scheduleRealtimeSnapshot();
       });
       const unsubLines = store.watch(lineTableName, (rows)=>{
-        logIndexedDbSample(realtimeOrders.debugLogged, 'orderLines', rows, sanitizeOrderLineRow);
+        logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
           const normalized = sanitizeOrderLineRow(row);
@@ -3718,13 +3733,13 @@
       if(realtimeJobOrders.installed) return;
       if(!realtimeJobOrders.store) return;
       const store = realtimeJobOrders.store;
-      const jobHeaderTable = POS_TABLE_HANDLES.job_orders || 'job_orders';
+      const jobHeaderTable = POS_TABLE_HANDLES.job_order_header || POS_TABLE_HANDLES.job_orders || 'job_orders';
       const jobDetailTable = POS_TABLE_HANDLES.job_order_detail || 'job_order_detail';
       const jobModifierTable = POS_TABLE_HANDLES.job_order_detail_modifier || 'job_order_detail_modifier';
       const jobStatusTable = POS_TABLE_HANDLES.job_order_status_history || 'job_order_status_history';
       const expoTicketTable = POS_TABLE_HANDLES.expo_pass_ticket || 'expo_pass_ticket';
       const unsubHeaders = store.watch(jobHeaderTable, (rows)=>{
-        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_orders', rows, sanitizeJobOrderHeaderRow);
+        logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
         realtimeJobOrders.headers.clear();
         (rows || []).forEach(row=>{
           const normalized = sanitizeJobOrderHeaderRow(row);
