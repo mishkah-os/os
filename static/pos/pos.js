@@ -3599,6 +3599,109 @@
         }
         return result;
       };
+      const groupRealtimeOrderChildren = (rows, normalize)=>{
+        const grouped = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(row=>{
+          const normalized = typeof normalize === 'function' ? normalize(row) : row;
+          if(!normalized || !normalized.orderId) return;
+          const orderId = String(normalized.orderId);
+          if(!grouped.has(orderId)) grouped.set(orderId, []);
+          grouped.get(orderId).push(normalized);
+        });
+        return grouped;
+      };
+      const collectDatasetOrderRemovals = (record)=>{
+        const removalIds = new Set();
+        if(!record || typeof record !== 'object') return removalIds;
+        const removalKeys = [
+          'ordersRemoved',
+          'removedOrders',
+          'orders_removed',
+          'ordersRemovedIds',
+          'removedOrderIds',
+          'ordersDeleted',
+          'deletedOrders',
+          'ordersDeletedIds',
+          'orders_removed_ids'
+        ];
+        const registerId = (value)=>{
+          if(value == null) return;
+          if(Array.isArray(value)){
+            value.forEach(entry=> registerId(entry));
+            return;
+          }
+          if(typeof value === 'object'){
+            const candidates = [
+              value.id,
+              value.orderId,
+              value.order_id,
+              value.orderID,
+              value.key,
+              value.recordId,
+              value.record_id,
+              value.deletedId,
+              value.deleted_id,
+              value.removedId,
+              value.removed_id
+            ];
+            candidates.forEach(candidate=>{
+              if(candidate == null) return;
+              const text = String(candidate).trim();
+              if(text) removalIds.add(text);
+            });
+            if(value.ids) registerId(value.ids);
+            if(value.orderIds) registerId(value.orderIds);
+            if(value.keys) registerId(value.keys);
+            if(value.values) registerId(value.values);
+            return;
+          }
+          const text = String(value).trim();
+          if(text) removalIds.add(text);
+        };
+        const sources = gatherDatasetSources(record);
+        sources.forEach(source=>{
+          if(!source || typeof source !== 'object') return;
+          removalKeys.forEach(key=> registerId(source[key]));
+          if(source.removed && typeof source.removed === 'object'){
+            registerId(source.removed.orders);
+            registerId(source.removed.orderIds);
+          }
+          if(source.deleted && typeof source.deleted === 'object'){
+            registerId(source.deleted.orders);
+            registerId(source.deleted.orderIds);
+          }
+          if(Array.isArray(source.syncLog)){
+            source.syncLog.forEach(entry=>{
+              if(!entry || typeof entry !== 'object') return;
+              const typeText = entry.type || entry.event || entry.action || entry.kind || entry.operation || '';
+              const normalizedType = typeof typeText === 'string' ? typeText.toLowerCase() : '';
+              if(normalizedType.includes('order') && normalizedType.includes('delete')){
+                registerId(entry.orderId ?? entry.order_id ?? entry.orderID ?? entry.id ?? entry.recordId ?? entry.targetId ?? entry.key ?? null);
+              }
+            });
+          }
+        });
+        return removalIds;
+      };
+      const mergeRealtimeOrderChildren = (targetMap, grouped, meta={})=>{
+        if(!(grouped instanceof Map) || grouped.size === 0) return false;
+        const summary = [];
+        grouped.forEach((list, orderId)=>{
+          const before = Array.isArray(targetMap.get(orderId)) ? targetMap.get(orderId).length : 0;
+          targetMap.set(orderId, list);
+          summary.push({ orderId, before, after: list.length });
+        });
+        if(summary.length){
+          const { source='unknown', type='child' } = meta;
+          console.log('[POS][ORDERS-SYNC]', {
+            source,
+            type,
+            ordersUpdated: summary.length,
+            details: summary.slice(0, 5)
+          });
+        }
+        return summary.length > 0;
+      };
       const applyDatasetOrders = (record)=>{
         if(!record || typeof record !== 'object') return;
         const headerResult = extractDatasetEntries(record, 'order_header');
@@ -3636,66 +3739,74 @@
           }
         }
         let changed = false;
+        const removalIds = collectDatasetOrderRemovals(record);
         if(headerRows.length){
           datasetPrimed.headers = true;
           const beforeCount = realtimeOrders.headers.size;
-          const incomingIds = new Set();
+          const upsertedIds = [];
           headerRows.forEach(row=>{
             const normalized = sanitizeOrderHeaderRow(row);
             if(!normalized) return;
             const id = String(normalized.id);
-            incomingIds.add(id);
             realtimeOrders.headers.set(id, normalized);
+            upsertedIds.push(id);
           });
-          const deletedIds = [];
-          for(const [id] of Array.from(realtimeOrders.headers.entries())){
-            if(!incomingIds.has(id)){
-              deletedIds.push(id);
-              realtimeOrders.headers.delete(id);
-            }
-          }
-          const afterCount = realtimeOrders.headers.size;
-          if(deletedIds.length > 0 || incomingIds.size > 0){
+          if(upsertedIds.length){
             console.log('[POS][ORDERS-SYNC]', {
               source: 'dataset',
+              upserted: upsertedIds.length,
+              upsertedIds: upsertedIds.slice(0, 5),
               before: beforeCount,
-              incoming: incomingIds.size,
-              deleted: deletedIds.length,
-              deletedIds: deletedIds.slice(0, 5),
-              after: afterCount
+              after: realtimeOrders.headers.size
             });
+            changed = true;
           }
-          changed = true;
         } else if(headerResult.found){
           console.warn('[POS][ORDERS-SYNC] Dataset has order_header key but empty array - KEEPING existing orders', {
             existingCount: realtimeOrders.headers.size
           });
         }
+        if(removalIds.size){
+          const deletedIds = [];
+          removalIds.forEach(id=>{
+            const text = String(id);
+            if(realtimeOrders.headers.delete(text)){
+              deletedIds.push(text);
+              changed = true;
+            }
+            if(realtimeOrders.lines.delete(text)) changed = true;
+            if(realtimeOrders.payments.delete(text)) changed = true;
+          });
+          if(deletedIds.length){
+            console.log('[POS][ORDERS-SYNC]', {
+              source: 'dataset',
+              deleted: deletedIds.length,
+              deletedIds: deletedIds.slice(0, 5),
+              after: realtimeOrders.headers.size
+            });
+          }
+        }
         if(lineRows.length){
           datasetPrimed.lines = true;
-          const grouped = new Map();
-          lineRows.forEach(row=>{
-            const normalized = sanitizeOrderLineRow(row);
-            if(!normalized || !normalized.orderId) return;
-            const orderId = String(normalized.orderId);
-            if(!grouped.has(orderId)) grouped.set(orderId, []);
-            grouped.get(orderId).push(normalized);
+          const grouped = groupRealtimeOrderChildren(lineRows, sanitizeOrderLineRow);
+          if(mergeRealtimeOrderChildren(realtimeOrders.lines, grouped, { source: 'dataset:order_line', type: 'lines' })){
+            changed = true;
+          }
+        } else if(lineResult.found){
+          console.warn('[POS][ORDERS-SYNC] Dataset has order_line key but empty array - KEEPING existing order lines', {
+            existingOrders: realtimeOrders.lines.size
           });
-          realtimeOrders.lines = grouped;
-          changed = true;
         }
         if(paymentRows.length){
           datasetPrimed.payments = true;
-          const grouped = new Map();
-          paymentRows.forEach(row=>{
-            const normalized = sanitizeOrderPaymentRow(row);
-            if(!normalized || !normalized.orderId) return;
-            const orderId = String(normalized.orderId);
-            if(!grouped.has(orderId)) grouped.set(orderId, []);
-            grouped.get(orderId).push(normalized);
+          const grouped = groupRealtimeOrderChildren(paymentRows, sanitizeOrderPaymentRow);
+          if(mergeRealtimeOrderChildren(realtimeOrders.payments, grouped, { source: 'dataset:order_payment', type: 'payments' })){
+            changed = true;
+          }
+        } else if(paymentResult.found){
+          console.warn('[POS][ORDERS-SYNC] Dataset has order_payment key but empty array - KEEPING existing payments', {
+            existingOrders: realtimeOrders.payments.size
           });
-          realtimeOrders.payments = grouped;
-          changed = true;
         }
         if(changed){
           scheduleRealtimeSnapshot();
@@ -3750,33 +3861,39 @@
             emptySnapshot: rows.length === 0 && beforeCount > 0
           });
         }
+        if(deletedIds.length){
+          deletedIds.forEach(id=>{
+            realtimeOrders.lines.delete(id);
+            realtimeOrders.payments.delete(id);
+          });
+        }
         scheduleRealtimeSnapshot();
       });
       const unsubLines = store.watch(lineTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
-        const grouped = new Map();
-        (rows || []).forEach(row=>{
-          const normalized = sanitizeOrderLineRow(row);
-          if(!normalized || !normalized.orderId) return;
-          const orderId = String(normalized.orderId);
-          if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push(normalized);
-        });
-        realtimeOrders.lines = grouped;
-        scheduleRealtimeSnapshot();
+        const grouped = groupRealtimeOrderChildren(rows, sanitizeOrderLineRow);
+        if(grouped.size){
+          if(mergeRealtimeOrderChildren(realtimeOrders.lines, grouped, { source: 'watch:order_line', type: 'lines' })){
+            scheduleRealtimeSnapshot();
+          }
+        } else if(Array.isArray(rows) && rows.length === 0 && realtimeOrders.lines.size){
+          console.warn('[POS][ORDERS-SYNC] order_line watch returned empty snapshot - KEEPING existing order lines', {
+            existingOrders: realtimeOrders.lines.size
+          });
+        }
       });
       const unsubPayments = store.watch(paymentTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_payment', rows, sanitizeOrderPaymentRow);
-        const grouped = new Map();
-        (rows || []).forEach(row=>{
-          const normalized = sanitizeOrderPaymentRow(row);
-          if(!normalized || !normalized.orderId) return;
-          const orderId = String(normalized.orderId);
-          if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push(normalized);
-        });
-        realtimeOrders.payments = grouped;
-        scheduleRealtimeSnapshot();
+        const grouped = groupRealtimeOrderChildren(rows, sanitizeOrderPaymentRow);
+        if(grouped.size){
+          if(mergeRealtimeOrderChildren(realtimeOrders.payments, grouped, { source: 'watch:order_payment', type: 'payments' })){
+            scheduleRealtimeSnapshot();
+          }
+        } else if(Array.isArray(rows) && rows.length === 0 && realtimeOrders.payments.size){
+          console.warn('[POS][ORDERS-SYNC] order_payment watch returned empty snapshot - KEEPING existing payments', {
+            existingOrders: realtimeOrders.payments.size
+          });
+        }
       });
       realtimeOrders.unsubscribes = [unsubDataset, unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
       realtimeOrders.installed = true;
