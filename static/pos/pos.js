@@ -3539,9 +3539,20 @@
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
 
+      // تشخيص: معرفة الجداول المسجلة
+      console.log('[POS][installRealtimeOrderWatchers] POS_TABLE_HANDLES:', POS_TABLE_HANDLES);
+      console.log('[POS][installRealtimeOrderWatchers] store.config:', store.config);
+      console.log('[POS][installRealtimeOrderWatchers] Registered objects:', Object.keys(store.config?.objects || {}));
+
       const headerTableName = POS_TABLE_HANDLES.order_header || 'order_header';
       const lineTableName = POS_TABLE_HANDLES.order_line || 'order_line';
       const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
+
+      console.log('[POS][installRealtimeOrderWatchers] Using table names:', {
+        headerTableName,
+        lineTableName,
+        paymentTableName
+      });
 
       // ===== التعبئة الأولية: قراءة البيانات الموجودة من السيرفر مثل pos_finance =====
       console.log('[POS][installRealtimeOrderWatchers] Loading initial data from server...');
@@ -3552,6 +3563,9 @@
         const rawHeaders = store.list(headerTableName);
         initialHeaderRows = Array.isArray(rawHeaders) ? rawHeaders : [];
         console.log('[POS][installRealtimeOrderWatchers] Initial headers loaded:', initialHeaderRows.length);
+        if(initialHeaderRows.length > 0) {
+          console.log('[POS][installRealtimeOrderWatchers] Sample header:', initialHeaderRows[0]);
+        }
       } catch(err) {
         console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial headers:', err);
       }
@@ -3562,6 +3576,9 @@
         const rawLines = store.list(lineTableName);
         initialLineRows = Array.isArray(rawLines) ? rawLines : [];
         console.log('[POS][installRealtimeOrderWatchers] Initial lines loaded:', initialLineRows.length);
+        if(initialLineRows.length > 0) {
+          console.log('[POS][installRealtimeOrderWatchers] Sample line:', initialLineRows[0]);
+        }
       } catch(err) {
         console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial lines:', err);
       }
@@ -3572,6 +3589,9 @@
         const rawPayments = store.list(paymentTableName);
         initialPaymentRows = Array.isArray(rawPayments) ? rawPayments : [];
         console.log('[POS][installRealtimeOrderWatchers] Initial payments loaded:', initialPaymentRows.length);
+        if(initialPaymentRows.length > 0) {
+          console.log('[POS][installRealtimeOrderWatchers] Sample payment:', initialPaymentRows[0]);
+        }
       } catch(err) {
         console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial payments:', err);
       }
