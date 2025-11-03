@@ -525,7 +525,7 @@
               "vehicle_id": "سيارة - ف ق ل 789"
             }
           ],
-          "categories": [
+          "menu_categories": [
             {
               "id": "all",
               "category_name": {
@@ -599,7 +599,7 @@
               "section_id": "buffet_bar"
             }
           ],
-          "items": [
+          "menu_items": [
             {
               "id": 1,
               "category_id": "appetizers",
