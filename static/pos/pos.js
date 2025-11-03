@@ -1332,12 +1332,11 @@
         console.error('[POS] Cannot create order line without an item id', item);
         throw new Error('[POS] Cannot create order line without an item id');
       }
-      const itemIdNumber = Number(item.id);
-      if(!Number.isFinite(itemIdNumber) || itemIdNumber <= 0){
-        console.error('[POS] Invalid item id - must be positive integer per schema', item);
+      const itemId = String(item.id);
+      if(!itemId || itemId === 'null' || itemId === 'undefined'){
+        console.error('[POS] Invalid item id', item);
         throw new Error('[POS] Invalid item id');
       }
-      const itemId = Math.floor(itemIdNumber);
       const quantity = qty || 1;
       const unitPrice = Number(item.basePrice ?? item.price ?? 0);
       const now = Date.now();
@@ -1831,9 +1830,10 @@
           ?? metadata.product_id
           ?? metadata.itemCode;
 
-        const itemIdNumber = rawItemId != null ? Number(rawItemId) : NaN;
-        const itemId = Number.isFinite(itemIdNumber) && itemIdNumber > 0 ? Math.floor(itemIdNumber) : null;
-        const menuItem = itemId ? menuIndex?.get(String(itemId)) : null;
+        const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
+          ? String(rawItemId).trim()
+          : null;
+        const menuItem = itemId ? menuIndex?.get(itemId) : null;
 
         const rawName = record.name
           ?? record.item_name
@@ -2946,14 +2946,13 @@
       }
       const metadata = ensurePlainObject(normalized.metadata);
       const rawItemId = row.itemId ?? row.item_id ?? metadata.itemId ?? metadata.item_id ?? metadata.menuItemId ?? metadata.productId ?? metadata.itemCode ?? null;
-      const itemIdNumber = rawItemId != null && rawItemId !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
-        ? Number(rawItemId)
-        : NaN;
-      if(!Number.isFinite(itemIdNumber) || itemIdNumber <= 0){
-        console.warn('[Mishkah][POS] Dropping realtime order line - itemId must be positive integer per schema', { id, orderId, rawItemId, itemIdNumber });
+      const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
+        ? String(rawItemId).trim()
+        : null;
+      if(!itemId){
+        console.warn('[Mishkah][POS] Dropping realtime order line - missing itemId', { id, orderId, rawItemId });
         return null;
       }
-      const itemId = Math.floor(itemIdNumber);
       normalized.itemId = itemId;
       normalized.item_id = itemId;
       if(!normalized.metadata) normalized.metadata = {};
@@ -5891,21 +5890,19 @@
         updatedAt: now
       })).map(line=>{
         const itemToken = line.itemId || line.item_id || line.metadata?.itemId || line.metadata?.item_id;
-        const itemIdNumber = itemToken != null && itemToken !== '' && String(itemToken) !== 'null' && String(itemToken) !== 'undefined'
-          ? Number(itemToken)
-          : NaN;
-        if(!Number.isFinite(itemIdNumber) || itemIdNumber <= 0){
-          console.error('[Mishkah][POS] Line has invalid itemId (must be positive integer per schema)', {
+        const itemId = itemToken != null && String(itemToken).trim() !== '' && String(itemToken) !== 'null' && String(itemToken) !== 'undefined'
+          ? String(itemToken).trim()
+          : null;
+        if(!itemId){
+          console.error('[Mishkah][POS] Line missing itemId', {
             lineId: line.id,
             itemToken,
-            itemIdNumber,
             name: line.name,
             qty: line.qty,
             quantity: line.quantity
           });
           if(!missingItemLine) missingItemLine = line;
         }
-        const itemId = Number.isFinite(itemIdNumber) ? Math.floor(itemIdNumber) : null;
         let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.metadata?.kitchenSectionId;
         if(!kitchenSection || String(kitchenSection).trim() === ''){
           if(!missingKitchenLine){
