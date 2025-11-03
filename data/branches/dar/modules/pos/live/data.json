@@ -2452,6 +2452,13 @@
         "createdAt": "2025-11-02T12:28:36.480Z",
         "updatedAt": "2025-11-02T12:28:36.480Z"
       }
-    ]
+    ],
+    "order_header": [],
+    "order_line": [],
+    "order_payment": [],
+    "order_status_log": [],
+    "order_line_status_log": [],
+    "order_delivery": [],
+    "table_lock": []
   }
 }
