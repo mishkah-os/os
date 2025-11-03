@@ -3610,6 +3610,145 @@
         });
         return grouped;
       };
+      const normalizeRealtimeEntityId = (value)=>{
+        if(value == null) return null;
+        const text = String(value).trim();
+        return text ? text : null;
+      };
+      const interpretDeletionToken = (value)=>{
+        if(value == null) return false;
+        if(typeof value === 'boolean') return value;
+        if(typeof value === 'number') return value !== 0;
+        if(typeof value === 'string'){
+          const normalized = value.trim().toLowerCase();
+          if(!normalized) return false;
+          return [
+            '1',
+            'true',
+            'yes',
+            'y',
+            'delete',
+            'deleted',
+            'remove',
+            'removed',
+            'void',
+            'voided',
+            'archive',
+            'archived',
+            'purge',
+            'purged'
+          ].includes(normalized);
+        }
+        return false;
+      };
+      const objectIndicatesDeletion = (candidate, visited=new WeakSet())=>{
+        if(!candidate || typeof candidate !== 'object') return false;
+        if(visited.has(candidate)) return false;
+        visited.add(candidate);
+        const directFlags = [
+          candidate.__deleted,
+          candidate._deleted,
+          candidate.deleted,
+          candidate.deletedFlag,
+          candidate.deleted_flag,
+          candidate.isDeleted,
+          candidate.is_deleted,
+          candidate.removed,
+          candidate.removedFlag,
+          candidate.removed_flag,
+          candidate.isRemoved,
+          candidate.is_removed,
+          candidate.voided,
+          candidate.void,
+          candidate.isVoided,
+          candidate.is_voided,
+          candidate.archived,
+          candidate.archivedFlag,
+          candidate.archived_flag,
+          candidate.isArchived,
+          candidate.is_archived,
+          candidate.purged,
+          candidate.isPurged,
+          candidate.is_purged
+        ];
+        if(directFlags.some(interpretDeletionToken)) return true;
+        const actionCandidates = [
+          candidate.__op,
+          candidate.__operation,
+          candidate.operation,
+          candidate.action,
+          candidate.event,
+          candidate.eventType,
+          candidate.event_type,
+          candidate.changeType,
+          candidate.change_type,
+          candidate.op,
+          candidate.type
+        ];
+        if(actionCandidates.some(value=> typeof value === 'string' && value.toLowerCase().includes('delete'))) return true;
+        const statusCandidates = [candidate.status, candidate.state, candidate.lifecycle, candidate.stage];
+        if(statusCandidates.some(value=> typeof value === 'string' && ['deleted', 'voided', 'void', 'removed', 'archived', 'purged'].includes(value.toLowerCase()))){
+          return true;
+        }
+        const timestampCandidates = [
+          candidate.deletedAt,
+          candidate.deleted_at,
+          candidate.removedAt,
+          candidate.removed_at,
+          candidate.archivedAt,
+          candidate.archived_at,
+          candidate.voidedAt,
+          candidate.voided_at,
+          candidate.purgedAt,
+          candidate.purged_at
+        ];
+        if(timestampCandidates.some(value=> value != null && String(value).trim() !== '')) return true;
+        const metaCandidates = [];
+        const meta = ensurePlainObject(candidate.meta);
+        if(meta && Object.keys(meta).length) metaCandidates.push(meta);
+        const metadata = ensurePlainObject(candidate.metadata);
+        if(metadata && Object.keys(metadata).length) metaCandidates.push(metadata);
+        if(Array.isArray(candidate.flags)) metaCandidates.push(...candidate.flags);
+        return metaCandidates.some(entry=>{
+          if(entry && typeof entry === 'object' && !Array.isArray(entry)){
+            return objectIndicatesDeletion(entry, visited);
+          }
+          if(Array.isArray(entry)){
+            return entry.some(item=> objectIndicatesDeletion(item, visited) || interpretDeletionToken(item));
+          }
+          return interpretDeletionToken(entry);
+        });
+      };
+      const detectRealtimeOrderDeletionId = (row)=>{
+        if(!row || typeof row !== 'object') return null;
+        if(!objectIndicatesDeletion(row)) return null;
+        const candidates = [
+          row.id,
+          row.orderId,
+          row.order_id,
+          row.headerId,
+          row.header_id,
+          row.key,
+          row.recordId,
+          row.record_id,
+          row.targetId,
+          row.target_id,
+          row.uuid,
+          row.orderUUID,
+          row.order_uuid
+        ];
+        for(const candidate of candidates){
+          const id = normalizeRealtimeEntityId(candidate);
+          if(id) return id;
+        }
+        const meta = ensurePlainObject(row.meta || row.metadata);
+        const metaCandidates = [meta?.id, meta?.orderId, meta?.order_id];
+        for(const candidate of metaCandidates){
+          const id = normalizeRealtimeEntityId(candidate);
+          if(id) return id;
+        }
+        return null;
+      };
       const collectDatasetOrderRemovals = (record)=>{
         const removalIds = new Set();
         if(!record || typeof record !== 'object') return removalIds;
@@ -3740,6 +3879,16 @@
         }
         let changed = false;
         const removalIds = collectDatasetOrderRemovals(record);
+        const filteredHeaderRows = [];
+        headerRows.forEach(row=>{
+          const deletionId = detectRealtimeOrderDeletionId(row);
+          if(deletionId){
+            removalIds.add(deletionId);
+            return;
+          }
+          filteredHeaderRows.push(row);
+        });
+        headerRows = filteredHeaderRows;
         if(headerRows.length){
           datasetPrimed.headers = true;
           const beforeCount = realtimeOrders.headers.size;
@@ -3832,42 +3981,48 @@
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
         if(!Array.isArray(rows)) return;
         const beforeCount = realtimeOrders.headers.size;
-        const incomingIds = new Set();
+        const upserted = new Set();
+        const removed = new Set();
         (rows || []).forEach(row=>{
+          const deletionId = detectRealtimeOrderDeletionId(row);
+          if(deletionId){
+            let deleted = false;
+            if(realtimeOrders.headers.delete(deletionId)) deleted = true;
+            if(realtimeOrders.lines.delete(deletionId)) deleted = true;
+            if(realtimeOrders.payments.delete(deletionId)) deleted = true;
+            if(deleted) removed.add(deletionId);
+            return;
+          }
           const normalized = sanitizeOrderHeaderRow(row);
           if(!normalized) return;
           const id = String(normalized.id);
-          incomingIds.add(id);
+          const previous = realtimeOrders.headers.get(id);
           realtimeOrders.headers.set(id, normalized);
-        });
-        const deletedIds = [];
-        if(rows.length > 0 || realtimeOrders.headers.size === 0){
-          for(const [id] of Array.from(realtimeOrders.headers.entries())){
-            if(!incomingIds.has(id)){
-              deletedIds.push(id);
-              realtimeOrders.headers.delete(id);
+          if(!previous){
+            upserted.add(id);
+          } else {
+            const keys = new Set([...Object.keys(previous), ...Object.keys(normalized)]);
+            for(const key of keys){
+              if(previous[key] !== normalized[key]){
+                upserted.add(id);
+                break;
+              }
             }
           }
-        }
-        const afterCount = realtimeOrders.headers.size;
-        if(deletedIds.length > 0 || incomingIds.size > 0 || (rows.length === 0 && beforeCount > 0)){
+        });
+        if(upserted.size || removed.size){
+          const afterCount = realtimeOrders.headers.size;
           console.log('[POS][ORDERS-SYNC]', {
             source: 'watch:order_header',
             before: beforeCount,
-            incoming: incomingIds.size,
-            deleted: deletedIds.length,
-            deletedIds: deletedIds.slice(0, 5),
-            after: afterCount,
-            emptySnapshot: rows.length === 0 && beforeCount > 0
+            upserted: upserted.size,
+            upsertedIds: Array.from(upserted).slice(0, 5),
+            deleted: removed.size,
+            deletedIds: Array.from(removed).slice(0, 5),
+            after: afterCount
           });
+          scheduleRealtimeSnapshot();
         }
-        if(deletedIds.length){
-          deletedIds.forEach(id=>{
-            realtimeOrders.lines.delete(id);
-            realtimeOrders.payments.delete(id);
-          });
-        }
-        scheduleRealtimeSnapshot();
       });
       const unsubLines = store.watch(lineTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
