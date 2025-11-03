@@ -2937,12 +2937,30 @@
         normalized.metadata = ensurePlainObject(row.meta);
       }
       const metadata = ensurePlainObject(normalized.metadata);
-      const rawItemId = row.itemId ?? row.item_id ?? metadata.itemId ?? metadata.item_id ?? metadata.menuItemId ?? metadata.productId ?? metadata.itemCode ?? null;
+      // البحث عن itemId في جميع الأماكن الممكنة
+      const rawItemId = row.itemId
+        ?? row.item_id
+        ?? row.menu_item_id
+        ?? row.menuItemId
+        ?? row.product_id
+        ?? metadata.itemId
+        ?? metadata.item_id
+        ?? metadata.menuItemId
+        ?? metadata.menu_item_id
+        ?? metadata.productId
+        ?? metadata.itemCode
+        ?? null;
       const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
         ? String(rawItemId).trim()
         : null;
       if(!itemId){
-        console.warn('[Mishkah][POS] Dropping realtime order line - missing itemId', { id, orderId, rawItemId });
+        console.warn('[Mishkah][POS] Dropping realtime order line - missing itemId', {
+          id,
+          orderId,
+          rawItemId,
+          availableFields: Object.keys(row),
+          sampleRow: row
+        });
         return null;
       }
       normalized.itemId = itemId;
