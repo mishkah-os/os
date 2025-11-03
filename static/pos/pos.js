@@ -1,16 +1,81 @@
 
-  (async function(){
+(async function(){
     const M = Mishkah;
     const UI = M.UI;
     const U = M.utils;
     const D = M.DSL;
     const Schema = M.schema;
+    const MODULE_ENTRY = (typeof window !== 'undefined'
+      && window.__POS_MODULE_ENTRY__
+      && typeof window.__POS_MODULE_ENTRY__ === 'object')
+      ? window.__POS_MODULE_ENTRY__
+      : null;
     const { tw, token } = U.twcss;
     const BASE_PALETTE = U.twcss?.PALETTE || {};
 
     const JSONX = U.JSON || {};
     const hasStructuredClone = typeof structuredClone === 'function';
     const isPlainObject = value => value && typeof value === 'object' && !Array.isArray(value);
+    const normalizePinValue = (value)=>{
+      if(value == null) return '';
+      const text = String(value).trim();
+      if(!text) return '';
+      const digits = text.replace(/\D/g, '');
+      return digits.length ? digits : text;
+    };
+    const toBoolean = (value)=>{
+      if(value === true) return true;
+      if(value === false) return false;
+      if(typeof value === 'number') return value === 1;
+      if(typeof value === 'string'){
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true'
+          || normalized === '1'
+          || normalized === 'yes'
+          || normalized === 'y'
+          || normalized === 'on';
+      }
+      return false;
+    };
+    const normalizeEmployeeRecord = (source, index = 0)=>{
+      if(!source || typeof source !== 'object') return null;
+      const pinSource = source.pin_code || source.pin || source.pinCode;
+      const normalizedPin = normalizePinValue(pinSource);
+      if(!normalizedPin) return null;
+      const idRaw = source.id || source.employee_id || source.employeeId;
+      const nameRaw = source.full_name || source.fullName || source.name;
+      const roleRaw = source.role || source.position;
+      const discountRaw = source.allowed_discount_rate || source.allowedDiscountRate || 0;
+      const discountValue = Number.parseFloat(discountRaw);
+      const normalized = {
+        id: (idRaw != null ? String(idRaw).trim() : '') || `emp-${normalizedPin}-${index + 1}`,
+        name: (nameRaw != null ? String(nameRaw).trim() : '') || `موظف ${index + 1}`,
+        role: (roleRaw != null ? String(roleRaw).trim() : '') || 'staff',
+        pin: normalizedPin,
+        allowedDiscountRate: Number.isFinite(discountValue) ? discountValue : 0
+      };
+      if(toBoolean(source.is_fallback || source.isFallback || source.fallback)){
+        normalized.isFallback = true;
+      }
+      return normalized;
+    };
+    const normalizeEmployeesList = (list, options={})=>{
+      const dedupeByPin = options.dedupeByPin !== false;
+      const entries = Array.isArray(list) ? list : [];
+      const normalized = [];
+      const seenKeys = new Set();
+      entries.forEach((entry, index)=>{
+        const record = normalizeEmployeeRecord(entry, index);
+        if(!record) return;
+        const keys = [];
+        if(record.id) keys.push(`id:${String(record.id).toLowerCase()}`);
+        if(dedupeByPin && record.pin) keys.push(`pin:${record.pin}`);
+        if(keys.some(key=> seenKeys.has(key))) return;
+        keys.forEach(key=> seenKeys.add(key));
+        normalized.push(record);
+      });
+      return normalized;
+    };
     const cloneDeep = (value)=>{
       if(value == null) return value;
       if(JSONX && typeof JSONX.clone === 'function') return JSONX.clone(value);
@@ -152,6 +217,248 @@
       const raw = base || fallback || 'default';
       return raw.replace(/[^A-Za-z0-9:_-]+/g, '-').toLowerCase();
     };
+    const coerceArray = (value)=>{
+      if(Array.isArray(value)) return value;
+      if(!value || typeof value !== 'object') return [];
+      if(Array.isArray(value.rows)) return value.rows;
+      if(Array.isArray(value.items)) return value.items;
+      if(Array.isArray(value.list)) return value.list;
+      if(Array.isArray(value.data)) return value.data;
+      if(Array.isArray(value.values)) return value.values;
+      if(Array.isArray(value.records)) return value.records;
+      return [];
+    };
+    const TABLE_ALIAS_GROUPS = {
+      dataset:{ canonical:'pos_database', aliases:['pos_dataset','pos_data','dataset','pos_snapshot'] },
+      orderHeader:{
+        canonical:'order_header',
+        aliases:['orders','order_headers','orderHeader','order_header_live','pos_order_header','pos_orders']
+      },
+      orderLine:{
+        canonical:'order_line',
+        aliases:['order_lines','order_line_items','orderLineItems','orderDetails','order_items','orderLines']
+      },
+      orderPayment:{ canonical:'order_payment', aliases:['order_payments','payments','orderPayments','payment_transactions'] },
+      orderLineModifier:{
+        canonical:'order_line_modifier',
+        aliases:['order_line_modifiers','orderModifiers','order_line_addons','orderLines_modifier','orderLines_modifiers']
+      },
+      orderStatusLog:{ canonical:'order_status_log', aliases:['order_status_history','orderStatusHistory'] },
+      orderLineStatusLog:{
+        canonical:'order_line_status_log',
+        aliases:['order_line_status_history','line_status_history','orderLines_status_log','orderLines_status_history']
+      },
+      posShift:{ canonical:'pos_shift', aliases:['pos_shifts','shifts','shift_header','shiftHeaders'] },
+      jobOrderHeader:{
+        canonical:'job_order_header',
+        aliases:['job_orders','job_order_headers','production_orders','production_order_header','jobOrders']
+      },
+      jobOrderDetail:{ canonical:'job_order_detail', aliases:['job_order_details','jobOrderDetails','production_order_detail'] },
+      jobOrderDetailModifier:{ canonical:'job_order_detail_modifier', aliases:['job_order_modifiers','jobOrderModifiers'] },
+      jobOrderStatusHistory:{ canonical:'job_order_status_history', aliases:['job_order_status_log','jobStatusHistory'] },
+      expoPassTicket:{ canonical:'expo_pass_ticket', aliases:['expo_pass_tickets','expo_tickets','expoPassTickets'] },
+      kitchenSection:{ canonical:'kitchen_section', aliases:['kitchen_sections','kitchenStations'] },
+      diningTable:{ canonical:'dining_table', aliases:['tables','dining_tables','restaurant_tables'] },
+      tableLock:{ canonical:'table_lock', aliases:['table_locks','locks','tableLocks'] },
+      customerProfile:{ canonical:'customer_profile', aliases:['customer_profiles','customers','customerProfiles'] },
+      customerAddress:{ canonical:'customer_address', aliases:['customer_addresses','addresses','customerAddresses'] }
+    };
+    const canonicalizeTableName = (name)=>{
+      if(name == null) return null;
+      const text = String(name).trim();
+      if(!text) return null;
+      const lower = text.toLowerCase();
+      for(const descriptor of Object.values(TABLE_ALIAS_GROUPS)){
+        const candidates = [descriptor.canonical, ...(descriptor.aliases || [])];
+        if(candidates.some(candidate=> typeof candidate === 'string' && candidate.toLowerCase() === lower)){
+          return descriptor.canonical;
+        }
+      }
+      return text;
+    };
+    const collectTableNamesFromList = (list)=>{
+      const names = new Set();
+      const push = (value)=>{
+        if(!value) return;
+        const text = String(value).trim();
+        if(text) names.add(text);
+      };
+      const visitEntry = (entry)=>{
+        if(!entry) return;
+        if(typeof entry === 'string'){ push(entry); return; }
+        if(typeof entry === 'object'){
+          push(entry.name);
+          push(entry.table);
+          push(entry.tableName);
+          push(entry.sqlName);
+          if(Array.isArray(entry.aliases)) entry.aliases.forEach(push);
+          if(Array.isArray(entry.synonyms)) entry.synonyms.forEach(push);
+        }
+      };
+      (Array.isArray(list) ? list : []).forEach(visitEntry);
+      return names;
+    };
+    const collectSchemaTableNames = (schemaSource)=>{
+      const names = new Set();
+      if(!schemaSource || typeof schemaSource !== 'object') return names;
+      collectTableNamesFromList(schemaSource.tables).forEach(name=> names.add(name));
+      if(schemaSource.schema && typeof schemaSource.schema === 'object'){
+        collectTableNamesFromList(schemaSource.schema.tables).forEach(name=> names.add(name));
+        if(schemaSource.schema.schema && typeof schemaSource.schema.schema === 'object'){
+          collectTableNamesFromList(schemaSource.schema.schema.tables).forEach(name=> names.add(name));
+        }
+      }
+      return names;
+    };
+    const collectModuleTableNames = (entry)=>{
+      if(!entry || typeof entry !== 'object') return new Set();
+      const names = new Set();
+      collectTableNamesFromList(entry.tables).forEach(name=> names.add(name));
+      if(entry.schema && typeof entry.schema === 'object'){
+        collectTableNamesFromList(entry.schema.tables).forEach(name=> names.add(name));
+        if(entry.schema.schema && typeof entry.schema.schema === 'object'){
+          collectTableNamesFromList(entry.schema.schema.tables).forEach(name=> names.add(name));
+        }
+      }
+      return names;
+    };
+    const ensurePosTableAliases = (dbInstance, schemaSource, moduleEntry)=>{
+      const handles = {};
+      if(!dbInstance || typeof dbInstance !== 'object') return handles;
+      const register = typeof dbInstance.register === 'function' ? dbInstance.register.bind(dbInstance) : null;
+      const configObjects = dbInstance.config && typeof dbInstance.config === 'object'
+        ? (dbInstance.config.objects || {})
+        : {};
+      const knownNames = new Set(Object.keys(configObjects));
+      const schemaNames = collectSchemaTableNames(schemaSource || {});
+      const moduleNames = collectModuleTableNames(moduleEntry || {});
+      const allKnown = new Set([...schemaNames, ...moduleNames]);
+      const getOptions = (descriptor)=>{
+        const options = new Set();
+        options.add(descriptor.canonical);
+        (descriptor.aliases || []).forEach(alias=>{ if(alias) options.add(String(alias)); });
+        allKnown.forEach(name=>{
+          if(canonicalizeTableName(name) === descriptor.canonical) options.add(name);
+        });
+        return Array.from(options);
+      };
+      const findCaseInsensitive = (options)=>{
+        for(const option of options){
+          const lower = String(option).toLowerCase();
+          const match = Array.from(knownNames).find(candidate=> candidate.toLowerCase() === lower);
+          if(match) return match;
+        }
+        return null;
+      };
+      Object.values(TABLE_ALIAS_GROUPS).forEach(descriptor=>{
+        const options = getOptions(descriptor);
+        let matched = options.find(option=> knownNames.has(option)) || findCaseInsensitive(options);
+        if(matched && matched !== descriptor.canonical && register && !knownNames.has(descriptor.canonical)){
+          const sourceTable = configObjects[matched]?.table || matched;
+          try{
+            register(descriptor.canonical, { table: sourceTable });
+            knownNames.add(descriptor.canonical);
+            matched = descriptor.canonical;
+          } catch(_err){
+            // Ignore registration failure and keep using the discovered table name.
+          }
+        } else if(!matched && register){
+          const fallback = options.find(option=> option && option !== descriptor.canonical);
+          const sourceTable = fallback || descriptor.canonical;
+          try{
+            register(descriptor.canonical, { table: sourceTable });
+            knownNames.add(descriptor.canonical);
+            matched = descriptor.canonical;
+          } catch(_err){
+            matched = descriptor.canonical;
+          }
+        } else if(!matched){
+          matched = descriptor.canonical;
+        }
+        handles[descriptor.canonical] = matched;
+      });
+      return handles;
+    };
+    const EMPLOYEE_KEYS = ['employees','staff','pos_employees','pos_staff','employee_profiles','employee_profile','employeeProfile','employees_list','employeesList','cashiers'];
+    const resolveEmployeeList = (source)=>{
+      if(!source || typeof source !== 'object') return [];
+      for(const key of EMPLOYEE_KEYS){
+        const direct = source[key] || source.settings?.[key];
+        const arr = coerceArray(direct);
+        if(arr.length) return arr;
+      }
+      const seen = new WeakSet();
+      const queue = [];
+      if(source && typeof source === 'object'){ seen.add(source); queue.push({ value: source, depth:0 }); }
+      while(queue.length){
+        const { value, depth } = queue.shift();
+        if(depth > 3) continue;
+        if(Array.isArray(value)){
+          const entries = value.filter(item=> item && typeof item === 'object');
+          if(entries.length && entries.some(item=> ('pin' in item) || ('pin_code' in item) || ('pinCode' in item) || ('passcode' in item))){
+            return entries;
+          }
+          continue;
+        }
+        if(value && typeof value === 'object'){
+          const maybe = value.employees || value.staff || value.cashiers;
+          const arr = coerceArray(maybe);
+          if(arr.length && arr.some(item=> item && typeof item === 'object' && (item.pin != null || item.pin_code != null || item.pinCode != null || item.passcode != null))){
+            return arr;
+          }
+          Object.values(value).forEach(child=>{
+            if(child && typeof child === 'object' && !seen.has(child)){
+              seen.add(child);
+              queue.push({ value: child, depth: depth + 1 });
+            }
+          });
+        }
+      }
+      return [];
+    };
+    const SHIFT_SETTINGS_KEYS = ['shift_settings','shiftSettings','pos_shift_settings','shift_config','shiftConfig','pos_shift_config','shift'];
+    const resolveShiftSettings = (source)=>{
+      const inspect = (candidate)=>{
+        if(!candidate || typeof candidate !== 'object') return null;
+        const hasPin = candidate.pin != null || candidate.pin_code != null || candidate.pinCode != null || candidate.default_pin != null;
+        const hasOpening = candidate.opening_float != null || candidate.openingFloat != null;
+        const hasLength = candidate.pin_length != null || candidate.pinLength != null;
+        return (hasPin || hasOpening || hasLength) ? candidate : null;
+      };
+      if(!source || typeof source !== 'object') return {};
+      for(const key of SHIFT_SETTINGS_KEYS){
+        const direct = source[key] || source.settings?.[key];
+        const resolved = inspect(direct);
+        if(resolved) return resolved;
+      }
+      const seen = new WeakSet();
+      const queue = [];
+      seen.add(source);
+      queue.push({ value: source, depth:0 });
+      while(queue.length){
+        const { value, depth } = queue.shift();
+        if(depth > 3) continue;
+        if(value && typeof value === 'object' && !Array.isArray(value)){
+          const resolved = inspect(value);
+          if(resolved) return resolved;
+          Object.values(value).forEach(child=>{
+            if(child && typeof child === 'object' && !seen.has(child)){
+              seen.add(child);
+              queue.push({ value: child, depth: depth + 1 });
+            }
+          });
+        }
+      }
+      return {};
+    };
+    const firstFiniteNumber = (...values)=>{
+      for(const candidate of values){
+        if(candidate == null) continue;
+        const number = Number(candidate);
+        if(Number.isFinite(number)) return number;
+      }
+      return null;
+    };
     const DEFAULT_PAYMENT_METHODS_SOURCE = [
       { id:'cash', icon:'💵', name:{ ar:'نقدي', en:'Cash' }, type:'cash' },
       { id:'card', icon:'💳', name:{ ar:'بطاقة', en:'Card' }, type:'card' }
@@ -247,10 +554,30 @@
       ]
     });
     const SHIFT_SCHEMA_REGISTRY = new Schema.Registry({ tables:[SHIFT_TABLE] });
-    const POS_SCHEMA_SOURCE = (typeof window !== 'undefined' && window.MishkahPOSSchema)
-      ? window.MishkahPOSSchema
-      : SHIFT_SCHEMA_REGISTRY.toJSON();
-    const POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
+    let POS_SCHEMA_SOURCE = SHIFT_SCHEMA_REGISTRY.toJSON();
+    let POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
+    const REMOTE_DB = (typeof window !== 'undefined'
+      && window.__POS_DB__
+      && typeof window.__POS_DB__ === 'object')
+      ? window.__POS_DB__
+      : null;
+    let POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
+    
+    async function fetchPosSchemaFromBackend(){
+      const branchId = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || 'dar') : 'dar';
+      const url = '../api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
+      try{
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const body = await res.json().catch(()=>null);
+        const schemaJson = body?.schema || body?.data || body;
+        if(schemaJson && typeof schemaJson === 'object'){
+          POS_SCHEMA_SOURCE = schemaJson;
+          POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
+          POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
+          DATASET_PAYLOAD_KEY_CACHE.clear();
+        }
+      } catch(_err){}
+    }
     const FALLBACK_CURRENCY = 'EGP';
     const normalizeCurrencyCode = (value)=>{
       if(typeof value !== 'string') return null;
@@ -287,13 +614,13 @@
     const rawOrderTypes = Array.isArray(MOCK.order_types) && MOCK.order_types.length ? MOCK.order_types : [
       { id:'dine_in', type_name:{ ar:'صالة', en:'Dine-in' }, allows_save:true, allows_finalize_later:true, allows_line_additions:true, allows_returns:true, workflow:'multi-step' },
       { id:'delivery', type_name:{ ar:'دليفري', en:'Delivery' }, allows_save:false, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' },
-      { id:'takeaway', type_name:{ ar:'تيك أواي', en:'Takeaway' }, allows_save:false, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' }
+      { id:'takeaway', type_name:{ ar:'تيك أواي', en:'Takeaway' }, allows_save:true, allows_finalize_later:false, allows_line_additions:false, allows_returns:false, workflow:'single-step' }
     ];
     const ORDER_TYPES = rawOrderTypes.map(type=>({
       id: type.id,
       icon: ORDER_TYPE_ICON_MAP[type.id] || '🧾',
       workflow: type.workflow || 'single-step',
-      allowsSave: type.allows_save !== false,
+      allowsSave: type.id === 'takeaway' ? true : type.allows_save !== false,
       allowsFinalizeLater: !!type.allows_finalize_later,
       allowsLineAdditions: !!type.allows_line_additions,
       allowsReturns: !!type.allows_returns,
@@ -320,12 +647,16 @@
       { id:'october', ar:'٦ أكتوبر', en:'6th of October' }
     ];
 
-    const SHIFT_SETTINGS = typeof MOCK.shift_settings === 'object' && MOCK.shift_settings ? MOCK.shift_settings : {};
-    const SHIFT_PIN_FALLBACK = typeof SHIFT_SETTINGS.pin === 'string'
+    const SHIFT_SETTINGS = resolveShiftSettings(MOCK);
+    const SHIFT_PIN_FALLBACK_RAW = typeof SHIFT_SETTINGS.pin === 'string'
       ? SHIFT_SETTINGS.pin
       : (typeof SHIFT_SETTINGS.default_pin === 'string' ? SHIFT_SETTINGS.default_pin : '');
-    let SHIFT_PIN_LENGTH = Number(SHIFT_SETTINGS.pin_length || SHIFT_SETTINGS.pinLength || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0)) || 0;
-    if(!SHIFT_PIN_LENGTH || SHIFT_PIN_LENGTH < 4) SHIFT_PIN_LENGTH = 4;
+    const SHIFT_PIN_FALLBACK = normalizePinValue(SHIFT_PIN_FALLBACK_RAW);
+    let SHIFT_PIN_LENGTH = Number(SHIFT_SETTINGS.pin_length || SHIFT_SETTINGS.pinLength || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0)) || (SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0);
+    if(!SHIFT_PIN_LENGTH || SHIFT_PIN_LENGTH < 4){
+      const fallbackLength = SHIFT_PIN_FALLBACK ? SHIFT_PIN_FALLBACK.length : 0;
+      SHIFT_PIN_LENGTH = fallbackLength > 4 ? fallbackLength : 4;
+    }
     const SHIFT_OPEN_FLOAT_DEFAULT = Number(SHIFT_SETTINGS.opening_float ?? SHIFT_SETTINGS.openingFloat ?? 0);
 
     const TEXTS = {
@@ -430,6 +761,8 @@
           order_saved:'تم حفظ الطلب محليًا', order_finalized:'تم إنهاء الطلب', sync_complete:'تم تحديث المزامنة', payment_recorded:'تم تسجيل الدفعة',
           amount_required:'من فضلك أدخل قيمة صحيحة', payment_exceeds_limit:'المبلغ المدفوع أكبر من المسموح. الحد الأقصى: %max%', payment_deleted:'تم حذف الدفعة', payment_locked:'لا يمكن حذف الدفعة بعد إنهاء الطلب', indexeddb_missing:'IndexedDB غير متاحة في هذا المتصفح', order_conflict_refreshed:'تم تعديل هذا الطلب من جهاز آخر، تم تحديث النسخة الحالية.', order_conflict_blocked:'تم تحديث هذه الفاتورة من جهاز آخر. يرجى مراجعة التغييرات قبل الحفظ.',
           indexeddb_error:'تعذر حفظ البيانات محليًا', print_stub:'سيتم التكامل مع الطابعة لاحقًا',
+          line_missing_item:'لا يمكن حفظ السطر لأن الصنف غير معروف. يرجى حذف السطر وإعادة إضافته من القائمة.',
+          line_missing_kitchen:'يجب تحديد قسم المطبخ لكل صنف قبل الحفظ. يرجى تحديث الصنف ثم إعادة المحاولة.',
           discount_stub:'سيتم تفعيل الخصومات لاحقًا', notes_updated:'تم تحديث الملاحظات', add_note:'أدخل ملاحظة ترسل للمطبخ',
           set_qty:'أدخل الكمية الجديدة', line_actions:'سيتم فتح إجراءات السطر لاحقًا', line_modifiers_applied:'تم تحديث الإضافات والمنزوعات', confirm_clear:'هل تريد مسح الطلب الحالي؟',
           order_locked:'لا يمكن تعديل هذا الطلب بعد حفظه', line_locked:'لا يمكن تعديل هذا السطر بعد حفظه',
@@ -567,6 +900,8 @@
           order_saved:'Order stored locally', order_finalized:'Order finalized', sync_complete:'Sync completed', payment_recorded:'Payment recorded',
           amount_required:'Enter a valid amount', payment_exceeds_limit:'Payment exceeds allowed limit. Maximum: %max%', payment_deleted:'Payment deleted', payment_locked:'Cannot delete payment after order is finalized', indexeddb_missing:'IndexedDB is not available in this browser', order_conflict_refreshed:'This order was updated on another device. Your copy has been refreshed.', order_conflict_blocked:'This ticket has changed on another device. Please review the updates before saving.',
           indexeddb_error:'Failed to persist locally', print_stub:'Printer integration coming soon',
+          line_missing_item:'Cannot save a line without a linked menu item. Remove it and add the item again.',
+          line_missing_kitchen:'Each line must have a kitchen section before saving. Update the item configuration and retry.',
           discount_stub:'Discount workflow coming soon', notes_updated:'Notes updated', add_note:'Add a note for the kitchen',
           set_qty:'Enter the new quantity', line_actions:'Line actions coming soon', line_modifiers_applied:'Line modifiers updated', confirm_clear:'Clear the current order?',
           order_locked:'This order is locked after saving', line_locked:'This line can no longer be modified',
@@ -993,31 +1328,48 @@
     }
 
     function createOrderLine(item, qty, overrides){
-      if(!item || item.id == null){
+      if(!item || item.id == null || item.id === ''){
+        console.error('[POS] Cannot create order line without an item id', item);
         throw new Error('[POS] Cannot create order line without an item id');
       }
-      const quantity = qty || 1;
-      const price = Number(item.price) || 0;
-      const now = Date.now();
       const itemId = String(item.id);
+      if(!itemId || itemId === 'null' || itemId === 'undefined'){
+        console.error('[POS] Invalid item id', item);
+        throw new Error('[POS] Invalid item id');
+      }
+      const quantity = qty || 1;
+      const unitPrice = Number(item.basePrice ?? item.price ?? 0);
+      const now = Date.now();
       const uniqueId = overrides?.id || `ln-${itemId}-${now.toString(36)}-${Math.random().toString(16).slice(2,6)}`;
-      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection;
+      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSectionId ?? item.kitchenSection ?? item.kitchen_section ?? item.kitchen_section_id;
       const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+      if(!kitchenSection || kitchenSection === 'null' || kitchenSection === 'undefined'){
+        console.warn('[POS] Invalid kitchenSection, defaulting to expo', { item, kitchenSource });
+      }
+      const statusId = overrides?.statusId || overrides?.status || 'draft';
       const baseLine = {
         id: uniqueId,
         itemId,
+        item_id: itemId,
         name: item.name,
         description: item.description,
-        price,
-        basePrice: price,
+        quantity,
         qty: quantity,
-        total: round(price * quantity),
+        unitPrice,
+        unit_price: unitPrice,
+        price: unitPrice,
+        basePrice: unitPrice,
+        total: round(unitPrice * quantity),
         modifiers: overrides?.modifiers || [],
         notes: overrides?.notes || [],
         discount: normalizeDiscount(overrides?.discount),
-        status: overrides?.status || 'draft',
+        statusId,
+        status_id: statusId,
+        status: statusId,
         stage: overrides?.stage || 'new',
         kitchenSection,
+        kitchenSectionId: kitchenSection,
+        kitchen_section_id: kitchenSection,
         locked: overrides?.locked || false,
         createdAt: overrides?.createdAt || now,
         updatedAt: overrides?.updatedAt || now
@@ -1466,40 +1818,97 @@
         const metadata = ensurePlainObject(record.metadata || record.meta);
         const rawItemId = record.itemId
           ?? record.item_id
+          ?? record.menuItemId
+          ?? record.menu_item_id
+          ?? record.productId
+          ?? record.product_id
           ?? metadata.itemId
           ?? metadata.item_id
           ?? metadata.menuItemId
+          ?? metadata.menu_item_id
           ?? metadata.productId
+          ?? metadata.product_id
           ?? metadata.itemCode;
-        if(rawItemId == null){
-          console.warn('[Mishkah][POS] Ignoring persisted order line without item id', record);
+
+        const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
+          ? String(rawItemId).trim()
+          : null;
+        const menuItem = itemId ? menuIndex?.get(itemId) : null;
+
+        const rawName = record.name
+          ?? record.item_name
+          ?? record.itemName
+          ?? record.item_label
+          ?? record.label
+          ?? metadata.name
+          ?? metadata.itemName
+          ?? metadata.item_name
+          ?? metadata.item_label
+          ?? metadata.label
+          ?? null;
+        const rawDescription = record.description
+          ?? record.item_description
+          ?? record.itemDescription
+          ?? record.lineDescription
+          ?? record.line_description
+          ?? metadata.description
+          ?? metadata.itemDescription
+          ?? metadata.item_description
+          ?? metadata.lineDescription
+          ?? metadata.line_description
+          ?? null;
+
+        if(itemId == null && rawName == null){
+          console.warn('[Mishkah][POS] Ignoring persisted order line without item id and name', record);
           return null;
         }
-        const itemId = String(rawItemId);
-        const menuItem = menuIndex?.get(itemId);
-        const qty = Math.max(1, Number(record.qty) || 1);
-        const basePrice = Number(record.basePrice != null ? record.basePrice : record.price != null ? record.price : menuItem?.price || 0);
+
+        const quantity = record.quantity != null ? Number(record.quantity) : (record.qty != null ? Number(record.qty) : 1);
+        const unitPrice = Number(record.unitPrice != null ? record.unitPrice
+          : record.unit_price != null ? record.unit_price
+          : record.price != null ? record.price
+          : record.basePrice != null ? record.basePrice
+          : menuItem?.price || menuItem?.basePrice || 0);
         const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
         const kitchenSource = record.kitchenSection
           ?? record.kitchenSectionId
           ?? record.kitchen_section_id
+          ?? record.stationId
+          ?? record.station_id
+          ?? record.sectionId
+          ?? record.section_id
           ?? metadata.kitchenSectionId
           ?? metadata.sectionId
+          ?? metadata.section_id
           ?? metadata.stationId
+          ?? metadata.station_id
           ?? menuItem?.kitchenSection;
         const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+
+        const resolvedName = menuItem ? menuItem.name : cloneName(rawName) || (itemId ? `صنف ${itemId}` : 'صنف غير معروف');
+        const resolvedDescription = menuItem ? menuItem.description : cloneName(rawDescription);
+        const statusId = record.statusId || record.status_id || record.status || 'draft';
+
         const baseLine = {
           id: record.id,
-          itemId,
-          name: menuItem ? menuItem.name : cloneName(record.name),
-          description: menuItem ? menuItem.description : cloneName(record.description),
-          qty,
-          price: round(basePrice),
-          basePrice: round(basePrice),
+          itemId: itemId || null,
+          item_id: itemId || null,
+          name: resolvedName,
+          description: resolvedDescription,
+          quantity,
+          qty: quantity,
+          unitPrice: round(unitPrice),
+          unit_price: round(unitPrice),
+          price: round(unitPrice),
+          basePrice: round(unitPrice),
           modifiers,
-          status: record.status,
+          statusId,
+          status_id: statusId,
+          status: statusId,
           stage: record.stage,
           kitchenSection,
+          kitchenSectionId: kitchenSection,
+          kitchen_section_id: kitchenSection,
           locked: !!record.locked,
           notes: Array.isArray(record.notes) ? record.notes : [],
           discount: normalizeDiscount(record.discount),
@@ -1536,6 +1945,129 @@
         };
       }
 
+      function normalizePersistedOrder(raw){
+        if(!raw || typeof raw !== 'object') return null;
+        const metadata = { ...ensurePlainObject(raw.metadata || raw.meta) };
+        const base = {
+          ...raw,
+          metadata,
+          totals: { ...ensurePlainObject(raw.totals) },
+          discount: normalizeDiscount(raw.discount),
+          type: raw.type || raw.orderType || raw.order_type || 'dine_in',
+          status: raw.status || raw.statusId || raw.status_id || 'open',
+          fulfillmentStage: raw.fulfillmentStage || raw.stage || raw.stageId || raw.stage_id || 'new',
+          paymentState:
+            raw.paymentState || raw.payment_state || raw.paymentStateId || raw.payment_state_id || 'unpaid',
+          shiftId: raw.shiftId || raw.shift_id || metadata.shiftId || metadata.shift_id || null
+        };
+        base.createdAt = toTimestamp(raw.createdAt || raw.created_at || raw.openedAt || raw.opened_at || base.createdAt);
+        base.updatedAt = toTimestamp(raw.updatedAt || raw.updated_at || base.updatedAt || base.createdAt);
+        base.savedAt = toTimestamp(raw.savedAt || raw.saved_at || base.savedAt || base.updatedAt);
+        base.stage = base.fulfillmentStage;
+        base.stageId = base.fulfillmentStage;
+        base.statusId = base.status;
+        base.payment_state = base.paymentState;
+        base.paymentStateId = base.paymentState;
+        base.tableIds = Array.isArray(base.tableIds) ? base.tableIds.slice() : [];
+        base.guests = Number.isFinite(Number(base.guests)) ? Number(base.guests) : 0;
+        base.allowAdditions = base.allowAdditions !== undefined ? !!base.allowAdditions : true;
+        base.lockLineEdits = base.lockLineEdits !== undefined ? !!base.lockLineEdits : true;
+        if(base.posNumber == null && metadata.posNumber != null){
+          base.posNumber = metadata.posNumber;
+        }
+        const linesSource = Array.isArray(raw.lines) ? raw.lines : [];
+        base.lines = linesSource
+          .map(line=>{
+            if(!line) return null;
+            const payload = { ...line, metadata: ensurePlainObject(line.metadata || line.meta) };
+            return hydrateLine(payload);
+          })
+          .filter(Boolean);
+        const notes = Array.isArray(raw.notes)
+          ? raw.notes
+              .map(note=>{
+                if(!note) return null;
+                const message =
+                  typeof note === 'string'
+                    ? note.trim()
+                    : typeof note.message === 'string'
+                    ? note.message.trim()
+                    : typeof note.text === 'string'
+                    ? note.text.trim()
+                    : '';
+                if(!message) return null;
+                const createdAt =
+                  note.createdAt || note.created_at || note.at || note.timestamp || base.updatedAt || Date.now();
+                return {
+                  id:
+                    note.id ||
+                    note.noteId ||
+                    note.note_id ||
+                    `${base.id || 'order'}::note::${String(createdAt)}`,
+                  message,
+                  authorId: note.authorId || note.author_id || note.userId || note.user_id || null,
+                  authorName: note.authorName || note.author_name || note.userName || '',
+                  createdAt
+                };
+              })
+              .filter(Boolean)
+          : [];
+        base.notes = notes;
+        const payments = Array.isArray(raw.payments)
+          ? raw.payments.map(entry=>({
+              ...entry,
+              id:
+                entry.id ||
+                entry.paymentId ||
+                entry.payment_id ||
+                `${base.id || 'order'}::pm::${Math.random().toString(36).slice(2, 10)}`,
+              method: entry.method || entry.methodId || entry.method_id || entry.type || 'cash',
+              amount: round(Number(entry.amount) || 0)
+            }))
+          : [];
+        base.payments = payments;
+        const mapEvent = (entry)=>{
+          if(!entry) return null;
+          const at = toTimestamp(entry.changedAt || entry.changed_at || entry.at || entry.timestamp || base.updatedAt);
+          const stage = entry.stage || entry.stageId || entry.stage_id || base.fulfillmentStage;
+          const status = entry.status || entry.statusId || entry.status_id || base.status;
+          const paymentState =
+            entry.paymentState || entry.payment_state || entry.paymentStateId || entry.payment_state_id || null;
+          return {
+            id: entry.id || `${base.id || 'order'}::evt::${String(at)}`,
+            stage,
+            stageId: stage,
+            status,
+            statusId: status,
+            at,
+            changedAt: at,
+            actorId: entry.actorId || entry.actor_id || entry.userId || entry.user_id || entry.changedBy || null,
+            paymentState,
+            paymentStateId: paymentState,
+            metadata: ensurePlainObject(entry.metadata || entry.meta)
+          };
+        };
+        const eventsPrimary = Array.isArray(raw.statusLogs) ? raw.statusLogs : [];
+        const eventsSecondary = Array.isArray(raw.events) ? raw.events : [];
+        const seenEvents = new Set();
+        const normalizedEvents = [];
+        [...eventsPrimary, ...eventsSecondary].forEach(entry=>{
+          const mapped = mapEvent(entry);
+          if(!mapped) return;
+          if(mapped.id && seenEvents.has(mapped.id)) return;
+          if(mapped.id) seenEvents.add(mapped.id);
+          normalizedEvents.push(mapped);
+        });
+        normalizedEvents.sort((a, b)=> (a.at || 0) - (b.at || 0));
+        base.events = normalizedEvents.map(event=> ({ ...event }));
+        base.statusLogs = normalizedEvents.map(event=> ({ ...event }));
+        metadata.linesCount = base.lines.length;
+        metadata.notesCount = base.notes.length;
+        base.isPersisted = true;
+        base.dirty = false;
+        return syncOrderVersionMetadata(base);
+      }
+
       async function saveOrder(order){
         if(!BRANCH_ID) throw new Error('Branch id is required');
         if(!order || !order.shiftId){
@@ -1551,7 +2083,7 @@
           outgoing.version = currentVersion;
         }
         const payload = await postJson(endpoint, { order: outgoing });
-        return payload?.order || order;
+        return payload?.order ? normalizePersistedOrder(payload.order) : order;
       }
       function sanitizeTempOrder(order){
         if(!order || !order.id) return null;
@@ -1637,14 +2169,71 @@
       async function deleteTempOrder(){
         return false;
       }
-      async function listOrders(){
-        return [];
+      async function listOrders(options={}){
+        if(!BRANCH_ID) return [];
+        const params = new URLSearchParams();
+        const includeTokens = new Set();
+        const onlyActive = options.onlyActive !== false;
+        if(!onlyActive){
+          params.set('onlyActive', 'false');
+        }
+        if(Number.isFinite(options.limit) && options.limit > 0){
+          params.set('limit', String(Math.trunc(options.limit)));
+        }
+        const ensureListInput = (value)=>{
+          if(value == null) return [];
+          return Array.isArray(value) ? value : [value];
+        };
+        const pushListParam = (key, values)=>{
+          ensureListInput(values).forEach(value=>{
+            if(value == null) return;
+            const text = String(value).trim();
+            if(text){
+              params.append(key, text);
+            }
+          });
+        };
+        pushListParam('status', ensureListInput(options.statuses ?? options.status));
+        pushListParam('stage', ensureListInput(options.stages ?? options.stage));
+        pushListParam('type', ensureListInput(options.types ?? options.type));
+        pushListParam('shiftId', ensureListInput(options.shiftIds ?? options.shiftId));
+        if(options.updatedAfter != null){
+          params.set('updatedAfter', String(options.updatedAfter));
+        }
+        if(options.savedAfter != null){
+          params.set('savedAfter', String(options.savedAfter));
+        }
+        const includeList = Array.isArray(options.include) ? options.include : [];
+        includeList.forEach(entry=>{
+          if(entry == null) return;
+          const text = String(entry).trim().toLowerCase();
+          if(text) includeTokens.add(text);
+        });
+        const includeLines = options.includeLines !== false;
+        const includePayments = options.includePayments !== false;
+        const includeStatusLogs = options.includeStatusLogs === true || includeTokens.has('statuslogs');
+        const includeLineStatusLogs = options.includeLineStatus === true || options.includeLineStatusLogs === true;
+        if(includeLines) includeTokens.add('lines');
+        if(includePayments) includeTokens.add('payments');
+        if(includeStatusLogs) includeTokens.add('statuslogs');
+        if(includeLineStatusLogs){
+          includeTokens.add('linestatuslogs');
+          includeTokens.add('lines');
+        }
+        if(includeTokens.size){
+          params.set('include', Array.from(includeTokens.values()).join(','));
+        }
+        const query = params.toString();
+        const endpoint = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders${query ? `?${query}` : ''}`;
+        const payload = await getJson(endpoint);
+        const list = Array.isArray(payload?.orders) ? payload.orders : [];
+        return list.map(normalizePersistedOrder).filter(Boolean);
       }
       async function getOrder(orderId){
         if(!BRANCH_ID || !orderId) return null;
         const url = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders/${encodeURIComponent(orderId)}`;
         const payload = await getJson(url);
-        return payload?.order || null;
+        return payload?.order ? normalizePersistedOrder(payload.order) : null;
       }
       async function markSync(){
         await ensureReady();
@@ -2243,7 +2832,8 @@
       payments:new Map(),
       snapshot:{ orders:[], active:[], history:[] },
       unsubscribes:[],
-      debugLogged:{ headers:false, lines:false, payments:false }
+      debugLogged:{ headers:false, lines:false, payments:false, dataset:false },
+      datasetPrimed:{ headers:false, lines:false, payments:false }
     };
 
     const realtimeJobOrders = {
@@ -2347,7 +2937,7 @@
       if(!row) return null;
       const orderId = row.orderId ?? row.order_id;
       if(orderId == null) return null;
-      const id = row.id ?? row.line_id ?? row.order_line_id ?? `${orderId}-${row.item_id ?? Math.random().toString(16).slice(2,8)}`;
+      const id = row.id ?? row.line_id ?? row.orderLines_id ?? `${orderId}-${row.item_id ?? Math.random().toString(16).slice(2,8)}`;
       const normalized = { ...row };
       normalized.id = String(id);
       normalized.orderId = orderId != null ? String(orderId) : undefined;
@@ -2356,20 +2946,33 @@
       }
       const metadata = ensurePlainObject(normalized.metadata);
       const rawItemId = row.itemId ?? row.item_id ?? metadata.itemId ?? metadata.item_id ?? metadata.menuItemId ?? metadata.productId ?? metadata.itemCode ?? null;
-      if(rawItemId == null){
-        console.warn('[Mishkah][POS] Dropping realtime order line without item id', row);
+      const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
+        ? String(rawItemId).trim()
+        : null;
+      if(!itemId){
+        console.warn('[Mishkah][POS] Dropping realtime order line - missing itemId', { id, orderId, rawItemId });
         return null;
       }
-      const itemId = String(rawItemId);
       normalized.itemId = itemId;
       normalized.item_id = itemId;
+      if(!normalized.metadata) normalized.metadata = {};
+      normalized.metadata.itemId = itemId;
+      normalized.metadata.item_id = itemId;
+      const quantity = row.quantity != null ? Number(row.quantity) : (row.qty != null ? Number(row.qty) : 1);
+      const unitPrice = row.unitPrice != null ? Number(row.unitPrice) : (row.unit_price != null ? Number(row.unit_price) : (row.price != null ? Number(row.price) : 0));
+      const total = row.total != null ? Number(row.total) : round(quantity * unitPrice);
+      const statusId = row.statusId ?? row.status_id ?? row.status ?? '';
+      normalized.quantity = quantity;
+      normalized.unitPrice = unitPrice;
+      normalized.unit_price = unitPrice;
+      normalized.total = total;
+      normalized.statusId = statusId;
+      normalized.status_id = statusId;
       const sectionSource = row.kitchenSection ?? row.kitchen_section ?? row.kitchenSectionId ?? row.kitchen_section_id ?? metadata.kitchenSectionId ?? metadata.sectionId ?? metadata.stationId;
       const kitchenSection = sectionSource != null && sectionSource !== '' ? String(sectionSource) : 'expo';
       normalized.kitchenSectionId = kitchenSection;
       normalized.kitchen_section_id = kitchenSection;
-      if(normalized.status == null && (row.statusId != null || row.status_id != null)){
-        normalized.status = row.statusId ?? row.status_id;
-      }
+      normalized.metadata.kitchenSectionId = kitchenSection;
       return normalized;
     }
 
@@ -2507,21 +3110,96 @@
         : (typeof normalizedNotesSource === 'string' && normalizedNotesSource.trim()
           ? [{ id:`note-${Math.random().toString(16).slice(2,8)}`, message: normalizedNotesSource.trim(), createdAt: updatedAt }]
           : []);
-      const discountValue = Number(
-        raw.discount ?? raw.discountAmount ?? raw.discount_amount ?? metadata.discountAmount ?? metadata.discount ?? metadata.discount_amount ?? 0
+      const discountValue = firstFiniteNumber(
+        raw.discount,
+        raw.discountAmount,
+        raw.discount_amount,
+        raw.order_discount,
+        metadata.discountAmount,
+        metadata.discount_amount,
+        metadata.discount
       ) || 0;
       const discount = discountValue > 0 ? { type:'amount', value: round(discountValue) } : null;
+      const subtotalValue = firstFiniteNumber(
+        raw.subtotal,
+        raw.sub_total,
+        raw.total_before_tax,
+        raw.total_before_vat,
+        metadata.subtotal,
+        metadata.sub_total,
+        metadata.total_before_tax,
+        metadata.total_before_vat
+      ) || 0;
+      const serviceValue = firstFiniteNumber(
+        raw.service,
+        raw.serviceFee,
+        raw.service_amount,
+        raw.service_charge,
+        raw.serviceCharge,
+        metadata.service,
+        metadata.serviceFee,
+        metadata.service_amount,
+        metadata.service_charge
+      ) || 0;
+      const vatValue = firstFiniteNumber(
+        raw.tax,
+        raw.vat,
+        raw.tax_amount,
+        raw.tax_total,
+        raw.total_tax,
+        metadata.tax,
+        metadata.vat,
+        metadata.tax_amount,
+        metadata.tax_total
+      ) || 0;
+      const deliveryValue = firstFiniteNumber(
+        raw.deliveryFee,
+        raw.delivery_fee,
+        raw.delivery,
+        raw.delivery_amount,
+        raw.delivery_total,
+        metadata.deliveryFee,
+        metadata.delivery_fee,
+        metadata.delivery,
+        metadata.delivery_amount
+      ) || 0;
+      const dueValue = firstFiniteNumber(
+        raw.totalDue,
+        raw.total_due,
+        raw.total_amount,
+        raw.total,
+        raw.grand_total,
+        raw.total_due_amount,
+        raw.amount_due,
+        raw.due_total,
+        raw.net_total,
+        metadata.due,
+        metadata.totalDue,
+        metadata.total_due,
+        metadata.total,
+        metadata.grand_total,
+        metadata.amount_due,
+        metadata.net_total
+      ) || 0;
+      const paidAmount = firstFiniteNumber(
+        raw.totalPaid,
+        raw.total_paid,
+        raw.amount_paid,
+        raw.total_payment,
+        raw.paid_total,
+        metadata.totalPaid,
+        metadata.total_paid,
+        metadata.amount_paid,
+        metadata.paid_total
+      );
       const totals = {
-        subtotal: round(raw.subtotal ?? raw.sub_total ?? metadata.subtotal ?? metadata.sub_total ?? 0),
-        service: round(raw.service ?? raw.serviceFee ?? raw.service_amount ?? metadata.service ?? metadata.serviceFee ?? metadata.service_amount ?? 0),
-        vat: round(raw.tax ?? raw.vat ?? raw.tax_amount ?? metadata.tax ?? metadata.vat ?? metadata.tax_amount ?? 0),
+        subtotal: round(subtotalValue),
+        service: round(serviceValue),
+        vat: round(vatValue),
         discount: round(discountValue > 0 ? discountValue : 0),
-        deliveryFee: round(raw.deliveryFee ?? raw.delivery_fee ?? metadata.deliveryFee ?? metadata.delivery_fee ?? 0),
-        due: round(
-          raw.totalDue ?? raw.total_due ?? raw.total_amount ?? raw.total ?? metadata.due ?? metadata.totalDue ?? metadata.total_due ?? 0
-        )
+        deliveryFee: round(deliveryValue),
+        due: round(dueValue)
       };
-      const paidAmount = Number(raw.totalPaid ?? raw.total_paid ?? metadata.totalPaid ?? metadata.total_paid ?? 0);
       if(Number.isFinite(paidAmount) && paidAmount > 0){
         totals.paid = round(paidAmount);
       }
@@ -2619,6 +3297,74 @@
       };
     }
 
+    function computeRealtimeLineTotal(line){
+      if(!line || typeof line !== 'object') return 0;
+      const quantity = Number(line.qty ?? line.quantity ?? line.count ?? 0) || 0;
+      const unitPrice = Number(line.price ?? line.unitPrice ?? line.unit_price ?? 0) || 0;
+      const totalValue = Number(line.total ?? line.lineTotal ?? line.line_total ?? 0);
+      if(Number.isFinite(totalValue) && totalValue !== 0){
+        return round(totalValue);
+      }
+      if(quantity && unitPrice){
+        return round(quantity * unitPrice);
+      }
+      return 0;
+    }
+
+    function computeRealtimePaymentAmount(payment){
+      if(!payment || typeof payment !== 'object') return 0;
+      const amount = Number(payment.amount ?? payment.total ?? payment.value ?? payment.paidAmount ?? payment.amount_paid ?? 0);
+      return Number.isFinite(amount) ? round(amount) : 0;
+    }
+
+    function deriveRealtimeOrderFinancials(header, lines=[], payments=[]){
+      const safeLines = Array.isArray(lines) ? lines : [];
+      const safePayments = Array.isArray(payments) ? payments : [];
+      const lineTotal = round(safeLines.reduce((sum, line)=> sum + computeRealtimeLineTotal(line), 0));
+      const paymentsTotal = round(safePayments.reduce((sum, payment)=> sum + computeRealtimePaymentAmount(payment), 0));
+      const baseTotals = ensurePlainObject(header.totals);
+      let subtotal = firstFiniteNumber(
+        baseTotals.subtotal,
+        header.subtotal,
+        header.totalBeforeTax,
+        header.total_before_tax,
+        header.totals?.subtotal,
+        header.metadata?.subtotal,
+        lineTotal
+      );
+      if(!Number.isFinite(subtotal) || subtotal <= 0) subtotal = lineTotal;
+      let due = firstFiniteNumber(
+        baseTotals.due,
+        header.totalDue,
+        header.total_due,
+        header.total,
+        header.total_amount,
+        header.totals?.due,
+        header.metadata?.totalDue,
+        header.metadata?.total_due,
+        subtotal
+      );
+      if(!Number.isFinite(due) || due <= 0) due = subtotal;
+      let paid = firstFiniteNumber(
+        baseTotals.paid,
+        header.totalPaid,
+        header.total_paid,
+        header.amount_paid,
+        header.totals?.paid,
+        header.metadata?.totalPaid,
+        header.metadata?.total_paid,
+        paymentsTotal
+      );
+      if(!Number.isFinite(paid) || paid < paymentsTotal) paid = paymentsTotal;
+      return {
+        subtotal: round(subtotal),
+        due: round(due),
+        paid: round(paid),
+        lineTotal,
+        paymentsTotal
+      };
+    }
+
     function composeRealtimeOrder(orderId){
       const rawHeader = realtimeOrders.headers.get(orderId);
       if(!rawHeader) return null;
@@ -2628,31 +3374,45 @@
       const paymentRows = realtimeOrders.payments.get(orderId) || [];
       const lines = lineRows.map(row=> normalizeRealtimeOrderLine(row, header)).filter(Boolean);
       const payments = paymentRows.map(normalizeRealtimePayment).filter(Boolean);
-      const paidTotal = round(payments.reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
+      const financials = deriveRealtimeOrderFinancials(header, lines, payments);
       const totals = {
         ...header.totals,
-        paid: paidTotal,
-        remaining: Math.max(0, round((header.totals?.due || 0) - paidTotal))
+        subtotal: financials.subtotal,
+        due: financials.due,
+        total: financials.due,
+        paid: financials.paid,
+        remaining: Math.max(0, round(financials.due - financials.paid)),
+        lines: lines.length,
+        payments: financials.paymentsTotal,
+        lineTotal: financials.lineTotal
       };
       let paymentState = header.paymentState || 'unpaid';
       if(totals.due > 0){
-        if(paidTotal >= totals.due){
+        if(totals.paid >= totals.due){
           paymentState = 'paid';
-        } else if(paidTotal > 0){
+        } else if(totals.paid > 0){
           paymentState = 'partial';
         } else {
           paymentState = 'unpaid';
         }
       }
-      return {
+      const composedOrder = {
         ...header,
         totals,
+        subtotal: totals.subtotal,
+        totalDue: totals.due,
+        total_due: totals.due,
+        totalPaid: totals.paid,
+        total_paid: totals.paid,
+        paymentsTotal: financials.paymentsTotal,
         paymentState,
         payments,
         lines,
         dirty:false,
         isPersisted: header.isPersisted !== false
       };
+      const enriched = enrichOrderWithMenu(composedOrder);
+      return enriched;
     }
 
     function cloneOrderSnapshot(order){
@@ -2736,47 +3496,561 @@
       }
     }
 
+    const DATASET_PAYLOAD_KEY_CACHE = new Map();
+
+    const registerDatasetKeyVariant = (bucket, name)=>{
+      if(typeof name !== 'string') return;
+      const trimmed = name.trim();
+      if(!trimmed) return;
+      bucket.add(trimmed);
+      bucket.add(trimmed.toLowerCase());
+      const snakeToCamel = trimmed.replace(/[-_\s]+([A-Za-z0-9])/g, (_match, chr)=> chr ? chr.toUpperCase() : '');
+      if(snakeToCamel){
+        const lowerCamel = snakeToCamel.charAt(0).toLowerCase() + snakeToCamel.slice(1);
+        bucket.add(lowerCamel);
+        bucket.add(lowerCamel.charAt(0).toUpperCase() + lowerCamel.slice(1));
+      }
+    };
+
+    const getDatasetPayloadKeysFor = (canonical)=>{
+      const normalized = canonicalizeTableName(canonical);
+      if(!normalized) return [];
+      if(DATASET_PAYLOAD_KEY_CACHE.has(normalized)){
+        return DATASET_PAYLOAD_KEY_CACHE.get(normalized);
+      }
+      const variants = new Set();
+      registerDatasetKeyVariant(variants, normalized);
+      const descriptor = Object.values(TABLE_ALIAS_GROUPS).find(entry=> entry.canonical === normalized) || null;
+      if(descriptor){
+        (descriptor.aliases || []).forEach(alias=> registerDatasetKeyVariant(variants, alias));
+      }
+      if(POS_TABLE_HANDLES && POS_TABLE_HANDLES[normalized]){
+        registerDatasetKeyVariant(variants, POS_TABLE_HANDLES[normalized]);
+      }
+      const keys = Array.from(variants).filter(Boolean);
+      DATASET_PAYLOAD_KEY_CACHE.set(normalized, keys);
+      return keys;
+    };
+
+    const readDatasetArray = (value)=>{
+      if(Array.isArray(value)) return value;
+      if(typeof value === 'string'){
+        const parsed = parseMaybeJSONish(value);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+      return coerceArray(value);
+    };
+
     function installRealtimeOrderWatchers(){
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
       const store = realtimeOrders.store;
-      const unsubHeaders = store.watch('order_header', (rows)=>{
+      const datasetTableName = POS_TABLE_HANDLES.dataset || 'pos_database';
+      const datasetPrimed = realtimeOrders.datasetPrimed || { headers:false, lines:false, payments:false };
+      realtimeOrders.datasetPrimed = datasetPrimed;
+      const gatherDatasetSources = (root)=>{
+        const visited = new WeakSet();
+        const queue = [];
+        const sources = [];
+        const enqueue = (value)=>{
+          if(!value || typeof value !== 'object') return;
+          if(visited.has(value)) return;
+          visited.add(value);
+          queue.push(value);
+        };
+        enqueue(root);
+        while(queue.length){
+          const current = queue.shift();
+          if(!current) continue;
+          sources.push(current);
+          if(Array.isArray(current)) continue;
+          enqueue(current.payload);
+          enqueue(current.data);
+          enqueue(current.dataset);
+          enqueue(current.snapshot);
+          enqueue(current.result);
+          enqueue(current.value);
+          enqueue(current.content);
+          enqueue(current.tables);
+          enqueue(current.stores);
+        }
+        return sources;
+      };
+      const extractDatasetEntries = (record, canonical)=>{
+        const result = { rows:[], found:false };
+        if(!record) return result;
+        const names = getDatasetPayloadKeysFor(canonical);
+        const sources = gatherDatasetSources(record);
+        for(const source of sources){
+          if(!source || typeof source !== 'object') continue;
+          for(const name of names){
+            if(Object.prototype.hasOwnProperty.call(source, name)){
+              result.found = true;
+            }
+            const value = source[name];
+            const list = readDatasetArray(value);
+            if(list.length){
+              return { rows:list, found:true };
+            }
+            if(value !== undefined && value !== null){
+              result.found = true;
+            }
+          }
+        }
+        return result;
+      };
+      const groupRealtimeOrderChildren = (rows, normalize)=>{
+        const grouped = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(row=>{
+          const normalized = typeof normalize === 'function' ? normalize(row) : row;
+          if(!normalized || !normalized.orderId) return;
+          const orderId = String(normalized.orderId);
+          if(!grouped.has(orderId)) grouped.set(orderId, []);
+          grouped.get(orderId).push(normalized);
+        });
+        return grouped;
+      };
+      const normalizeRealtimeEntityId = (value)=>{
+        if(value == null) return null;
+        const text = String(value).trim();
+        return text ? text : null;
+      };
+      const interpretDeletionToken = (value)=>{
+        if(value == null) return false;
+        if(typeof value === 'boolean') return value;
+        if(typeof value === 'number') return value !== 0;
+        if(typeof value === 'string'){
+          const normalized = value.trim().toLowerCase();
+          if(!normalized) return false;
+          return [
+            '1',
+            'true',
+            'yes',
+            'y',
+            'delete',
+            'deleted',
+            'remove',
+            'removed',
+            'void',
+            'voided',
+            'archive',
+            'archived',
+            'purge',
+            'purged'
+          ].includes(normalized);
+        }
+        return false;
+      };
+      const objectIndicatesDeletion = (candidate, visited=new WeakSet())=>{
+        if(!candidate || typeof candidate !== 'object') return false;
+        if(visited.has(candidate)) return false;
+        visited.add(candidate);
+        const directFlags = [
+          candidate.__deleted,
+          candidate._deleted,
+          candidate.deleted,
+          candidate.deletedFlag,
+          candidate.deleted_flag,
+          candidate.isDeleted,
+          candidate.is_deleted,
+          candidate.removed,
+          candidate.removedFlag,
+          candidate.removed_flag,
+          candidate.isRemoved,
+          candidate.is_removed,
+          candidate.voided,
+          candidate.void,
+          candidate.isVoided,
+          candidate.is_voided,
+          candidate.archived,
+          candidate.archivedFlag,
+          candidate.archived_flag,
+          candidate.isArchived,
+          candidate.is_archived,
+          candidate.purged,
+          candidate.isPurged,
+          candidate.is_purged
+        ];
+        if(directFlags.some(interpretDeletionToken)) return true;
+        const actionCandidates = [
+          candidate.__op,
+          candidate.__operation,
+          candidate.operation,
+          candidate.action,
+          candidate.event,
+          candidate.eventType,
+          candidate.event_type,
+          candidate.changeType,
+          candidate.change_type,
+          candidate.op,
+          candidate.type
+        ];
+        if(actionCandidates.some(value=> typeof value === 'string' && value.toLowerCase().includes('delete'))) return true;
+        const statusCandidates = [candidate.status, candidate.state, candidate.lifecycle, candidate.stage];
+        if(statusCandidates.some(value=> typeof value === 'string' && ['deleted', 'voided', 'void', 'removed', 'archived', 'purged'].includes(value.toLowerCase()))){
+          return true;
+        }
+        const timestampCandidates = [
+          candidate.deletedAt,
+          candidate.deleted_at,
+          candidate.removedAt,
+          candidate.removed_at,
+          candidate.archivedAt,
+          candidate.archived_at,
+          candidate.voidedAt,
+          candidate.voided_at,
+          candidate.purgedAt,
+          candidate.purged_at
+        ];
+        if(timestampCandidates.some(value=> value != null && String(value).trim() !== '')) return true;
+        const metaCandidates = [];
+        const meta = ensurePlainObject(candidate.meta);
+        if(meta && Object.keys(meta).length) metaCandidates.push(meta);
+        const metadata = ensurePlainObject(candidate.metadata);
+        if(metadata && Object.keys(metadata).length) metaCandidates.push(metadata);
+        if(Array.isArray(candidate.flags)) metaCandidates.push(...candidate.flags);
+        return metaCandidates.some(entry=>{
+          if(entry && typeof entry === 'object' && !Array.isArray(entry)){
+            return objectIndicatesDeletion(entry, visited);
+          }
+          if(Array.isArray(entry)){
+            return entry.some(item=> objectIndicatesDeletion(item, visited) || interpretDeletionToken(item));
+          }
+          return interpretDeletionToken(entry);
+        });
+      };
+      const detectRealtimeOrderDeletionId = (row)=>{
+        if(!row || typeof row !== 'object') return null;
+        if(!objectIndicatesDeletion(row)) return null;
+        const candidates = [
+          row.id,
+          row.orderId,
+          row.order_id,
+          row.headerId,
+          row.header_id,
+          row.key,
+          row.recordId,
+          row.record_id,
+          row.targetId,
+          row.target_id,
+          row.uuid,
+          row.orderUUID,
+          row.order_uuid
+        ];
+        for(const candidate of candidates){
+          const id = normalizeRealtimeEntityId(candidate);
+          if(id) return id;
+        }
+        const meta = ensurePlainObject(row.meta || row.metadata);
+        const metaCandidates = [meta?.id, meta?.orderId, meta?.order_id];
+        for(const candidate of metaCandidates){
+          const id = normalizeRealtimeEntityId(candidate);
+          if(id) return id;
+        }
+        return null;
+      };
+      const collectDatasetOrderRemovals = (record)=>{
+        const removalIds = new Set();
+        if(!record || typeof record !== 'object') return removalIds;
+        const removalKeys = [
+          'ordersRemoved',
+          'removedOrders',
+          'orders_removed',
+          'ordersRemovedIds',
+          'removedOrderIds',
+          'ordersDeleted',
+          'deletedOrders',
+          'ordersDeletedIds',
+          'orders_removed_ids'
+        ];
+        const registerId = (value)=>{
+          if(value == null) return;
+          if(Array.isArray(value)){
+            value.forEach(entry=> registerId(entry));
+            return;
+          }
+          if(typeof value === 'object'){
+            const candidates = [
+              value.id,
+              value.orderId,
+              value.order_id,
+              value.orderID,
+              value.key,
+              value.recordId,
+              value.record_id,
+              value.deletedId,
+              value.deleted_id,
+              value.removedId,
+              value.removed_id
+            ];
+            candidates.forEach(candidate=>{
+              if(candidate == null) return;
+              const text = String(candidate).trim();
+              if(text) removalIds.add(text);
+            });
+            if(value.ids) registerId(value.ids);
+            if(value.orderIds) registerId(value.orderIds);
+            if(value.keys) registerId(value.keys);
+            if(value.values) registerId(value.values);
+            return;
+          }
+          const text = String(value).trim();
+          if(text) removalIds.add(text);
+        };
+        const sources = gatherDatasetSources(record);
+        sources.forEach(source=>{
+          if(!source || typeof source !== 'object') return;
+          removalKeys.forEach(key=> registerId(source[key]));
+          if(source.removed && typeof source.removed === 'object'){
+            registerId(source.removed.orders);
+            registerId(source.removed.orderIds);
+          }
+          if(source.deleted && typeof source.deleted === 'object'){
+            registerId(source.deleted.orders);
+            registerId(source.deleted.orderIds);
+          }
+          if(Array.isArray(source.syncLog)){
+            source.syncLog.forEach(entry=>{
+              if(!entry || typeof entry !== 'object') return;
+              const typeText = entry.type || entry.event || entry.action || entry.kind || entry.operation || '';
+              const normalizedType = typeof typeText === 'string' ? typeText.toLowerCase() : '';
+              if(normalizedType.includes('order') && normalizedType.includes('delete')){
+                registerId(entry.orderId ?? entry.order_id ?? entry.orderID ?? entry.id ?? entry.recordId ?? entry.targetId ?? entry.key ?? null);
+              }
+            });
+          }
+        });
+        return removalIds;
+      };
+      const mergeRealtimeOrderChildren = (targetMap, grouped, meta={})=>{
+        if(!(grouped instanceof Map) || grouped.size === 0) return false;
+        const summary = [];
+        grouped.forEach((list, orderId)=>{
+          const before = Array.isArray(targetMap.get(orderId)) ? targetMap.get(orderId).length : 0;
+          targetMap.set(orderId, list);
+          summary.push({ orderId, before, after: list.length });
+        });
+        if(summary.length){
+          const { source='unknown', type='child' } = meta;
+          console.log('[POS][ORDERS-SYNC]', {
+            source,
+            type,
+            ordersUpdated: summary.length,
+            details: summary.slice(0, 5)
+          });
+        }
+        return summary.length > 0;
+      };
+      const applyDatasetOrders = (record)=>{
+        if(!record || typeof record !== 'object') return;
+        const headerResult = extractDatasetEntries(record, 'order_header');
+        const lineResult = extractDatasetEntries(record, 'order_line');
+        const paymentResult = extractDatasetEntries(record, 'order_payment');
+        let headerRows = headerResult.rows;
+        let lineRows = lineResult.rows;
+        let paymentRows = paymentResult.rows;
+        if(headerRows.length){
+          const nestedLines = [];
+          const nestedPayments = [];
+          headerRows.forEach(order=>{
+            if(!order || typeof order !== 'object') return;
+            const orderId = order.id ?? order.orderId ?? order.order_id ?? null;
+            const linesList = readDatasetArray(order.lines || order.orderLines || order.items);
+            linesList.forEach(line=>{
+              if(!line || typeof line !== 'object') return;
+              const merged = { ...line };
+              if(merged.orderId == null && orderId != null) merged.orderId = orderId;
+              nestedLines.push(merged);
+            });
+            const paymentsList = readDatasetArray(order.payments || order.order_payments || order.payment_records);
+            paymentsList.forEach(payment=>{
+              if(!payment || typeof payment !== 'object') return;
+              const merged = { ...payment };
+              if(merged.orderId == null && orderId != null) merged.orderId = orderId;
+              nestedPayments.push(merged);
+            });
+          });
+          if(!lineRows.length && nestedLines.length){
+            lineRows = nestedLines;
+          }
+          if(!paymentRows.length && nestedPayments.length){
+            paymentRows = nestedPayments;
+          }
+        }
+        let changed = false;
+        const removalIds = collectDatasetOrderRemovals(record);
+        const filteredHeaderRows = [];
+        headerRows.forEach(row=>{
+          const deletionId = detectRealtimeOrderDeletionId(row);
+          if(deletionId){
+            removalIds.add(deletionId);
+            return;
+          }
+          filteredHeaderRows.push(row);
+        });
+        headerRows = filteredHeaderRows;
+        if(headerRows.length){
+          datasetPrimed.headers = true;
+          const beforeCount = realtimeOrders.headers.size;
+          const upsertedIds = [];
+          headerRows.forEach(row=>{
+            const normalized = sanitizeOrderHeaderRow(row);
+            if(!normalized) return;
+            const id = String(normalized.id);
+            realtimeOrders.headers.set(id, normalized);
+            upsertedIds.push(id);
+          });
+          if(upsertedIds.length){
+            console.log('[POS][ORDERS-SYNC]', {
+              source: 'dataset',
+              upserted: upsertedIds.length,
+              upsertedIds: upsertedIds.slice(0, 5),
+              before: beforeCount,
+              after: realtimeOrders.headers.size
+            });
+            changed = true;
+          }
+        } else if(headerResult.found){
+          console.warn('[POS][ORDERS-SYNC] Dataset has order_header key but empty array - KEEPING existing orders', {
+            existingCount: realtimeOrders.headers.size
+          });
+        }
+        if(removalIds.size){
+          const deletedIds = [];
+          removalIds.forEach(id=>{
+            const text = String(id);
+            if(realtimeOrders.headers.delete(text)){
+              deletedIds.push(text);
+              changed = true;
+            }
+            if(realtimeOrders.lines.delete(text)) changed = true;
+            if(realtimeOrders.payments.delete(text)) changed = true;
+          });
+          if(deletedIds.length){
+            console.log('[POS][ORDERS-SYNC]', {
+              source: 'dataset',
+              deleted: deletedIds.length,
+              deletedIds: deletedIds.slice(0, 5),
+              after: realtimeOrders.headers.size
+            });
+          }
+        }
+        if(lineRows.length){
+          datasetPrimed.lines = true;
+          const grouped = groupRealtimeOrderChildren(lineRows, sanitizeOrderLineRow);
+          if(mergeRealtimeOrderChildren(realtimeOrders.lines, grouped, { source: 'dataset:order_line', type: 'lines' })){
+            changed = true;
+          }
+        } else if(lineResult.found){
+          console.warn('[POS][ORDERS-SYNC] Dataset has order_line key but empty array - KEEPING existing order lines', {
+            existingOrders: realtimeOrders.lines.size
+          });
+        }
+        if(paymentRows.length){
+          datasetPrimed.payments = true;
+          const grouped = groupRealtimeOrderChildren(paymentRows, sanitizeOrderPaymentRow);
+          if(mergeRealtimeOrderChildren(realtimeOrders.payments, grouped, { source: 'dataset:order_payment', type: 'payments' })){
+            changed = true;
+          }
+        } else if(paymentResult.found){
+          console.warn('[POS][ORDERS-SYNC] Dataset has order_payment key but empty array - KEEPING existing payments', {
+            existingOrders: realtimeOrders.payments.size
+          });
+        }
+        if(changed){
+          scheduleRealtimeSnapshot();
+        }
+      };
+      let unsubDataset = null;
+      if(datasetTableName && typeof store.watch === 'function'){
+        unsubDataset = store.watch(datasetTableName, (rows)=>{
+          logIndexedDbSample(realtimeOrders.debugLogged, datasetTableName, rows, (row)=> (row && typeof row === 'object' && row.payload)
+            ? { ...row, payload: Array.isArray(row.payload?.orders) ? { ordersCount: row.payload.orders.length } : row.payload }
+            : row);
+          const list = Array.isArray(rows) ? rows : [];
+          const latest = list.length ? list[list.length - 1] : null;
+          if(latest && typeof latest === 'object'){
+            applyDatasetOrders(latest);
+          }
+        });
+      }
+      const headerTableName = POS_TABLE_HANDLES.order_header || POS_TABLE_HANDLES.orders || 'orders';
+      const lineTableName = POS_TABLE_HANDLES.order_line || POS_TABLE_HANDLES.orderLines || 'orderLines';
+      const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
+      const unsubHeaders = store.watch(headerTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
-        realtimeOrders.headers.clear();
+        if(!Array.isArray(rows)) return;
+        const beforeCount = realtimeOrders.headers.size;
+        const upserted = new Set();
+        const removed = new Set();
         (rows || []).forEach(row=>{
+          const deletionId = detectRealtimeOrderDeletionId(row);
+          if(deletionId){
+            let deleted = false;
+            if(realtimeOrders.headers.delete(deletionId)) deleted = true;
+            if(realtimeOrders.lines.delete(deletionId)) deleted = true;
+            if(realtimeOrders.payments.delete(deletionId)) deleted = true;
+            if(deleted) removed.add(deletionId);
+            return;
+          }
           const normalized = sanitizeOrderHeaderRow(row);
           if(!normalized) return;
-          realtimeOrders.headers.set(String(normalized.id), normalized);
+          const id = String(normalized.id);
+          const previous = realtimeOrders.headers.get(id);
+          realtimeOrders.headers.set(id, normalized);
+          if(!previous){
+            upserted.add(id);
+          } else {
+            const keys = new Set([...Object.keys(previous), ...Object.keys(normalized)]);
+            for(const key of keys){
+              if(previous[key] !== normalized[key]){
+                upserted.add(id);
+                break;
+              }
+            }
+          }
         });
-        scheduleRealtimeSnapshot();
+        if(upserted.size || removed.size){
+          const afterCount = realtimeOrders.headers.size;
+          console.log('[POS][ORDERS-SYNC]', {
+            source: 'watch:order_header',
+            before: beforeCount,
+            upserted: upserted.size,
+            upsertedIds: Array.from(upserted).slice(0, 5),
+            deleted: removed.size,
+            deletedIds: Array.from(removed).slice(0, 5),
+            after: afterCount
+          });
+          scheduleRealtimeSnapshot();
+        }
       });
-      const unsubLines = store.watch('order_line', (rows)=>{
+      const unsubLines = store.watch(lineTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
-        const grouped = new Map();
-        (rows || []).forEach(row=>{
-          const normalized = sanitizeOrderLineRow(row);
-          if(!normalized || !normalized.orderId) return;
-          const orderId = String(normalized.orderId);
-          if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push(normalized);
-        });
-        realtimeOrders.lines = grouped;
-        scheduleRealtimeSnapshot();
+        const grouped = groupRealtimeOrderChildren(rows, sanitizeOrderLineRow);
+        if(grouped.size){
+          if(mergeRealtimeOrderChildren(realtimeOrders.lines, grouped, { source: 'watch:order_line', type: 'lines' })){
+            scheduleRealtimeSnapshot();
+          }
+        } else if(Array.isArray(rows) && rows.length === 0 && realtimeOrders.lines.size){
+          console.warn('[POS][ORDERS-SYNC] order_line watch returned empty snapshot - KEEPING existing order lines', {
+            existingOrders: realtimeOrders.lines.size
+          });
+        }
       });
-      const unsubPayments = store.watch('order_payment', (rows)=>{
+      const unsubPayments = store.watch(paymentTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_payment', rows, sanitizeOrderPaymentRow);
-        const grouped = new Map();
-        (rows || []).forEach(row=>{
-          const normalized = sanitizeOrderPaymentRow(row);
-          if(!normalized || !normalized.orderId) return;
-          const orderId = String(normalized.orderId);
-          if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push(normalized);
-        });
-        realtimeOrders.payments = grouped;
-        scheduleRealtimeSnapshot();
+        const grouped = groupRealtimeOrderChildren(rows, sanitizeOrderPaymentRow);
+        if(grouped.size){
+          if(mergeRealtimeOrderChildren(realtimeOrders.payments, grouped, { source: 'watch:order_payment', type: 'payments' })){
+            scheduleRealtimeSnapshot();
+          }
+        } else if(Array.isArray(rows) && rows.length === 0 && realtimeOrders.payments.size){
+          console.warn('[POS][ORDERS-SYNC] order_payment watch returned empty snapshot - KEEPING existing payments', {
+            existingOrders: realtimeOrders.payments.size
+          });
+        }
       });
-      realtimeOrders.unsubscribes = [unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
+      realtimeOrders.unsubscribes = [unsubDataset, unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
       realtimeOrders.installed = true;
     }
 
@@ -2807,7 +4081,12 @@
       if(realtimeJobOrders.installed) return;
       if(!realtimeJobOrders.store) return;
       const store = realtimeJobOrders.store;
-      const unsubHeaders = store.watch('job_order_header', (rows)=>{
+      const jobHeaderTable = POS_TABLE_HANDLES.job_order_header || POS_TABLE_HANDLES.job_orders || 'job_orders';
+      const jobDetailTable = POS_TABLE_HANDLES.job_order_detail || 'job_order_detail';
+      const jobModifierTable = POS_TABLE_HANDLES.job_order_detail_modifier || 'job_order_detail_modifier';
+      const jobStatusTable = POS_TABLE_HANDLES.job_order_status_history || 'job_order_status_history';
+      const expoTicketTable = POS_TABLE_HANDLES.expo_pass_ticket || 'expo_pass_ticket';
+      const unsubHeaders = store.watch(jobHeaderTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
         realtimeJobOrders.headers.clear();
         (rows || []).forEach(row=>{
@@ -2817,7 +4096,7 @@
         });
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubDetails = store.watch('job_order_detail', (rows)=>{
+      const unsubDetails = store.watch(jobDetailTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail', rows, sanitizeJobOrderDetailRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
@@ -2830,7 +4109,7 @@
         realtimeJobOrders.details = grouped;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubModifiers = store.watch('job_order_detail_modifier', (rows)=>{
+      const unsubModifiers = store.watch(jobModifierTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail_modifier', rows, sanitizeJobOrderModifierRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -2841,7 +4120,7 @@
         realtimeJobOrders.modifiers = map;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubStatus = store.watch('job_order_status_history', (rows)=>{
+      const unsubStatus = store.watch(jobStatusTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_status_history', rows, sanitizeJobOrderHistoryRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -2852,7 +4131,7 @@
         realtimeJobOrders.statusHistory = map;
         scheduleRealtimeJobOrdersSnapshot();
       });
-      const unsubExpo = store.watch('expo_pass_ticket', (rows)=>{
+      const unsubExpo = store.watch(expoTicketTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'expo_pass_ticket', rows, sanitizeExpoPassTicketRow);
         const map = new Map();
         (rows || []).forEach(row=>{
@@ -3513,7 +4792,7 @@
       });
       const categorySectionsRaw = pickArray(dataset.category_sections, menuSource?.category_sections);
       const sectionMap = new Map(categorySectionsRaw.map(entry=> [entry.category_id || entry.categoryId, entry.section_id || entry.sectionId]));
-      const rawCategories = pickArray(dataset.categories, menuSource?.categories);
+      const rawCategories = pickArray(dataset.menu_categories, menuSource?.categories);
       if(!rawCategories.some(cat=> cat && cat.id === 'all')){
         rawCategories.unshift({ id:'all', category_name:{ ar:'الكل', en:'All' }, section_id:'expo' });
       }
@@ -3527,7 +4806,7 @@
           label
         };
       });
-      const itemsRaw = pickArray(dataset.items, menuSource?.items);
+      const itemsRaw = pickArray(dataset.menu_items, menuSource?.items);
       const items = itemsRaw.map(item=>{
         const categoryId = item.category_id || item.category || 'all';
         const pricing = ensurePlainObject(item.pricing);
@@ -3813,7 +5092,7 @@
     }));
     const orderPaymentMap = new Map(orderPaymentStates.map(state=> [state.id, state]));
 
-    const orderLineStatuses = (Array.isArray(MOCK.order_line_statuses) && MOCK.order_line_statuses.length ? MOCK.order_line_statuses : [
+    const orderLineStatuses = (Array.isArray(MOCK.orderLines_statuses) && MOCK.orderLines_statuses.length ? MOCK.orderLines_statuses : [
       { id:'draft', status_name:{ ar:'مسودة', en:'Draft' } },
       { id:'queued', status_name:{ ar:'بانتظار التحضير', en:'Queued' } },
       { id:'preparing', status_name:{ ar:'جاري التحضير', en:'Preparing' } },
@@ -4310,30 +5589,50 @@
       at: evt.at ? new Date(evt.at).getTime() : Date.now(),
       meta: evt.meta || {}
     })) : [];
-    const rawEmployees = Array.isArray(MOCK.employees) ? MOCK.employees : [];
-    const employees = rawEmployees.map(emp=>{
-      const pinSource = emp.pin_code ?? emp.pin ?? emp.pinCode ?? emp.passcode ?? '';
-      const pin = typeof pinSource === 'number' ? String(pinSource).padStart(SHIFT_PIN_LENGTH, '0') : String(pinSource || '').trim();
-      return {
-        id: emp.id || emp.employee_id || `emp-${Math.random().toString(36).slice(2,8)}`,
-        name: emp.full_name || emp.name || emp.display_name || emp.username || 'موظف',
-        role: emp.role || 'staff',
-        pin: pin.replace(/\D/g,''),
-        allowedDiscountRate: typeof emp.allowed_discount_rate === 'number'
-          ? emp.allowed_discount_rate
-          : (typeof emp.allowedDiscountRate === 'number' ? emp.allowedDiscountRate : 0)
-      };
-    }).filter(emp=> emp.pin && emp.pin.length);
+    const rawEmployees = resolveEmployeeList(MOCK);
+    const employees = normalizeEmployeesList(rawEmployees);
+    if(SHIFT_PIN_FALLBACK && !employees.some(emp=> emp.pin === SHIFT_PIN_FALLBACK)){
+      employees.push({
+        id:'cashier-default',
+        name:'Cashier',
+        role:'cashier',
+        pin: SHIFT_PIN_FALLBACK,
+        allowedDiscountRate:0,
+        isFallback:true
+      });
+    }
     const maxEmployeePinLength = employees.reduce((max, emp)=> Math.max(max, emp.pin.length), 0);
     if(maxEmployeePinLength) SHIFT_PIN_LENGTH = Math.max(SHIFT_PIN_LENGTH, maxEmployeePinLength);
     const defaultCashier = employees.find(emp=> emp.role === 'cashier') || employees[0] || {
       id:'cashier-guest',
       name:'أحمد محمود',
       role:'cashier',
-      pin: (SHIFT_PIN_FALLBACK || '0000').replace(/\D/g,''),
+      pin: normalizePinValue(SHIFT_PIN_FALLBACK || '0000'),
       allowedDiscountRate:0
     };
     const cashier = defaultCashier;
+
+    if(typeof window !== 'undefined' && window.console){
+      console.group('[Mishkah][POS] 🚀 INITIAL DATA LOAD - COMPLETE STRUCTURE');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('📦 MOCK DATA SOURCE (window.database):');
+      console.log('  • Complete MOCK object:', MOCK);
+      console.log('  • Keys in MOCK:', Object.keys(MOCK));
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('👥 EMPLOYEES DATA:');
+      console.log('  • rawEmployees (from resolveEmployeeList):', rawEmployees);
+      console.log('  • employees (normalized):', employees);
+      console.log('  • defaultCashier:', defaultCashier);
+      console.log('  • cashier (final):', cashier);
+      console.table(employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false })));
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('🔑 SHIFT SETTINGS:');
+      console.log('  • SHIFT_SETTINGS:', SHIFT_SETTINGS);
+      console.log('  • SHIFT_PIN_FALLBACK:', SHIFT_PIN_FALLBACK);
+      console.log('  • SHIFT_PIN_LENGTH:', SHIFT_PIN_LENGTH);
+      console.log('═══════════════════════════════════════════════════════════');
+      console.groupEnd();
+    }
 
     function createDraftOrderId(){
       return `draft-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
@@ -4568,8 +5867,25 @@
       }
     };
 
-    installRealtimeOrderWatchers();
-    installRealtimeJobOrderWatchers();
+    if(typeof window !== 'undefined' && window.console){
+      const debugEmployees = Array.isArray(posState.data?.employees)
+        ? posState.data.employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: !!emp.isFallback }))
+        : [];
+      console.groupCollapsed('[Mishkah][POS] bootstrap snapshot');
+      console.log('Shift state', posState.data?.shift || {});
+      if(debugEmployees.length){
+        console.table(debugEmployees);
+      } else {
+        console.log('No employees available on bootstrap');
+      }
+      console.groupEnd();
+    }
+
+    // Defer installing watchers until after schema fetch attempt
+    fetchPosSchemaFromBackend().finally(()=>{
+      installRealtimeOrderWatchers();
+      installRealtimeJobOrderWatchers();
+    });
 
     function flushRemoteUpdate(){
       if(!pendingRemoteResult) return;
@@ -4835,14 +6151,85 @@
         return { status:'error', reason:'stale-version' };
       }
       const now = Date.now();
-      const safeLines = (order.lines || []).map(line=>({
+      let missingItemLine = null;
+      let missingKitchenLine = null;
+      let safeLines = (order.lines || []).map(line=>({
         ...line,
         locked:true,
         status: line.status || 'draft',
         notes: Array.isArray(line.notes) ? line.notes : (line.notes ? [line.notes] : []),
         discount: normalizeDiscount(line.discount),
         updatedAt: now
-      }));
+      })).map(line=>{
+        const itemToken = line.itemId || line.item_id || line.metadata?.itemId || line.metadata?.item_id;
+        const itemId = itemToken != null && String(itemToken).trim() !== '' && String(itemToken) !== 'null' && String(itemToken) !== 'undefined'
+          ? String(itemToken).trim()
+          : null;
+        if(!itemId){
+          console.error('[Mishkah][POS] Line missing itemId', {
+            lineId: line.id,
+            itemToken,
+            name: line.name,
+            qty: line.qty,
+            quantity: line.quantity
+          });
+          if(!missingItemLine) missingItemLine = line;
+        }
+        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.metadata?.kitchenSectionId;
+        if(!kitchenSection || String(kitchenSection).trim() === ''){
+          if(!missingKitchenLine){
+            console.warn('[Mishkah][POS] Line missing kitchenSection, using expo', {
+              lineId: line.id,
+              itemId,
+              name: line.name
+            });
+            missingKitchenLine = line;
+          }
+          kitchenSection = 'expo';
+        }
+        kitchenSection = String(kitchenSection).trim();
+        const quantity = line.quantity != null ? Number(line.quantity) : (line.qty != null ? Number(line.qty) : 1);
+        const unitPrice = line.unitPrice != null ? Number(line.unitPrice) : (line.unit_price != null ? Number(line.unit_price) : (line.price != null ? Number(line.price) : (line.basePrice != null ? Number(line.basePrice) : 0)));
+        const total = line.total != null ? Number(line.total) : round(quantity * unitPrice);
+        const statusId = line.statusId || line.status_id || line.status || 'draft';
+        console.log('[Mishkah][POS] Preparing line for save (SCHEMA COMPLIANT):', {
+          lineId: line.id,
+          itemId,
+          quantity,
+          unitPrice,
+          total,
+          statusId,
+          kitchenSection
+        });
+        return {
+          ...line,
+          itemId,
+          item_id: itemId,
+          quantity,
+          unitPrice,
+          unit_price: unitPrice,
+          total,
+          statusId,
+          status_id: statusId,
+          kitchenSection,
+          kitchenSectionId: kitchenSection,
+          kitchen_section_id: kitchenSection,
+          metadata: {
+            ...(line.metadata || {}),
+            itemId,
+            item_id: itemId,
+            kitchenSectionId: kitchenSection
+          }
+        };
+      });
+      if(missingItemLine){
+        console.error('[Mishkah][POS] Cannot save order - line has invalid or missing itemId', missingItemLine);
+        UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف صحيح', icon:'⚠️' });
+        return { status:'error', reason:'line-missing-item' };
+      }
+      if(missingKitchenLine){
+        console.warn('[Mishkah][POS] Continuing save with expo as default kitchen section');
+      }
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
       const normalizedPayments = paymentSplit.map(entry=>({
@@ -4947,9 +6334,25 @@
       try{
         const persistableOrder = { ...orderPayload };
         delete persistableOrder.dirty;
+        console.log('[Mishkah][POS] Saving order to DB:', {
+          orderId: persistableOrder.id,
+          totals: persistableOrder.totals,
+          linesCount: persistableOrder.lines?.length,
+          firstLine: persistableOrder.lines?.[0],
+          subtotal: persistableOrder.subtotal,
+          totalDue: persistableOrder.totalDue
+        });
         let savedOrder = null;
         try {
           savedOrder = await posDB.saveOrder(persistableOrder);
+          console.log('[Mishkah][POS] Order saved to DB, returned data:', {
+            orderId: savedOrder?.id,
+            totals: savedOrder?.totals,
+            linesCount: savedOrder?.lines?.length,
+            firstLine: savedOrder?.lines?.[0],
+            subtotal: savedOrder?.subtotal,
+            totalDue: savedOrder?.totalDue
+          });
         } catch(error){
           if(error && (error.code === 'order-version-conflict' || error.code === 'VERSION_CONFLICT')){
             await refreshFromRemote(error.order || null, 'order_conflict_refreshed');
@@ -4973,10 +6376,22 @@
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
           ? mergePreferRemote(orderPayload, savedOrder)
           : orderPayload;
+        console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
+          orderId: remoteResolved.id,
+          totals: remoteResolved.totals,
+          linesCount: remoteResolved.lines?.length,
+          firstLine: remoteResolved.lines?.[0]
+        });
         const normalizedOrderForState = enrichOrderWithMenu({
           ...remoteResolved,
           allowAdditions,
           lockLineEdits: finalize ? true : (remoteResolved.lockLineEdits ?? order.lockLineEdits)
+        });
+        console.log('[Mishkah][POS] After enrichOrderWithMenu:', {
+          orderId: normalizedOrderForState.id,
+          totals: normalizedOrderForState.totals,
+          linesCount: normalizedOrderForState.lines?.length,
+          firstLine: normalizedOrderForState.lines?.[0]
         });
         const mergedTotals = normalizedOrderForState.totals && typeof normalizedOrderForState.totals === 'object'
           ? { ...normalizedOrderForState.totals }
@@ -4992,6 +6407,12 @@
         normalizedOrderForState.allowAdditions = allowAdditions;
         normalizedOrderForState.lockLineEdits = finalize ? true : (normalizedOrderForState.lockLineEdits !== undefined ? normalizedOrderForState.lockLineEdits : true);
         const syncedOrderForState = syncOrderVersionMetadata(normalizedOrderForState);
+        console.log('[Mishkah][POS] Final order for state:', {
+          orderId: syncedOrderForState.id,
+          totals: syncedOrderForState.totals,
+          linesCount: syncedOrderForState.lines?.length,
+          firstLine: syncedOrderForState.lines?.[0]
+        });
         const latestSnapshot = getRealtimeOrdersSnapshot();
         const latestOrders = latestSnapshot.active.map(order=> ({ ...order }));
         ctx.setState(s=>{
@@ -5755,8 +7176,12 @@
       const isDineIn = orderType === 'dine_in';
       const isFinalized = order.status === 'finalized' || order.status === 'closed';
       const deliveredStage = order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed';
-      // Only show "Save" button for dine-in orders. Takeaway and delivery should only have "Save & Finish"
-      const canShowSave = isDineIn && !isFinalized && !deliveredStage;
+      const paymentEntries = getActivePaymentEntries(order, db.data.payments);
+      const paymentSnapshot = summarizePayments(order.totals || {}, paymentEntries);
+      const outstanding = paymentSnapshot.remaining || 0;
+      const requiresFullPaymentBeforeFinish = !isTakeaway;
+      const finishDisabled = requiresFullPaymentBeforeFinish && outstanding > 0.0001;
+      const canShowSave = !isFinalized && !deliveredStage;
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
@@ -5776,8 +7201,17 @@
         primaryActions.push(saveButton);
       }
       if(canShowFinish){
+        const finishAttrs = {
+          gkey:'pos:order:save',
+          'data-save-mode': finishMode,
+          class: tw`min-w-[180px] flex items-center justify-center gap-2`
+        };
+        if(finishDisabled){
+          finishAttrs.disabled = 'disabled';
+          finishAttrs.title = t.ui.balance_due;
+        }
         primaryActions.push(UI.Button({
-          attrs:{ gkey:'pos:order:save', 'data-save-mode':finishMode, class: tw`min-w-[180px] flex items-center justify-center gap-2` },
+          attrs: finishAttrs,
           variant:'solid',
           size:'md'
         }, [D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [finishLabel])]));
@@ -6765,6 +8199,20 @@
       const order = db.data.order || {};
       const isOrderFinalized = order.status === 'finalized' || order.isPersisted;
       const currentPayments = Array.isArray(db.data.payments?.split) ? db.data.payments.split : [];
+      const totals = order.totals || {};
+      const paymentsEntries = getActivePaymentEntries(order, db.data.payments);
+      const paymentSnapshot = summarizePayments(totals, paymentsEntries);
+      const totalDue = paymentSnapshot.due;
+      const totalPaid = paymentSnapshot.paid;
+      const remaining = paymentSnapshot.remaining;
+      const remainingAmountSection = D.Containers.Div({ attrs:{ class: tw`p-4 rounded-[var(--radius)] bg-gradient-to-br from-[var(--accent)] to-[var(--accent-hover)] text-white space-y-1 shadow-lg` }}, [
+        D.Text.Span({ attrs:{ class: tw`text-sm opacity-90` }}, [t.ui.balance_due || 'المتبقي غير المسدد']),
+        D.Text.Strong({ attrs:{ class: tw`text-3xl font-bold block` }}, [formatCurrencyValue(db, remaining)]),
+        D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between text-xs opacity-80 pt-2 border-t border-white/20` }}, [
+          D.Text.Span({}, [`${t.ui.total || 'الإجمالي'}: ${formatCurrencyValue(db, totalDue)}`]),
+          D.Text.Span({}, [`${t.ui.paid || 'مدفوع'}: ${formatCurrencyValue(db, totalPaid)}`])
+        ])
+      ]);
       const paymentsListSection = currentPayments.length > 0
         ? D.Containers.Div({ attrs:{ class: tw`space-y-2` }}, [
             D.Text.Strong({ attrs:{ class: tw`text-sm` }}, [t.ui.recorded_payments || 'الدفعات المسجلة']),
@@ -6800,13 +8248,14 @@
           UI.Button({ attrs:{ gkey:'pos:payments:close' }, variant:'ghost', size:'md' }, [D.Text.Span({ attrs:{ class: tw`text-lg` }}, ['✕'])])
         ]),
         content: D.Containers.Div({ attrs:{ class: tw`space-y-3` }}, [
+          remainingAmountSection,
           paymentsListSection,
           UI.ChipGroup({
-            attrs:{ class: tw`text-base sm:text-lg` },
+            attrs:{ class: tw`text-base sm:text-lg border-2 border-[var(--accent)]/20 rounded-lg p-2` },
             items: methods.map(method=>({
               id: method.id,
               label: `${method.icon} ${localize(method.label, db.env.lang)}`,
-              attrs:{ gkey:'pos:payments:method', 'data-method-id':method.id }
+              attrs:{ gkey:'pos:payments:method', 'data-method-id':method.id, class: tw`ring-2 ring-transparent data-[active=true]:ring-[var(--accent)] data-[active=true]:ring-offset-2 data-[active=true]:scale-105 transition-all` }
             })),
             activeId: db.data.payments.activeMethod
           }),
@@ -9201,14 +10650,90 @@
           const t = getTexts(state);
           const config = state.data.shift?.config || {};
           const rawPin = String(state.ui?.shift?.pin || '').trim();
-          const sanitizedPin = rawPin.replace(/\D/g,'');
-          if(!sanitizedPin){
+          const normalizedPin = normalizePinValue(rawPin);
+          if(!normalizedPin){
             UI.pushToast(ctx, { title:t.toast.shift_pin_invalid, icon:'⚠️' });
             return;
           }
-          const employees = Array.isArray(state.data.employees) ? state.data.employees : [];
-          const matchedEmployee = employees.find(emp=> emp.pin === sanitizedPin);
-          if(!matchedEmployee){
+          const stateEmployees = Array.isArray(state.data.employees) ? state.data.employees : [];
+          const remoteSource = state.data?.remotes?.posDatabase || {};
+          const remoteEmployees = normalizeEmployeesList(resolveEmployeeList(remoteSource));
+          const employees = normalizeEmployeesList([...remoteEmployees, ...stateEmployees]);
+          const remoteShiftSettings = resolveShiftSettings(remoteSource);
+          const fallbackPins = new Set();
+          const registerFallbackPin = (pinValue)=>{
+            const normalized = normalizePinValue(pinValue);
+            if(normalized) fallbackPins.add(normalized);
+          };
+          registerFallbackPin(SHIFT_PIN_FALLBACK);
+          registerFallbackPin(remoteShiftSettings?.pin);
+          registerFallbackPin(remoteShiftSettings?.default_pin);
+          registerFallbackPin(remoteShiftSettings?.defaultPin);
+          registerFallbackPin(remoteShiftSettings?.fallback_pin);
+          registerFallbackPin(remoteShiftSettings?.fallbackPin);
+          registerFallbackPin(state.data?.shift?.config?.fallbackPin);
+          registerFallbackPin(state.data?.shift?.config?.defaultPin);
+          employees.forEach(emp=>{ if(emp.isFallback) registerFallbackPin(emp.pin); });
+          const matchedEmployee = employees.find(emp=> emp.pin === normalizedPin);
+          if(typeof window !== 'undefined' && window.console){
+            const debugEmployees = employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false }));
+            console.group('[Mishkah][POS] 🔐 SHIFT PIN VALIDATION - DETAILED DEBUGGING');
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('📌 ENTERED PIN:', { raw: rawPin, normalized: normalizedPin, pinLength: normalizedPin.length });
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('📊 DATA SOURCES:');
+            console.log('  • state.data.employees:', stateEmployees);
+            console.log('  • state.data.remotes:', state.data?.remotes);
+            console.log('  • remoteSource (posDatabase):', remoteSource);
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('🔍 RESOLVED DATA:');
+            console.log('  • resolveEmployeeList(remoteSource) returned:', resolveEmployeeList(remoteSource));
+            console.log('  • remoteEmployees (normalized):', remoteEmployees);
+            console.log('  • stateEmployees:', stateEmployees);
+            console.log('  • FINAL employees array (combined & normalized):', employees);
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('👥 EMPLOYEES TABLE:');
+            console.table(debugEmployees);
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('🔑 SHIFT SETTINGS:');
+            console.log('  • SHIFT_PIN_FALLBACK (global):', SHIFT_PIN_FALLBACK);
+            console.log('  • remoteShiftSettings:', remoteShiftSettings);
+            console.log('  • state.data.shift.config:', config);
+            console.log('  • Fallback PINs (Set):', Array.from(fallbackPins));
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('✅ PIN MATCHING:');
+            console.log('  • Entered PIN (normalized):', normalizedPin);
+            console.log('  • Matched Employee:', matchedEmployee);
+            console.log('  • Is fallback PIN?', fallbackPins.has(normalizedPin));
+            if(!matchedEmployee){
+              console.warn('❌ NO EMPLOYEE MATCHED THE PIN!');
+              console.log('  • PIN comparison details:');
+              employees.forEach((emp, i)=>{
+                const match = emp.pin === normalizedPin;
+                console.log(`    [${i}] ${emp.name} (${emp.id}): pin="${emp.pin}" ${match ? '✅ MATCH' : `❌ (pin type: ${typeof emp.pin}, entered type: ${typeof normalizedPin})`}`);
+              });
+            } else {
+              console.log('✅ EMPLOYEE MATCHED:', matchedEmployee);
+            }
+            console.log('═══════════════════════════════════════════════════════════');
+            console.groupEnd();
+          }
+          let effectiveEmployee = matchedEmployee;
+          if(!effectiveEmployee && fallbackPins.has(normalizedPin)){
+            effectiveEmployee = matchedEmployee || employees.find(emp=> (emp.isFallback || false) && emp.pin === normalizedPin);
+            if(!effectiveEmployee){
+              const fallbackUser = state.data.user || {};
+              effectiveEmployee = {
+                id: fallbackUser.id || 'cashier-guest',
+                name: fallbackUser.name || 'أحمد محمود',
+                role: fallbackUser.role || 'cashier',
+                allowedDiscountRate: fallbackUser.allowedDiscountRate ?? 0,
+                pin: normalizedPin,
+                isFallback:true
+              };
+            }
+          }
+          if(!effectiveEmployee){
             UI.pushToast(ctx, { title:t.toast.shift_pin_invalid, icon:'⚠️' });
             return;
           }
@@ -9234,10 +10759,10 @@
               orders:[],
               countsByType:{},
               ordersCount:0,
-              cashierId: matchedEmployee.id,
-              cashierName: matchedEmployee.name,
-              employeeId: matchedEmployee.id,
-              cashierRole: matchedEmployee.role,
+              cashierId: effectiveEmployee.id,
+              cashierName: effectiveEmployee.name,
+              employeeId: effectiveEmployee.id,
+              cashierRole: effectiveEmployee.role,
               status:'open',
               closingCash:null,
               isClosed:false
@@ -9268,10 +10793,10 @@
               ...s.data,
               user:{
                 ...(s.data.user || {}),
-                id: matchedEmployee.id,
-                name: matchedEmployee.name,
-                role: matchedEmployee.role,
-                allowedDiscountRate: matchedEmployee.allowedDiscountRate ?? s.data.user?.allowedDiscountRate,
+                id: effectiveEmployee.id,
+                name: effectiveEmployee.name,
+                role: effectiveEmployee.role,
+                allowedDiscountRate: effectiveEmployee.allowedDiscountRate ?? s.data.user?.allowedDiscountRate,
                 shift:normalizedShift.id
               },
               order:{ ...(s.data.order || {}), shiftId:normalizedShift.id },
@@ -11442,4 +12967,3 @@
     app.mount('#app');
     await refreshPersistentSnapshot({ focusCurrent:true, syncOrders:true });
   })();
-
