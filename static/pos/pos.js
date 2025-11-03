@@ -1823,29 +1823,10 @@
           ?? metadata.productId
           ?? metadata.product_id
           ?? metadata.itemCode;
-        if(rawItemId == null){
-          console.warn('[Mishkah][POS] Ignoring persisted order line without item id', record);
-          return null;
-        }
-        const itemId = String(rawItemId);
-        const menuItem = menuIndex?.get(itemId);
-        const qty = Math.max(1, Number(record.qty) || 1);
-        const basePrice = Number(record.basePrice != null ? record.basePrice : record.price != null ? record.price : menuItem?.price || 0);
-        const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
-        const kitchenSource = record.kitchenSection
-          ?? record.kitchenSectionId
-          ?? record.kitchen_section_id
-          ?? record.stationId
-          ?? record.station_id
-          ?? record.sectionId
-          ?? record.section_id
-          ?? metadata.kitchenSectionId
-          ?? metadata.sectionId
-          ?? metadata.section_id
-          ?? metadata.stationId
-          ?? metadata.station_id
-          ?? menuItem?.kitchenSection;
-        const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+
+        const itemId = rawItemId != null ? String(rawItemId) : null;
+        const menuItem = itemId ? menuIndex?.get(itemId) : null;
+
         const rawName = record.name
           ?? record.item_name
           ?? record.itemName
@@ -1868,11 +1849,41 @@
           ?? metadata.lineDescription
           ?? metadata.line_description
           ?? null;
+
+        if(itemId == null && rawName == null){
+          console.warn('[Mishkah][POS] Ignoring persisted order line without item id and name', record);
+          return null;
+        }
+
+        const qty = Math.max(1, Number(record.qty) || 1);
+        const basePrice = Number(record.basePrice != null ? record.basePrice
+          : record.price != null ? record.price
+          : record.unitPrice != null ? record.unitPrice
+          : menuItem?.price || 0);
+        const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
+        const kitchenSource = record.kitchenSection
+          ?? record.kitchenSectionId
+          ?? record.kitchen_section_id
+          ?? record.stationId
+          ?? record.station_id
+          ?? record.sectionId
+          ?? record.section_id
+          ?? metadata.kitchenSectionId
+          ?? metadata.sectionId
+          ?? metadata.section_id
+          ?? metadata.stationId
+          ?? metadata.station_id
+          ?? menuItem?.kitchenSection;
+        const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
+
+        const resolvedName = menuItem ? menuItem.name : cloneName(rawName) || (itemId ? `صنف ${itemId}` : 'صنف غير معروف');
+        const resolvedDescription = menuItem ? menuItem.description : cloneName(rawDescription);
+
         const baseLine = {
           id: record.id,
-          itemId,
-          name: menuItem ? menuItem.name : cloneName(rawName),
-          description: menuItem ? menuItem.description : cloneName(rawDescription),
+          itemId: itemId || record.id,
+          name: resolvedName,
+          description: resolvedDescription,
           qty,
           price: round(basePrice),
           basePrice: round(basePrice),
@@ -2917,17 +2928,24 @@
       }
       const metadata = ensurePlainObject(normalized.metadata);
       const rawItemId = row.itemId ?? row.item_id ?? metadata.itemId ?? metadata.item_id ?? metadata.menuItemId ?? metadata.productId ?? metadata.itemCode ?? null;
-      if(rawItemId == null){
-        console.warn('[Mishkah][POS] Dropping realtime order line without item id', row);
+      const normalizedItemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
+        ? String(rawItemId).trim()
+        : null;
+      if(normalizedItemId == null){
+        console.warn('[Mishkah][POS] Dropping realtime order line without item id', { id, orderId, row });
         return null;
       }
-      const itemId = String(rawItemId);
+      const itemId = normalizedItemId;
       normalized.itemId = itemId;
       normalized.item_id = itemId;
+      if(!normalized.metadata) normalized.metadata = {};
+      normalized.metadata.itemId = itemId;
+      normalized.metadata.item_id = itemId;
       const sectionSource = row.kitchenSection ?? row.kitchen_section ?? row.kitchenSectionId ?? row.kitchen_section_id ?? metadata.kitchenSectionId ?? metadata.sectionId ?? metadata.stationId;
       const kitchenSection = sectionSource != null && sectionSource !== '' ? String(sectionSource) : 'expo';
       normalized.kitchenSectionId = kitchenSection;
       normalized.kitchen_section_id = kitchenSection;
+      normalized.metadata.kitchenSectionId = kitchenSection;
       if(normalized.status == null && (row.statusId != null || row.status_id != null)){
         normalized.status = row.statusId ?? row.status_id;
       }
@@ -5847,34 +5865,60 @@
         discount: normalizeDiscount(line.discount),
         updatedAt: now
       })).map(line=>{
-        const itemToken = line.itemId || line.item_id;
-        if(!itemToken && !missingItemLine){
+        const itemToken = line.itemId || line.item_id || line.metadata?.itemId || line.metadata?.item_id;
+        const normalizedItemToken = itemToken != null && itemToken !== '' && itemToken !== 'null' && itemToken !== 'undefined'
+          ? String(itemToken).trim()
+          : null;
+        if(!normalizedItemToken && !missingItemLine){
+          console.error('[Mishkah][POS] Line missing itemId - cannot save', {
+            lineId: line.id,
+            itemToken,
+            normalizedItemToken,
+            name: line.name,
+            metadata: line.metadata
+          });
           missingItemLine = line;
         }
-        const itemId = itemToken != null ? String(itemToken) : itemToken;
-        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id;
-        if(!kitchenSection && !missingKitchenLine){
+        const itemId = normalizedItemToken;
+        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.metadata?.kitchenSectionId;
+        const normalizedKitchenSection = kitchenSection && String(kitchenSection).trim() !== '' && String(kitchenSection) !== 'null' && String(kitchenSection) !== 'undefined'
+          ? String(kitchenSection).trim()
+          : null;
+        if(!normalizedKitchenSection && !missingKitchenLine){
+          console.warn('[Mishkah][POS] Line missing kitchenSection', {
+            lineId: line.id,
+            itemId,
+            name: line.name
+          });
           missingKitchenLine = line;
         }
-        kitchenSection = kitchenSection ? String(kitchenSection) : undefined;
+        kitchenSection = normalizedKitchenSection || 'expo';
         console.log('[Mishkah][POS] Preparing line for save:', {
           lineId: line.id,
           itemToken,
           itemId,
           name: line.name,
           kitchenSection,
-          hasName: !!line.name
+          hasName: !!line.name,
+          metadata: line.metadata
         });
         return {
           ...line,
           itemId,
           item_id: itemId,
-          kitchenSection: kitchenSection || 'expo',
-          kitchenSectionId: kitchenSection || 'expo',
-          kitchen_section_id: kitchenSection || 'expo'
+          kitchenSection,
+          kitchenSectionId: kitchenSection,
+          kitchen_section_id: kitchenSection,
+          metadata: {
+            ...(line.metadata || {}),
+            itemId,
+            item_id: itemId,
+            kitchenSectionId: kitchenSection
+          }
         };
       });
       if(missingItemLine){
+        console.error('[Mishkah][POS] Cannot save order with line missing itemId', missingItemLine);
         UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف مرتبط', icon:'⚠️' });
         return { status:'error', reason:'line-missing-item' };
       }
