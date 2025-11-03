@@ -3599,6 +3599,36 @@
         }
         return result;
       };
+      const groupRealtimeOrderChildren = (rows, normalize)=>{
+        const grouped = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(row=>{
+          const normalized = typeof normalize === 'function' ? normalize(row) : row;
+          if(!normalized || !normalized.orderId) return;
+          const orderId = String(normalized.orderId);
+          if(!grouped.has(orderId)) grouped.set(orderId, []);
+          grouped.get(orderId).push(normalized);
+        });
+        return grouped;
+      };
+      const mergeRealtimeOrderChildren = (targetMap, grouped, meta={})=>{
+        if(!(grouped instanceof Map) || grouped.size === 0) return false;
+        const summary = [];
+        grouped.forEach((list, orderId)=>{
+          const before = Array.isArray(targetMap.get(orderId)) ? targetMap.get(orderId).length : 0;
+          targetMap.set(orderId, list);
+          summary.push({ orderId, before, after: list.length });
+        });
+        if(summary.length){
+          const { source='unknown', type='child' } = meta;
+          console.log('[POS][ORDERS-SYNC]', {
+            source,
+            type,
+            ordersUpdated: summary.length,
+            details: summary.slice(0, 5)
+          });
+        }
+        return summary.length > 0;
+      };
       const applyDatasetOrders = (record)=>{
         if(!record || typeof record !== 'object') return;
         const headerResult = extractDatasetEntries(record, 'order_header');
@@ -3665,6 +3695,12 @@
               after: afterCount
             });
           }
+          if(deletedIds.length){
+            deletedIds.forEach(id=>{
+              if(realtimeOrders.lines.delete(id)) changed = true;
+              if(realtimeOrders.payments.delete(id)) changed = true;
+            });
+          }
           changed = true;
         } else if(headerResult.found){
           console.warn('[POS][ORDERS-SYNC] Dataset has order_header key but empty array - KEEPING existing orders', {
@@ -3673,29 +3709,25 @@
         }
         if(lineRows.length){
           datasetPrimed.lines = true;
-          const grouped = new Map();
-          lineRows.forEach(row=>{
-            const normalized = sanitizeOrderLineRow(row);
-            if(!normalized || !normalized.orderId) return;
-            const orderId = String(normalized.orderId);
-            if(!grouped.has(orderId)) grouped.set(orderId, []);
-            grouped.get(orderId).push(normalized);
+          const grouped = groupRealtimeOrderChildren(lineRows, sanitizeOrderLineRow);
+          if(mergeRealtimeOrderChildren(realtimeOrders.lines, grouped, { source: 'dataset:order_line', type: 'lines' })){
+            changed = true;
+          }
+        } else if(lineResult.found){
+          console.warn('[POS][ORDERS-SYNC] Dataset has order_line key but empty array - KEEPING existing order lines', {
+            existingOrders: realtimeOrders.lines.size
           });
-          realtimeOrders.lines = grouped;
-          changed = true;
         }
         if(paymentRows.length){
           datasetPrimed.payments = true;
-          const grouped = new Map();
-          paymentRows.forEach(row=>{
-            const normalized = sanitizeOrderPaymentRow(row);
-            if(!normalized || !normalized.orderId) return;
-            const orderId = String(normalized.orderId);
-            if(!grouped.has(orderId)) grouped.set(orderId, []);
-            grouped.get(orderId).push(normalized);
+          const grouped = groupRealtimeOrderChildren(paymentRows, sanitizeOrderPaymentRow);
+          if(mergeRealtimeOrderChildren(realtimeOrders.payments, grouped, { source: 'dataset:order_payment', type: 'payments' })){
+            changed = true;
+          }
+        } else if(paymentResult.found){
+          console.warn('[POS][ORDERS-SYNC] Dataset has order_payment key but empty array - KEEPING existing payments', {
+            existingOrders: realtimeOrders.payments.size
           });
-          realtimeOrders.payments = grouped;
-          changed = true;
         }
         if(changed){
           scheduleRealtimeSnapshot();
@@ -3750,33 +3782,39 @@
             emptySnapshot: rows.length === 0 && beforeCount > 0
           });
         }
+        if(deletedIds.length){
+          deletedIds.forEach(id=>{
+            realtimeOrders.lines.delete(id);
+            realtimeOrders.payments.delete(id);
+          });
+        }
         scheduleRealtimeSnapshot();
       });
       const unsubLines = store.watch(lineTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
-        const grouped = new Map();
-        (rows || []).forEach(row=>{
-          const normalized = sanitizeOrderLineRow(row);
-          if(!normalized || !normalized.orderId) return;
-          const orderId = String(normalized.orderId);
-          if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push(normalized);
-        });
-        realtimeOrders.lines = grouped;
-        scheduleRealtimeSnapshot();
+        const grouped = groupRealtimeOrderChildren(rows, sanitizeOrderLineRow);
+        if(grouped.size){
+          if(mergeRealtimeOrderChildren(realtimeOrders.lines, grouped, { source: 'watch:order_line', type: 'lines' })){
+            scheduleRealtimeSnapshot();
+          }
+        } else if(Array.isArray(rows) && rows.length === 0 && realtimeOrders.lines.size){
+          console.warn('[POS][ORDERS-SYNC] order_line watch returned empty snapshot - KEEPING existing order lines', {
+            existingOrders: realtimeOrders.lines.size
+          });
+        }
       });
       const unsubPayments = store.watch(paymentTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_payment', rows, sanitizeOrderPaymentRow);
-        const grouped = new Map();
-        (rows || []).forEach(row=>{
-          const normalized = sanitizeOrderPaymentRow(row);
-          if(!normalized || !normalized.orderId) return;
-          const orderId = String(normalized.orderId);
-          if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push(normalized);
-        });
-        realtimeOrders.payments = grouped;
-        scheduleRealtimeSnapshot();
+        const grouped = groupRealtimeOrderChildren(rows, sanitizeOrderPaymentRow);
+        if(grouped.size){
+          if(mergeRealtimeOrderChildren(realtimeOrders.payments, grouped, { source: 'watch:order_payment', type: 'payments' })){
+            scheduleRealtimeSnapshot();
+          }
+        } else if(Array.isArray(rows) && rows.length === 0 && realtimeOrders.payments.size){
+          console.warn('[POS][ORDERS-SYNC] order_payment watch returned empty snapshot - KEEPING existing payments', {
+            existingOrders: realtimeOrders.payments.size
+          });
+        }
       });
       realtimeOrders.unsubscribes = [unsubDataset, unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
       realtimeOrders.installed = true;
