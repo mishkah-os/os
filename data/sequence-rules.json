@@ -2,7 +2,7 @@
   "version": 1,
   "defaults": {
     "pos": {
-      "orders": {
+      "order_header": {
         "id": {
           "prefix": "POS",
           "start": 1,
@@ -15,7 +15,7 @@
   "branches": {
     "dar": {
       "pos": {
-        "orders": {
+        "order_header": {
           "id": {
             "prefix": "DAR",
             "start": 1001,
@@ -27,7 +27,7 @@
     },
     "remal": {
       "pos": {
-        "orders": {
+        "order_header": {
           "id": {
             "prefix": "REM",
             "start": 2001,
