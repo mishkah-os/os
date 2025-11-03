@@ -21,7 +21,18 @@ const TABLE_ALIAS_GROUPS = {
   dining_table: ['dining_tables', 'restaurant_tables', 'tables'],
   table_lock: ['table_locks', 'locks', 'tableLocks'],
   customer_profile: ['customer_profiles', 'customers', 'customerProfiles'],
-  customer_address: ['customer_addresses', 'addresses', 'customerAddresses']
+  customer_address: ['customer_addresses', 'addresses', 'customerAddresses'],
+  audit_event: ['audit_events', 'auditEvents'],
+  category_section: ['category_sections', 'categorySections'],
+  employee: ['employees', 'staff'],
+  order_type: ['order_types', 'orderTypes'],
+  order_status: ['order_statuses', 'orderStatuses'],
+  order_stage: ['order_stages', 'orderStages'],
+  order_payment_state: ['order_payment_states', 'orderPaymentStates'],
+  order_line_status: ['order_line_statuses', 'orderLineStatuses'],
+  payment_method: ['payment_methods', 'paymentMethods'],
+  pos_terminal: ['pos_terminals', 'posTerminals'],
+  delivery_driver: ['delivery_drivers', 'deliveryDrivers']
 };
 
 const DEFAULT_TABLES = [

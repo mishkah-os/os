@@ -6049,6 +6049,8 @@
         currentVersion: outgoingVersion,
         expectedVersion: outgoingVersion,
         paymentsLocked: finalize ? true : isPaymentsLocked(order),
+        allowAdditions,
+        lockLineEdits: finalize ? true : (order.lockLineEdits !== undefined ? order.lockLineEdits : false),
         metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType }
       };
       if(finalize){
@@ -6192,25 +6194,26 @@
           if(openPrint){
             nextUi.print = { ...(uiBase.print || {}), docType: data.print?.docType || 'customer', size: data.print?.size || 'thermal_80' };
           }
+          const updatedData = {
+            ...data,
+            tableLocks: idChanged
+              ? (data.tableLocks || []).map(lock=> lock.orderId === previousOrderId ? { ...lock, orderId: orderPayload.id } : lock)
+              : data.tableLocks,
+            ordersQueue: latestOrders,
+            ordersHistory: history,
+            shift:{ ...(data.shift || {}), current: nextShift },
+            status:{
+              ...data.status,
+              indexeddb:{ state:'online', lastSync: now }
+            }
+          };
+          if(syncedOrderForState.id === data.order?.id){
+            updatedData.order = syncedOrderForState;
+            updatedData.payments = { ...(data.payments || {}), split:[] };
+          }
           return {
             ...s,
-            data:{
-              ...data,
-              order:{
-                ...syncedOrderForState
-              },
-              tableLocks: idChanged
-                ? (data.tableLocks || []).map(lock=> lock.orderId === previousOrderId ? { ...lock, orderId: orderPayload.id } : lock)
-                : data.tableLocks,
-              ordersQueue: latestOrders,
-              ordersHistory: history,
-              payments:{ ...(data.payments || {}), split:[] },
-              shift:{ ...(data.shift || {}), current: nextShift },
-              status:{
-                ...data.status,
-                indexeddb:{ state:'online', lastSync: now }
-              }
-            },
+            data: updatedData,
             ui: nextUi
           };
         });
@@ -9597,6 +9600,14 @@
         handler: async (e,ctx)=>{
           const state = ctx.getState();
           const t = getTexts(state);
+          const currentShift = state.data.shift?.current;
+          
+          if (!currentShift) {
+            UI.pushToast(ctx, { title: t.toast.shift_required || 'يجب فتح الوردية قبل إنشاء طلب جديد', icon: '🔒' });
+            ctx.setState(s=>({...s, ui:{ ...(s.ui || {}), shift:{ ...(s.ui?.shift || {}), showPin:true, pin:'' } }}));
+            return;
+          }
+          
           const newId = await generateOrderId();
           ctx.setState(s=>{
             const data = s.data || {};
@@ -9626,7 +9637,7 @@
                   allowAdditions: !!typeConfig.allowsLineAdditions,
                   lockLineEdits:false,
                   isPersisted:false,
-                  shiftId: data.shift?.current?.id || null,
+                  shiftId: currentShift.id,
                   posId: data.pos?.id || POS_INFO.id,
                   posLabel: data.pos?.label || POS_INFO.label,
                   posNumber: Number.isFinite(Number(data.pos?.number)) ? Number(data.pos.number) : POS_INFO.number,
@@ -9638,7 +9649,27 @@
                   customerPhone:'',
                   customerAddress:'',
                   customerAreaId:null,
-                  dirty:false
+                  dirty:false,
+                  orderTypeId: type,
+                  statusId: 'open',
+                  stageId: 'new',
+                  paymentStateId: 'unpaid',
+                  tableId: null,
+                  subtotal: totals.subtotal || 0,
+                  discount_amount: totals.discount || 0,
+                  service_amount: totals.service || 0,
+                  tax_amount: totals.vat || 0,
+                  delivery_fee: totals.deliveryFee || 0,
+                  total: totals.due || 0,
+                  total_paid: 0,
+                  total_due: totals.due || 0,
+                  version: 1,
+                  currentVersion: 1,
+                  metadata: {
+                    orderType: type,
+                    orderTypeId: type,
+                    serviceMode: type
+                  }
                 },
                 payments:{ ...(data.payments || {}), split:[] },
                 tableLocks: order.isPersisted
