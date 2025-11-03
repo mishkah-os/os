@@ -37,35 +37,15 @@
       }
       return false;
     };
-    const pickFirstDefined = (source, keys)=>{
-      if(!source || typeof source !== 'object') return undefined;
-      for(const key of keys){
-        if(key == null) continue;
-        if(source[key] != null) return source[key];
-        const lower = typeof key === 'string' ? key.toLowerCase() : null;
-        if(lower && source[lower] != null) return source[lower];
-      }
-      return undefined;
-    };
     const normalizeEmployeeRecord = (source, index = 0)=>{
       if(!source || typeof source !== 'object') return null;
-      const pinSource = pickFirstDefined(source, [
-        'pin','pin_code','pinCode','pin_number','pinNumber','pinValue','pin_value','passcode','passCode','pass_code','passPin','pass_pin'
-      ]);
+      const pinSource = source.pin_code || source.pin || source.pinCode;
       const normalizedPin = normalizePinValue(pinSource);
       if(!normalizedPin) return null;
-      const idRaw = pickFirstDefined(source, [
-        'id','employee_id','employeeId','user_id','userId','staff_id','staffId','cashier_id','cashierId','code','uid'
-      ]);
-      const nameRaw = pickFirstDefined(source, [
-        'full_name','fullName','name','display_name','displayName','username','user_name','userName','first_name','firstName','label'
-      ]);
-      const roleRaw = pickFirstDefined(source, [
-        'role','position','job_title','jobTitle','type','title','designation','staffType','staff_type'
-      ]);
-      const discountRaw = pickFirstDefined(source, [
-        'allowedDiscountRate','allowed_discount_rate','max_discount_rate','maxDiscountRate','discount_rate','discountRate'
-      ]);
+      const idRaw = source.id || source.employee_id || source.employeeId;
+      const nameRaw = source.full_name || source.fullName || source.name;
+      const roleRaw = source.role || source.position;
+      const discountRaw = source.allowed_discount_rate || source.allowedDiscountRate || 0;
       const discountValue = Number.parseFloat(discountRaw);
       const normalized = {
         id: (idRaw != null ? String(idRaw).trim() : '') || `emp-${normalizedPin}-${index + 1}`,
@@ -74,9 +54,7 @@
         pin: normalizedPin,
         allowedDiscountRate: Number.isFinite(discountValue) ? discountValue : 0
       };
-      if(toBoolean(pickFirstDefined(source, [
-        'isFallback','is_fallback','fallback','is_default','isDefault','default','isPrimary','is_primary','isMaster','is_master','defaultCashier','default_cashier'
-      ]))){
+      if(toBoolean(source.is_fallback || source.isFallback || source.fallback)){
         normalized.isFallback = true;
       }
       return normalized;
@@ -561,9 +539,7 @@
       ]
     });
     const SHIFT_SCHEMA_REGISTRY = new Schema.Registry({ tables:[SHIFT_TABLE] });
-    let POS_SCHEMA_SOURCE = (typeof window !== 'undefined' && window.MishkahPOSSchema)
-      ? window.MishkahPOSSchema
-      : SHIFT_SCHEMA_REGISTRY.toJSON();
+    let POS_SCHEMA_SOURCE = SHIFT_SCHEMA_REGISTRY.toJSON();
     let POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
     const REMOTE_DB = (typeof window !== 'undefined'
       && window.__POS_DB__
@@ -583,7 +559,6 @@
           POS_SCHEMA_SOURCE = schemaJson;
           POS_SCHEMA_REGISTRY = Schema.Registry.fromJSON(POS_SCHEMA_SOURCE);
           POS_TABLE_HANDLES = ensurePosTableAliases(REMOTE_DB, POS_SCHEMA_SOURCE, MODULE_ENTRY);
-          if(typeof window !== 'undefined') window.MishkahPOSSchema = POS_SCHEMA_SOURCE;
           DATASET_PAYLOAD_KEY_CACHE.clear();
         }
       } catch(_err){}
@@ -1785,7 +1760,7 @@
         const payload = await postJson(
           `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/sequences`,
           {
-            table:'orders',
+            table:'order_header',
             field:'id',
             record:{
               posId: posId || POS_INFO.id,
@@ -4133,7 +4108,7 @@
       const response = await fetch(endpoint, {
         method:'POST',
         headers:{ 'content-type':'application/json' },
-        body: JSON.stringify({ table:'orders', field:'id', record:{ posId: POS_INFO.id, posNumber: POS_INFO.number } })
+        body: JSON.stringify({ table:'order_header', field:'id', record:{ posId: POS_INFO.id, posNumber: POS_INFO.number } })
       });
       if(!response.ok){
         const message = await response.text().catch(()=> response.statusText || '');
@@ -4254,7 +4229,7 @@
       });
       const categorySectionsRaw = pickArray(dataset.category_sections, menuSource?.category_sections);
       const sectionMap = new Map(categorySectionsRaw.map(entry=> [entry.category_id || entry.categoryId, entry.section_id || entry.sectionId]));
-      const rawCategories = pickArray(dataset.categories, menuSource?.categories);
+      const rawCategories = pickArray(dataset.menu_categories, menuSource?.categories);
       if(!rawCategories.some(cat=> cat && cat.id === 'all')){
         rawCategories.unshift({ id:'all', category_name:{ ar:'الكل', en:'All' }, section_id:'expo' });
       }
@@ -4268,7 +4243,7 @@
           label
         };
       });
-      const itemsRaw = pickArray(dataset.items, menuSource?.items);
+      const itemsRaw = pickArray(dataset.menu_items, menuSource?.items);
       const items = itemsRaw.map(item=>{
         const categoryId = item.category_id || item.category || 'all';
         const pricing = ensurePlainObject(item.pricing);

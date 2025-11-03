@@ -65,7 +65,7 @@
     },
     orders: {
       canonical: 'order_header',
-      aliases: ['orders', 'order_header_live', 'orderHeaders', 'orderHeader']
+      aliases: ['order_header_live', 'orderHeaders', 'orderHeader']
     },
     lines: {
       canonical: 'order_line',
@@ -73,11 +73,19 @@
     },
     payments: {
       canonical: 'order_payment',
-      aliases: ['order_payments', 'payments', 'orderPayments', 'paymentTransactions']
+      aliases: ['order_payments', 'orderPayments', 'paymentTransactions']
     },
     shifts: {
       canonical: 'pos_shift',
-      aliases: ['pos_shifts', 'shifts', 'shift_header', 'shiftHeaders']
+      aliases: ['shift_header', 'shiftHeaders']
+    },
+    items: {
+      canonical: 'menu_item',
+      aliases: ['menu_items', 'menuItems', 'menuItem']
+    },
+    categories: {
+      canonical: 'menu_category',
+      aliases: ['menu_categories', 'menuCategories', 'menuCategory']
     }
   };
 

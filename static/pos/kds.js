@@ -981,8 +981,8 @@
     const stations = Array.isArray(master.stations) ? master.stations : [];
     const kitchenSections = Array.isArray(master.kitchenSections) ? master.kitchenSections : [];
     const stationCategoryRoutes = Array.isArray(master.stationCategoryRoutes) ? master.stationCategoryRoutes : [];
-    const menuItems = Array.isArray(master.items) ? master.items : [];
-    const menuCategories = Array.isArray(master.categories) ? master.categories : [];
+    const menuItems = Array.isArray(master.menu_items) ? master.menu_items : [];
+    const menuCategories = Array.isArray(master.menu_categories) ? master.menu_categories : [];
     const drivers = Array.isArray(payload.drivers)
       ? payload.drivers
       : (Array.isArray(master.drivers) ? master.drivers : []);
@@ -1959,8 +1959,8 @@
         : []));
   const initialMenuCategories = Array.isArray(kdsSource.menu?.categories)
     ? kdsSource.menu.categories.map(category=> ({ ...category }))
-    : (Array.isArray(masterSource?.categories)
-      ? masterSource.categories.map(category=> ({ ...category }))
+    : (Array.isArray(masterSource?.menu_categories)
+      ? masterSource.menu_categories.map(category=> ({ ...category }))
       : (Array.isArray(masterSource?.menu?.categories)
         ? masterSource.menu.categories.map(category=> ({ ...category }))
         : (Array.isArray(database?.menu?.categories)
@@ -1968,8 +1968,8 @@
           : [])));
   const initialMenuItems = Array.isArray(kdsSource.menu?.items)
     ? kdsSource.menu.items.map(item=> ({ ...item }))
-    : (Array.isArray(masterSource?.items)
-      ? masterSource.items.map(item=> ({ ...item }))
+    : (Array.isArray(masterSource?.menu_items)
+      ? masterSource.menu_items.map(item=> ({ ...item }))
       : (Array.isArray(masterSource?.menu?.items)
         ? masterSource.menu.items.map(item=> ({ ...item }))
         : (Array.isArray(database?.menu?.items)
