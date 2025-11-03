@@ -3596,12 +3596,19 @@
         let changed = false;
         if(headerRows.length){
           datasetPrimed.headers = true;
-          realtimeOrders.headers.clear();
+          const incomingIds = new Set();
           headerRows.forEach(row=>{
             const normalized = sanitizeOrderHeaderRow(row);
             if(!normalized) return;
-            realtimeOrders.headers.set(String(normalized.id), normalized);
+            const id = String(normalized.id);
+            incomingIds.add(id);
+            realtimeOrders.headers.set(id, normalized);
           });
+          for(const [id] of Array.from(realtimeOrders.headers.entries())){
+            if(!incomingIds.has(id)){
+              realtimeOrders.headers.delete(id);
+            }
+          }
           changed = true;
         } else if(headerResult.found && datasetPrimed.headers){
           datasetPrimed.headers = false;
@@ -3684,12 +3691,22 @@
       const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
       const unsubHeaders = store.watch(headerTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
-        realtimeOrders.headers.clear();
+        if(!Array.isArray(rows)) return;
+        const incomingIds = new Set();
         (rows || []).forEach(row=>{
           const normalized = sanitizeOrderHeaderRow(row);
           if(!normalized) return;
-          realtimeOrders.headers.set(String(normalized.id), normalized);
+          const id = String(normalized.id);
+          incomingIds.add(id);
+          realtimeOrders.headers.set(id, normalized);
         });
+        if(rows.length > 0 || realtimeOrders.headers.size === 0){
+          for(const [id] of Array.from(realtimeOrders.headers.entries())){
+            if(!incomingIds.has(id)){
+              realtimeOrders.headers.delete(id);
+            }
+          }
+        }
         scheduleRealtimeSnapshot();
       });
       const unsubLines = store.watch(lineTableName, (rows)=>{
