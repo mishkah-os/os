@@ -1181,7 +1181,7 @@
     .filter(order=> order.handoffStatus !== 'assembled' && order.handoffStatus !== 'served');
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
-    .filter(order=> order.handoffStatus === 'assembled' && (order.serviceMode || 'dine_in') !== 'delivery');
+    .filter(order=> order.handoffStatus === 'assembled');
 
   const cloneJob = (job)=>({
     ...job,
@@ -1449,6 +1449,23 @@
         if(labelKey) labelKeys.add(labelKey);
       });
     }
+    const ensureHandoffTab = ()=>{
+      const handoffCount = getHandoffOrders(db).length;
+      const existingIndex = tabs.findIndex(tab=> tab.id === 'handoff');
+      if(existingIndex >= 0){
+        const existing = tabs[existingIndex];
+        tabs[existingIndex] = {
+          ...existing,
+          label: existing.label || t.tabs.handoff,
+          count: handoffCount
+        };
+      } else {
+        const labelKey = toLabelKey(t.tabs.handoff);
+        if(labelKey) labelKeys.add(labelKey);
+        tabs.push({ id:'handoff', label:t.tabs.handoff, count: handoffCount });
+      }
+    };
+    ensureHandoffTab();
     return tabs;
   };
 
