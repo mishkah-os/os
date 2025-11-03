@@ -1178,10 +1178,22 @@
   };
 
   const getExpoOrders = (db)=> computeOrdersSnapshot(db)
-    .filter(order=> false);
+    .filter(order=>{
+      if(!order) return false;
+      const status = order.handoffStatus;
+      if(status === 'served' || status === 'assembled') return false;
+      const readyItems = Number(order.readyItems) || 0;
+      if(readyItems > 0) return true;
+      const jobs = Array.isArray(order.jobs) ? order.jobs : [];
+      return jobs.some(job=> job && (job.status === 'ready' || job.status === 'completed'));
+    });
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
-    .filter(order=> order.handoffStatus === 'pending' || order.handoffStatus === 'ready');
+    .filter(order=>{
+      if(!order) return false;
+      const status = order.handoffStatus;
+      return status === 'pending' || status === 'ready' || status === 'assembled';
+    });
 
   const cloneJob = (job)=>({
     ...job,
