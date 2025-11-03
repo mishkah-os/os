@@ -1797,10 +1797,16 @@
         const metadata = ensurePlainObject(record.metadata || record.meta);
         const rawItemId = record.itemId
           ?? record.item_id
+          ?? record.menuItemId
+          ?? record.menu_item_id
+          ?? record.productId
+          ?? record.product_id
           ?? metadata.itemId
           ?? metadata.item_id
           ?? metadata.menuItemId
+          ?? metadata.menu_item_id
           ?? metadata.productId
+          ?? metadata.product_id
           ?? metadata.itemCode;
         if(rawItemId == null){
           console.warn('[Mishkah][POS] Ignoring persisted order line without item id', record);
@@ -1814,24 +1820,38 @@
         const kitchenSource = record.kitchenSection
           ?? record.kitchenSectionId
           ?? record.kitchen_section_id
+          ?? record.stationId
+          ?? record.station_id
+          ?? record.sectionId
+          ?? record.section_id
           ?? metadata.kitchenSectionId
           ?? metadata.sectionId
+          ?? metadata.section_id
           ?? metadata.stationId
+          ?? metadata.station_id
           ?? menuItem?.kitchenSection;
         const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
         const rawName = record.name
           ?? record.item_name
           ?? record.itemName
+          ?? record.item_label
+          ?? record.label
           ?? metadata.name
           ?? metadata.itemName
           ?? metadata.item_name
+          ?? metadata.item_label
+          ?? metadata.label
           ?? null;
         const rawDescription = record.description
           ?? record.item_description
           ?? record.itemDescription
+          ?? record.lineDescription
+          ?? record.line_description
           ?? metadata.description
           ?? metadata.itemDescription
           ?? metadata.item_description
+          ?? metadata.lineDescription
+          ?? metadata.line_description
           ?? null;
         const baseLine = {
           id: record.id,
@@ -1881,6 +1901,129 @@
         };
       }
 
+      function normalizePersistedOrder(raw){
+        if(!raw || typeof raw !== 'object') return null;
+        const metadata = { ...ensurePlainObject(raw.metadata || raw.meta) };
+        const base = {
+          ...raw,
+          metadata,
+          totals: { ...ensurePlainObject(raw.totals) },
+          discount: normalizeDiscount(raw.discount),
+          type: raw.type || raw.orderType || raw.order_type || 'dine_in',
+          status: raw.status || raw.statusId || raw.status_id || 'open',
+          fulfillmentStage: raw.fulfillmentStage || raw.stage || raw.stageId || raw.stage_id || 'new',
+          paymentState:
+            raw.paymentState || raw.payment_state || raw.paymentStateId || raw.payment_state_id || 'unpaid',
+          shiftId: raw.shiftId || raw.shift_id || metadata.shiftId || metadata.shift_id || null
+        };
+        base.createdAt = toTimestamp(raw.createdAt || raw.created_at || raw.openedAt || raw.opened_at || base.createdAt);
+        base.updatedAt = toTimestamp(raw.updatedAt || raw.updated_at || base.updatedAt || base.createdAt);
+        base.savedAt = toTimestamp(raw.savedAt || raw.saved_at || base.savedAt || base.updatedAt);
+        base.stage = base.fulfillmentStage;
+        base.stageId = base.fulfillmentStage;
+        base.statusId = base.status;
+        base.payment_state = base.paymentState;
+        base.paymentStateId = base.paymentState;
+        base.tableIds = Array.isArray(base.tableIds) ? base.tableIds.slice() : [];
+        base.guests = Number.isFinite(Number(base.guests)) ? Number(base.guests) : 0;
+        base.allowAdditions = base.allowAdditions !== undefined ? !!base.allowAdditions : true;
+        base.lockLineEdits = base.lockLineEdits !== undefined ? !!base.lockLineEdits : true;
+        if(base.posNumber == null && metadata.posNumber != null){
+          base.posNumber = metadata.posNumber;
+        }
+        const linesSource = Array.isArray(raw.lines) ? raw.lines : [];
+        base.lines = linesSource
+          .map(line=>{
+            if(!line) return null;
+            const payload = { ...line, metadata: ensurePlainObject(line.metadata || line.meta) };
+            return hydrateLine(payload);
+          })
+          .filter(Boolean);
+        const notes = Array.isArray(raw.notes)
+          ? raw.notes
+              .map(note=>{
+                if(!note) return null;
+                const message =
+                  typeof note === 'string'
+                    ? note.trim()
+                    : typeof note.message === 'string'
+                    ? note.message.trim()
+                    : typeof note.text === 'string'
+                    ? note.text.trim()
+                    : '';
+                if(!message) return null;
+                const createdAt =
+                  note.createdAt || note.created_at || note.at || note.timestamp || base.updatedAt || Date.now();
+                return {
+                  id:
+                    note.id ||
+                    note.noteId ||
+                    note.note_id ||
+                    `${base.id || 'order'}::note::${String(createdAt)}`,
+                  message,
+                  authorId: note.authorId || note.author_id || note.userId || note.user_id || null,
+                  authorName: note.authorName || note.author_name || note.userName || '',
+                  createdAt
+                };
+              })
+              .filter(Boolean)
+          : [];
+        base.notes = notes;
+        const payments = Array.isArray(raw.payments)
+          ? raw.payments.map(entry=>({
+              ...entry,
+              id:
+                entry.id ||
+                entry.paymentId ||
+                entry.payment_id ||
+                `${base.id || 'order'}::pm::${Math.random().toString(36).slice(2, 10)}`,
+              method: entry.method || entry.methodId || entry.method_id || entry.type || 'cash',
+              amount: round(Number(entry.amount) || 0)
+            }))
+          : [];
+        base.payments = payments;
+        const mapEvent = (entry)=>{
+          if(!entry) return null;
+          const at = toTimestamp(entry.changedAt || entry.changed_at || entry.at || entry.timestamp || base.updatedAt);
+          const stage = entry.stage || entry.stageId || entry.stage_id || base.fulfillmentStage;
+          const status = entry.status || entry.statusId || entry.status_id || base.status;
+          const paymentState =
+            entry.paymentState || entry.payment_state || entry.paymentStateId || entry.payment_state_id || null;
+          return {
+            id: entry.id || `${base.id || 'order'}::evt::${String(at)}`,
+            stage,
+            stageId: stage,
+            status,
+            statusId: status,
+            at,
+            changedAt: at,
+            actorId: entry.actorId || entry.actor_id || entry.userId || entry.user_id || entry.changedBy || null,
+            paymentState,
+            paymentStateId: paymentState,
+            metadata: ensurePlainObject(entry.metadata || entry.meta)
+          };
+        };
+        const eventsPrimary = Array.isArray(raw.statusLogs) ? raw.statusLogs : [];
+        const eventsSecondary = Array.isArray(raw.events) ? raw.events : [];
+        const seenEvents = new Set();
+        const normalizedEvents = [];
+        [...eventsPrimary, ...eventsSecondary].forEach(entry=>{
+          const mapped = mapEvent(entry);
+          if(!mapped) return;
+          if(mapped.id && seenEvents.has(mapped.id)) return;
+          if(mapped.id) seenEvents.add(mapped.id);
+          normalizedEvents.push(mapped);
+        });
+        normalizedEvents.sort((a, b)=> (a.at || 0) - (b.at || 0));
+        base.events = normalizedEvents.map(event=> ({ ...event }));
+        base.statusLogs = normalizedEvents.map(event=> ({ ...event }));
+        metadata.linesCount = base.lines.length;
+        metadata.notesCount = base.notes.length;
+        base.isPersisted = true;
+        base.dirty = false;
+        return syncOrderVersionMetadata(base);
+      }
+
       async function saveOrder(order){
         if(!BRANCH_ID) throw new Error('Branch id is required');
         if(!order || !order.shiftId){
@@ -1896,7 +2039,7 @@
           outgoing.version = currentVersion;
         }
         const payload = await postJson(endpoint, { order: outgoing });
-        return payload?.order || order;
+        return payload?.order ? normalizePersistedOrder(payload.order) : order;
       }
       function sanitizeTempOrder(order){
         if(!order || !order.id) return null;
@@ -1982,14 +2125,71 @@
       async function deleteTempOrder(){
         return false;
       }
-      async function listOrders(){
-        return [];
+      async function listOrders(options={}){
+        if(!BRANCH_ID) return [];
+        const params = new URLSearchParams();
+        const includeTokens = new Set();
+        const onlyActive = options.onlyActive !== false;
+        if(!onlyActive){
+          params.set('onlyActive', 'false');
+        }
+        if(Number.isFinite(options.limit) && options.limit > 0){
+          params.set('limit', String(Math.trunc(options.limit)));
+        }
+        const ensureListInput = (value)=>{
+          if(value == null) return [];
+          return Array.isArray(value) ? value : [value];
+        };
+        const pushListParam = (key, values)=>{
+          ensureListInput(values).forEach(value=>{
+            if(value == null) return;
+            const text = String(value).trim();
+            if(text){
+              params.append(key, text);
+            }
+          });
+        };
+        pushListParam('status', ensureListInput(options.statuses ?? options.status));
+        pushListParam('stage', ensureListInput(options.stages ?? options.stage));
+        pushListParam('type', ensureListInput(options.types ?? options.type));
+        pushListParam('shiftId', ensureListInput(options.shiftIds ?? options.shiftId));
+        if(options.updatedAfter != null){
+          params.set('updatedAfter', String(options.updatedAfter));
+        }
+        if(options.savedAfter != null){
+          params.set('savedAfter', String(options.savedAfter));
+        }
+        const includeList = Array.isArray(options.include) ? options.include : [];
+        includeList.forEach(entry=>{
+          if(entry == null) return;
+          const text = String(entry).trim().toLowerCase();
+          if(text) includeTokens.add(text);
+        });
+        const includeLines = options.includeLines !== false;
+        const includePayments = options.includePayments !== false;
+        const includeStatusLogs = options.includeStatusLogs === true || includeTokens.has('statuslogs');
+        const includeLineStatusLogs = options.includeLineStatus === true || options.includeLineStatusLogs === true;
+        if(includeLines) includeTokens.add('lines');
+        if(includePayments) includeTokens.add('payments');
+        if(includeStatusLogs) includeTokens.add('statuslogs');
+        if(includeLineStatusLogs){
+          includeTokens.add('linestatuslogs');
+          includeTokens.add('lines');
+        }
+        if(includeTokens.size){
+          params.set('include', Array.from(includeTokens.values()).join(','));
+        }
+        const query = params.toString();
+        const endpoint = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders${query ? `?${query}` : ''}`;
+        const payload = await getJson(endpoint);
+        const list = Array.isArray(payload?.orders) ? payload.orders : [];
+        return list.map(normalizePersistedOrder).filter(Boolean);
       }
       async function getOrder(orderId){
         if(!BRANCH_ID || !orderId) return null;
         const url = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders/${encodeURIComponent(orderId)}`;
         const payload = await getJson(url);
-        return payload?.order || null;
+        return payload?.order ? normalizePersistedOrder(payload.order) : null;
       }
       async function markSync(){
         await ensureReady();
