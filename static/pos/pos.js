@@ -1338,34 +1338,28 @@
         throw new Error('[POS] Invalid item id');
       }
       const quantity = qty || 1;
-      const unitPrice = Number(item.basePrice ?? item.price ?? 0);
+      const price = Number(item.price) || 0;
       const now = Date.now();
       const uniqueId = overrides?.id || `ln-${itemId}-${now.toString(36)}-${Math.random().toString(16).slice(2,6)}`;
-      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSectionId ?? item.kitchenSection ?? item.kitchen_section ?? item.kitchen_section_id;
+      const kitchenSource = overrides?.kitchenSection ?? item.kitchenSection ?? item.kitchen_section ?? item.kitchen_section_id;
       const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
       if(!kitchenSection || kitchenSection === 'null' || kitchenSection === 'undefined'){
         console.warn('[POS] Invalid kitchenSection, defaulting to expo', { item, kitchenSource });
       }
-      const statusId = overrides?.statusId || overrides?.status || 'draft';
       const baseLine = {
         id: uniqueId,
         itemId,
         item_id: itemId,
         name: item.name,
         description: item.description,
-        quantity,
+        price,
+        basePrice: price,
         qty: quantity,
-        unitPrice,
-        unit_price: unitPrice,
-        price: unitPrice,
-        basePrice: unitPrice,
-        total: round(unitPrice * quantity),
+        total: round(price * quantity),
         modifiers: overrides?.modifiers || [],
         notes: overrides?.notes || [],
         discount: normalizeDiscount(overrides?.discount),
-        statusId,
-        status_id: statusId,
-        status: statusId,
+        status: overrides?.status || 'draft',
         stage: overrides?.stage || 'new',
         kitchenSection,
         kitchenSectionId: kitchenSection,
@@ -1829,12 +1823,29 @@
           ?? metadata.productId
           ?? metadata.product_id
           ?? metadata.itemCode;
-
-        const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
-          ? String(rawItemId).trim()
-          : null;
-        const menuItem = itemId ? menuIndex?.get(itemId) : null;
-
+        if(rawItemId == null){
+          console.warn('[Mishkah][POS] Ignoring persisted order line without item id', record);
+          return null;
+        }
+        const itemId = String(rawItemId);
+        const menuItem = menuIndex?.get(itemId);
+        const qty = Math.max(1, Number(record.qty) || 1);
+        const basePrice = Number(record.basePrice != null ? record.basePrice : record.price != null ? record.price : menuItem?.price || 0);
+        const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
+        const kitchenSource = record.kitchenSection
+          ?? record.kitchenSectionId
+          ?? record.kitchen_section_id
+          ?? record.stationId
+          ?? record.station_id
+          ?? record.sectionId
+          ?? record.section_id
+          ?? metadata.kitchenSectionId
+          ?? metadata.sectionId
+          ?? metadata.section_id
+          ?? metadata.stationId
+          ?? metadata.station_id
+          ?? menuItem?.kitchenSection;
+        const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
         const rawName = record.name
           ?? record.item_name
           ?? record.itemName
@@ -1857,58 +1868,18 @@
           ?? metadata.lineDescription
           ?? metadata.line_description
           ?? null;
-
-        if(itemId == null && rawName == null){
-          console.warn('[Mishkah][POS] Ignoring persisted order line without item id and name', record);
-          return null;
-        }
-
-        const quantity = record.quantity != null ? Number(record.quantity) : (record.qty != null ? Number(record.qty) : 1);
-        const unitPrice = Number(record.unitPrice != null ? record.unitPrice
-          : record.unit_price != null ? record.unit_price
-          : record.price != null ? record.price
-          : record.basePrice != null ? record.basePrice
-          : menuItem?.price || menuItem?.basePrice || 0);
-        const modifiers = Array.isArray(record.modifiers) ? record.modifiers.map(entry=> ({ ...entry })) : [];
-        const kitchenSource = record.kitchenSection
-          ?? record.kitchenSectionId
-          ?? record.kitchen_section_id
-          ?? record.stationId
-          ?? record.station_id
-          ?? record.sectionId
-          ?? record.section_id
-          ?? metadata.kitchenSectionId
-          ?? metadata.sectionId
-          ?? metadata.section_id
-          ?? metadata.stationId
-          ?? metadata.station_id
-          ?? menuItem?.kitchenSection;
-        const kitchenSection = kitchenSource != null && kitchenSource !== '' ? String(kitchenSource) : 'expo';
-
-        const resolvedName = menuItem ? menuItem.name : cloneName(rawName) || (itemId ? `صنف ${itemId}` : 'صنف غير معروف');
-        const resolvedDescription = menuItem ? menuItem.description : cloneName(rawDescription);
-        const statusId = record.statusId || record.status_id || record.status || 'draft';
-
         const baseLine = {
           id: record.id,
-          itemId: itemId || null,
-          item_id: itemId || null,
-          name: resolvedName,
-          description: resolvedDescription,
-          quantity,
-          qty: quantity,
-          unitPrice: round(unitPrice),
-          unit_price: round(unitPrice),
-          price: round(unitPrice),
-          basePrice: round(unitPrice),
+          itemId,
+          name: menuItem ? menuItem.name : cloneName(rawName),
+          description: menuItem ? menuItem.description : cloneName(rawDescription),
+          qty,
+          price: round(basePrice),
+          basePrice: round(basePrice),
           modifiers,
-          statusId,
-          status_id: statusId,
-          status: statusId,
+          status: record.status,
           stage: record.stage,
           kitchenSection,
-          kitchenSectionId: kitchenSection,
-          kitchen_section_id: kitchenSection,
           locked: !!record.locked,
           notes: Array.isArray(record.notes) ? record.notes : [],
           discount: normalizeDiscount(record.discount),
@@ -2946,33 +2917,20 @@
       }
       const metadata = ensurePlainObject(normalized.metadata);
       const rawItemId = row.itemId ?? row.item_id ?? metadata.itemId ?? metadata.item_id ?? metadata.menuItemId ?? metadata.productId ?? metadata.itemCode ?? null;
-      const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
-        ? String(rawItemId).trim()
-        : null;
-      if(!itemId){
-        console.warn('[Mishkah][POS] Dropping realtime order line - missing itemId', { id, orderId, rawItemId });
+      if(rawItemId == null){
+        console.warn('[Mishkah][POS] Dropping realtime order line without item id', row);
         return null;
       }
+      const itemId = String(rawItemId);
       normalized.itemId = itemId;
       normalized.item_id = itemId;
-      if(!normalized.metadata) normalized.metadata = {};
-      normalized.metadata.itemId = itemId;
-      normalized.metadata.item_id = itemId;
-      const quantity = row.quantity != null ? Number(row.quantity) : (row.qty != null ? Number(row.qty) : 1);
-      const unitPrice = row.unitPrice != null ? Number(row.unitPrice) : (row.unit_price != null ? Number(row.unit_price) : (row.price != null ? Number(row.price) : 0));
-      const total = row.total != null ? Number(row.total) : round(quantity * unitPrice);
-      const statusId = row.statusId ?? row.status_id ?? row.status ?? '';
-      normalized.quantity = quantity;
-      normalized.unitPrice = unitPrice;
-      normalized.unit_price = unitPrice;
-      normalized.total = total;
-      normalized.statusId = statusId;
-      normalized.status_id = statusId;
       const sectionSource = row.kitchenSection ?? row.kitchen_section ?? row.kitchenSectionId ?? row.kitchen_section_id ?? metadata.kitchenSectionId ?? metadata.sectionId ?? metadata.stationId;
       const kitchenSection = sectionSource != null && sectionSource !== '' ? String(sectionSource) : 'expo';
       normalized.kitchenSectionId = kitchenSection;
       normalized.kitchen_section_id = kitchenSection;
-      normalized.metadata.kitchenSectionId = kitchenSection;
+      if(normalized.status == null && (row.statusId != null || row.status_id != null)){
+        normalized.status = row.statusId ?? row.status_id;
+      }
       return normalized;
     }
 
@@ -3577,278 +3535,24 @@
         return sources;
       };
       const extractDatasetEntries = (record, canonical)=>{
-        const result = { rows:[], found:false };
-        if(!record) return result;
+        if(!record) return [];
         const names = getDatasetPayloadKeysFor(canonical);
         const sources = gatherDatasetSources(record);
         for(const source of sources){
           if(!source || typeof source !== 'object') continue;
           for(const name of names){
-            if(Object.prototype.hasOwnProperty.call(source, name)){
-              result.found = true;
-            }
             const value = source[name];
             const list = readDatasetArray(value);
-            if(list.length){
-              return { rows:list, found:true };
-            }
-            if(value !== undefined && value !== null){
-              result.found = true;
-            }
+            if(list.length) return list;
           }
         }
-        return result;
-      };
-      const groupRealtimeOrderChildren = (rows, normalize)=>{
-        const grouped = new Map();
-        (Array.isArray(rows) ? rows : []).forEach(row=>{
-          const normalized = typeof normalize === 'function' ? normalize(row) : row;
-          if(!normalized || !normalized.orderId) return;
-          const orderId = String(normalized.orderId);
-          if(!grouped.has(orderId)) grouped.set(orderId, []);
-          grouped.get(orderId).push(normalized);
-        });
-        return grouped;
-      };
-      const normalizeRealtimeEntityId = (value)=>{
-        if(value == null) return null;
-        const text = String(value).trim();
-        return text ? text : null;
-      };
-      const interpretDeletionToken = (value)=>{
-        if(value == null) return false;
-        if(typeof value === 'boolean') return value;
-        if(typeof value === 'number') return value !== 0;
-        if(typeof value === 'string'){
-          const normalized = value.trim().toLowerCase();
-          if(!normalized) return false;
-          return [
-            '1',
-            'true',
-            'yes',
-            'y',
-            'delete',
-            'deleted',
-            'remove',
-            'removed',
-            'void',
-            'voided',
-            'archive',
-            'archived',
-            'purge',
-            'purged'
-          ].includes(normalized);
-        }
-        return false;
-      };
-      const objectIndicatesDeletion = (candidate, visited=new WeakSet())=>{
-        if(!candidate || typeof candidate !== 'object') return false;
-        if(visited.has(candidate)) return false;
-        visited.add(candidate);
-        const directFlags = [
-          candidate.__deleted,
-          candidate._deleted,
-          candidate.deleted,
-          candidate.deletedFlag,
-          candidate.deleted_flag,
-          candidate.isDeleted,
-          candidate.is_deleted,
-          candidate.removed,
-          candidate.removedFlag,
-          candidate.removed_flag,
-          candidate.isRemoved,
-          candidate.is_removed,
-          candidate.voided,
-          candidate.void,
-          candidate.isVoided,
-          candidate.is_voided,
-          candidate.archived,
-          candidate.archivedFlag,
-          candidate.archived_flag,
-          candidate.isArchived,
-          candidate.is_archived,
-          candidate.purged,
-          candidate.isPurged,
-          candidate.is_purged
-        ];
-        if(directFlags.some(interpretDeletionToken)) return true;
-        const actionCandidates = [
-          candidate.__op,
-          candidate.__operation,
-          candidate.operation,
-          candidate.action,
-          candidate.event,
-          candidate.eventType,
-          candidate.event_type,
-          candidate.changeType,
-          candidate.change_type,
-          candidate.op,
-          candidate.type
-        ];
-        if(actionCandidates.some(value=> typeof value === 'string' && value.toLowerCase().includes('delete'))) return true;
-        const statusCandidates = [candidate.status, candidate.state, candidate.lifecycle, candidate.stage];
-        if(statusCandidates.some(value=> typeof value === 'string' && ['deleted', 'voided', 'void', 'removed', 'archived', 'purged'].includes(value.toLowerCase()))){
-          return true;
-        }
-        const timestampCandidates = [
-          candidate.deletedAt,
-          candidate.deleted_at,
-          candidate.removedAt,
-          candidate.removed_at,
-          candidate.archivedAt,
-          candidate.archived_at,
-          candidate.voidedAt,
-          candidate.voided_at,
-          candidate.purgedAt,
-          candidate.purged_at
-        ];
-        if(timestampCandidates.some(value=> value != null && String(value).trim() !== '')) return true;
-        const metaCandidates = [];
-        const meta = ensurePlainObject(candidate.meta);
-        if(meta && Object.keys(meta).length) metaCandidates.push(meta);
-        const metadata = ensurePlainObject(candidate.metadata);
-        if(metadata && Object.keys(metadata).length) metaCandidates.push(metadata);
-        if(Array.isArray(candidate.flags)) metaCandidates.push(...candidate.flags);
-        return metaCandidates.some(entry=>{
-          if(entry && typeof entry === 'object' && !Array.isArray(entry)){
-            return objectIndicatesDeletion(entry, visited);
-          }
-          if(Array.isArray(entry)){
-            return entry.some(item=> objectIndicatesDeletion(item, visited) || interpretDeletionToken(item));
-          }
-          return interpretDeletionToken(entry);
-        });
-      };
-      const detectRealtimeOrderDeletionId = (row)=>{
-        if(!row || typeof row !== 'object') return null;
-        if(!objectIndicatesDeletion(row)) return null;
-        const candidates = [
-          row.id,
-          row.orderId,
-          row.order_id,
-          row.headerId,
-          row.header_id,
-          row.key,
-          row.recordId,
-          row.record_id,
-          row.targetId,
-          row.target_id,
-          row.uuid,
-          row.orderUUID,
-          row.order_uuid
-        ];
-        for(const candidate of candidates){
-          const id = normalizeRealtimeEntityId(candidate);
-          if(id) return id;
-        }
-        const meta = ensurePlainObject(row.meta || row.metadata);
-        const metaCandidates = [meta?.id, meta?.orderId, meta?.order_id];
-        for(const candidate of metaCandidates){
-          const id = normalizeRealtimeEntityId(candidate);
-          if(id) return id;
-        }
-        return null;
-      };
-      const collectDatasetOrderRemovals = (record)=>{
-        const removalIds = new Set();
-        if(!record || typeof record !== 'object') return removalIds;
-        const removalKeys = [
-          'ordersRemoved',
-          'removedOrders',
-          'orders_removed',
-          'ordersRemovedIds',
-          'removedOrderIds',
-          'ordersDeleted',
-          'deletedOrders',
-          'ordersDeletedIds',
-          'orders_removed_ids'
-        ];
-        const registerId = (value)=>{
-          if(value == null) return;
-          if(Array.isArray(value)){
-            value.forEach(entry=> registerId(entry));
-            return;
-          }
-          if(typeof value === 'object'){
-            const candidates = [
-              value.id,
-              value.orderId,
-              value.order_id,
-              value.orderID,
-              value.key,
-              value.recordId,
-              value.record_id,
-              value.deletedId,
-              value.deleted_id,
-              value.removedId,
-              value.removed_id
-            ];
-            candidates.forEach(candidate=>{
-              if(candidate == null) return;
-              const text = String(candidate).trim();
-              if(text) removalIds.add(text);
-            });
-            if(value.ids) registerId(value.ids);
-            if(value.orderIds) registerId(value.orderIds);
-            if(value.keys) registerId(value.keys);
-            if(value.values) registerId(value.values);
-            return;
-          }
-          const text = String(value).trim();
-          if(text) removalIds.add(text);
-        };
-        const sources = gatherDatasetSources(record);
-        sources.forEach(source=>{
-          if(!source || typeof source !== 'object') return;
-          removalKeys.forEach(key=> registerId(source[key]));
-          if(source.removed && typeof source.removed === 'object'){
-            registerId(source.removed.orders);
-            registerId(source.removed.orderIds);
-          }
-          if(source.deleted && typeof source.deleted === 'object'){
-            registerId(source.deleted.orders);
-            registerId(source.deleted.orderIds);
-          }
-          if(Array.isArray(source.syncLog)){
-            source.syncLog.forEach(entry=>{
-              if(!entry || typeof entry !== 'object') return;
-              const typeText = entry.type || entry.event || entry.action || entry.kind || entry.operation || '';
-              const normalizedType = typeof typeText === 'string' ? typeText.toLowerCase() : '';
-              if(normalizedType.includes('order') && normalizedType.includes('delete')){
-                registerId(entry.orderId ?? entry.order_id ?? entry.orderID ?? entry.id ?? entry.recordId ?? entry.targetId ?? entry.key ?? null);
-              }
-            });
-          }
-        });
-        return removalIds;
-      };
-      const mergeRealtimeOrderChildren = (targetMap, grouped, meta={})=>{
-        if(!(grouped instanceof Map) || grouped.size === 0) return false;
-        const summary = [];
-        grouped.forEach((list, orderId)=>{
-          const before = Array.isArray(targetMap.get(orderId)) ? targetMap.get(orderId).length : 0;
-          targetMap.set(orderId, list);
-          summary.push({ orderId, before, after: list.length });
-        });
-        if(summary.length){
-          const { source='unknown', type='child' } = meta;
-          console.log('[POS][ORDERS-SYNC]', {
-            source,
-            type,
-            ordersUpdated: summary.length,
-            details: summary.slice(0, 5)
-          });
-        }
-        return summary.length > 0;
+        return [];
       };
       const applyDatasetOrders = (record)=>{
         if(!record || typeof record !== 'object') return;
-        const headerResult = extractDatasetEntries(record, 'order_header');
-        const lineResult = extractDatasetEntries(record, 'order_line');
-        const paymentResult = extractDatasetEntries(record, 'order_payment');
-        let headerRows = headerResult.rows;
-        let lineRows = lineResult.rows;
-        let paymentRows = paymentResult.rows;
+        let headerRows = extractDatasetEntries(record, 'order_header');
+        let lineRows = extractDatasetEntries(record, 'order_line');
+        let paymentRows = extractDatasetEntries(record, 'order_payment');
         if(headerRows.length){
           const nestedLines = [];
           const nestedPayments = [];
@@ -3870,92 +3574,67 @@
               nestedPayments.push(merged);
             });
           });
-          if(!lineRows.length && nestedLines.length){
-            lineRows = nestedLines;
-          }
-          if(!paymentRows.length && nestedPayments.length){
-            paymentRows = nestedPayments;
-          }
+          if(!lineRows.length && nestedLines.length) lineRows = nestedLines;
+          if(!paymentRows.length && nestedPayments.length) paymentRows = nestedPayments;
         }
         let changed = false;
-        const removalIds = collectDatasetOrderRemovals(record);
-        const filteredHeaderRows = [];
-        headerRows.forEach(row=>{
-          const deletionId = detectRealtimeOrderDeletionId(row);
-          if(deletionId){
-            removalIds.add(deletionId);
-            return;
-          }
-          filteredHeaderRows.push(row);
-        });
-        headerRows = filteredHeaderRows;
         if(headerRows.length){
           datasetPrimed.headers = true;
-          const beforeCount = realtimeOrders.headers.size;
-          const upsertedIds = [];
+          realtimeOrders.headers.clear();
           headerRows.forEach(row=>{
             const normalized = sanitizeOrderHeaderRow(row);
             if(!normalized) return;
-            const id = String(normalized.id);
-            realtimeOrders.headers.set(id, normalized);
-            upsertedIds.push(id);
+            realtimeOrders.headers.set(String(normalized.id), normalized);
           });
-          if(upsertedIds.length){
-            console.log('[POS][ORDERS-SYNC]', {
-              source: 'dataset',
-              upserted: upsertedIds.length,
-              upsertedIds: upsertedIds.slice(0, 5),
-              before: beforeCount,
-              after: realtimeOrders.headers.size
-            });
+          changed = true;
+        } else if(datasetPrimed.headers){
+          datasetPrimed.headers = false;
+          if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
+            realtimeOrders.headers.clear();
             changed = true;
-          }
-        } else if(headerResult.found){
-          console.warn('[POS][ORDERS-SYNC] Dataset has order_header key but empty array - KEEPING existing orders', {
-            existingCount: realtimeOrders.headers.size
-          });
-        }
-        if(removalIds.size){
-          const deletedIds = [];
-          removalIds.forEach(id=>{
-            const text = String(id);
-            if(realtimeOrders.headers.delete(text)){
-              deletedIds.push(text);
-              changed = true;
-            }
-            if(realtimeOrders.lines.delete(text)) changed = true;
-            if(realtimeOrders.payments.delete(text)) changed = true;
-          });
-          if(deletedIds.length){
-            console.log('[POS][ORDERS-SYNC]', {
-              source: 'dataset',
-              deleted: deletedIds.length,
-              deletedIds: deletedIds.slice(0, 5),
-              after: realtimeOrders.headers.size
-            });
           }
         }
         if(lineRows.length){
           datasetPrimed.lines = true;
-          const grouped = groupRealtimeOrderChildren(lineRows, sanitizeOrderLineRow);
-          if(mergeRealtimeOrderChildren(realtimeOrders.lines, grouped, { source: 'dataset:order_line', type: 'lines' })){
-            changed = true;
-          }
-        } else if(lineResult.found){
-          console.warn('[POS][ORDERS-SYNC] Dataset has order_line key but empty array - KEEPING existing order lines', {
-            existingOrders: realtimeOrders.lines.size
+          const grouped = new Map();
+          lineRows.forEach(row=>{
+            const normalized = sanitizeOrderLineRow(row);
+            if(!normalized || !normalized.orderId) return;
+            const orderId = String(normalized.orderId);
+            if(!grouped.has(orderId)) grouped.set(orderId, []);
+            grouped.get(orderId).push(normalized);
           });
+          realtimeOrders.lines = grouped;
+          changed = true;
+        } else if(datasetPrimed.lines){
+          datasetPrimed.lines = false;
+          if(realtimeOrders.lines instanceof Map && realtimeOrders.lines.size){
+            realtimeOrders.lines = new Map();
+            changed = true;
+          } else {
+            realtimeOrders.lines = new Map();
+          }
         }
         if(paymentRows.length){
           datasetPrimed.payments = true;
-          const grouped = groupRealtimeOrderChildren(paymentRows, sanitizeOrderPaymentRow);
-          if(mergeRealtimeOrderChildren(realtimeOrders.payments, grouped, { source: 'dataset:order_payment', type: 'payments' })){
-            changed = true;
-          }
-        } else if(paymentResult.found){
-          console.warn('[POS][ORDERS-SYNC] Dataset has order_payment key but empty array - KEEPING existing payments', {
-            existingOrders: realtimeOrders.payments.size
+          const grouped = new Map();
+          paymentRows.forEach(row=>{
+            const normalized = sanitizeOrderPaymentRow(row);
+            if(!normalized || !normalized.orderId) return;
+            const orderId = String(normalized.orderId);
+            if(!grouped.has(orderId)) grouped.set(orderId, []);
+            grouped.get(orderId).push(normalized);
           });
+          realtimeOrders.payments = grouped;
+          changed = true;
+        } else if(datasetPrimed.payments){
+          datasetPrimed.payments = false;
+          if(realtimeOrders.payments instanceof Map && realtimeOrders.payments.size){
+            realtimeOrders.payments = new Map();
+            changed = true;
+          } else {
+            realtimeOrders.payments = new Map();
+          }
         }
         if(changed){
           scheduleRealtimeSnapshot();
@@ -3971,6 +3650,16 @@
           const latest = list.length ? list[list.length - 1] : null;
           if(latest && typeof latest === 'object'){
             applyDatasetOrders(latest);
+          } else if(datasetPrimed.headers || datasetPrimed.lines || datasetPrimed.payments){
+            datasetPrimed.headers = false;
+            datasetPrimed.lines = false;
+            datasetPrimed.payments = false;
+            if(realtimeOrders.headers instanceof Map && realtimeOrders.headers.size){
+              realtimeOrders.headers.clear();
+            }
+            realtimeOrders.lines = new Map();
+            realtimeOrders.payments = new Map();
+            scheduleRealtimeSnapshot();
           }
         });
       }
@@ -3979,76 +3668,39 @@
       const paymentTableName = POS_TABLE_HANDLES.order_payment || 'order_payment';
       const unsubHeaders = store.watch(headerTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_header', rows, sanitizeOrderHeaderRow);
-        if(!Array.isArray(rows)) return;
-        const beforeCount = realtimeOrders.headers.size;
-        const upserted = new Set();
-        const removed = new Set();
+        realtimeOrders.headers.clear();
         (rows || []).forEach(row=>{
-          const deletionId = detectRealtimeOrderDeletionId(row);
-          if(deletionId){
-            let deleted = false;
-            if(realtimeOrders.headers.delete(deletionId)) deleted = true;
-            if(realtimeOrders.lines.delete(deletionId)) deleted = true;
-            if(realtimeOrders.payments.delete(deletionId)) deleted = true;
-            if(deleted) removed.add(deletionId);
-            return;
-          }
           const normalized = sanitizeOrderHeaderRow(row);
           if(!normalized) return;
-          const id = String(normalized.id);
-          const previous = realtimeOrders.headers.get(id);
-          realtimeOrders.headers.set(id, normalized);
-          if(!previous){
-            upserted.add(id);
-          } else {
-            const keys = new Set([...Object.keys(previous), ...Object.keys(normalized)]);
-            for(const key of keys){
-              if(previous[key] !== normalized[key]){
-                upserted.add(id);
-                break;
-              }
-            }
-          }
+          realtimeOrders.headers.set(String(normalized.id), normalized);
         });
-        if(upserted.size || removed.size){
-          const afterCount = realtimeOrders.headers.size;
-          console.log('[POS][ORDERS-SYNC]', {
-            source: 'watch:order_header',
-            before: beforeCount,
-            upserted: upserted.size,
-            upsertedIds: Array.from(upserted).slice(0, 5),
-            deleted: removed.size,
-            deletedIds: Array.from(removed).slice(0, 5),
-            after: afterCount
-          });
-          scheduleRealtimeSnapshot();
-        }
+        scheduleRealtimeSnapshot();
       });
       const unsubLines = store.watch(lineTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_line', rows, sanitizeOrderLineRow);
-        const grouped = groupRealtimeOrderChildren(rows, sanitizeOrderLineRow);
-        if(grouped.size){
-          if(mergeRealtimeOrderChildren(realtimeOrders.lines, grouped, { source: 'watch:order_line', type: 'lines' })){
-            scheduleRealtimeSnapshot();
-          }
-        } else if(Array.isArray(rows) && rows.length === 0 && realtimeOrders.lines.size){
-          console.warn('[POS][ORDERS-SYNC] order_line watch returned empty snapshot - KEEPING existing order lines', {
-            existingOrders: realtimeOrders.lines.size
-          });
-        }
+        const grouped = new Map();
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeOrderLineRow(row);
+          if(!normalized || !normalized.orderId) return;
+          const orderId = String(normalized.orderId);
+          if(!grouped.has(orderId)) grouped.set(orderId, []);
+          grouped.get(orderId).push(normalized);
+        });
+        realtimeOrders.lines = grouped;
+        scheduleRealtimeSnapshot();
       });
       const unsubPayments = store.watch(paymentTableName, (rows)=>{
         logIndexedDbSample(realtimeOrders.debugLogged, 'order_payment', rows, sanitizeOrderPaymentRow);
-        const grouped = groupRealtimeOrderChildren(rows, sanitizeOrderPaymentRow);
-        if(grouped.size){
-          if(mergeRealtimeOrderChildren(realtimeOrders.payments, grouped, { source: 'watch:order_payment', type: 'payments' })){
-            scheduleRealtimeSnapshot();
-          }
-        } else if(Array.isArray(rows) && rows.length === 0 && realtimeOrders.payments.size){
-          console.warn('[POS][ORDERS-SYNC] order_payment watch returned empty snapshot - KEEPING existing payments', {
-            existingOrders: realtimeOrders.payments.size
-          });
-        }
+        const grouped = new Map();
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeOrderPaymentRow(row);
+          if(!normalized || !normalized.orderId) return;
+          const orderId = String(normalized.orderId);
+          if(!grouped.has(orderId)) grouped.set(orderId, []);
+          grouped.get(orderId).push(normalized);
+        });
+        realtimeOrders.payments = grouped;
+        scheduleRealtimeSnapshot();
       });
       realtimeOrders.unsubscribes = [unsubDataset, unsubHeaders, unsubLines, unsubPayments].filter(Boolean);
       realtimeOrders.installed = true;
@@ -6161,74 +5813,40 @@
         discount: normalizeDiscount(line.discount),
         updatedAt: now
       })).map(line=>{
-        const itemToken = line.itemId || line.item_id || line.metadata?.itemId || line.metadata?.item_id;
-        const itemId = itemToken != null && String(itemToken).trim() !== '' && String(itemToken) !== 'null' && String(itemToken) !== 'undefined'
-          ? String(itemToken).trim()
-          : null;
-        if(!itemId){
-          console.error('[Mishkah][POS] Line missing itemId', {
-            lineId: line.id,
-            itemToken,
-            name: line.name,
-            qty: line.qty,
-            quantity: line.quantity
-          });
-          if(!missingItemLine) missingItemLine = line;
+        const itemToken = line.itemId || line.item_id;
+        if(!itemToken && !missingItemLine){
+          missingItemLine = line;
         }
-        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.metadata?.kitchenSectionId;
-        if(!kitchenSection || String(kitchenSection).trim() === ''){
-          if(!missingKitchenLine){
-            console.warn('[Mishkah][POS] Line missing kitchenSection, using expo', {
-              lineId: line.id,
-              itemId,
-              name: line.name
-            });
-            missingKitchenLine = line;
-          }
-          kitchenSection = 'expo';
+        const itemId = itemToken != null ? String(itemToken) : itemToken;
+        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id;
+        if(!kitchenSection && !missingKitchenLine){
+          missingKitchenLine = line;
         }
-        kitchenSection = String(kitchenSection).trim();
-        const quantity = line.quantity != null ? Number(line.quantity) : (line.qty != null ? Number(line.qty) : 1);
-        const unitPrice = line.unitPrice != null ? Number(line.unitPrice) : (line.unit_price != null ? Number(line.unit_price) : (line.price != null ? Number(line.price) : (line.basePrice != null ? Number(line.basePrice) : 0)));
-        const total = line.total != null ? Number(line.total) : round(quantity * unitPrice);
-        const statusId = line.statusId || line.status_id || line.status || 'draft';
-        console.log('[Mishkah][POS] Preparing line for save (SCHEMA COMPLIANT):', {
+        kitchenSection = kitchenSection ? String(kitchenSection) : undefined;
+        console.log('[Mishkah][POS] Preparing line for save:', {
           lineId: line.id,
+          itemToken,
           itemId,
-          quantity,
-          unitPrice,
-          total,
-          statusId,
-          kitchenSection
+          name: line.name,
+          kitchenSection,
+          hasName: !!line.name
         });
         return {
           ...line,
           itemId,
           item_id: itemId,
-          quantity,
-          unitPrice,
-          unit_price: unitPrice,
-          total,
-          statusId,
-          status_id: statusId,
-          kitchenSection,
-          kitchenSectionId: kitchenSection,
-          kitchen_section_id: kitchenSection,
-          metadata: {
-            ...(line.metadata || {}),
-            itemId,
-            item_id: itemId,
-            kitchenSectionId: kitchenSection
-          }
+          kitchenSection: kitchenSection || 'expo',
+          kitchenSectionId: kitchenSection || 'expo',
+          kitchen_section_id: kitchenSection || 'expo'
         };
       });
       if(missingItemLine){
-        console.error('[Mishkah][POS] Cannot save order - line has invalid or missing itemId', missingItemLine);
-        UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف صحيح', icon:'⚠️' });
+        UI.pushToast(ctx, { title:t.toast.line_missing_item || 'لا يمكن حفظ سطر بدون صنف مرتبط', icon:'⚠️' });
         return { status:'error', reason:'line-missing-item' };
       }
       if(missingKitchenLine){
-        console.warn('[Mishkah][POS] Continuing save with expo as default kitchen section');
+        UI.pushToast(ctx, { title:t.toast.line_missing_kitchen || 'لا يمكن حفظ سطر بدون قسم مطبخ', icon:'⚠️' });
+        return { status:'error', reason:'line-missing-kitchen' };
       }
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
