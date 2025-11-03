@@ -1948,10 +1948,18 @@
       function normalizePersistedOrder(raw){
         if(!raw || typeof raw !== 'object') return null;
         const metadata = { ...ensurePlainObject(raw.metadata || raw.meta) };
+        const totalsSource = ensurePlainObject(
+          raw.totals
+            || raw.orderTotals
+            || raw.order_totals
+            || metadata.totals
+            || metadata.orderTotals
+            || metadata.order_totals
+        );
         const base = {
           ...raw,
           metadata,
-          totals: { ...ensurePlainObject(raw.totals) },
+          totals: { ...totalsSource },
           discount: normalizeDiscount(raw.discount),
           type: raw.type || raw.orderType || raw.order_type || 'dine_in',
           status: raw.status || raw.statusId || raw.status_id || 'open',
@@ -1968,14 +1976,28 @@
         base.statusId = base.status;
         base.payment_state = base.paymentState;
         base.paymentStateId = base.paymentState;
-        base.tableIds = Array.isArray(base.tableIds) ? base.tableIds.slice() : [];
+        const tableIdsSource = pickArray(
+          base.tableIds,
+          raw.tableIds,
+          raw.table_ids,
+          metadata.tableIds,
+          metadata.table_ids
+        );
+        base.tableIds = tableIdsSource;
         base.guests = Number.isFinite(Number(base.guests)) ? Number(base.guests) : 0;
         base.allowAdditions = base.allowAdditions !== undefined ? !!base.allowAdditions : true;
         base.lockLineEdits = base.lockLineEdits !== undefined ? !!base.lockLineEdits : true;
         if(base.posNumber == null && metadata.posNumber != null){
           base.posNumber = metadata.posNumber;
         }
-        const linesSource = Array.isArray(raw.lines) ? raw.lines : [];
+        const linesSource = pickArray(
+          raw.lines,
+          raw.orderLines,
+          raw.order_lines,
+          raw.order_line_items,
+          raw.orderDetails,
+          raw.order_details
+        );
         base.lines = linesSource
           .map(line=>{
             if(!line) return null;
@@ -1983,9 +2005,15 @@
             return hydrateLine(payload);
           })
           .filter(Boolean);
-        const notes = Array.isArray(raw.notes)
-          ? raw.notes
-              .map(note=>{
+        const notesSource = pickArray(
+          raw.notes,
+          raw.orderNotes,
+          raw.order_notes,
+          raw.comments,
+          raw.remarks
+        );
+        const notes = notesSource
+          .map(note=>{
                 if(!note) return null;
                 const message =
                   typeof note === 'string'
@@ -2010,11 +2038,16 @@
                   createdAt
                 };
               })
-              .filter(Boolean)
-          : [];
+              .filter(Boolean);
         base.notes = notes;
-        const payments = Array.isArray(raw.payments)
-          ? raw.payments.map(entry=>({
+        const paymentsSource = pickArray(
+          raw.payments,
+          raw.orderPayments,
+          raw.order_payments,
+          raw.paymentTransactions,
+          raw.payment_transactions
+        );
+        const payments = paymentsSource.map(entry=>({
               ...entry,
               id:
                 entry.id ||
@@ -2023,8 +2056,7 @@
                 `${base.id || 'order'}::pm::${Math.random().toString(36).slice(2, 10)}`,
               method: entry.method || entry.methodId || entry.method_id || entry.type || 'cash',
               amount: round(Number(entry.amount) || 0)
-            }))
-          : [];
+            }));
         base.payments = payments;
         const mapEvent = (entry)=>{
           if(!entry) return null;
@@ -2047,8 +2079,20 @@
             metadata: ensurePlainObject(entry.metadata || entry.meta)
           };
         };
-        const eventsPrimary = Array.isArray(raw.statusLogs) ? raw.statusLogs : [];
-        const eventsSecondary = Array.isArray(raw.events) ? raw.events : [];
+        const eventsPrimary = pickArray(
+          raw.statusLogs,
+          raw.orderStatusLogs,
+          raw.order_status_logs,
+          raw.status_history,
+          raw.orderStatusHistory
+        );
+        const eventsSecondary = pickArray(
+          raw.events,
+          raw.orderEvents,
+          raw.order_events,
+          raw.eventLogs,
+          raw.order_event_logs
+        );
         const seenEvents = new Set();
         const normalizedEvents = [];
         [...eventsPrimary, ...eventsSecondary].forEach(entry=>{
