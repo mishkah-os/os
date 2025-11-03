@@ -2933,12 +2933,25 @@
       const normalized = { ...row };
       normalized.id = String(id);
       normalized.orderId = orderId != null ? String(orderId) : undefined;
-      if(normalized.metadata == null && row.meta !== undefined){
-        normalized.metadata = ensurePlainObject(row.meta);
+
+      // محاولة قراءة metadata من جميع الأماكن الممكنة
+      let metadataSource = row.metadata || row.meta || row.lineMetadata || row.line_metadata || null;
+
+      // إذا كان string، حاول parse كـ JSON
+      if(typeof metadataSource === 'string'){
+        try {
+          metadataSource = JSON.parse(metadataSource);
+        } catch(e) {
+          metadataSource = null;
+        }
+      }
+
+      if(normalized.metadata == null && metadataSource){
+        normalized.metadata = ensurePlainObject(metadataSource);
       }
       const metadata = ensurePlainObject(normalized.metadata);
       // البحث عن itemId في جميع الأماكن الممكنة
-      const rawItemId = row.itemId
+      let rawItemId = row.itemId
         ?? row.item_id
         ?? row.menu_item_id
         ?? row.menuItemId
@@ -2950,6 +2963,19 @@
         ?? metadata.productId
         ?? metadata.itemCode
         ?? null;
+
+      // إذا لم نجد itemId، حاول استخراجه من id
+      // النمط: "ln-{itemId}-{random}"
+      if(!rawItemId && id && typeof id === 'string'){
+        const match = id.match(/^ln-([0-9a-fA-F-]+)-[a-z0-9]+$/);
+        if(match && match[1]){
+          rawItemId = match[1];
+          console.log('[POS][sanitizeOrderLineRow] Extracted itemId from line id:', {
+            lineId: id,
+            extractedItemId: rawItemId
+          });
+        }
+      }
       const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
         ? String(rawItemId).trim()
         : null;
@@ -2959,6 +2985,9 @@
           orderId,
           rawItemId,
           availableFields: Object.keys(row),
+          metadata_field: row.metadata,
+          meta_field: row.meta,
+          parsedMetadata: metadata,
           sampleRow: row
         });
         return null;
