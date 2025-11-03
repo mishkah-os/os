@@ -1177,12 +1177,133 @@
     });
   };
 
-  const getExpoOrders = (db)=> computeOrdersSnapshot(db)
-    .filter(order=>{
-      if(!order) return false;
-      const status = order.handoffStatus;
-      return status !== 'assembled' && status !== 'served';
+  const buildExpoFallbackOrder = (ticket, db)=>{
+    if(!ticket || typeof ticket !== 'object') return null;
+    const stationMap = db?.data?.stationMap || {};
+    const menuIndex = db?.data?.menuIndex || {};
+    const jobs = Array.isArray(ticket.jobs) ? ticket.jobs : [];
+    let totalItems = 0;
+    let readyItems = 0;
+    const detailRows = [];
+
+    jobs.forEach(job=>{
+      if(!job || typeof job !== 'object') return;
+      const station = stationMap[job.stationId] || {};
+      const stationLabelAr = station.nameAr || job.stationCode || job.stationId;
+      const stationLabelEn = station.nameEn || job.stationCode || job.stationId;
+      const jobDetails = Array.isArray(job.details) ? job.details : [];
+      if(jobDetails.length){
+        jobDetails.forEach(detail=>{
+          if(!detail || typeof detail !== 'object') return;
+          const quantity = ensureQuantity(detail.quantity);
+          const menuItem = detail.itemId ? menuIndex[String(detail.itemId)] : null;
+          const detailClone = {
+            ...detail,
+            quantity,
+            itemNameAr: detail.itemNameAr || menuItem?.nameAr || detail.itemId || stationLabelAr,
+            itemNameEn: detail.itemNameEn || menuItem?.nameEn || detail.itemId || stationLabelEn
+          };
+          totalItems += quantity;
+          if(detailClone.status === 'ready' || detailClone.status === 'completed'){
+            readyItems += quantity;
+          }
+          detailRows.push({ detail: detailClone, stationLabelAr, stationLabelEn });
+        });
+      } else {
+        const quantity = ensureQuantity(job.totalItems || job.completedItems || 1);
+        const fallbackDetail = {
+          id: `${job.id || 'job'}-fallback`,
+          itemNameAr: stationLabelAr,
+          itemNameEn: stationLabelEn,
+          status: job.status,
+          quantity,
+          prepNotes: job.notes || '',
+          modifiers: []
+        };
+        if(job.status === 'ready' || job.status === 'completed'){
+          readyItems += quantity;
+        }
+        totalItems += quantity;
+        detailRows.push({ detail: fallbackDetail, stationLabelAr, stationLabelEn });
+      }
     });
+
+    if(totalItems === 0){
+      totalItems = Number(ticket.totalItems) || 0;
+      readyItems = Number(ticket.readyItems) || 0;
+    }
+    const pendingItems = Math.max(0, totalItems - readyItems);
+    const normalizeStatus = (value)=> value == null ? '' : String(value).toLowerCase();
+    let status = normalizeStatus(ticket.status);
+    if(status === 'assembled' || status === 'served'){
+      if(pendingItems > 0 || (totalItems > 0 && readyItems < totalItems)){
+        status = 'pending';
+      }
+    } else if(status === 'ready' && readyItems < totalItems){
+      status = 'pending';
+    }
+    if(!status || status === 'awaiting'){
+      status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
+    }
+
+    const createdAt = ticket.createdAt || ticket.acceptedAt || ticket.updatedAt || null;
+    const createdMs = parseTime(createdAt);
+    const orderId = ticket.orderId || ticket.order_id || ticket.orderID || ticket.id;
+    const orderNumber = resolveOrderNumber(ticket.orderNumber || ticket.order_number, orderId);
+    const serviceModeSource = ticket.serviceMode || ticket.service_mode || ticket.orderType || ticket.order_type || 'dine_in';
+    const serviceMode = String(serviceModeSource || 'dine_in').toLowerCase();
+    const handoffRecord = {
+      status,
+      updatedAt: ticket.updatedAt || ticket.updated_at || createdAt || null,
+      assembledAt: ticket.assembledAt || ticket.assembled_at || null,
+      servedAt: ticket.servedAt || ticket.served_at || null
+    };
+
+    return {
+      orderId,
+      orderNumber: orderNumber || orderId,
+      serviceMode,
+      tableLabel: ticket.tableLabel || ticket.table || ticket.tableName || ticket.table_name || null,
+      customerName: ticket.customerName || ticket.customer || ticket.guestName || null,
+      createdAt,
+      createdMs,
+      jobs,
+      readyItems,
+      totalItems,
+      pendingItems,
+      detailRows,
+      handoffStatus: status,
+      handoffRecord
+    };
+  };
+
+  const getExpoOrders = (db)=>{
+    const snapshot = computeOrdersSnapshot(db)
+      .filter(order=>{
+        if(!order) return false;
+        const status = order.handoffStatus;
+        return status !== 'assembled' && status !== 'served';
+      });
+    const orderMap = new Map();
+    snapshot.forEach(order=>{
+      const key = normalizeOrderKey(order.orderId || order.id);
+      if(key) orderMap.set(key, order);
+    });
+
+    const expoTickets = Array.isArray(db?.data?.expoTickets) ? db.data.expoTickets : [];
+    expoTickets.forEach(ticket=>{
+      const key = normalizeOrderKey(ticket?.orderId || ticket?.order_id || ticket?.orderID || ticket?.id);
+      if(!key || orderMap.has(key)) return;
+      const fallbackOrder = buildExpoFallbackOrder(ticket, db);
+      if(fallbackOrder) orderMap.set(key, fallbackOrder);
+    });
+
+    return Array.from(orderMap.values()).sort((a, b)=>{
+      const aCreated = a.createdMs ?? parseTime(a.createdAt) ?? 0;
+      const bCreated = b.createdMs ?? parseTime(b.createdAt) ?? 0;
+      return aCreated - bCreated;
+    });
+  };
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
     .filter(order=>{
