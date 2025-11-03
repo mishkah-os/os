@@ -1305,7 +1305,11 @@
 
   const getExpoOrders = (db)=>{
     const snapshot = computeOrdersSnapshot(db)
-      console.log("snapshot",snapshot);
+      .filter(order=>{
+        if(!order) return false;
+        const status = order.handoffStatus;
+        return status !== 'assembled' && status !== 'served';
+      });
     const orderMap = new Map();
     snapshot.forEach(order=>{
       const key = normalizeOrderKey(order.orderId || order.id);
@@ -1319,14 +1323,12 @@
       const fallbackOrder = buildExpoFallbackOrder(ticket, db);
       if(fallbackOrder) orderMap.set(key, fallbackOrder);
     });
-let arrRet =Array.from(orderMap.values()).sort((a, b)=>{
+
+    return Array.from(orderMap.values()).sort((a, b)=>{
       const aCreated = a.createdMs ?? parseTime(a.createdAt) ?? 0;
       const bCreated = b.createdMs ?? parseTime(b.createdAt) ?? 0;
       return aCreated - bCreated;
     });
-          console.log("arrRet",arrRet);
-
-    return arrRet
   };
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
@@ -1950,12 +1952,7 @@ let arrRet =Array.from(orderMap.values()).sort((a, b)=>{
   };
 
   const renderExpoPanel = (db, t, lang, now)=>{
-
-        console.log("renderExpoPanel");
-
     const orders = getExpoOrders(db);
-
-    console.log("renderExpoPanel",orders);
     if(!orders.length) return renderEmpty(t.empty.expo);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=>{
       const serviceLabel = t.labels.serviceMode[order.serviceMode] || order.serviceMode;
@@ -2140,7 +2137,6 @@ let arrRet =Array.from(orderMap.values()).sort((a, b)=>{
 
   const renderActivePanel = (db, t, lang, now)=>{
     const active = db.data.filters.activeTab;
-    console.log("db.data.filters.activeTab",db.data.filters.activeTab)
     if(active === 'prep') return renderPrepPanel(db, t, lang, now);
     if(active === 'expo') return renderExpoPanel(db, t, lang, now);
     if(active === 'handoff') return renderHandoffPanel(db, t, lang);
