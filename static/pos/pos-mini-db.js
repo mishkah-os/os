@@ -3,18 +3,20 @@ import { createDBAuto } from '../lib/mishkah.simple-store.js';
 const TABLE_ALIAS_GROUPS = {
   pos_database: ['pos_dataset', 'pos_data', 'dataset', 'pos_snapshot'],
   pos_shift: ['pos_shifts', 'shift_header', 'shiftHeaders', 'shifts'],
-  order_header: ['orders', 'order_headers', 'orderHeader', 'order_header_live', 'pos_order_header'],
+  order_header: ['order_headers', 'orderHeader', 'order_header_live', 'pos_order_header'],
   order_line: ['order_lines', 'order_line_items', 'orderDetails', 'order_items', 'orderLines'],
   order_line_modifier: ['order_line_modifiers', 'orderModifiers', 'order_line_addons'],
   order_line_status_log: ['order_line_status_history', 'line_status_history'],
   order_status_log: ['order_status_history', 'orderStatusHistory'],
-  order_payment: ['order_payments', 'payments', 'orderPayments', 'payment_transactions'],
+  order_payment: ['order_payments', 'orderPayments', 'payment_transactions'],
   order_delivery: ['order_deliveries', 'deliveries'],
-  job_order_header: ['job_orders', 'job_order_headers', 'production_order_header'],
+  job_order_header: ['job_order_headers', 'production_order_header'],
   job_order_detail: ['job_order_details', 'jobOrderDetails', 'production_order_detail'],
   job_order_detail_modifier: ['job_order_modifiers', 'jobOrderModifiers'],
   job_order_status_history: ['job_order_status_log', 'jobStatusHistory'],
   expo_pass_ticket: ['expo_pass_tickets', 'expo_tickets', 'expoPassTickets'],
+  menu_item: ['menu_items', 'menuItems', 'menuItem', 'items'],
+  menu_category: ['menu_categories', 'menuCategories', 'menuCategory', 'categories'],
   kitchen_section: ['kitchen_sections', 'kitchenStations'],
   dining_table: ['dining_tables', 'restaurant_tables', 'tables'],
   table_lock: ['table_locks', 'locks', 'tableLocks'],
@@ -31,9 +33,9 @@ const DEFAULT_TABLES = [
     'order_payment_states',
     'order_line_statuses',
     'payment_methods',
-    'categories',
+    'menu_category',
     'category_sections',
-    'items',
+    'menu_item',
     'kitchen_sections',
     'dining_table',
     'tableLocks',
@@ -42,7 +44,7 @@ const DEFAULT_TABLES = [
     'shift_settings',
     'removals',
     'stores'
-  ];;
+  ];
 
 function ensureArray(value) {
   return Array.isArray(value) ? value : [];
