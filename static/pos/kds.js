@@ -210,7 +210,7 @@
       },
       "expo": {
         "ar": "شاشة التجميع",
-        "en": "Expo pass"
+        "en": "Expeditor"
       },
       "handoff": {
         "ar": "شاشة التسليم",
@@ -1181,18 +1181,16 @@
     .filter(order=>{
       if(!order) return false;
       const status = order.handoffStatus;
-      if(status === 'served' || status === 'assembled') return false;
-      const readyItems = Number(order.readyItems) || 0;
-      if(readyItems > 0) return true;
-      const jobs = Array.isArray(order.jobs) ? order.jobs : [];
-      return jobs.some(job=> job && (job.status === 'ready' || job.status === 'completed'));
+      return status !== 'assembled' && status !== 'served';
     });
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
     .filter(order=>{
       if(!order) return false;
       const status = order.handoffStatus;
-      return status === 'pending' || status === 'ready' || status === 'assembled';
+      if(status !== 'assembled') return false;
+      const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
+      return serviceMode !== 'delivery';
     });
 
   const cloneJob = (job)=>({
@@ -1494,7 +1492,11 @@
     const assignments = deliveriesState.assignments || {};
     const settlements = deliveriesState.settlements || {};
     return computeOrdersSnapshot(db)
-      .filter(order=> order.handoffStatus === 'assembled')
+      .filter(order=>{
+        if(!order) return false;
+        if(order.handoffStatus !== 'assembled') return false;
+        return (order.serviceMode || 'dine_in').toLowerCase() === 'delivery';
+      })
       .map(order=> ({
         ...order,
         assignment: assignments[order.orderId] || null,
@@ -1889,48 +1891,7 @@
   const renderDeliveryPanel = (db, t, lang)=>{
     const orders = getDeliveryOrders(db);
     if(!orders.length) return renderEmpty(t.empty.delivery);
-    return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> {
-      const isDeliveryOrder = (order.serviceMode || 'dine_in') === 'delivery';
-
-      if(isDeliveryOrder){
-        return renderDeliveryCard(order, t, lang);
-      }
-
-      // Render simple card for dine-in/takeaway assembled orders
-      const serviceLabel = t.labels.serviceMode[order.serviceMode] || order.serviceMode;
-      const statusLabel = t.labels.handoffStatus.assembled || 'assembled';
-      const headerBadges = [
-        createBadge(`${SERVICE_ICONS[order.serviceMode] || '🧾'} ${serviceLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`)
-      ];
-      if(order.tableLabel) headerBadges.push(createBadge(`${t.labels.table} ${order.tableLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`));
-      if(order.customerName && !order.tableLabel) headerBadges.push(createBadge(`${t.labels.customer}: ${order.customerName}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`));
-
-      return D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
-        D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
-          D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.orderId}`]),
-          createBadge(statusLabel, HANDOFF_STATUS_CLASS.assembled)
-        ]),
-        headerBadges.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, headerBadges) : null,
-        D.Containers.Div({ attrs:{ class: tw`grid gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3 text-xs text-slate-300 sm:grid-cols-2` }}, [
-          D.Text.Span(null, [`${t.stats.ready}: ${order.readyItems || 0} / ${order.totalItems || 0}`]),
-          D.Text.Span(null, [`${t.labels.timer}: ${formatClock(order.handoffRecord?.assembledAt || order.createdAt, lang)}`])
-        ]),
-        order.detailRows && order.detailRows.length
-          ? D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, order.detailRows.map(entry=>{
-              const stationLabel = lang === 'ar' ? entry.stationLabelAr : entry.stationLabelEn;
-              return renderDetailRow(entry.detail, t, lang, stationLabel);
-            }))
-          : null,
-        D.Forms.Button({
-          attrs:{
-            type:'button',
-            gkey:'kds:handoff:served',
-            'data-order-id': order.orderId,
-            class: tw`w-full rounded-full border border-sky-400/70 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/30`
-          }
-        }, [t.actions.handoffServe])
-      ].filter(Boolean));
-    }));
+    return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> renderDeliveryCard(order, t, lang)));
   };
 
   const renderHandoffPanel = (db, t, lang)=>{
@@ -1940,7 +1901,6 @@
       const serviceLabel = t.labels.serviceMode[order.serviceMode] || order.serviceMode;
       const statusLabel = t.labels.handoffStatus[order.handoffStatus] || order.handoffStatus;
       const isAssembled = order.handoffStatus === 'assembled';
-      const isReady = order.handoffStatus === 'ready';
       const headerBadges = [
         createBadge(`${SERVICE_ICONS[order.serviceMode] || '🧾'} ${serviceLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`)
       ];
@@ -1949,7 +1909,7 @@
 
       const cardClass = cx(
         tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40`,
-        isReady ? tw`border-emerald-300/70 bg-emerald-500/10` : null
+        isAssembled ? tw`border-emerald-300/70 bg-emerald-500/10` : null
       );
 
       const actionButton = isAssembled
@@ -1961,15 +1921,6 @@
               class: tw`w-full rounded-full border border-sky-400/70 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/30`
             }
           }, [t.actions.handoffServe])
-        : isReady
-        ? D.Forms.Button({
-            attrs:{
-              type:'button',
-              gkey:'kds:handoff:assembled',
-              'data-order-id': order.orderId,
-              class: tw`w-full rounded-full border border-emerald-300/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-50 hover:bg-emerald-500/30`
-            }
-          }, [t.actions.handoffComplete])
         : null;
 
       return D.Containers.Article({ attrs:{ class: cardClass }}, [
