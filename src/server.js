@@ -451,7 +451,12 @@ async function fileExists(filePath) {
 }
 
 function jsonResponse(res, status, payload) {
-  res.writeHead(status, { 'content-type': 'application/json' });
+  res.writeHead(status, {
+    'content-type': 'application/json',
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+  });
   res.end(JSON.stringify(payload, null, 2));
 }
 
