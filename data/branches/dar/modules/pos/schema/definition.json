@@ -2077,7 +2077,6 @@
             "columnName": "item_id",
             "type": "string",
             "maxLength": 64,
-
             "nullable": false,
             "primaryKey": true,
             "unique": false,
