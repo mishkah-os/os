@@ -2075,7 +2075,9 @@
           {
             "name": "id",
             "columnName": "item_id",
-            "type": "integer",
+            "type": "string",
+            "maxLength": 64,
+
             "nullable": false,
             "primaryKey": true,
             "unique": false,
@@ -2300,7 +2302,6 @@
             "name": "itemId",
             "columnName": "item_id",
            "type": "string",
-            "nullable": false,
             "maxLength": 64,
             "nullable": false,
             "primaryKey": false,
@@ -2387,7 +2388,6 @@
             "columnName": "item_id",
             "type": "string",
 
-            "nullable": false,
 
             "maxLength": 64,
             "nullable": false,
@@ -2483,7 +2483,6 @@
             "columnName": "item_id",
             "type": "string",
 
-            "nullable": false,
 
             "maxLength": 64,
             "nullable": false,
@@ -3188,9 +3187,6 @@
             "name": "itemId",
             "columnName": "item_id",
             "type": "string",
-
-            "nullable": false,
-
             "maxLength": 64,
             "nullable": false,
             "primaryKey": false,
