@@ -3504,7 +3504,10 @@ async function serveStaticAsset(req, res, url) {
     const ext = path.extname(absolutePath).toLowerCase();
     const headers = {
       'content-type': CONTENT_TYPES[ext] || 'application/octet-stream',
-      ...STATIC_CACHE_HEADERS
+      ...STATIC_CACHE_HEADERS,
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': '*',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
     };
     res.writeHead(200, headers);
     if (req.method === 'HEAD') {
@@ -5697,42 +5700,54 @@ const httpServer = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const requestStart = Date.now();
   const isAjax = url.pathname.startsWith('/api/');
-
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'access-control-allow-origin': '*',
+      'access-control-allow-headers': req.headers['access-control-request-headers'] || '*',
+      'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+      'access-control-max-age': '600'
+    });
+    res.end();
+    return;
+  }
   if (metricsState.enabled) {
     res.on('finish', () => {
       const duration = Date.now() - requestStart;
       recordHttpRequest(req.method, isAjax, duration);
     });
   }
-
   if (req.method === 'GET' && url.pathname === '/metrics') {
     try {
       const body = await renderMetrics();
       res.writeHead(200, {
         'content-type': 'text/plain; version=0.0.4; charset=utf-8',
-        'cache-control': 'no-store'
+        'cache-control': 'no-store',
+        'access-control-allow-origin': '*',
+        'access-control-allow-headers': '*',
+        'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
       });
       res.end(body);
     } catch (error) {
       logger.warn({ err: error }, 'Failed to render metrics response');
-      res.writeHead(500, { 'content-type': 'application/json' });
+      res.writeHead(500, {
+        'content-type': 'application/json',
+        'access-control-allow-origin': '*',
+        'access-control-allow-headers': '*',
+        'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS'
+      });
       res.end(JSON.stringify({ error: 'metrics-unavailable' }));
     }
     return;
   }
-
   if (await serveStaticAsset(req, res, url)) return;
-
   if (req.method === 'GET' && url.pathname === '/healthz') {
     jsonResponse(res, 200, { status: 'ok', serverId: SERVER_ID, now: nowIso() });
     return;
   }
-
   if (url.pathname.startsWith('/api/manage')) {
     const handled = await handleManagementApi(req, res, url);
     if (handled) return;
   }
-
   if (url.pathname === '/api/schema') {
     if (req.method !== 'GET') {
       jsonResponse(res, 405, { error: 'method-not-allowed' });
@@ -5753,10 +5768,8 @@ const httpServer = createServer(async (req, res) => {
     const includeSeed = includeFlags.has('seed');
     const includeLive = includeFlags.has('live');
     const includeConfig = includeFlags.size === 0 || includeFlags.has('config');
-
     const payload = { branchId, modules: {} };
     const warnings = [];
-
     for (const moduleId of moduleIds) {
       const def = modulesConfig.modules?.[moduleId];
       if (!def) {
@@ -5799,15 +5812,12 @@ const httpServer = createServer(async (req, res) => {
       }
       payload.modules[moduleId] = entry;
     }
-
     if (warnings.length) {
       payload.warnings = warnings;
     }
-
     jsonResponse(res, 200, payload);
     return;
   }
-
   if (req.method === 'GET' && url.pathname === '/api/state') {
     const branchParam = url.searchParams.get('branch') || 'lab:test-pad';
     const branchId = decodeURIComponent(branchParam);
@@ -5820,7 +5830,6 @@ const httpServer = createServer(async (req, res) => {
     }
     return;
   }
-
   if (url.pathname.startsWith('/api/pos-sync') || url.pathname.startsWith('/api/sync')) {
     const handled = await handleSyncApi(req, res, url);
     if (handled) return;
@@ -5835,7 +5844,6 @@ const httpServer = createServer(async (req, res) => {
     await handleBranchesApi(req, res, url);
     return;
   }
-
   jsonResponse(res, 404, { error: 'not-found', path: url.pathname });
 });
 
