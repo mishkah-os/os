@@ -1985,7 +1985,8 @@
           {
             "name": "itemId",
             "columnName": "item_id",
-            "type": "integer",
+            "type": "string",
+            "maxLength": 64,
             "nullable": false,
             "primaryKey": false,
             "unique": false,
