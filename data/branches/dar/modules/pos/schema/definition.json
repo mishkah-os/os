@@ -7,10 +7,10 @@
     "version": 1,
     "tables": [
       {
-        "name": "audit_event",
+        "name": "audit_events",
         "label": "Audit Event",
         "comment": "Actions performed within the POS for traceability.",
-        "sqlName": "audit_event",
+        "sqlName": "audit_events",
         "layout": {
           "x": 320,
           "y": 520
@@ -99,7 +99,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -109,10 +109,10 @@
         "indexes": []
       },
       {
-        "name": "category_section",
+        "name": "category_sections",
         "label": "Category Section Map",
         "comment": "Bridge between menu categories and kitchen sections.",
-        "sqlName": "category_section",
+        "sqlName": "category_sections",
         "layout": {
           "x": 920,
           "y": 160
@@ -130,7 +130,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "menu_category",
+              "table": "menu_categories",
               "column": "category_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -147,7 +147,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "kitchen_section",
+              "table": "kitchen_sections",
               "column": "section_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -166,10 +166,10 @@
         ]
       },
       {
-        "name": "customer_address",
+        "name": "customer_addresses",
         "label": "Customer Address",
         "comment": "Saved addresses for delivery orders.",
-        "sqlName": "customer_address",
+        "sqlName": "customer_addresses",
         "layout": {
           "x": 80,
           "y": 360
@@ -223,7 +223,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "customer_profile",
+              "table": "customer_profiles",
               "column": "customer_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -311,10 +311,10 @@
         ]
       },
       {
-        "name": "customer_profile",
+        "name": "customer_profiles",
         "label": "Customer Profile",
         "comment": "Customers interacting with the POS.",
-        "sqlName": "customer_profile",
+        "sqlName": "customer_profiles",
         "layout": {
           "x": 80,
           "y": 260
@@ -425,10 +425,10 @@
         ]
       },
       {
-        "name": "delivery_driver",
+        "name": "delivery_drivers",
         "label": "Delivery Driver",
         "comment": "Delivery staff responsible for orders.",
-        "sqlName": "delivery_driver",
+        "sqlName": "delivery_drivers",
         "layout": {
           "x": 200,
           "y": 520
@@ -498,10 +498,10 @@
         "indexes": []
       },
       {
-        "name": "dining_table",
+        "name": "dining_tables",
         "label": "Dining Table",
         "comment": "Physical tables available inside the venue.",
-        "sqlName": "dining_table",
+        "sqlName": "dining_tables",
         "layout": {
           "x": 80,
           "y": 460
@@ -602,10 +602,10 @@
         ]
       },
       {
-        "name": "employee",
+        "name": "employees",
         "label": "Employee",
         "comment": "Employees and roles that can access the POS.",
-        "sqlName": "employee",
+        "sqlName": "employees",
         "layout": {
           "x": 200,
           "y": 40
@@ -1887,10 +1887,10 @@
         ]
       },
       {
-        "name": "kitchen_section",
+        "name": "kitchen_sections",
         "label": "Kitchen Section",
         "comment": "Production areas used for routing kitchen tickets.",
-        "sqlName": "kitchen_section",
+        "sqlName": "kitchen_sections",
         "layout": {
           "x": 800,
           "y": 60
@@ -1971,10 +1971,10 @@
         "indexes": []
       },
       {
-        "name": "menu_category",
+        "name": "menu_categories",
         "label": "Menu Category",
         "comment": "Menu taxonomy categories.",
-        "sqlName": "menu_category",
+        "sqlName": "menu_categories",
         "layout": {
           "x": 800,
           "y": 160
@@ -2028,7 +2028,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "kitchen_section",
+              "table": "kitchen_sections",
               "column": "section_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -2062,10 +2062,10 @@
         "indexes": []
       },
       {
-        "name": "menu_item",
+        "name": "menu_items",
         "label": "Menu Item",
         "comment": "Sellable menu items with pricing metadata.",
-        "sqlName": "menu_item",
+        "sqlName": "menu_items",
         "layout": {
           "x": 800,
           "y": 260
@@ -2107,7 +2107,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "menu_category",
+              "table": "menu_categories",
               "column": "category_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -2124,7 +2124,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "kitchen_section",
+              "table": "kitchen_sections",
               "column": "section_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -2300,7 +2300,7 @@
           {
             "name": "itemId",
             "columnName": "item_id",
-           "type": "string",
+            "type": "string",
             "maxLength": 64,
             "nullable": false,
             "primaryKey": false,
@@ -2309,7 +2309,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "menu_item",
+              "table": "menu_items",
               "column": "item_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -2386,8 +2386,6 @@
             "name": "itemId",
             "columnName": "item_id",
             "type": "string",
-
-
             "maxLength": 64,
             "nullable": false,
             "primaryKey": true,
@@ -2396,7 +2394,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "menu_item",
+              "table": "menu_items",
               "column": "item_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -2413,7 +2411,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "menu_modifier",
+              "table": "menu_modifiers",
               "column": "modifier_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -2481,8 +2479,6 @@
             "name": "itemId",
             "columnName": "item_id",
             "type": "string",
-
-
             "maxLength": 64,
             "nullable": false,
             "primaryKey": false,
@@ -2491,7 +2487,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "menu_item",
+              "table": "menu_items",
               "column": "item_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -2569,10 +2565,10 @@
         ]
       },
       {
-        "name": "menu_modifier",
+        "name": "menu_modifiers",
         "label": "Menu Modifier",
         "comment": "Configurable add-ons and removals.",
-        "sqlName": "menu_modifier",
+        "sqlName": "menu_modifiers",
         "layout": {
           "x": 800,
           "y": 360
@@ -2699,7 +2695,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "delivery_driver",
+              "table": "delivery_drivers",
               "column": "driver_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -2727,7 +2723,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_header",
+              "table": "order_headers",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -2749,10 +2745,10 @@
         "indexes": []
       },
       {
-        "name": "order_header",
+        "name": "order_headers",
         "label": "Order Header",
         "comment": "Primary sales order header tied to shifts and tables.",
-        "sqlName": "order_header",
+        "sqlName": "order_headers",
         "layout": {
           "x": 320,
           "y": 260
@@ -2799,7 +2795,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "pos_terminal",
+              "table": "pos_terminals",
               "column": "terminal_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -2827,7 +2823,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_type",
+              "table": "order_types",
               "column": "order_type_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -2844,7 +2840,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_status",
+              "table": "order_statuses",
               "column": "status_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -2861,7 +2857,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_stage",
+              "table": "order_stages",
               "column": "stage_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -2895,7 +2891,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "dining_table",
+              "table": "dining_tables",
               "column": "table_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -2912,7 +2908,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "customer_profile",
+              "table": "customer_profiles",
               "column": "customer_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -2929,7 +2925,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "customer_address",
+              "table": "customer_addresses",
               "column": "address_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -2946,7 +2942,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "delivery_driver",
+              "table": "delivery_drivers",
               "column": "driver_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -2963,7 +2959,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -2980,7 +2976,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -3160,10 +3156,10 @@
         ]
       },
       {
-        "name": "order_line",
+        "name": "order_lines",
         "label": "Order Line",
         "comment": "Line items included in orders.",
-        "sqlName": "order_line",
+        "sqlName": "order_lines",
         "layout": {
           "x": 560,
           "y": 260
@@ -3194,7 +3190,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "menu_item",
+              "table": "menu_items",
               "column": "item_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -3211,7 +3207,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "kitchen_section",
+              "table": "kitchen_sections",
               "column": "section_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -3251,7 +3247,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_header",
+              "table": "order_headers",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3268,7 +3264,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_line",
+              "table": "order_lines",
               "column": "line_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3299,7 +3295,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_line_status",
+              "table": "order_line_statuses",
               "column": "line_status_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -3375,7 +3371,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_line",
+              "table": "order_lines",
               "column": "line_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3392,7 +3388,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "menu_modifier",
+              "table": "menu_modifiers",
               "column": "modifier_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -3435,10 +3431,10 @@
         ]
       },
       {
-        "name": "order_line_status",
+        "name": "order_line_statuses",
         "label": "Order Line Status",
         "comment": "State machine for individual order lines.",
-        "sqlName": "order_line_status",
+        "sqlName": "order_line_statuses",
         "layout": {
           "x": 560,
           "y": 160
@@ -3518,7 +3514,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -3570,7 +3566,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_header",
+              "table": "order_headers",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3587,7 +3583,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_line",
+              "table": "order_lines",
               "column": "line_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3616,7 +3612,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "kitchen_section",
+              "table": "kitchen_sections",
               "column": "section_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -3633,7 +3629,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_line_status",
+              "table": "order_line_statuses",
               "column": "line_status_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -3716,7 +3712,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_header",
+              "table": "order_headers",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3733,7 +3729,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "payment_method",
+              "table": "payment_methods",
               "column": "payment_method_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -3984,7 +3980,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -4037,7 +4033,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_header",
+              "table": "order_headers",
               "column": "order_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -4066,7 +4062,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "pos_terminal",
+              "table": "pos_terminals",
               "column": "pos_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -4175,7 +4171,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_line",
+              "table": "order_lines",
               "column": "line_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -4228,10 +4224,10 @@
         "indexes": []
       },
       {
-        "name": "order_stage",
+        "name": "order_stages",
         "label": "Order Fulfilment Stage",
         "comment": "Lifecycle stages for kitchen and delivery workflows.",
-        "sqlName": "order_stage",
+        "sqlName": "order_stages",
         "layout": {
           "x": 320,
           "y": 160
@@ -4331,10 +4327,10 @@
         ]
       },
       {
-        "name": "order_status",
+        "name": "order_statuses",
         "label": "Order Status",
         "comment": "High level status codes for orders.",
-        "sqlName": "order_status",
+        "sqlName": "order_statuses",
         "layout": {
           "x": 200,
           "y": 160
@@ -4414,7 +4410,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -4466,7 +4462,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_header",
+              "table": "order_headers",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -4523,7 +4519,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_stage",
+              "table": "order_stages",
               "column": "stage_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -4540,7 +4536,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_status",
+              "table": "order_statuses",
               "column": "status_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -4565,10 +4561,10 @@
         ]
       },
       {
-        "name": "order_type",
+        "name": "order_types",
         "label": "Order Type",
         "comment": "Supported POS order types and workflows.",
-        "sqlName": "order_type",
+        "sqlName": "order_types",
         "layout": {
           "x": 80,
           "y": 160
@@ -4694,10 +4690,10 @@
         ]
       },
       {
-        "name": "payment_method",
+        "name": "payment_methods",
         "label": "Payment Method",
         "comment": "Configured payment methods offered by the venue.",
-        "sqlName": "payment_method",
+        "sqlName": "payment_methods",
         "layout": {
           "x": 680,
           "y": 160
@@ -4893,7 +4889,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -4981,7 +4977,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -5083,7 +5079,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "pos_terminal",
+              "table": "pos_terminals",
               "column": "terminal_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -5180,10 +5176,10 @@
         ]
       },
       {
-        "name": "pos_terminal",
+        "name": "pos_terminals",
         "label": "POS Terminal",
         "comment": "Registered POS terminals with physical location metadata.",
-        "sqlName": "pos_terminal",
+        "sqlName": "pos_terminals",
         "layout": {
           "x": 80,
           "y": 40
@@ -5336,10 +5332,10 @@
         ]
       },
       {
-        "name": "reservation",
+        "name": "reservations",
         "label": "Reservation",
         "comment": "Reservations captured for future seating.",
-        "sqlName": "reservation",
+        "sqlName": "reservations",
         "layout": {
           "x": 80,
           "y": 660
@@ -5463,7 +5459,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "reservation",
+              "table": "reservations",
               "column": "reservation_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -5480,7 +5476,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "dining_table",
+              "table": "dining_tables",
               "column": "table_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -5631,7 +5627,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "payment_method",
+              "table": "payment_methods",
               "column": "payment_method_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -5746,7 +5742,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "employee",
+              "table": "employees",
               "column": "employee_id",
               "onDelete": "SET NULL",
               "onUpdate": "CASCADE"
@@ -5775,7 +5771,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "dining_table",
+              "table": "dining_tables",
               "column": "table_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
