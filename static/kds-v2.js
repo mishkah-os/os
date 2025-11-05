@@ -304,13 +304,23 @@
     let linesProcessed = 0;
 
     state.lines.forEach((line, index) => {
-      const orderId = line.orderId || line.order_id;
-      const sectionId = line.kitchenSectionId || line.kitchen_section_id;
+      const orderId = line.orderId || line.order_id || line.order_header_id;
+      const sectionId = line.kitchenSectionId || line.kitchen_section_id || line.sectionId || line.section_id;
 
-      // Debug first 3 lines
+      // Debug first 3 lines with ALL possible field variations
       if (index < 3) {
-        console.log(`🔍 [DEBUG] Line ${index}:`, JSON.stringify(line, null, 2));
-        console.log(`🔍 [DEBUG] Line ${index} - orderId:`, orderId, 'sectionId:', sectionId);
+        console.log(`🔍 [DEBUG] Line ${index} - FULL DATA:`, JSON.stringify(line, null, 2));
+        console.log(`🔍 [DEBUG] Line ${index} - Field extraction attempts:`);
+        console.log(`  - orderId:`, orderId);
+        console.log(`  - line.orderId:`, line.orderId);
+        console.log(`  - line.order_id:`, line.order_id);
+        console.log(`  - line.order_header_id:`, line.order_header_id);
+        console.log(`  - sectionId:`, sectionId);
+        console.log(`  - line.kitchenSectionId:`, line.kitchenSectionId);
+        console.log(`  - line.kitchen_section_id:`, line.kitchen_section_id);
+        console.log(`  - line.sectionId:`, line.sectionId);
+        console.log(`  - line.section_id:`, line.section_id);
+        console.log(`  - All line keys:`, Object.keys(line));
       }
 
       if (!orderId) {
@@ -319,6 +329,9 @@
       }
       if (!sectionId) {
         linesWithoutSectionId++;
+        if (index < 5) {
+          console.warn(`⚠️ [DEBUG] Line ${index} missing sectionId! Line data:`, line);
+        }
         return;
       }
 
