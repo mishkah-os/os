@@ -2,6 +2,10 @@ import path from 'path';
 import { mkdirSync } from 'fs';
 
 import Database from 'better-sqlite3';
+import { loadAllSchemas } from './schema-loader.js';
+import { validateSchema } from './schema-validator.js';
+import { migrateSchema, createIndexes } from './schema-migrator.js';
+import { logSchemaValidation, createMigrationReport } from './schema-logger.js';
 
 let database = null;
 const statementCache = new Map();
@@ -120,12 +124,99 @@ function createTables(db) {
   db.exec('CREATE INDEX IF NOT EXISTS pos_shift_opened_idx ON pos_shift (branch_id, module_id, opened_at DESC)');
 }
 
+/**
+ * Validate and migrate schemas based on definition.json files
+ */
+function validateAndMigrateSchemas(db, options = {}) {
+  const enableAutoMigration = options.enableAutoMigration !== false; // default to true
+
+  if (!enableAutoMigration) {
+    console.log('⏭️  Schema auto-migration is disabled.');
+    return;
+  }
+
+  console.log('\n🔍 Starting schema validation and migration...\n');
+
+  try {
+    // Load all schema definitions from branches
+    const schemas = loadAllSchemas(options.rootDir);
+
+    if (schemas.length === 0) {
+      console.log('ℹ️  No schema definitions found.');
+      return;
+    }
+
+    console.log(`📋 Found ${schemas.length} schema definition(s):\n`);
+
+    const allMigrations = [];
+
+    for (const { branchId, moduleId, schema, filePath } of schemas) {
+      console.log(`\n📦 Processing: ${branchId}/${moduleId}`);
+      console.log(`   Schema file: ${filePath}`);
+
+      // Validate schema
+      const validationResults = validateSchema(db, schema);
+
+      // Log validation results
+      logSchemaValidation(branchId, moduleId, 'all_tables', validationResults.tables);
+
+      console.log(`   Tables: ${validationResults.summary.totalTables} total, ` +
+        `${validationResults.summary.validTables} valid, ` +
+        `${validationResults.summary.invalidTables} need migration`);
+
+      if (validationResults.summary.totalIssues > 0) {
+        console.log(`   Issues found: ${validationResults.summary.totalIssues}`);
+
+        // Perform migrations
+        const migrations = migrateSchema(db, schema, validationResults, branchId, moduleId);
+
+        // Create indexes
+        for (const table of schema.tables || []) {
+          if (table.indexes && table.indexes.length > 0) {
+            const tableName = table.sqlName || table.name;
+            const indexResults = createIndexes(db, tableName, table.indexes, branchId, moduleId);
+            console.log(`   Created ${indexResults.filter(r => r.success).length} index(es) for ${tableName}`);
+          }
+        }
+
+        allMigrations.push({
+          branchId,
+          moduleId,
+          migrations,
+          validationResults
+        });
+      } else {
+        console.log(`   ✓ All tables are valid, no migration needed.`);
+      }
+    }
+
+    // Create consolidated migration report
+    if (allMigrations.length > 0) {
+      for (const { branchId, moduleId, migrations } of allMigrations) {
+        if (migrations.length > 0) {
+          createMigrationReport(branchId, moduleId, migrations);
+        }
+      }
+      console.log(`\n✅ Schema migration completed. Check logs for details.\n`);
+    } else {
+      console.log(`\n✅ All schemas are up to date.\n`);
+    }
+  } catch (error) {
+    console.error('❌ Error during schema validation/migration:', error.message);
+    console.error(error.stack);
+  }
+}
+
 export function initializeSqlite(options = {}) {
   if (database) return database;
   const dbPath = resolveDatabasePath(options);
   ensureDirectory(dbPath);
   database = openDatabase(dbPath);
   createTables(database);
+
+  // Validate and migrate schemas
+  validateAndMigrateSchemas(database, options);
+
   return database;
 }
 
@@ -424,9 +515,31 @@ export function persistRecord(tableName, record, context = {}) {
   if (!normalizedContext.branchId || !normalizedContext.moduleId) {
     throw new Error('persistRecord requires branchId and moduleId');
   }
-  const row = builder(record, normalizedContext);
-  statements.upsert.run(row);
-  return true;
+
+  try {
+    const row = builder(record, normalizedContext);
+    statements.upsert.run(row);
+
+    // Log successful DML operation (only in verbose mode to avoid too many logs)
+    if (process.env.SQLITE_VERBOSE_DML === 'true') {
+      const { logDML } = require('./schema-logger.js');
+      logDML(normalizedContext.branchId, normalizedContext.moduleId, 'UPSERT', tableName, 'success', {
+        recordId: record.id
+      });
+    }
+
+    return true;
+  } catch (error) {
+    // Log failed DML operation
+    const { logDML } = require('./schema-logger.js');
+    logDML(normalizedContext.branchId, normalizedContext.moduleId, 'UPSERT', tableName, 'failed', {
+      recordId: record.id,
+      error: error.message,
+      stack: error.stack
+    });
+
+    throw error;
+  }
 }
 
 export function deleteRecord(tableName, key, context = {}) {
@@ -435,12 +548,34 @@ export function deleteRecord(tableName, key, context = {}) {
   if (!statements) return false;
   const normalizedContext = normalizeContext(context);
   if (!normalizedContext.branchId || !normalizedContext.moduleId) return false;
-  statements.remove.run({
-    branch_id: normalizedContext.branchId,
-    module_id: normalizedContext.moduleId,
-    id: String(key)
-  });
-  return true;
+
+  try {
+    statements.remove.run({
+      branch_id: normalizedContext.branchId,
+      module_id: normalizedContext.moduleId,
+      id: String(key)
+    });
+
+    // Log successful DML operation (only in verbose mode)
+    if (process.env.SQLITE_VERBOSE_DML === 'true') {
+      const { logDML } = require('./schema-logger.js');
+      logDML(normalizedContext.branchId, normalizedContext.moduleId, 'DELETE', tableName, 'success', {
+        recordId: key
+      });
+    }
+
+    return true;
+  } catch (error) {
+    // Log failed DML operation
+    const { logDML } = require('./schema-logger.js');
+    logDML(normalizedContext.branchId, normalizedContext.moduleId, 'DELETE', tableName, 'failed', {
+      recordId: key,
+      error: error.message,
+      stack: error.stack
+    });
+
+    throw error;
+  }
 }
 
 export function truncateTable(tableName, context = {}) {
