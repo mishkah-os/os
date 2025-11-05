@@ -100,10 +100,15 @@
             } else {
               // WebSocket store: build from registered objects using db.list()
               console.log('[POS] Using db.list() for each table (WebSocket mode)');
-              const registeredObjects = db.config?.objects || {};
-              console.log('[POS] Registered objects:', Object.keys(registeredObjects));
 
-              Object.keys(registeredObjects).forEach(name => {
+              // Get registered names from the store (not from config!)
+              const registeredNames = typeof db.getRegisteredNames === 'function'
+                ? db.getRegisteredNames()
+                : Object.keys(db.config?.objects || {});
+
+              console.log('[POS] Registered names:', registeredNames);
+
+              registeredNames.forEach(name => {
                 try {
                   // Skip pos_database - we don't need it anymore
                   if (name === 'pos_database') {
@@ -111,7 +116,10 @@
                     return;
                   }
 
-                  const tableName = registeredObjects[name].table || name;
+                  // Get definition to find table name
+                  const def = typeof db.getDefinition === 'function' ? db.getDefinition(name) : null;
+                  const tableName = def?.table || name;
+
                   const data = db.list(name);
                   payload[tableName] = data || [];
 
@@ -157,8 +165,11 @@
           status.finishedAt = Date.now();
 
           // Watch for changes in ALL registered tables (not just pos_database)
-          const registeredObjects = db.config?.objects || {};
-          Object.keys(registeredObjects).forEach(name => {
+          const registeredNames = typeof db.getRegisteredNames === 'function'
+            ? db.getRegisteredNames()
+            : Object.keys(db.config?.objects || {});
+
+          registeredNames.forEach(name => {
             if (name === 'pos_database') return; // Skip deprecated table
 
             db.watch(name, (records) => {

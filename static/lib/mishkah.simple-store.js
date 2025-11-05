@@ -233,6 +233,13 @@ function createContext(store, config) {
     config,
     store,
     register,
+    // Expose registered definitions for introspection
+    getRegisteredNames() {
+      return Array.from(definitions.keys());
+    },
+    getDefinition(name) {
+      return definitions.get(name);
+    },
     async connect() {
       await store.connect();
       return store.ready();
