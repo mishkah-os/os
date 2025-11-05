@@ -126,6 +126,15 @@ console.log('🚀 [KDS v2] Script loaded, starting initialization...');
 
     // Load kitchen sections
     let sections = [];
+
+    // Debug each attempt
+    console.log('🔍 [KDS v2] Checking kitchen_sections locations:');
+    console.log('  - database.kitchen_sections:', {
+      exists: !!database.kitchen_sections,
+      isArray: Array.isArray(database.kitchen_sections),
+      length: database.kitchen_sections?.length
+    });
+
     if (Array.isArray(kdsSource.kitchenSections) && kdsSource.kitchenSections.length) {
       sections = kdsSource.kitchenSections;
       console.log('✅ Found sections in kdsSource.kitchenSections');
@@ -134,23 +143,37 @@ console.log('🚀 [KDS v2] Script loaded, starting initialization...');
       console.log('✅ Found sections in masterSource.kitchenSections');
     } else if (Array.isArray(database.kitchen_sections) && database.kitchen_sections.length) {
       sections = database.kitchen_sections;
-      console.log('✅ Found sections in database.kitchen_sections');
+      console.log('✅ Found sections in database.kitchen_sections:', sections.length, 'items');
     } else if (Array.isArray(database.kitchen_section) && database.kitchen_section.length) {
       sections = database.kitchen_section;
       console.log('✅ Found sections in database.kitchen_section');
     } else {
       console.log('❌ No sections found in any location');
+      console.log('   database.kitchen_sections =', database.kitchen_sections);
     }
+
+    console.log('🔍 [KDS v2] Setting state.sections to:', sections.length, 'items');
     state.sections = sections;
 
     // Load menu items
     let items = [];
+
+    console.log('🔍 [KDS v2] Checking menu_items locations:');
+    console.log('  - database.menu_items:', {
+      exists: !!database.menu_items,
+      isArray: Array.isArray(database.menu_items),
+      length: database.menu_items?.length
+    });
+
     if (Array.isArray(masterSource.menu_items) && masterSource.menu_items.length) {
       items = masterSource.menu_items;
       console.log('✅ Found items in masterSource.menu_items');
     } else if (Array.isArray(database.menu_item) && database.menu_item.length) {
       items = database.menu_item;
       console.log('✅ Found items in database.menu_item');
+    } else if (Array.isArray(database.menu_items) && database.menu_items.length) {
+      items = database.menu_items;
+      console.log('✅ Found items in database.menu_items:', items.length, 'items');
     } else if (Array.isArray(database.menu?.items) && database.menu.items.length) {
       items = database.menu.items;
       console.log('✅ Found items in database.menu.items');
@@ -159,7 +182,10 @@ console.log('🚀 [KDS v2] Script loaded, starting initialization...');
       console.log('✅ Found items in database.menuItems');
     } else {
       console.log('❌ No menu items found in any location');
+      console.log('   database.menu_items =', database.menu_items);
     }
+
+    console.log('🔍 [KDS v2] Setting state.menuItems to:', items.length, 'items');
     state.menuItems = items;
 
     console.log(`✅ [KDS v2] Loaded ${sections.length} sections, ${items.length} menu items`);
@@ -425,6 +451,8 @@ console.log('🚀 [KDS v2] Script loaded, starting initialization...');
     const indicator = document.getElementById('status-indicator');
     const text = document.getElementById('status-text');
 
+    console.log('🔌 [KDS v2] updateConnectionStatus - state.connected:', state.connected);
+
     if (state.connected) {
       indicator.classList.add('connected');
       text.textContent = 'متصل';
@@ -499,8 +527,13 @@ console.log('🚀 [KDS v2] Script loaded, starting initialization...');
   }
 
   function renderTabs() {
+    console.log('🎨 [KDS v2] renderTabs() called - sections:', state.sections.length, 'orders:', state.orders.length);
+
     const container = document.getElementById('tabs-container');
-    if (!container) return;
+    if (!container) {
+      console.log('❌ [KDS v2] tabs-container element not found!');
+      return;
+    }
 
     const tabs = [];
 
@@ -565,6 +598,8 @@ console.log('🚀 [KDS v2] Script loaded, starting initialization...');
       nameEn: MANUAL_STAGES['delivery-pending'].nameEn,
       count: getPendingDeliveryOrders().length
     });
+
+    console.log('🎨 [KDS v2] Rendering', tabs.length, 'tabs');
 
     container.innerHTML = tabs.map(tab => {
       const displayName = state.lang === 'ar' ? tab.nameAr : tab.nameEn;
