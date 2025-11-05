@@ -1,0 +1,2640 @@
+[2025-11-05T04:48:58.548Z] [WARN] [VALIDATION]
+Schema Validation: all_tables
+Differences Found: YES
+Metadata: {
+  "tableName": "all_tables",
+  "differences": [
+    {
+      "tableName": "audit_event",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table audit_event does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "category_section",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table category_section does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "customer_address",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table customer_address does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "customer_profile",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table customer_profile does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "delivery_driver",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table delivery_driver does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "dining_table",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table dining_table does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "employee",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table employee does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "expo_pass_ticket",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table expo_pass_ticket does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "job_order_detail",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table job_order_detail does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "job_order_detail_modifier",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table job_order_detail_modifier does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "job_order_header",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table job_order_header does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "job_order_status_history",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table job_order_status_history does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "kitchen_section",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table kitchen_section does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "menu_category",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table menu_category does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "menu_item",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table menu_item does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "menu_item_media",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table menu_item_media does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "menu_item_modifier",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table menu_item_modifier does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "menu_item_price",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table menu_item_price does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "menu_modifier",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table menu_modifier does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_delivery",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_delivery does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_header",
+      "exists": true,
+      "differences": [
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "shift_id",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        }
+      ],
+      "missingColumns": [
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "order_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "pos_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "pos_number",
+          "expectedType": "INTEGER",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "order_type_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "status_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "stage_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "payment_state_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "table_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "customer_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "customer_address_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "driver_id",
+          "expectedType": "INTEGER",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "opened_by",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "closed_by",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "opened_at",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "closed_at",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "guests",
+          "expectedType": "INTEGER",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "notes",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "subtotal",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "discount_amount",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "service_amount",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "tax_amount",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "delivery_fee",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "total_due",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "total_paid",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "metadata",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        }
+      ],
+      "extraColumns": [
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "id",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "status",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "stage",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "payment_state",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "created_at",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "updated_at",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        }
+      ],
+      "typeMismatches": [
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "shift_id",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        }
+      ],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 32,
+        "highSeverity": 25,
+        "mediumSeverity": 1,
+        "lowSeverity": 6
+      }
+    },
+    {
+      "tableName": "order_line",
+      "exists": true,
+      "differences": [],
+      "missingColumns": [
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "line_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "item_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "kitchen_section_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "metadata",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "notes",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "parent_line_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "quantity",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "status_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "total",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "unit_price",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        }
+      ],
+      "extraColumns": [
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "id",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "status",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "stage",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "created_at",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "updated_at",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        }
+      ],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 15,
+        "highSeverity": 10,
+        "mediumSeverity": 0,
+        "lowSeverity": 5
+      }
+    },
+    {
+      "tableName": "order_line_modifier",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_line_modifier does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_line_status",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_line_status does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_line_status_log",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_line_status_log does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_payment",
+      "exists": true,
+      "differences": [
+        {
+          "type": "TYPE_MISMATCH",
+          "columnName": "amount",
+          "actual": "REAL",
+          "expected": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "amount",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "captured_at",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        }
+      ],
+      "missingColumns": [
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "payment_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "payment_method_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "reference",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "shift_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        }
+      ],
+      "extraColumns": [
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "id",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        },
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "method",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        }
+      ],
+      "typeMismatches": [
+        {
+          "type": "TYPE_MISMATCH",
+          "columnName": "amount",
+          "actual": "REAL",
+          "expected": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "amount",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "captured_at",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        }
+      ],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 9,
+        "highSeverity": 5,
+        "mediumSeverity": 2,
+        "lowSeverity": 2
+      }
+    },
+    {
+      "tableName": "order_payment_state",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_payment_state does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_refund",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_refund does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_return_header",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_return_header does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_return_line",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_return_line does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_stage",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_stage does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_status",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_status does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_status_log",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_status_log does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "order_type",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table order_type does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "payment_method",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table payment_method does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "pos_database",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table pos_database does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "pos_shift",
+      "exists": true,
+      "differences": [
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "is_closed",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "opened_at",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "pos_id",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "status",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "updated_at",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        }
+      ],
+      "missingColumns": [
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "cashier_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "cashier_name",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "cashier_role",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "closing_cash",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "counts_by_type",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "created_at",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "employee_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "shift_id",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "opening_float",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "orders_payload",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "orders_count",
+          "expectedType": "INTEGER",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "payments_by_method",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "pos_label",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "pos_number",
+          "expectedType": "INTEGER",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "total_sales",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        },
+        {
+          "type": "COLUMN_MISSING",
+          "columnName": "totals_by_type",
+          "expectedType": "TEXT",
+          "severity": "HIGH"
+        }
+      ],
+      "extraColumns": [
+        {
+          "type": "COLUMN_EXTRA",
+          "columnName": "id",
+          "actualType": "TEXT",
+          "severity": "LOW"
+        }
+      ],
+      "typeMismatches": [
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "is_closed",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "opened_at",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "pos_id",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "status",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        },
+        {
+          "type": "NULLABLE_MISMATCH",
+          "columnName": "updated_at",
+          "actual": "NULL",
+          "expected": "NOT NULL",
+          "severity": "MEDIUM"
+        }
+      ],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 22,
+        "highSeverity": 16,
+        "mediumSeverity": 5,
+        "lowSeverity": 1
+      }
+    },
+    {
+      "tableName": "pos_terminal",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table pos_terminal does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "reservation",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table reservation does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "reservation_table",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table reservation_table does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "shift_cash_audit",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table shift_cash_audit does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "shift_payment_summary",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table shift_payment_summary does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    },
+    {
+      "tableName": "table_lock",
+      "exists": false,
+      "differences": [
+        {
+          "type": "TABLE_MISSING",
+          "severity": "HIGH",
+          "message": "Table table_lock does not exist in database"
+        }
+      ],
+      "missingColumns": [],
+      "extraColumns": [],
+      "typeMismatches": [],
+      "summary": {
+        "isValid": false,
+        "totalIssues": 1,
+        "highSeverity": 1,
+        "mediumSeverity": 0,
+        "lowSeverity": 0
+      }
+    }
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.554Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table audit_event
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "audit_event",
+  "sql": "CREATE TABLE IF NOT EXISTS audit_event (\n  action TEXT NOT NULL,\n  event_id TEXT PRIMARY KEY,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  occurred_at TEXT NOT NULL,\n  ref_id TEXT,\n  ref_type TEXT NOT NULL,\n  user_id TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.555Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table category_section
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "category_section",
+  "sql": "CREATE TABLE IF NOT EXISTS category_section (\n  category_id TEXT PRIMARY KEY,\n  section_id TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.556Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table customer_address
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "customer_address",
+  "sql": "CREATE TABLE IF NOT EXISTS customer_address (\n  apartment TEXT,\n  area_id TEXT,\n  building TEXT,\n  customer_id TEXT NOT NULL,\n  floor TEXT,\n  address_id TEXT PRIMARY KEY,\n  is_primary INTEGER NOT NULL DEFAULT false,\n  label TEXT,\n  notes TEXT,\n  street TEXT\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.557Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table customer_profile
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "customer_profile",
+  "sql": "CREATE TABLE IF NOT EXISTS customer_profile (\n  created_at TEXT NOT NULL,\n  email TEXT,\n  customer_id TEXT PRIMARY KEY,\n  customer_name TEXT NOT NULL,\n  notes TEXT,\n  phone TEXT,\n  preferred_language TEXT,\n  updated_at TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.558Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table delivery_driver
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "delivery_driver",
+  "sql": "CREATE TABLE IF NOT EXISTS delivery_driver (\n  driver_id INTEGER PRIMARY KEY,\n  is_active INTEGER NOT NULL DEFAULT true,\n  driver_name TEXT NOT NULL,\n  phone TEXT,\n  vehicle_id TEXT\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.559Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table dining_table
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "dining_table",
+  "sql": "CREATE TABLE IF NOT EXISTS dining_table (\n  display_order INTEGER NOT NULL DEFAULT 0,\n  table_id TEXT PRIMARY KEY,\n  table_name TEXT NOT NULL,\n  note TEXT,\n  seats INTEGER NOT NULL DEFAULT 2,\n  state TEXT NOT NULL DEFAULT 'active',\n  zone TEXT\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.559Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table employee
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "employee",
+  "sql": "CREATE TABLE IF NOT EXISTS employee (\n  allowed_discount_rate TEXT NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL,\n  email TEXT,\n  full_name TEXT NOT NULL,\n  hired_at TEXT,\n  employee_id TEXT PRIMARY KEY,\n  phone TEXT,\n  pin_code TEXT NOT NULL,\n  role TEXT NOT NULL DEFAULT 'staff',\n  status TEXT NOT NULL DEFAULT 'active',\n  updated_at TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.561Z] [ERROR] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Failed to create table expo_pass_ticket
+Status: failed
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "failed",
+  "tableName": "expo_pass_ticket",
+  "error": "near \",\": syntax error"
+}
+
+================================================================================
+[2025-11-05T04:48:58.561Z] [ERROR] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Failed to create table job_order_detail
+Status: failed
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "failed",
+  "tableName": "job_order_detail",
+  "error": "near \",\": syntax error"
+}
+
+================================================================================
+[2025-11-05T04:48:58.562Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table job_order_detail_modifier
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "job_order_detail_modifier",
+  "sql": "CREATE TABLE IF NOT EXISTS job_order_detail_modifier (\n  created_at TEXT NOT NULL,\n  detail_id TEXT NOT NULL,\n  modifier_id TEXT PRIMARY KEY,\n  is_required INTEGER NOT NULL DEFAULT false,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  modifier_type TEXT NOT NULL,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  notes TEXT,\n  quantity TEXT NOT NULL DEFAULT 1\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.563Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table job_order_header
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "job_order_header",
+  "sql": "CREATE TABLE IF NOT EXISTS job_order_header (\n  job_order_id TEXT PRIMARY KEY,\n  order_id TEXT NOT NULL,\n  order_number TEXT NOT NULL,\n  pos_revision TEXT NOT NULL,\n  order_type_id TEXT NOT NULL,\n  service_mode TEXT NOT NULL,\n  station_id TEXT NOT NULL,\n  station_code TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'queued',\n  progress_state TEXT NOT NULL DEFAULT 'awaiting',\n  total_items INTEGER NOT NULL DEFAULT 0,\n  completed_items INTEGER NOT NULL DEFAULT 0,\n  remaining_items INTEGER NOT NULL DEFAULT 0,\n  has_alerts INTEGER NOT NULL DEFAULT false,\n  is_expedite INTEGER NOT NULL DEFAULT false,\n  table_label TEXT,\n  customer_name TEXT,\n  due_at TEXT,\n  accepted_at TEXT,\n  started_at TEXT,\n  ready_at TEXT,\n  completed_at TEXT,\n  expo_at TEXT,\n  sync_checksum TEXT,\n  notes TEXT,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.565Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table job_order_status_history
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "job_order_status_history",
+  "sql": "CREATE TABLE IF NOT EXISTS job_order_status_history (\n  actor_id TEXT,\n  actor_name TEXT,\n  actor_role TEXT,\n  changed_at TEXT NOT NULL,\n  history_id TEXT PRIMARY KEY,\n  job_order_id TEXT NOT NULL,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  reason TEXT,\n  status TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.566Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table kitchen_section
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "kitchen_section",
+  "sql": "CREATE TABLE IF NOT EXISTS kitchen_section (\n  description_ar TEXT,\n  description_en TEXT,\n  section_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sort_order INTEGER NOT NULL DEFAULT 0\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.567Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table menu_category
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "menu_category",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_category (\n  category_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  section_id TEXT,\n  sort_order INTEGER NOT NULL DEFAULT 0,\n  is_active INTEGER NOT NULL DEFAULT true\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.567Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table menu_item
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "menu_item",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_item (\n  item_id TEXT PRIMARY KEY,\n  sku TEXT,\n  category_id TEXT NOT NULL,\n  kitchen_section_id TEXT NOT NULL,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  description_ar TEXT,\n  description_en TEXT,\n  base_price TEXT NOT NULL,\n  tax_group_id TEXT,\n  is_combo INTEGER NOT NULL DEFAULT false,\n  is_active INTEGER NOT NULL DEFAULT true,\n  favorite_rank INTEGER,\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.568Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table menu_item_media
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "menu_item_media",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_item_media (\n  media_id TEXT PRIMARY KEY,\n  item_id TEXT NOT NULL,\n  media_type TEXT NOT NULL DEFAULT 'image',\n  url TEXT NOT NULL,\n  is_primary INTEGER NOT NULL DEFAULT false,\n  created_at TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.570Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table menu_item_modifier
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "menu_item_modifier",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_item_modifier (\n  item_id TEXT PRIMARY KEY,\n  modifier_id INTEGER NOT NULL,\n  is_default INTEGER NOT NULL DEFAULT false,\n  max_quantity INTEGER\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.572Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table menu_item_price
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "menu_item_price",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_item_price (\n  price_id TEXT PRIMARY KEY,\n  item_id TEXT NOT NULL,\n  price_type TEXT NOT NULL DEFAULT 'base',\n  label TEXT,\n  amount TEXT NOT NULL,\n  currency TEXT NOT NULL DEFAULT 'EGP',\n  is_default INTEGER NOT NULL DEFAULT false\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.573Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table menu_modifier
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "menu_modifier",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_modifier (\n  modifier_id INTEGER PRIMARY KEY,\n  is_active INTEGER NOT NULL DEFAULT true,\n  modifier_type TEXT NOT NULL DEFAULT 'add_on',\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  price_change TEXT NOT NULL DEFAULT 0\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.574Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_delivery
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_delivery",
+  "sql": "CREATE TABLE IF NOT EXISTS order_delivery (\n  delivered_at TEXT,\n  dispatched_at TEXT,\n  driver_id INTEGER,\n  notes TEXT,\n  order_id TEXT PRIMARY KEY,\n  status TEXT NOT NULL DEFAULT 'pending'\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.576Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column order_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "order_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN order_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.577Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column pos_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "pos_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN pos_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.578Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column pos_number to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "pos_number",
+  "sql": "ALTER TABLE order_header ADD COLUMN pos_number INTEGER DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.580Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column order_type_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "order_type_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN order_type_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.581Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column status_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "status_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN status_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.583Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column stage_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "stage_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN stage_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.585Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column payment_state_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "payment_state_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN payment_state_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.587Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column table_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "table_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN table_id TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.588Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column customer_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "customer_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN customer_id TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.591Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column customer_address_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "customer_address_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN customer_address_id TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.594Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column driver_id to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "driver_id",
+  "sql": "ALTER TABLE order_header ADD COLUMN driver_id INTEGER"
+}
+
+================================================================================
+[2025-11-05T04:48:58.597Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column opened_by to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "opened_by",
+  "sql": "ALTER TABLE order_header ADD COLUMN opened_by TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.599Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column closed_by to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "closed_by",
+  "sql": "ALTER TABLE order_header ADD COLUMN closed_by TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.601Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column opened_at to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "opened_at",
+  "sql": "ALTER TABLE order_header ADD COLUMN opened_at TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.604Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column closed_at to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "closed_at",
+  "sql": "ALTER TABLE order_header ADD COLUMN closed_at TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.606Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column guests to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "guests",
+  "sql": "ALTER TABLE order_header ADD COLUMN guests INTEGER NOT NULL DEFAULT 1"
+}
+
+================================================================================
+[2025-11-05T04:48:58.607Z] [ERROR] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Failed to add column notes to order_header
+Status: failed
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "failed",
+  "tableName": "order_header",
+  "columnName": "notes",
+  "error": "incomplete input"
+}
+
+================================================================================
+[2025-11-05T04:48:58.610Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column subtotal to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "subtotal",
+  "sql": "ALTER TABLE order_header ADD COLUMN subtotal TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.611Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column discount_amount to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "discount_amount",
+  "sql": "ALTER TABLE order_header ADD COLUMN discount_amount TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.613Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column service_amount to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "service_amount",
+  "sql": "ALTER TABLE order_header ADD COLUMN service_amount TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.614Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column tax_amount to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "tax_amount",
+  "sql": "ALTER TABLE order_header ADD COLUMN tax_amount TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.615Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column delivery_fee to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "delivery_fee",
+  "sql": "ALTER TABLE order_header ADD COLUMN delivery_fee TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.617Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column total_due to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "total_due",
+  "sql": "ALTER TABLE order_header ADD COLUMN total_due TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.618Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column total_paid to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "total_paid",
+  "sql": "ALTER TABLE order_header ADD COLUMN total_paid TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.619Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column metadata to order_header
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_header",
+  "columnName": "metadata",
+  "sql": "ALTER TABLE order_header ADD COLUMN metadata TEXT NOT NULL DEFAULT [object Object]"
+}
+
+================================================================================
+[2025-11-05T04:48:58.620Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column line_id to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "line_id",
+  "sql": "ALTER TABLE order_line ADD COLUMN line_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.622Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column item_id to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "item_id",
+  "sql": "ALTER TABLE order_line ADD COLUMN item_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.624Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column kitchen_section_id to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "kitchen_section_id",
+  "sql": "ALTER TABLE order_line ADD COLUMN kitchen_section_id TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.626Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column metadata to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "metadata",
+  "sql": "ALTER TABLE order_line ADD COLUMN metadata TEXT NOT NULL DEFAULT [object Object]"
+}
+
+================================================================================
+[2025-11-05T04:48:58.628Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column notes to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "notes",
+  "sql": "ALTER TABLE order_line ADD COLUMN notes TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.629Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column parent_line_id to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "parent_line_id",
+  "sql": "ALTER TABLE order_line ADD COLUMN parent_line_id TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.630Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column quantity to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "quantity",
+  "sql": "ALTER TABLE order_line ADD COLUMN quantity TEXT NOT NULL DEFAULT 1"
+}
+
+================================================================================
+[2025-11-05T04:48:58.631Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column status_id to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "status_id",
+  "sql": "ALTER TABLE order_line ADD COLUMN status_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.633Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column total to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "total",
+  "sql": "ALTER TABLE order_line ADD COLUMN total TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.635Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column unit_price to order_line
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_line",
+  "columnName": "unit_price",
+  "sql": "ALTER TABLE order_line ADD COLUMN unit_price TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.637Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_line_modifier
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_line_modifier",
+  "sql": "CREATE TABLE IF NOT EXISTS order_line_modifier (\n  line_modifier_id TEXT PRIMARY KEY,\n  line_id TEXT NOT NULL,\n  modifier_id INTEGER NOT NULL,\n  modifier_type TEXT NOT NULL DEFAULT 'add_on',\n  price_change TEXT NOT NULL DEFAULT 0\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.638Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_line_status
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_line_status",
+  "sql": "CREATE TABLE IF NOT EXISTS order_line_status (\n  line_status_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sequence INTEGER NOT NULL DEFAULT 0\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.640Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_line_status_log
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_line_status_log",
+  "sql": "CREATE TABLE IF NOT EXISTS order_line_status_log (\n  actor_id TEXT,\n  changed_at TEXT NOT NULL,\n  line_status_log_id TEXT PRIMARY KEY,\n  metadata TEXT NOT NULL DEFAULT [object Object],\n  order_id TEXT NOT NULL,\n  order_line_id TEXT NOT NULL,\n  source TEXT,\n  station_id TEXT,\n  status_id TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.643Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column payment_id to order_payment
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_payment",
+  "columnName": "payment_id",
+  "sql": "ALTER TABLE order_payment ADD COLUMN payment_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.644Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column payment_method_id to order_payment
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_payment",
+  "columnName": "payment_method_id",
+  "sql": "ALTER TABLE order_payment ADD COLUMN payment_method_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.645Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column reference to order_payment
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_payment",
+  "columnName": "reference",
+  "sql": "ALTER TABLE order_payment ADD COLUMN reference TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.647Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column shift_id to order_payment
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "order_payment",
+  "columnName": "shift_id",
+  "sql": "ALTER TABLE order_payment ADD COLUMN shift_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.647Z] [ERROR] [MIGRATION]
+Migration Action: MODIFY_COLUMN_TYPE
+Details: Column amount in order_payment has type mismatch. Manual migration required.
+Status: warning
+Metadata: {
+  "action": "REQUIRES_MANUAL_MIGRATION",
+  "status": "warning",
+  "tableName": "order_payment",
+  "columnName": "amount",
+  "newType": "TEXT",
+  "reason": "SQLite does not support ALTER COLUMN TYPE directly. Table reconstruction required."
+}
+
+================================================================================
+[2025-11-05T04:48:58.650Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_payment_state
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_payment_state",
+  "sql": "CREATE TABLE IF NOT EXISTS order_payment_state (\n  payment_state_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.652Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_refund
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_refund",
+  "sql": "CREATE TABLE IF NOT EXISTS order_refund (\n  amount TEXT NOT NULL DEFAULT 0,\n  refund_id TEXT PRIMARY KEY,\n  payment_id TEXT NOT NULL,\n  reason TEXT,\n  refunded_at TEXT NOT NULL,\n  shift_id TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.653Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_return_header
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_return_header",
+  "sql": "CREATE TABLE IF NOT EXISTS order_return_header (\n  branch_sequence INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL,\n  created_by TEXT NOT NULL,\n  return_id TEXT PRIMARY KEY,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  return_number TEXT NOT NULL,\n  order_id TEXT NOT NULL,\n  order_sequence INTEGER NOT NULL DEFAULT 0,\n  pos_id TEXT NOT NULL,\n  shift_id TEXT NOT NULL,\n  total TEXT NOT NULL,\n  total_amount TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.654Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_return_line
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_return_line",
+  "sql": "CREATE TABLE IF NOT EXISTS order_return_line (\n  created_at TEXT NOT NULL,\n  return_line_id TEXT PRIMARY KEY,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  order_line_id TEXT NOT NULL,\n  quantity TEXT NOT NULL,\n  return_id TEXT NOT NULL,\n  unit_price TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.656Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_stage
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_stage",
+  "sql": "CREATE TABLE IF NOT EXISTS order_stage (\n  description_ar TEXT,\n  description_en TEXT,\n  stage_id TEXT PRIMARY KEY,\n  lock_line_edits INTEGER NOT NULL DEFAULT false,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sequence INTEGER NOT NULL DEFAULT 0\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.657Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_status
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_status",
+  "sql": "CREATE TABLE IF NOT EXISTS order_status (\n  status_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sequence INTEGER NOT NULL DEFAULT 0\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.659Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_status_log
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_status_log",
+  "sql": "CREATE TABLE IF NOT EXISTS order_status_log (\n  actor_id TEXT,\n  changed_at TEXT NOT NULL,\n  status_log_id TEXT PRIMARY KEY,\n  metadata TEXT NOT NULL DEFAULT [object Object],\n  order_id TEXT NOT NULL,\n  payment_state_id TEXT,\n  reason TEXT,\n  source TEXT,\n  stage_id TEXT,\n  status_id TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.660Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table order_type
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "order_type",
+  "sql": "CREATE TABLE IF NOT EXISTS order_type (\n  allows_finalize_later INTEGER NOT NULL DEFAULT false,\n  allows_line_additions INTEGER NOT NULL DEFAULT false,\n  allows_returns INTEGER NOT NULL DEFAULT false,\n  allows_save INTEGER NOT NULL DEFAULT true,\n  order_type_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sequence INTEGER NOT NULL DEFAULT 0,\n  workflow TEXT NOT NULL DEFAULT 'single-step'\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.666Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table payment_method
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "payment_method",
+  "sql": "CREATE TABLE IF NOT EXISTS payment_method (\n  icon TEXT,\n  payment_method_id TEXT PRIMARY KEY,\n  is_active INTEGER NOT NULL DEFAULT true,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  requires_reference INTEGER NOT NULL DEFAULT false,\n  method_type TEXT NOT NULL DEFAULT 'cash'\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.668Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table pos_database
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "pos_database",
+  "sql": "CREATE TABLE IF NOT EXISTS pos_database (\n  branch_id TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  id TEXT PRIMARY KEY,\n  payload TEXT NOT NULL DEFAULT [object Object],\n  updated_at TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.669Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column cashier_id to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "cashier_id",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN cashier_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.671Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column cashier_name to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "cashier_name",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN cashier_name TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.672Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column cashier_role to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "cashier_role",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN cashier_role TEXT NOT NULL DEFAULT 'cashier'"
+}
+
+================================================================================
+[2025-11-05T04:48:58.674Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column closing_cash to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "closing_cash",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN closing_cash TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.676Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column counts_by_type to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "counts_by_type",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN counts_by_type TEXT NOT NULL DEFAULT [object Object]"
+}
+
+================================================================================
+[2025-11-05T04:48:58.677Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column created_at to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "created_at",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN created_at TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.679Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column employee_id to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "employee_id",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN employee_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.681Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column shift_id to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "shift_id",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN shift_id TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.683Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column opening_float to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "opening_float",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN opening_float TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.683Z] [ERROR] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Failed to add column orders_payload to pos_shift
+Status: failed
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "failed",
+  "tableName": "pos_shift",
+  "columnName": "orders_payload",
+  "error": "incomplete input"
+}
+
+================================================================================
+[2025-11-05T04:48:58.687Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column orders_count to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "orders_count",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN orders_count INTEGER NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.690Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column payments_by_method to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "payments_by_method",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN payments_by_method TEXT NOT NULL DEFAULT [object Object]"
+}
+
+================================================================================
+[2025-11-05T04:48:58.692Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column pos_label to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "pos_label",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN pos_label TEXT DEFAULT ''"
+}
+
+================================================================================
+[2025-11-05T04:48:58.694Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column pos_number to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "pos_number",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN pos_number INTEGER DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.696Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column total_sales to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "total_sales",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN total_sales TEXT NOT NULL DEFAULT 0"
+}
+
+================================================================================
+[2025-11-05T04:48:58.700Z] [INFO] [MIGRATION]
+Migration Action: ADD_COLUMN
+Details: Added column totals_by_type to pos_shift
+Status: success
+Metadata: {
+  "action": "ADD_COLUMN",
+  "status": "success",
+  "tableName": "pos_shift",
+  "columnName": "totals_by_type",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN totals_by_type TEXT NOT NULL DEFAULT [object Object]"
+}
+
+================================================================================
+[2025-11-05T04:48:58.704Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table pos_terminal
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "pos_terminal",
+  "sql": "CREATE TABLE IF NOT EXISTS pos_terminal (\n  terminal_code TEXT NOT NULL UNIQUE,\n  created_at TEXT NOT NULL,\n  terminal_id TEXT PRIMARY KEY,\n  terminal_label TEXT NOT NULL,\n  last_online_at TEXT,\n  location_id TEXT,\n  terminal_number INTEGER NOT NULL,\n  status TEXT NOT NULL DEFAULT 'active',\n  timezone TEXT,\n  updated_at TEXT NOT NULL,\n  zone TEXT\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.706Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table reservation
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "reservation",
+  "sql": "CREATE TABLE IF NOT EXISTS reservation (\n  customer_name TEXT NOT NULL,\n  hold_until TEXT,\n  reservation_id TEXT PRIMARY KEY,\n  note TEXT,\n  party_size INTEGER NOT NULL,\n  phone TEXT NOT NULL,\n  scheduled_at TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'booked'\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.708Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table reservation_table
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "reservation_table",
+  "sql": "CREATE TABLE IF NOT EXISTS reservation_table (\n  reservation_id TEXT PRIMARY KEY,\n  table_id TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.710Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table shift_cash_audit
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "shift_cash_audit",
+  "sql": "CREATE TABLE IF NOT EXISTS shift_cash_audit (\n  amount TEXT NOT NULL,\n  captured_at TEXT NOT NULL,\n  count INTEGER NOT NULL DEFAULT 0,\n  denomination TEXT NOT NULL,\n  audit_id TEXT PRIMARY KEY,\n  shift_id TEXT NOT NULL\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.711Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table shift_payment_summary
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "shift_payment_summary",
+  "sql": "CREATE TABLE IF NOT EXISTS shift_payment_summary (\n  summary_id TEXT PRIMARY KEY,\n  payment_method_id TEXT NOT NULL,\n  payments_count INTEGER NOT NULL DEFAULT 0,\n  shift_id TEXT NOT NULL,\n  total_amount TEXT NOT NULL DEFAULT 0\n)"
+}
+
+================================================================================
+[2025-11-05T04:48:58.713Z] [INFO] [MIGRATION]
+Migration Action: CREATE_TABLE
+Details: Created table table_lock
+Status: success
+Metadata: {
+  "action": "CREATE_TABLE",
+  "status": "success",
+  "tableName": "table_lock",
+  "sql": "CREATE TABLE IF NOT EXISTS table_lock (\n  expires_at TEXT,\n  lock_id TEXT PRIMARY KEY,\n  locked_at TEXT NOT NULL,\n  locked_by TEXT,\n  reason TEXT,\n  table_id TEXT NOT NULL\n)"
+}
+
+================================================================================
