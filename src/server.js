@@ -1600,6 +1600,19 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
     line.product_id ||
     null;
 
+  // 🔍 DEBUG: Log when item_id is null
+  if (!itemId) {
+    console.error('[Server][normalizeOrderLineRecord] ❌ item_id is NULL!', {
+      lineId: line.id,
+      orderId,
+      lineKeys: Object.keys(line),
+      itemId: line.itemId,
+      item_id: line.item_id,
+      menuItemId: line.menuItemId,
+      fullLine: JSON.stringify(line, null, 2)
+    });
+  }
+
   const record = {
     uid,
     id,
