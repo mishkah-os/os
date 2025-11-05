@@ -219,6 +219,10 @@ class MishkahRealtimeStore extends EventEmitter {
     this.emit('status', { status: this.status });
   }
 
+  get connected() {
+    return this.status === 'open' || this.status === 'ready';
+  }
+
   ready() {
     if (this.readyPromise) return this.readyPromise;
     return Promise.resolve(this.state);

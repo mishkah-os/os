@@ -276,7 +276,13 @@ function buildLineRow(record = {}, context = {}) {
   const version = Number.isFinite(Number(record.version)) ? Math.trunc(Number(record.version)) : 1;
 
   // Extract item_id from both camelCase and snake_case variants
-  const itemId = record.itemId || record.item_id || null;
+  let itemId = record.itemId || record.item_id || null;
+
+  // If itemId is an object, extract the id or stringify it
+  if (itemId && typeof itemId === 'object' && !Array.isArray(itemId)) {
+    // Try to extract the id field from the object first
+    itemId = itemId.id || JSON.stringify(itemId);
+  }
 
   return {
     branch_id: normalizedContext.branchId,
