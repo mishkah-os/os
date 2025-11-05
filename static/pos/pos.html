@@ -134,6 +134,107 @@
               console.log('[POS] Final payload:', Object.keys(payload).length, 'tables with data');
             }
 
+            // COMPATIBILITY LAYER: Map schema names to legacy frontend names
+            // pos.js expects: menu_items (plural), category_id (snake_case), price, etc.
+            // But schema provides: menu_item (singular), categoryId (camelCase), basePrice, etc.
+            const compatPayload = { ...payload };
+
+            // Map menu_item → menu_items (plural)
+            if (compatPayload.menu_item) {
+              compatPayload.menu_items = compatPayload.menu_item.map(item => ({
+                id: item.id,
+                category_id: item.categoryId,
+                kitchen_section_id: item.kitchenSectionId,
+                price: item.basePrice || 0,
+                item_name: { ar: item.nameAr || '', en: item.nameEn || '' },
+                name: { ar: item.nameAr || '', en: item.nameEn || '' },
+                item_description: { ar: item.descriptionAr || '', en: item.descriptionEn || '' },
+                description: { ar: item.descriptionAr || '', en: item.descriptionEn || '' },
+                is_active: item.isActive,
+                is_combo: item.isCombo,
+                sku: item.sku,
+                // Keep original schema fields too for compatibility
+                ...item
+              }));
+              console.log('[POS] Mapped menu_item → menu_items (plural):', compatPayload.menu_items.length);
+            }
+
+            // Map menu_category → menu_categories with field mappings
+            if (compatPayload.menu_category) {
+              compatPayload.menu_categories = compatPayload.menu_category.map(cat => ({
+                id: cat.id,
+                category_name: { ar: cat.nameAr || '', en: cat.nameEn || '' },
+                name: { ar: cat.nameAr || '', en: cat.nameEn || '' },
+                section_id: cat.sectionId,
+                sort_order: cat.sortOrder || 0,
+                is_active: cat.isActive,
+                ...cat
+              }));
+              console.log('[POS] Mapped menu_category → menu_categories:', compatPayload.menu_categories.length);
+            }
+
+            // Map kitchen_section → kitchen_sections
+            if (compatPayload.kitchen_section) {
+              compatPayload.kitchen_sections = compatPayload.kitchen_section.map(sec => ({
+                id: sec.id,
+                section_name: { ar: sec.nameAr || '', en: sec.nameEn || '' },
+                name: { ar: sec.nameAr || '', en: sec.nameEn || '' },
+                sort_order: sec.sortOrder || 0,
+                ...sec
+              }));
+              console.log('[POS] Mapped kitchen_section → kitchen_sections:', compatPayload.kitchen_sections.length);
+            }
+
+            // Map menu_modifier → modifiers object with add_ons and removals
+            if (compatPayload.menu_modifier && Array.isArray(compatPayload.menu_modifier)) {
+              const add_ons = [];
+              const removals = [];
+
+              compatPayload.menu_modifier.forEach(mod => {
+                const mappedMod = {
+                  id: mod.id,
+                  name: { ar: mod.nameAr || '', en: mod.nameEn || '' },
+                  label: { ar: mod.nameAr || '', en: mod.nameEn || '' },
+                  price_change: mod.priceChange || 0,
+                  priceChange: mod.priceChange || 0,
+                  is_active: mod.isActive,
+                  ...mod
+                };
+
+                if (mod.modifierType === 'add_on' || mod.modifierType === 'addon') {
+                  add_ons.push(mappedMod);
+                } else if (mod.modifierType === 'removal' || mod.modifierType === 'remove') {
+                  removals.push(mappedMod);
+                }
+              });
+
+              compatPayload.modifiers = { add_ons, removals };
+              console.log('[POS] Mapped menu_modifier → modifiers:', { add_ons: add_ons.length, removals: removals.length });
+            }
+
+            // Map other singular → plural table names (simple copy)
+            const simplePluralMappings = {
+              'category_section': 'category_sections',
+              'payment_method': 'payment_methods',
+              'order_type': 'order_types',
+              'order_status': 'order_statuses',
+              'order_stage': 'order_stages',
+              'order_payment_state': 'order_payment_states',
+              'order_line_status': 'order_line_statuses',
+              'employee': 'employees',
+              'delivery_driver': 'delivery_drivers',
+              'audit_event': 'audit_events'
+            };
+
+            Object.entries(simplePluralMappings).forEach(([singular, plural]) => {
+              if (compatPayload[singular]) {
+                compatPayload[plural] = compatPayload[singular];
+                console.log(`[POS] Mapped ${singular} → ${plural}:`, compatPayload[plural].length);
+              }
+            });
+
+            payload = compatPayload;
+
             const previousKeys = Object.keys(window.database || {}).sort().join(',');
             const newKeys = Object.keys(payload || {}).sort().join(',');
 
