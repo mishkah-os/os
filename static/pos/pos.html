@@ -100,27 +100,38 @@
             if (latest && latest.payload && typeof latest.payload === 'object' && Object.keys(latest.payload).length > 0) {
               // OLD structure: data inside pos_database[0].payload
               payload = latest.payload;
-              console.log('[POS] Using OLD structure (pos_database.payload)');
+              console.log('[POS] Using OLD structure (pos_database.payload)', { keys: Object.keys(payload) });
             } else {
               // NEW structure: data directly in tables
               // Build payload from all registered tables using db.list()
               console.log('[POS] Using NEW structure (direct table access)');
+              console.log('[POS] pos_database record:', { latest, hasPayload: !!latest?.payload, payloadKeys: latest?.payload ? Object.keys(latest.payload) : [] });
+
               // Check if db has snapshot method (offline store)
               if (typeof db.snapshot === 'function') {
+                console.log('[POS] Using db.snapshot() (offline mode)');
                 const snapshot = db.snapshot();
                 payload = snapshot.tables || {};
+                console.log('[POS] Snapshot tables:', Object.keys(payload));
               } else {
                 // Fallback: build from known tables (WebSocket store)
+                console.log('[POS] Using db.list() for each table (WebSocket mode)');
                 // Get registered object names from db.config
                 const registeredObjects = db.config?.objects || {};
+                console.log('[POS] Registered objects:', Object.keys(registeredObjects));
+
                 Object.keys(registeredObjects).forEach(name => {
                   try {
                     const tableName = registeredObjects[name].table || name;
-                    payload[tableName] = db.list(name) || [];
+                    const data = db.list(name);
+                    payload[tableName] = data || [];
+                    console.log(`[POS] Listed ${name} (table: ${tableName}): ${data?.length || 0} records`);
                   } catch (err) {
                     console.warn(`[POS] Failed to list table ${name}:`, err);
                   }
                 });
+
+                console.log('[POS] Final payload tables:', Object.keys(payload));
               }
             }
 
@@ -136,9 +147,17 @@
               console.log('[POS] window.database updated with new data', {
                 previousKeyCount: previousKeys.split(',').filter(Boolean).length,
                 newKeyCount: newKeys.split(',').filter(Boolean).length,
+                keys: Object.keys(payload),
                 timestamp: new Date().toISOString()
               });
             }
+
+            // Always log final state for debugging
+            console.log('[POS] window.database current state:', {
+              totalTables: Object.keys(window.database).length,
+              tables: Object.keys(window.database).map(k => ({ name: k, count: window.database[k]?.length || 0 })),
+              status: status.status
+            });
           };
 
           // Initial load
