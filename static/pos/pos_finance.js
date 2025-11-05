@@ -1090,9 +1090,9 @@
       const historySummary = body?.historyEntry && typeof body.historyEntry === 'object' ? body.historyEntry : null;
 
       // Clear local data to trigger UI update via watch()
-      if (db && typeof db.clear === 'function') {
+      if (db && typeof db.delete === 'function') {
         const tablesToPurge = Array.isArray(DEFAULT_PURGE_TABLES) ? DEFAULT_PURGE_TABLES : [];
-        db.clear(...tablesToPurge);
+        db.delete(...tablesToPurge);
       }
       const tablesSummary = Array.isArray(historySummary?.tables)
         ? historySummary.tables
