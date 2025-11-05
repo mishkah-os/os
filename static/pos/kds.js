@@ -1420,7 +1420,20 @@
     const stats = { total:list.length, expedite:0, alerts:0, ready:0, pending:0 };
 
     list.forEach(job=>{
-      const stationId = normalizeSectionId(job.stationId) || 'general';
+      const rawStationId = job.stationId;
+      const stationId = normalizeSectionId(rawStationId) || 'general';
+
+      // Debug: log jobs without proper stationId
+      if (!rawStationId || rawStationId === 'general') {
+        console.warn('[KDS] Job missing stationId:', {
+          jobId: job.id,
+          orderId: job.orderId,
+          rawStationId,
+          normalizedStationId: stationId,
+          details: job.details?.map(d => d.itemNameEn || d.itemNameAr).join(', ')
+        });
+      }
+
       (byStation[stationId] || (byStation[stationId] = [])).push(job);
       const service = job.serviceMode || job.orderTypeId || 'dine_in';
       (byService[service] || (byService[service] = [])).push(job);
@@ -1451,6 +1464,15 @@
       return order;
     });
     orders.sort((a, b)=> (a.createdMs || 0) - (b.createdMs || 0));
+
+    // Debug: log station distribution
+    const stationSummary = Object.entries(byStation).map(([id, jobs]) => ({
+      stationId: id,
+      jobCount: jobs.length
+    }));
+    if (stationSummary.length) {
+      console.log('[KDS] Jobs by station:', stationSummary);
+    }
 
     return { list, byStation, byService, orders, stats };
   };
@@ -1976,7 +1998,12 @@
     );
     const jobs = (db.data.jobs.byStation[normalizedStationId] || [])
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
-      .filter(job=> !servedOrderIds.has(job.orderId));
+      .filter(job=> !servedOrderIds.has(job.orderId))
+      // Extra filter: only show jobs that actually belong to this station
+      .filter(job=> {
+        const jobStationId = normalizeSectionId(job.stationId);
+        return jobStationId === normalizedStationId;
+      });
     const station = db.data.stationMap?.[normalizedStationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, jobs.map(job=> renderJobCard(job, station, t, lang, now)));
@@ -3857,7 +3884,15 @@
         canonicalId(item?.sectionId) ||
         null;
       if (!sectionId) {
-        sectionId = resolveStationForCategory(categoryId) || 'general';
+        sectionId = resolveStationForCategory(categoryId);
+        if (!sectionId) {
+          console.warn('[KDS] Item missing sectionId, category mapping not found:', {
+            itemId: resolvedItemId || derivedItemId,
+            categoryId,
+            itemName: metadata?.itemNameEn || metadata?.itemNameAr || line?.itemName
+          });
+          sectionId = 'general';
+        }
       }
       // Normalize sectionId to prevent duplicate jobs for the same section
       sectionId = normalizeSectionId(sectionId) || sectionId;
