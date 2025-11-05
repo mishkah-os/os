@@ -2772,8 +2772,13 @@ function getPureJson(data) {
   }
 
   function looksLikeKeyValue(str){
-    // أي شيء مثل: en: "x" أو ar: 'y' أو media: {...}
     return /^\s*[A-Za-z_\u0600-\u06FF][\w\u0600-\u06FF]*\s*:/.test(str);
+  }
+
+  function isLikelyUrlString(str) {
+    // نتحقّق من أشكال URL شائعة، مع أو بدون escaping لـ '/'
+    // أي نص يحتوي http:// أو https:// (مؤقتًا قد يحتوي على \/ المسلوكة)
+    return /https?:\\?\/\\?\/|ftp:\\?\/\\?\/|^["']?https?:\\?\/\\?\/.*\.(jpg|jpeg|png|gif|svg)(\\n)?["']?$/i.test(str);
   }
 
   function normalizeLooseJson(input) {
@@ -2784,14 +2789,18 @@ function getPureJson(data) {
       s = '{' + s + '}';
     }
 
-    // بدّل الاقتباس الأحادي في القيم إلى مزدوج (بحذر: خارج النصوص المزدوجة بالفعل)
-    // أبسط تقريب: حوّل كل ' إلى " ثم أصلح المزدوج المزدوج لاحقًا
-    // إن كان لديك قيم فيها apostrophes يمكنك تحسين هذا لاحقًا
+    // بدّل الاقتباس الأحادي في القيم إلى مزدوج
     s = s.replace(/'/g, '"');
 
+    // قبل اقتباس المفاتيح، نحمى سلاسل URL قصيرة (نستبدل :// ب placeholder) لكي لا تعتبر ":" مفتاحاً
+    const PLACEHOLDER = '__COLON_SLASH_SLASH__';
+    s = s.replace(/:\s*\\?\/\\?\/+/g, ':' + PLACEHOLDER); // يحمي حالات :// و :\/\
+
     // اقتباس المفاتيح غير المُقتبسة (عربية/لاتينية) قبل النقطتين
-    // يلتقط: { en: ..., ar : ... , كلمه: ... }
     s = s.replace(/([{,\s])([A-Za-z_\u0600-\u06FF][\w\u0600-\u06FF]*)\s*:/g, '$1"$2":');
+
+    // إعادة الـ placeholder إلى // بعد الاقتباس
+    s = s.replace(new RegExp(PLACEHOLDER, 'g'), '\\/\\/');
 
     // إزالة الفواصل الزائدة قبل الأقواس
     s = s.replace(/,\s*([}\]])/g, '$1');
@@ -2805,13 +2814,21 @@ function getPureJson(data) {
   function tryParseLoose(str){
     // المحاولة الأولى مباشرة
     try { return JSON.parse(str); } catch (_) {}
+
+    // إذا النص يبدو كـ URL مشفّر، لا نحاول تحويله إلى كائن — أعده كنص
+    const trimmed = String(str).trim();
+    if (isLikelyUrlString(trimmed)) {
+      // نظيف قليلًا: نزيل الـ wrapping quotes المزدوجة/الهارب إذا وجدت ونفك الـ \/ إلى /
+      let inner = trimmed.replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1');
+      inner = inner.replace(/\\\//g, '/').replace(/\\n/g, '').replace(/\\"/g, '"');
+      return inner; // نُعيد السلسلة كـ string مُنقَّحة
+    }
+
     // طبّع ثم جرّب ثانية
     const normalized = normalizeLooseJson(str);
     try { return JSON.parse(normalized); }
     catch (e) {
-   //   console.error("فشل في التحليل بعد التطبيع:", e.message);
-      // مفيد للتشخيص:
-      // console.log("بعد التطبيع:", normalized);
+      // فشل نهائي
       throw e;
     }
   }
@@ -2826,6 +2843,15 @@ function getPureJson(data) {
       const v = obj[key];
       if (typeof v === 'string') {
         const str = v.trim();
+
+        // إذا النص يبدو كـ URL مُهَجَّن، لا نحاول تحليله كـ JSON
+        if (isLikelyUrlString(str)) {
+          // نفك بعض الـ escaping الشائع داخل URL
+          obj[key] = str.replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1')
+                        .replace(/\\\//g, '/').replace(/\\n/g, '').replace(/\\"/g, '"');
+          continue;
+        }
+
         // فقط لو يبدو JSON/JS-Object داخل نص
         if (
           (str.startsWith('{') && str.endsWith('}')) ||
@@ -2835,9 +2861,7 @@ function getPureJson(data) {
           try {
             obj[key] = traverse(tryParseLoose(str));
           } catch (e) {
-          //  console.warn(`فشل في تحليل الحقل '${key}': ${e.message}`);
-            // اتركه كسلسلة كما هو، أو عيّنه null حسب رغبتك:
-            // obj[key] = null;
+            // اترك النص كما هو في حالة الفشل
           }
         } else {
           obj[key] = v; // اترك النص العادي
@@ -2849,17 +2873,16 @@ function getPureJson(data) {
     return obj;
   }
 
-  // لا تعدّل الأصل (اختياري)
   const cloned = JSON.parse(JSON.stringify(data));
   return traverse(cloned);
 }
-
 
 
   U.helpers = {getPureJson:getPureJson};
   
   
 })(window);
+
 
 
 
