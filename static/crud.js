@@ -99,8 +99,17 @@
     list.innerHTML = '<li class="table-item">⏳ جاري التحميل...</li>';
 
     try {
+      // Wait for store to be ready
+      await store.ready();
+
       // Get tables from store snapshot
       const snapshot = store.snapshot();
+
+      if (!snapshot || !snapshot.tables) {
+        list.innerHTML = '<li style="padding: 10px; color: #6b7280; font-size: 13px;">لا توجد بيانات بعد</li>';
+        return;
+      }
+
       const tables = Object.keys(snapshot.tables || {});
 
       if (tables.length === 0) {
