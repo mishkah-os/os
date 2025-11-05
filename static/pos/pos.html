@@ -35,6 +35,7 @@
   <script src="../lib/mishkah-schema.js"></script>
     <script src="../lib/mishkah.store.js"></script>
   <script src="../lib/mishkah.simple-store.js"></script>
+  <script src="./pos-simple-loader.js"></script>
   <script src="./pos-mini-db.js"></script>
 </head>
 <body>
@@ -86,9 +87,33 @@
         .then(() => {
           const db = window.__POS_DB__;
 
-          // Function to update window.database from all registered tables
-          const updateWindowDatabase = () => {
-            console.log('[POS] Building window.database from direct table access');
+          // Function to update window.database - load directly from REST API
+          const updateWindowDatabase = async () => {
+            console.log('[POS] Loading data from REST API (original seed structure)');
+
+            try {
+              // Load data using simple loader (preserves original structure)
+              const tables = await window.loadPosData(BRANCH_ID, 'pos');
+
+              // Use data as-is from API (already in correct format from seeds)
+              window.database = tables;
+              status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
+              status.keys = Object.keys(tables);
+
+              const tablesWithData = Object.keys(tables).filter(k => Array.isArray(tables[k]) && tables[k].length > 0);
+              console.log('[POS] window.database ready:', {
+                totalTables: tablesWithData.length,
+                tables: tablesWithData.map(k => ({ name: k, count: tables[k].length })),
+                status: status.status
+              });
+
+              return;
+
+            } catch (error) {
+              console.error('[POS] Failed to load from REST API, falling back to WebSocket store');
+            }
+
+            // Fallback: use WebSocket store
             let payload = {};
 
             // Check if db has snapshot method (offline store)
