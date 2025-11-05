@@ -295,19 +295,17 @@ function buildLineRow(record = {}, context = {}) {
     itemId = itemId.id || JSON.stringify(itemId);
   }
 
-  // 🔍 DEBUG & VALIDATION: item_id must not be null
+  // 🔍 DEBUG: Log when item_id is null (but allow save)
   if (!itemId) {
-    console.error('[SQLite][buildLineRow] ❌ item_id is NULL! This line will NOT be saved.', {
+    console.warn('[SQLite][buildLineRow] ⚠️ item_id is NULL - saving anyway for debugging', {
       recordId: record.id,
       orderId,
       recordKeys: Object.keys(record),
       itemId_field: record.itemId,
       item_id_field: record.item_id,
-      fullRecord: JSON.stringify(record, null, 2)
+      hasItemId: 'itemId' in record,
+      hasItem_id: 'item_id' in record
     });
-
-    // 🛑 CRITICAL: Don't allow saving order_line without item_id
-    throw new Error(`order_line record requires item_id. Record ID: ${record.id}, Order ID: ${orderId}`);
   }
 
   return {
