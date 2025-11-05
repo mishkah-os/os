@@ -1486,10 +1486,6 @@
       const nameEn = section.section_name?.en || section.name?.en || section.nameEn || id;
       return {
         id,
-        // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
-        section_id: section.section_id || section.id,
-        sectionId: section.sectionId || section.section_id || section.id,
-        kitchen_section_id: section.kitchen_section_id || section.section_id || section.id,
         code: id && id.toString ? id.toString().toUpperCase() : id,
         nameAr,
         nameEn,
@@ -1505,28 +1501,14 @@
     });
   };
 
-  const toStationMap = (list)=> {
-    if(!Array.isArray(list)) return {};
-    return list.reduce((acc, station)=>{
-      if(!station) return acc;
-      // 🔧 CRITICAL: Add ALL possible ID variations as keys to ensure we can find stations
-      // regardless of which ID format the backend sends (id, section_id, sectionId)
-      const ids = [
-        station.id,
-        station.section_id,
-        station.sectionId,
-        station.kitchen_section_id,
-        station.kitchenSectionId
-      ].filter(id => id != null).map(id => String(id));
-
-      // Add station under all its possible IDs
-      ids.forEach(id => {
-        if(id) acc[id] = station;
-      });
-
-      return acc;
-    }, {});
-  };
+  const toStationMap = (list)=> (Array.isArray(list)
+    ? list.reduce((acc, station)=>{
+        if(station && station.id != null){
+          acc[station.id] = station;
+        }
+        return acc;
+      }, {})
+    : {});
 
   const buildMenuIndex = (items)=>{
     const index = {};
@@ -1938,31 +1920,6 @@
     const orders = computeOrdersSnapshot(db).filter(order=> order.handoffStatus !== 'served');
     if(!orders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
-
-    // 🔍 DEBUG: Log stationMap contents and missing stations
-    const allStationIds = new Set();
-    orders.forEach(order => {
-      order.jobs.forEach(job => {
-        if(job.stationId) allStationIds.add(job.stationId);
-      });
-    });
-    const missingStations = Array.from(allStationIds).filter(id => !stationMap[id]);
-    if(missingStations.length > 0){
-      console.error('[KDS][renderPrepPanel] ❌ Missing stations in stationMap:', {
-        missingStationIds: missingStations,
-        totalStationMapKeys: Object.keys(stationMap).length,
-        availableStationKeys: Object.keys(stationMap).slice(0, 10),
-        firstMissingJobExample: orders.flatMap(o => o.jobs).find(j => missingStations.includes(j.stationId)),
-        stationMapValuesSample: Object.values(stationMap).slice(0, 3).map(s => ({
-          id: s.id,
-          section_id: s.section_id,
-          kitchen_section_id: s.kitchen_section_id,
-          nameAr: s.nameAr,
-          nameEn: s.nameEn
-        }))
-      });
-    }
-
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
         D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber}`]),
@@ -2238,78 +2195,20 @@
     window.MishkahKdsChannel = BRANCH_CHANNEL;
   }
   const stations = buildStations(database, kdsSource, masterSource);
-  // 🔧 IMPORTANT: Normalize kitchen sections to ensure consistent IDs
-  const rawKitchenSections = Array.isArray(kdsSource.kitchenSections)
-    ? kdsSource.kitchenSections
-    : (Array.isArray(masterSource?.kitchenSections)
-      ? masterSource.kitchenSections
-      : (Array.isArray(database?.kitchen_sections)
-        ? database.kitchen_sections
-        : []));
-  // Normalize kitchen sections - PRESERVE all original ID fields for stationMap lookup
-  const initialKitchenSections = (Array.isArray(rawKitchenSections) ? rawKitchenSections : []).map((section, index) => {
-    const id = (section?.id != null ? String(section.id) : null)
-      || (section?.section_id != null ? String(section.section_id) : null)
-      || (section?.sectionId != null ? String(section.sectionId) : null)
-      || `section-${index + 1}`;
-    const code = section?.code || (id ? id.toString().toUpperCase() : `SEC-${index + 1}`);
-    return {
-      id,
-      // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
-      section_id: section?.section_id || section?.id,
-      sectionId: section?.sectionId || section?.section_id || section?.id,
-      kitchen_section_id: section?.kitchen_section_id || section?.section_id || section?.id,
-      code,
-      nameAr: section?.section_name?.ar || section?.name?.ar || section?.nameAr || section?.name || code,
-      nameEn: section?.section_name?.en || section?.name?.en || section?.nameEn || section?.name || code,
-      description: section?.description?.ar || section?.description?.en || section?.description || '',
-      stationType: section?.stationType || (section?.isExpo || section?.is_expo || id === 'expo' ? 'expo' : 'prep'),
-      isExpo: !!(section?.isExpo || section?.is_expo || id === 'expo'),
-      sequence: typeof section?.sequence === 'number' ? section.sequence : index + 1,
-      themeColor: section?.themeColor || null,
-      autoRouteRules: Array.isArray(section?.autoRouteRules) ? section.autoRouteRules : [],
-      displayConfig: (typeof section?.displayConfig === 'object' && section?.displayConfig) ? { ...section.displayConfig } : { layout: 'grid', columns: 2 },
-      createdAt: section?.createdAt || null,
-      updatedAt: section?.updatedAt || null
-    };
-  });
-  // ✅ Build stationMap from BOTH stations and kitchenSections
-  const combinedStations = [...stations];
-  initialKitchenSections.forEach(section=> {
-    if(!combinedStations.find(s=> s.id === section.id)){
-      combinedStations.push(section);
-    }
-  });
-  const stationMap = toStationMap(combinedStations);
-
-  // 🔍 DEBUG: Log initial stationMap construction
-  console.log('[KDS][init] Initial stationMap built:', {
-    stationsCount: stations.length,
-    kitchenSectionsCount: initialKitchenSections.length,
-    combinedCount: combinedStations.length,
-    stationMapKeysCount: Object.keys(stationMap).length,
-    stationMapSample: Object.keys(stationMap).slice(0, 5),
-    stationSample: stations.slice(0, 2).map(s => ({
-      id: s.id,
-      section_id: s.section_id,
-      kitchen_section_id: s.kitchen_section_id,
-      nameAr: s.nameAr,
-      nameEn: s.nameEn
-    })),
-    sectionSample: initialKitchenSections.slice(0, 2).map(s => ({
-      id: s.id,
-      section_id: s.section_id,
-      kitchen_section_id: s.kitchen_section_id,
-      nameAr: s.nameAr,
-      nameEn: s.nameEn
-    }))
-  });
+  const stationMap = toStationMap(stations);
   const initialStationRoutes = Array.isArray(kdsSource.stationCategoryRoutes)
     ? kdsSource.stationCategoryRoutes.map(route=> ({ ...route }))
     : (Array.isArray(masterSource?.stationCategoryRoutes)
       ? masterSource.stationCategoryRoutes.map(route=> ({ ...route }))
       : (Array.isArray(database?.station_category_routes)
         ? database.station_category_routes.map(route=> ({ ...route }))
+        : []));
+  const initialKitchenSections = Array.isArray(kdsSource.kitchenSections)
+    ? kdsSource.kitchenSections.map(section=> ({ ...section }))
+    : (Array.isArray(masterSource?.kitchenSections)
+      ? masterSource.kitchenSections.map(section=> ({ ...section }))
+      : (Array.isArray(database?.kitchen_sections)
+        ? database.kitchen_sections.map(section=> ({ ...section }))
         : []));
   const initialCategorySections = Array.isArray(kdsSource.categorySections)
     ? kdsSource.categorySections.map(entry=> ({ ...entry }))
@@ -2435,22 +2334,7 @@
       updates.forEach(item=>{
         if(!item || item[key] == null) return;
         const id = String(item[key]);
-        const existing = map.get(id);
-
-        // ✅ Simple merge: let incoming data override existing data
-        // Backend knows the correct stationId - trust it!
-        const merged = Object.assign({}, existing || {}, item);
-
-        // 🔍 DEBUG: Log stationId changes for diagnostics only
-        if(key === 'id' && existing && existing.stationId && item.stationId && existing.stationId !== item.stationId){
-          console.log('[KDS][mergeJobOrders] stationId updated:', {
-            jobId: id,
-            oldStationId: existing.stationId,
-            newStationId: item.stationId
-          });
-        }
-
-        map.set(id, merged);
+        map.set(id, Object.assign({}, map.get(id) || {}, item));
       });
       return Array.from(map.values());
     };
@@ -2679,37 +2563,18 @@
       if(Array.isArray(payload.master?.stations) && payload.master.stations.length){
         stationsNext = payload.master.stations.map(station=> ({ ...station }));
       }
-      let kitchenSectionsNext = Array.isArray(state.data.kitchenSections)
-        ? state.data.kitchenSections.map(section=> ({ ...section }))
-        : [];
-      if(Array.isArray(payload.master?.kitchenSections)){
-        kitchenSectionsNext = payload.master.kitchenSections.map(section=> ({ ...section }));
-      }
-      // ✅ Build stationMap from BOTH stations and kitchenSections
-      const combinedStations = [...stationsNext];
-      kitchenSectionsNext.forEach(section=> {
-        // Only add if not already in stationsNext
-        if(!combinedStations.find(s=> s.id === section.id)){
-          combinedStations.push(section);
-        }
-      });
-      const stationMapNext = toStationMap(combinedStations);
-
-      // 🔍 DEBUG: Log stationMap construction in applyRemoteOrder
-      console.log('[KDS][applyRemoteOrder] stationMap built:', {
-        stationsCount: stationsNext.length,
-        kitchenSectionsCount: kitchenSectionsNext.length,
-        combinedCount: combinedStations.length,
-        stationMapKeys: Object.keys(stationMapNext),
-        prevStationMapKeys: Object.keys(state.data.stationMap || {}),
-        stationSample: stationsNext.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn })),
-        sectionSample: kitchenSectionsNext.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn }))
-      });
+      const stationMapNext = toStationMap(stationsNext);
       let stationRoutesNext = Array.isArray(state.data.stationCategoryRoutes)
         ? state.data.stationCategoryRoutes.map(route=> ({ ...route }))
         : [];
       if(Array.isArray(payload.master?.stationCategoryRoutes)){
         stationRoutesNext = payload.master.stationCategoryRoutes.map(route=> ({ ...route }));
+      }
+      let kitchenSectionsNext = Array.isArray(state.data.kitchenSections)
+        ? state.data.kitchenSections.map(section=> ({ ...section }))
+        : [];
+      if(Array.isArray(payload.master?.kitchenSections)){
+        kitchenSectionsNext = payload.master.kitchenSections.map(section=> ({ ...section }));
       }
       let categorySectionsNext = Array.isArray(state.data.categorySections)
         ? state.data.categorySections.map(entry=> ({ ...entry }))
@@ -3314,10 +3179,6 @@
         (id ? id.toString().toUpperCase() : `SEC-${index + 1}`);
       return {
         id,
-        // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
-        section_id: section?.section_id || section?.id,
-        sectionId: section?.sectionId || section?.section_id || section?.id,
-        kitchen_section_id: section?.kitchen_section_id || section?.section_id || section?.id,
         code,
         nameAr:
           section?.section_name?.ar ||
@@ -3721,27 +3582,10 @@
       posPayload?.kds || {},
       posPayload?.master || {}
     );
+    const stationMap = toStationMap(stations);
     const kitchenSections = normalizeKitchenSections(
       posPayload?.kitchen_sections
     );
-    // ✅ Build stationMap from BOTH stations and kitchenSections
-    const combinedStations = [...stations];
-    kitchenSections.forEach(section=> {
-      if(!combinedStations.find(s=> s.id === section.id)){
-        combinedStations.push(section);
-      }
-    });
-    const stationMap = toStationMap(combinedStations);
-
-    // 🔍 DEBUG: Log stationMap construction
-    console.log('[KDS][buildWatcherPayload] stationMap built:', {
-      stationsCount: stations.length,
-      kitchenSectionsCount: kitchenSections.length,
-      combinedCount: combinedStations.length,
-      stationMapKeys: Object.keys(stationMap),
-      stationSample: stations.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn })),
-      sectionSample: kitchenSections.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn }))
-    });
     const stationCategoryRoutes = normalizeCategoryRoutes(
       posPayload?.category_sections
     );
@@ -3834,18 +3678,6 @@
           header?.ticketNumber,
         displayOrderId || jobOrderId
       );
-
-      // 🔍 DEBUG: Log header processing - check for stationId
-      if(header?.stationId || header?.station_id || header?.kitchenSectionId || header?.kitchen_section_id){
-        console.log('[KDS][buildWatcherPayload] order_header contains stationId:', {
-          jobOrderId,
-          stationId: header?.stationId,
-          station_id: header?.station_id,
-          kitchenSectionId: header?.kitchenSectionId,
-          kitchen_section_id: header?.kitchen_section_id
-        });
-      }
-
       orders.set(jobOrderId, {
         jobOrderId,
         orderId: displayOrderId || jobOrderId,
@@ -3977,52 +3809,24 @@
       );
       const categoryId =
         rawCategoryId || metadataCategoryId || canonicalId(item?.categoryId);
-
-      // ✅ ENHANCED: Check multiple fields for sectionId (like kds-v2.js)
-      let sectionId = canonicalId(
-        line?.kitchenSectionId ||
-        line?.kitchen_section_id ||
-        line?.sectionId ||
-        line?.section_id ||
-        line?.stationId ||
-        line?.station_id ||
-        metadata?.kitchenSectionId ||
-        metadata?.kitchen_section_id ||
-        metadata?.sectionId ||
-        metadata?.section_id ||
-        item?.kitchenSectionId ||
-        item?.kitchen_section_id ||
-        item?.sectionId ||
-        item?.section_id
-      );
-
-      // ⚡ FALLBACK: If no sectionId found, use default "السخن" section
-      const DEFAULT_SECTION_ID = '1e7a48ec-425a-4268-81db-c8f3fd4d432e'; // شاشة السخن
+      let sectionId =
+        canonicalId(
+          line?.kitchenSectionId ||
+            line?.kitchen_section_id ||
+            line?.sectionId ||
+            line?.stationId
+        ) ||
+        canonicalId(
+          metadata?.kitchenSectionId ||
+            metadata?.kitchen_section_id ||
+            metadata?.sectionId ||
+            metadata?.stationId
+        ) ||
+        canonicalId(item?.sectionId) ||
+        null;
       if (!sectionId) {
-        console.warn('[KDS][buildWatcherPayload] ⚠️ No sectionId found - using fallback (السخن):', {
-          orderLineId: line?.id,
-          orderId: line?.orderId,
-          itemId: line?.itemId,
-          itemCode: line?.itemCode,
-          fallbackSectionId: DEFAULT_SECTION_ID
-        });
-        sectionId = DEFAULT_SECTION_ID;
+        sectionId = resolveStationForCategory(categoryId) || 'general';
       }
-
-      // 🔍 DEBUG: Log section ID resolution
-      console.log('[KDS][buildWatcherPayload] Line sectionId:', {
-        orderLineId: line?.id,
-        kitchenSectionId: line?.kitchenSectionId,
-        kitchen_section_id: line?.kitchen_section_id,
-        sectionId: line?.sectionId,
-        stationId: line?.stationId,
-        itemSectionId: item?.kitchenSectionId,
-        resolvedSectionId: sectionId,
-        isFallback: sectionId === DEFAULT_SECTION_ID,
-        inStationMap: sectionId ? !!stationMap[sectionId] : false,
-        itemId: line?.itemId,
-        itemCode: line?.itemCode
-      });
       const jobItemId = resolvedItemId || derivedItemId;
       const jobOrderRef = order.jobOrderId || jobOrderId;
       let jobId = jobOrderRef;
@@ -4034,17 +3838,6 @@
       }
       if (!order.jobs.has(jobId)) {
         const station = stationMap[sectionId] || {};
-
-        // 🔍 DEBUG: Log job creation with stationId
-        console.log('[KDS][buildWatcherPayload] Creating new job:', {
-          jobId,
-          orderId: order.orderId,
-          sectionId,
-          stationCode: station?.code,
-          stationInMap: !!station?.id,
-          stationName: station?.nameAr || station?.nameEn
-        });
-
         order.jobs.set(jobId, {
           id: jobId,
           jobOrderId: jobOrderRef || jobId,
@@ -4151,11 +3944,9 @@
             : 'queued';
         const progressState =
           status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting';
-        // ✅ IMPORTANT: Use job.id (includes sectionId) as the unique identifier
-        // This prevents stationId conflicts when merging jobs
         jobHeaders.push({
-          id: job.id,  // "DAR-001057:67ba4d64..." - includes sectionId for uniqueness
-          jobOrderId: job.jobOrderId || job.id,  // "DAR-001057" - base order ID
+          id: job.jobOrderId || job.id,
+          jobOrderId: job.jobOrderId || job.id,
           orderId: job.orderId,
           orderNumber: job.orderNumber,
           stationId: job.stationId,
