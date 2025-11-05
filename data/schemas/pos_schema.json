@@ -3394,7 +3394,7 @@
           {
             "name": "itemId",
             "columnName": "item_id",
-            "type": "integer",
+            "type": "string",
             "nullable": false,
             "primaryKey": false,
             "unique": false,
@@ -3406,7 +3406,8 @@
               "column": "item_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
-            }
+            },
+            "maxLength": 64
           },
           {
             "name": "kitchenSectionId",
