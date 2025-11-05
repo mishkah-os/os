@@ -121,6 +121,39 @@
             updateWindowDatabase();
           });
 
+          // POLLING: Check live/data.json for updates every 30 seconds
+          let lastChecksum = null;
+          const checkForUpdates = async () => {
+            try {
+              const response = await fetch(`/data/branches/${BRANCH_ID}/modules/pos/live/data.json`, {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
+              });
+
+              if (!response.ok) return;
+
+              const data = await response.json();
+              const newChecksum = JSON.stringify(data).substring(0, 200);
+
+              if (lastChecksum === null) {
+                lastChecksum = newChecksum;
+                return;
+              }
+
+              if (newChecksum !== lastChecksum) {
+                console.log('[POS] live/data.json changed! Reloading page...');
+                lastChecksum = newChecksum;
+                window.location.reload();
+              }
+            } catch (error) {
+              console.warn('[POS] Polling check failed:', error);
+            }
+          };
+
+          // Check immediately and then every 30 seconds
+          checkForUpdates();
+          setInterval(checkForUpdates, 30000);
+
           const script = document.createElement('script');
           script.src = './pos.js';
           document.head.appendChild(script);
