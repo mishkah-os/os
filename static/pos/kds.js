@@ -3978,10 +3978,22 @@
       const categoryId =
         rawCategoryId || metadataCategoryId || canonicalId(item?.categoryId);
 
-      // ✅ SIMPLE: استخدم kitchenSectionId من الـ line مباشرة فقط!
+      // ✅ ENHANCED: Check multiple fields for sectionId (like kds-v2.js)
       let sectionId = canonicalId(
         line?.kitchenSectionId ||
-        line?.kitchen_section_id
+        line?.kitchen_section_id ||
+        line?.sectionId ||
+        line?.section_id ||
+        line?.stationId ||
+        line?.station_id ||
+        metadata?.kitchenSectionId ||
+        metadata?.kitchen_section_id ||
+        metadata?.sectionId ||
+        metadata?.section_id ||
+        item?.kitchenSectionId ||
+        item?.kitchen_section_id ||
+        item?.sectionId ||
+        item?.section_id
       );
 
       // 🔍 DEBUG: Log section ID resolution
@@ -3989,6 +4001,9 @@
         orderLineId: line?.id,
         kitchenSectionId: line?.kitchenSectionId,
         kitchen_section_id: line?.kitchen_section_id,
+        sectionId: line?.sectionId,
+        stationId: line?.stationId,
+        itemSectionId: item?.kitchenSectionId,
         resolvedSectionId: sectionId,
         inStationMap: sectionId ? !!stationMap[sectionId] : false,
         itemId: line?.itemId,
@@ -3996,10 +4011,12 @@
       });
 
       if (!sectionId) {
-        console.warn('[KDS][buildWatcherPayload] ❌ No kitchenSectionId in line - skipping!', {
+        console.warn('[KDS][buildWatcherPayload] ❌ No sectionId found in line/metadata/item - skipping!', {
           orderLineId: line?.id,
           orderId: line?.orderId,
-          itemId: line?.itemId
+          itemId: line?.itemId,
+          itemCode: line?.itemCode,
+          line: line
         });
         return; // تخطى هذا الـ line
       }
