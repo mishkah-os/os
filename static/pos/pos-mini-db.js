@@ -266,48 +266,33 @@ async function fetchModuleSchemaRemote(branchId, moduleId) {
 }
 
 async function fetchModuleSchemaLocal(branchId, moduleId) {
-  const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
-  const schemaUrl = `${basePath}/schema/definition.json`;
-  const schema = await fetchJson(schemaUrl);
-  const moduleEntry = {
-    id: moduleId,
-    moduleId,
-    branchId,
-    schema,
-    tables: schema?.schema?.tables || schema?.tables || []
-  };
-  return { schema, moduleEntry };
+  // SECURITY: Use REST API instead of direct file access
+  // Falls back to /api/schema endpoint for schema definition
+  const params = new URLSearchParams({
+    branch: branchId,
+    module: moduleId
+  });
+  const payload = await fetchJson(`/api/schema?${params.toString()}`);
+  const moduleEntry = payload?.modules?.[moduleId];
+  if (!moduleEntry || !moduleEntry.schema) {
+    throw new Error(`Schema for module "${moduleId}" not found in /api/schema response`);
+  }
+  return { schema: moduleEntry.schema, moduleEntry };
 }
 
 async function fetchModuleDataset(branchId, moduleId) {
-  const isLocal = typeof window !== 'undefined' && window.location &&
-                  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-  // Try static files first (local development)
-  if (isLocal) {
-    const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
-    const candidates = [`${basePath}/live/data.json`, `${basePath}/seeds/initial.json`];
-    for (const url of candidates) {
-      try {
-        return await fetchJson(url);
-      } catch (_err) {
-        // try next candidate
-      }
-    }
-  }
-
-  // Fallback to REST API (works for both local and production)
+  // SECURITY: Always use REST API instead of static files
+  // This prevents direct access to sensitive live/seed data files
+  // and allows for future authentication/authorization
   try {
     const apiUrl = `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
     const snapshot = await fetchJson(apiUrl);
     // The API returns a snapshot with { branchId, moduleId, tables, meta, version }
-    // Return it in the expected format
     return snapshot;
   } catch (error) {
     console.warn(`[fetchModuleDataset] Failed to fetch from REST API: ${error.message}`);
+    return null;
   }
-
-  return null;
 }
 
 function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, role = 'pos-mini-offline' }) {
@@ -546,6 +531,9 @@ async function createRemotePosDb({ branchId, moduleId, tables, logger, role, his
 }
 
 async function createOfflinePosDb({ branchId, moduleId, tables, logger, role }, cause) {
+  // NOTE: Despite the name "offline", this still uses REST API for both schema and data
+  // This is a fallback when WebSocket connection fails, not truly offline
+  // All data is fetched securely via REST API endpoints
   const schemaPayload = await fetchModuleSchemaLocal(branchId, moduleId);
   const normalizedSchema = normalizeSchemaPayload(schemaPayload.schema, schemaPayload.moduleEntry, tables);
   const dataset = await fetchModuleDataset(branchId, moduleId);
