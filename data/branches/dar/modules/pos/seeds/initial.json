@@ -1,13 +1,11 @@
 {
   "version": 1,
+  "version": 1,
   "meta": {
     "branchId": "dar",
     "moduleId": "pos",
-    "lastUpdatedAt": "2025-11-02T12:46:45.543Z",
-    "serverId": "seed",
-    "datasetSource": "seed",
-    "counter": 38,
-    "labCounter": 38
+    "counter": 0,
+    "labCounter": 0
   },
   "tables": {
     "kitchen_section": [
