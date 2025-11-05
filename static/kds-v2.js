@@ -110,10 +110,32 @@
     console.log('🔍 [DEBUG] Loading reference data from window.database');
 
     const database = window.database || {};
+    console.log('🔍 [DEBUG] window.database:', database);
     console.log('🔍 [DEBUG] window.database keys:', Object.keys(database));
 
-    // Load kitchen sections
-    const sections = database.kitchen_section || database.kitchenSections || database.kitchen_sections || [];
+    // Check for kds source
+    const kdsSource = database.kds || {};
+    const masterSource = (typeof kdsSource.master === 'object' && kdsSource.master) ? kdsSource.master : {};
+
+    console.log('🔍 [DEBUG] kdsSource:', kdsSource);
+    console.log('🔍 [DEBUG] masterSource:', masterSource);
+
+    // Load kitchen sections (try multiple paths like original kds.js)
+    let sections = [];
+    if (Array.isArray(kdsSource.kitchenSections) && kdsSource.kitchenSections.length) {
+      sections = kdsSource.kitchenSections;
+      console.log('🔍 [DEBUG] Loaded sections from kdsSource.kitchenSections');
+    } else if (Array.isArray(masterSource.kitchenSections) && masterSource.kitchenSections.length) {
+      sections = masterSource.kitchenSections;
+      console.log('🔍 [DEBUG] Loaded sections from masterSource.kitchenSections');
+    } else if (Array.isArray(database.kitchen_sections) && database.kitchen_sections.length) {
+      sections = database.kitchen_sections;
+      console.log('🔍 [DEBUG] Loaded sections from database.kitchen_sections');
+    } else if (Array.isArray(database.kitchen_section) && database.kitchen_section.length) {
+      sections = database.kitchen_section;
+      console.log('🔍 [DEBUG] Loaded sections from database.kitchen_section');
+    }
+
     console.log('🔍 [DEBUG] kitchen_section loaded:', sections.length);
     if (sections.length > 0) {
       console.log('🔍 [DEBUG] First kitchen_section record:', sections[0]);
@@ -122,8 +144,22 @@
 
     state.sections = sections;
 
-    // Load menu items
-    const items = database.menu_item || database.menuItems || database.menu_items || [];
+    // Load menu items (try multiple paths like original kds.js)
+    let items = [];
+    if (Array.isArray(masterSource.menu_items) && masterSource.menu_items.length) {
+      items = masterSource.menu_items;
+      console.log('🔍 [DEBUG] Loaded items from masterSource.menu_items');
+    } else if (Array.isArray(database.menu_item) && database.menu_item.length) {
+      items = database.menu_item;
+      console.log('🔍 [DEBUG] Loaded items from database.menu_item');
+    } else if (Array.isArray(database.menu?.items) && database.menu.items.length) {
+      items = database.menu.items;
+      console.log('🔍 [DEBUG] Loaded items from database.menu.items');
+    } else if (Array.isArray(database.menuItems) && database.menuItems.length) {
+      items = database.menuItems;
+      console.log('🔍 [DEBUG] Loaded items from database.menuItems');
+    }
+
     console.log('🔍 [DEBUG] menu_item loaded:', items.length);
     if (items.length > 0) {
       console.log('🔍 [DEBUG] First menu_item record:', items[0]);
@@ -140,18 +176,57 @@
   }
 
   // Watch for window.database to be loaded
-  if (window.database && Object.keys(window.database).length > 0) {
-    console.log('[KDS v2] window.database already loaded, loading reference data...');
-    loadReferenceData();
-  } else {
-    console.log('[KDS v2] Waiting for window.database to be loaded...');
+  let referenceDataLoaded = false;
+
+  function tryLoadReferenceData() {
+    if (referenceDataLoaded) return false;
+
+    // Check if pos-mini-db has finished loading
+    const status = window.__POS_DATA_STATUS__;
+
+    if (!status) {
+      console.log('[KDS v2] Waiting for __POS_DATA_STATUS__...');
+      return false;
+    }
+
+    console.log('[KDS v2] __POS_DATA_STATUS__.status:', status.status);
+
+    if (status.status === 'ready' && window.database && Object.keys(window.database).length > 0) {
+      console.log('[KDS v2] window.database is ready, loading reference data...');
+      console.log('[KDS v2] window.database keys:', Object.keys(window.database));
+      loadReferenceData();
+      referenceDataLoaded = true;
+      return true;
+    } else if (status.status === 'error') {
+      console.error('[KDS v2] Failed to load database:', status.error);
+      return false;
+    }
+
+    return false;
+  }
+
+  // Try immediately
+  tryLoadReferenceData();
+
+  // If not loaded, keep trying
+  if (!referenceDataLoaded) {
+    console.log('[KDS v2] Starting interval to wait for database...');
     const checkInterval = setInterval(() => {
-      if (window.database && Object.keys(window.database).length > 0) {
-        console.log('[KDS v2] window.database loaded, loading reference data...');
+      if (tryLoadReferenceData()) {
         clearInterval(checkInterval);
-        loadReferenceData();
+        console.log('[KDS v2] ✅ Reference data loaded successfully!');
       }
     }, 100);
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      if (!referenceDataLoaded) {
+        clearInterval(checkInterval);
+        console.error('[KDS v2] ❌ Timeout waiting for database to load');
+        console.error('[KDS v2] __POS_DATA_STATUS__:', window.__POS_DATA_STATUS__);
+        console.error('[KDS v2] window.database:', window.database);
+      }
+    }, 10000);
   }
 
   // Watch order headers
@@ -193,6 +268,11 @@
   // ==================== Order Processing ====================
   function processOrders() {
     if (!state.orders || !state.lines) return;
+
+    // Try to load reference data if not loaded yet
+    if (state.menuItems.length === 0 || state.sections.length === 0) {
+      tryLoadReferenceData();
+    }
 
     console.log('═══════════════════════════════════════════════════');
     console.log('🔍 [DEBUG] processOrders() called');
