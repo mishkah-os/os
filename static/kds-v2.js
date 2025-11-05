@@ -55,28 +55,16 @@
   }
 
   // ==================== Database Setup ====================
-  console.log('[KDS v2] Initializing database...');
 
   // Get schema from window.database if available
   const database = typeof window !== 'undefined' ? (window.database || {}) : {};
   const posSchema = database.schema || database.pos_schema || null;
-
-  // 🔍 DEBUG: Print schema structure
-  console.log('═══════════════════════════════════════════════════');
-  console.log('🔍 [DEBUG] window.database:', database);
-  console.log('🔍 [DEBUG] window.database keys:', Object.keys(database));
-  console.log('🔍 [DEBUG] posSchema:', posSchema);
-  if (posSchema && posSchema.tables) {
-    console.log('🔍 [DEBUG] Schema tables:', posSchema.tables.map(t => t.name || t.sqlName));
-  }
-  console.log('═══════════════════════════════════════════════════');
 
   let db;
   if (posSchema && typeof createDBAuto === 'function') {
     // Use createDBAuto for automatic table registration
     // NOTE: Only watch live tables (order_header, order_line)
     // Reference data (menu_item, kitchen_section) loaded from window.database
-    console.log('[KDS v2] Using createDBAuto with schema');
     db = createDBAuto(posSchema, ['order_header', 'order_line'], {
       branchId: CONFIG.branchId,
       moduleId: CONFIG.moduleId,
@@ -87,7 +75,6 @@
     });
   } else {
     // Fallback to manual registration
-    console.log('[KDS v2] Using manual table registration');
     db = createDB({
       branchId: CONFIG.branchId,
       moduleId: CONFIG.moduleId,
@@ -106,70 +93,37 @@
 
   // Load reference data from window.database (loaded by pos-mini-db)
   function loadReferenceData() {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🔍 [DEBUG] Loading reference data from window.database');
-
     const database = window.database || {};
-    console.log('🔍 [DEBUG] window.database:', database);
-    console.log('🔍 [DEBUG] window.database keys:', Object.keys(database));
-
-    // Check for kds source
     const kdsSource = database.kds || {};
     const masterSource = (typeof kdsSource.master === 'object' && kdsSource.master) ? kdsSource.master : {};
 
-    console.log('🔍 [DEBUG] kdsSource:', kdsSource);
-    console.log('🔍 [DEBUG] masterSource:', masterSource);
-
-    // Load kitchen sections (try multiple paths like original kds.js)
+    // Load kitchen sections
     let sections = [];
     if (Array.isArray(kdsSource.kitchenSections) && kdsSource.kitchenSections.length) {
       sections = kdsSource.kitchenSections;
-      console.log('🔍 [DEBUG] Loaded sections from kdsSource.kitchenSections');
     } else if (Array.isArray(masterSource.kitchenSections) && masterSource.kitchenSections.length) {
       sections = masterSource.kitchenSections;
-      console.log('🔍 [DEBUG] Loaded sections from masterSource.kitchenSections');
     } else if (Array.isArray(database.kitchen_sections) && database.kitchen_sections.length) {
       sections = database.kitchen_sections;
-      console.log('🔍 [DEBUG] Loaded sections from database.kitchen_sections');
     } else if (Array.isArray(database.kitchen_section) && database.kitchen_section.length) {
       sections = database.kitchen_section;
-      console.log('🔍 [DEBUG] Loaded sections from database.kitchen_section');
     }
-
-    console.log('🔍 [DEBUG] kitchen_section loaded:', sections.length);
-    if (sections.length > 0) {
-      console.log('🔍 [DEBUG] First kitchen_section record:', sections[0]);
-      console.log('🔍 [DEBUG] kitchen_section fields:', Object.keys(sections[0]));
-    }
-
     state.sections = sections;
 
-    // Load menu items (try multiple paths like original kds.js)
+    // Load menu items
     let items = [];
     if (Array.isArray(masterSource.menu_items) && masterSource.menu_items.length) {
       items = masterSource.menu_items;
-      console.log('🔍 [DEBUG] Loaded items from masterSource.menu_items');
     } else if (Array.isArray(database.menu_item) && database.menu_item.length) {
       items = database.menu_item;
-      console.log('🔍 [DEBUG] Loaded items from database.menu_item');
     } else if (Array.isArray(database.menu?.items) && database.menu.items.length) {
       items = database.menu.items;
-      console.log('🔍 [DEBUG] Loaded items from database.menu.items');
     } else if (Array.isArray(database.menuItems) && database.menuItems.length) {
       items = database.menuItems;
-      console.log('🔍 [DEBUG] Loaded items from database.menuItems');
     }
-
-    console.log('🔍 [DEBUG] menu_item loaded:', items.length);
-    if (items.length > 0) {
-      console.log('🔍 [DEBUG] First menu_item record:', items[0]);
-      console.log('🔍 [DEBUG] menu_item fields:', Object.keys(items[0]));
-      console.log('🔍 [DEBUG] First 5 menu_items:', items.slice(0, 5));
-    }
-
     state.menuItems = items;
 
-    console.log('═══════════════════════════════════════════════════');
+    console.log(`✅ [KDS v2] Loaded ${sections.length} sections, ${items.length} menu items`);
 
     renderTabs();
     processOrders();
@@ -181,19 +135,10 @@
   function tryLoadReferenceData() {
     if (referenceDataLoaded) return false;
 
-    // Check if pos-mini-db has finished loading
     const status = window.__POS_DATA_STATUS__;
-
-    if (!status) {
-      console.log('[KDS v2] Waiting for __POS_DATA_STATUS__...');
-      return false;
-    }
-
-    console.log('[KDS v2] __POS_DATA_STATUS__.status:', status.status);
+    if (!status) return false;
 
     if (status.status === 'ready' && window.database && Object.keys(window.database).length > 0) {
-      console.log('[KDS v2] window.database is ready, loading reference data...');
-      console.log('[KDS v2] window.database keys:', Object.keys(window.database));
       loadReferenceData();
       referenceDataLoaded = true;
       return true;
@@ -210,11 +155,9 @@
 
   // If not loaded, keep trying
   if (!referenceDataLoaded) {
-    console.log('[KDS v2] Starting interval to wait for database...');
     const checkInterval = setInterval(() => {
       if (tryLoadReferenceData()) {
         clearInterval(checkInterval);
-        console.log('[KDS v2] ✅ Reference data loaded successfully!');
       }
     }, 100);
 
@@ -223,47 +166,24 @@
       if (!referenceDataLoaded) {
         clearInterval(checkInterval);
         console.error('[KDS v2] ❌ Timeout waiting for database to load');
-        console.error('[KDS v2] __POS_DATA_STATUS__:', window.__POS_DATA_STATUS__);
-        console.error('[KDS v2] window.database:', window.database);
       }
     }, 10000);
   }
 
   // Watch order headers
   db.watch('order_header', (headers) => {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🔍 [DEBUG] order_header updated:', headers ? headers.length : 0);
-    if (headers && headers.length > 0) {
-      console.log('🔍 [DEBUG] First 3 order_header records:');
-      headers.slice(0, 3).forEach((h, i) => {
-        console.log(`Order ${i}:`, JSON.stringify(h, null, 2));
-      });
-      console.log('🔍 [DEBUG] order_header fields:', Object.keys(headers[0]));
-    }
-    console.log('═══════════════════════════════════════════════════');
-
     state.orders = headers || [];
     processOrders();
   });
 
   // Watch order lines
   db.watch('order_line', (lines) => {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🔍 [DEBUG] order_line updated:', lines ? lines.length : 0);
-    if (lines && lines.length > 0) {
-      console.log('🔍 [DEBUG] First order_line record:', lines[0]);
-      console.log('🔍 [DEBUG] order_line fields:', Object.keys(lines[0]));
-      console.log('🔍 [DEBUG] First 3 order_lines:', lines.slice(0, 3));
-    }
-    console.log('═══════════════════════════════════════════════════');
-
     state.lines = lines || [];
     processOrders();
   });
 
   // Watch connection status
   db.status((status) => {
-    console.log('[KDS v2] Connection status:', status);
     state.connected = status === 'connected';
     updateConnectionStatus();
   });
@@ -275,16 +195,8 @@
     // Reference data will be loaded by the interval in tryLoadReferenceData()
     // Don't call it here to avoid infinite loop
     if (state.menuItems.length === 0 || state.sections.length === 0) {
-      console.log('[KDS v2] Waiting for reference data to load...');
       return;
     }
-
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🔍 [DEBUG] processOrders() called');
-    console.log('🔍 [DEBUG] state.orders:', state.orders.length);
-    console.log('🔍 [DEBUG] state.lines:', state.lines.length);
-    console.log('🔍 [DEBUG] state.menuItems:', state.menuItems.length);
-    console.log('🔍 [DEBUG] state.sections:', state.sections.length);
 
     // Clear jobs
     state.jobs.clear();
@@ -294,8 +206,6 @@
     (state.menuItems || []).forEach(item => {
       itemsIndex[item.id] = item;
     });
-
-    console.log('🔍 [DEBUG] itemsIndex created with', Object.keys(itemsIndex).length, 'items');
 
     // Group lines by orderId and kitchenSectionId
     let firstLineProcessed = false;
@@ -345,12 +255,6 @@
       const itemId = line.itemId || line.item_id;
       const menuItem = itemId ? itemsIndex[itemId] : null;
 
-      // Debug first item lookup
-      if (index === 0) {
-        console.log('🔍 [DEBUG] itemId:', itemId);
-        console.log('🔍 [DEBUG] menuItem found:', menuItem);
-      }
-
       // Use names from menu_item if available, fallback to line data
       // Support multiple data structures: item_name.ar, nameAr, name_ar
       const nameAr = menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar ||
@@ -359,11 +263,6 @@
       const nameEn = menuItem?.item_name?.en || menuItem?.nameEn || menuItem?.name_en ||
                      line.item_name?.en || line.itemNameEn || line.item_name_en ||
                      menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar || itemId;
-
-      if (index === 0) {
-        console.log('🔍 [DEBUG] Resolved nameAr:', nameAr);
-        console.log('🔍 [DEBUG] Resolved nameEn:', nameEn);
-      }
 
       // Create job ID: orderId:sectionId
       const jobId = `${orderId}:${sectionId}`;
@@ -515,10 +414,6 @@
     const container = document.getElementById('tabs-container');
     if (!container) return;
 
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🔍 [DEBUG] renderTabs() called');
-    console.log('🔍 [DEBUG] state.sections:', state.sections);
-
     const tabs = [];
 
     // Add 'prep' tab (all orders view)
@@ -537,8 +432,6 @@
       return seqA - seqB;
     });
 
-    console.log('🔍 [DEBUG] sortedSections:', sortedSections);
-
     sortedSections.forEach(section => {
       const count = getJobsForSection(section.id).length;
 
@@ -547,8 +440,6 @@
                      section.section_name?.en || section.nameEn || section.name_en || section.id;
       const nameEn = section.section_name?.en || section.nameEn || section.name_en ||
                      section.section_name?.ar || section.nameAr || section.name_ar || section.id;
-
-      console.log('🔍 [DEBUG] Section:', section.id, '→ nameAr:', nameAr, ', nameEn:', nameEn);
 
       tabs.push({
         id: section.id,
@@ -587,10 +478,6 @@
       count: getPendingDeliveryOrders().length
     });
 
-    console.log('🔍 [DEBUG] Final tabs array:', tabs);
-    console.log('🔍 [DEBUG] Active language:', state.lang);
-    console.log('═══════════════════════════════════════════════════');
-
     container.innerHTML = tabs.map(tab => {
       const displayName = state.lang === 'ar' ? tab.nameAr : tab.nameEn;
       return `
@@ -608,9 +495,6 @@
   function renderOrders() {
     const container = document.getElementById('orders-container');
     if (!container) return;
-
-    console.log('🔍 [DEBUG] renderOrders() - activeTab:', state.activeTab);
-    console.log('🔍 [DEBUG] renderOrders() - total jobs:', state.jobs.size);
 
     // Handle different views based on active tab
     if (state.activeTab === 'expo') {
@@ -631,26 +515,20 @@
 
     // Prep or section view: show jobs
     let filteredJobs = Array.from(state.jobs.values());
-    console.log('🔍 [DEBUG] Before filtering:', filteredJobs.length, 'jobs');
 
     if (state.activeTab === 'prep') {
       // Show all jobs not handed off
       filteredJobs = filteredJobs.filter(job => !state.handoff[job.orderId]);
-      console.log('🔍 [DEBUG] After prep filter:', filteredJobs.length, 'jobs');
     } else {
       // Show jobs for specific section
-      const beforeSectionFilter = filteredJobs.length;
       filteredJobs = filteredJobs.filter(job =>
         job.sectionId === state.activeTab &&
         !state.handoff[job.orderId]
       );
-      console.log(`🔍 [DEBUG] Section filter (${state.activeTab}): ${beforeSectionFilter} → ${filteredJobs.length} jobs`);
     }
 
     // Filter out completed jobs
-    const beforeCompletedFilter = filteredJobs.length;
     filteredJobs = filteredJobs.filter(job => job.status !== 'completed');
-    console.log(`🔍 [DEBUG] After completed filter: ${beforeCompletedFilter} → ${filteredJobs.length} jobs`);
 
     // Sort by created time
     filteredJobs.sort((a, b) => {
@@ -660,7 +538,6 @@
     });
 
     if (filteredJobs.length === 0) {
-      console.log('🔍 [DEBUG] No jobs to display - showing empty state');
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-state-icon">🍽️</div>
@@ -670,7 +547,6 @@
       return;
     }
 
-    console.log('🔍 [DEBUG] Rendering', filteredJobs.length, 'jobs');
     container.innerHTML = filteredJobs.map(job => renderOrderCard(job)).join('');
   }
 
@@ -993,7 +869,6 @@
   };
 
   window.startJob = async function(jobId) {
-    console.log('[KDS v2] Starting job:', jobId);
     const job = state.jobs.get(jobId);
     if (!job) return;
 
@@ -1011,7 +886,6 @@
   };
 
   window.markJobReady = async function(jobId) {
-    console.log('[KDS v2] Marking job ready:', jobId);
     const job = state.jobs.get(jobId);
     if (!job) return;
 
@@ -1029,7 +903,6 @@
   };
 
   window.bumpJob = async function(jobId) {
-    console.log('[KDS v2] Bumping job:', jobId);
     const job = state.jobs.get(jobId);
     if (!job) return;
 
@@ -1047,7 +920,6 @@
   };
 
   window.assembleOrder = function(orderId) {
-    console.log('[KDS v2] Assembling order:', orderId);
     state.handoff[orderId] = {
       status: 'assembled',
       assembledAt: new Date().toISOString(),
@@ -1058,7 +930,6 @@
   };
 
   window.serveOrder = function(orderId) {
-    console.log('[KDS v2] Serving order:', orderId);
     state.handoff[orderId] = {
       status: 'served',
       servedAt: new Date().toISOString(),
@@ -1072,7 +943,6 @@
     const driverName = prompt('اسم السائق:');
     if (!driverName) return;
 
-    console.log('[KDS v2] Assigning driver to order:', orderId, driverName);
     state.deliveries.assignments[orderId] = driverName;
 
     // Also mark as assembled so it moves from expo
@@ -1092,7 +962,6 @@
   };
 
   window.deliveredOrder = function(orderId) {
-    console.log('[KDS v2] Delivered order:', orderId);
     state.deliveries.settlements[orderId] = {
       status: 'pending_settlement',
       deliveredAt: new Date().toISOString()
@@ -1102,7 +971,6 @@
   };
 
   window.settleDelivery = function(orderId) {
-    console.log('[KDS v2] Settling delivery:', orderId);
     delete state.deliveries.settlements[orderId];
     delete state.deliveries.assignments[orderId];
     renderTabs();
@@ -1111,35 +979,14 @@
 
   // ==================== Initialize ====================
 
-  console.log('═══════════════════════════════════════════════════');
-  console.log('🔍 [DEBUG] Starting database connection...');
-
   try {
     await db.connect();
-    console.log('✅ [KDS v2] Connected to WebSocket successfully');
-
-    // Wait a bit for initial data load
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    console.log('🔍 [DEBUG] After 2 seconds wait:');
-    console.log('🔍 [DEBUG] Reference Data (from window.database):');
-    console.log('🔍 [DEBUG] - Sections loaded:', state.sections.length);
-    console.log('🔍 [DEBUG] - Menu items loaded:', state.menuItems.length);
-    console.log('🔍 [DEBUG] Live Data (from WebSocket):');
-    console.log('🔍 [DEBUG] - Orders loaded:', state.orders.length);
-    console.log('🔍 [DEBUG] - Lines loaded:', state.lines.length);
-    console.log('🔍 [DEBUG] Processing:');
-    console.log('🔍 [DEBUG] - Jobs created:', state.jobs.size);
   } catch (err) {
     console.error('❌ [KDS v2] Connection failed:', err);
   }
-
-  console.log('═══════════════════════════════════════════════════');
 
   // Auto-refresh timer
   setInterval(() => {
     renderOrders();
   }, 1000);
-
-  console.log('✅ [KDS v2] Initialization complete');
 })();
