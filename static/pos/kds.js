@@ -1501,9 +1501,21 @@
     });
   };
 
-  // Normalize section ID - pass-through for now
+  // Section ID aliases: temporary mapping until backend is fixed
+  // Backend sends old UUIDs, but we need to map them to current section IDs
+  const SECTION_ID_ALIASES = {
+    // Old UUID → current hot_linee ID
+    '1e7a48ec-425a-4268-81db-c8f3fd4d432e': 'hot_linee',
+    '1E7A48EC-425A-4268-81DB-C8F3FD4D432E': 'hot_linee',
+    'e7a48ec-425a-4268-81db-c8f3fd4d432e': 'hot_linee',
+    'hot_line': 'hot_linee',
+    'hot_linee': 'hot_linee'
+  };
+
   const normalizeSectionId = (id)=> {
-    return id;
+    if(id == null) return id;
+    const normalized = SECTION_ID_ALIASES[id];
+    return normalized !== undefined ? normalized : id;
   };
 
   const toStationMap = (list)=> {
@@ -1512,8 +1524,16 @@
     return list.reduce((acc, station)=>{
       if(station && station.id != null){
         const normalizedId = normalizeSectionId(station.id);
+
         // Add entry with normalized ID
         acc[normalizedId] = station;
+
+        // Also add entries for all aliases that point to this normalized ID
+        Object.keys(SECTION_ID_ALIASES).forEach(aliasId => {
+          if(SECTION_ID_ALIASES[aliasId] === normalizedId){
+            acc[aliasId] = station;
+          }
+        });
       }
       return acc;
     }, {});
