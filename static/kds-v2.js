@@ -44,26 +44,39 @@
   // ==================== Database Setup ====================
   console.log('[KDS v2] Initializing database...');
 
-  const db = createDB({
-    branchId: CONFIG.branchId,
-    moduleId: CONFIG.moduleId,
-    role: CONFIG.role,
-    wsPath: CONFIG.wsPath,
-    autoConnect: true,
-    useIndexedDB: true,
-    objects: {
-      // Register tables we want to watch
-      kitchen_section: {
-        table: 'kitchen_section'
-      },
-      order_header: {
-        table: 'order_header'
-      },
-      order_line: {
-        table: 'order_line'
+  // Get schema from window.database if available
+  const database = typeof window !== 'undefined' ? (window.database || {}) : {};
+  const posSchema = database.schema || database.pos_schema || null;
+
+  let db;
+  if (posSchema && typeof createDBAuto === 'function') {
+    // Use createDBAuto for automatic table registration
+    console.log('[KDS v2] Using createDBAuto with schema');
+    db = createDBAuto(posSchema, ['kitchen_section', 'order_header', 'order_line'], {
+      branchId: CONFIG.branchId,
+      moduleId: CONFIG.moduleId,
+      role: CONFIG.role,
+      wsPath: CONFIG.wsPath,
+      autoConnect: true,
+      useIndexedDB: true
+    });
+  } else {
+    // Fallback to manual registration
+    console.log('[KDS v2] Using manual table registration');
+    db = createDB({
+      branchId: CONFIG.branchId,
+      moduleId: CONFIG.moduleId,
+      role: CONFIG.role,
+      wsPath: CONFIG.wsPath,
+      autoConnect: true,
+      useIndexedDB: true,
+      objects: {
+        kitchen_section: { table: 'kitchen_section' },
+        order_header: { table: 'order_header' },
+        order_line: { table: 'order_line' }
       }
-    }
-  });
+    });
+  }
 
   // ==================== Data Watchers ====================
 
