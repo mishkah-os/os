@@ -89,7 +89,13 @@ export default class SchemaEngine {
 
     for (const field of table.fields || []) {
       const fieldName = field.name;
+      const columnName = field.columnName || field.name;
+
+      // Try to get value from both camelCase (field.name) and snake_case (field.columnName)
       let value = input[fieldName];
+      if ((value === undefined || value === null || value === '') && columnName !== fieldName) {
+        value = input[columnName];
+      }
 
       if (value === undefined || value === null || value === '') {
         value = this.generateAutoValue(field, context);
