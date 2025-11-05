@@ -232,8 +232,21 @@
                 payload = latest.payload;
               } else {
                 // NEW structure: data directly in tables
-                const snapshot = db.snapshot();
-                payload = snapshot.tables || {};
+                if (typeof db.snapshot === 'function') {
+                  const snapshot = db.snapshot();
+                  payload = snapshot.tables || {};
+                } else {
+                  // Fallback: build from registered objects
+                  const registeredObjects = db.config?.objects || {};
+                  Object.keys(registeredObjects).forEach(name => {
+                    try {
+                      const tableName = registeredObjects[name].table || name;
+                      payload[tableName] = db.list(name) || [];
+                    } catch (err) {
+                      console.warn(`[POS Finance] Failed to list table ${name}:`, err);
+                    }
+                  });
+                }
               }
 
               const previousKeys = Object.keys(window.database || {}).sort().join(',');
