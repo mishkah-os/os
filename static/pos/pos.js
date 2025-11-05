@@ -1349,8 +1349,9 @@
       const statusId = overrides?.statusId || overrides?.status || 'draft';
       const baseLine = {
         id: uniqueId,
-        itemId :itemId,
+        itemId: itemId,
         item_id: itemId,
+        Item_Id: itemId,  // PascalCase for schema!
         name: item.name,
         description: item.description,
         quantity,
@@ -4985,7 +4986,8 @@
       const baseLine = {
         id: raw.id || `ln-${context.orderId}-${itemId || Math.random().toString(16).slice(2,8)}`,
         itemId,
-        item_id: itemId,  // ✅ CRITICAL: Also include snake_case for backend!
+        item_id: itemId,  // snake_case
+        Item_Id: itemId,  // PascalCase for schema!
         name: menuItem ? menuItem.name : cloneName(raw.name),
         description: menuItem ? menuItem.description : cloneName(raw.description),
         qty,
