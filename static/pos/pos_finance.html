@@ -218,129 +218,47 @@
           .then(() => {
             const db = window.__POS_DB__;
 
-            // Function to update window.database - load directly from REST API
-            const updateWindowDatabase = async () => {
-              console.log('[POS Finance] Loading data from REST API (original seed structure)');
-
+            // Load data from REST API (preserves original structure)
+            const loadFromRestApi = async () => {
               try {
-                // Load data using simple loader (preserves original structure)
                 const tables = await window.loadPosData(BRANCH_ID, 'pos');
-
-                // Use data as-is from API (already in correct format from seeds)
                 window.database = tables;
                 status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
                 status.keys = Object.keys(tables);
-
-                const tablesWithData = Object.keys(tables).filter(k => Array.isArray(tables[k]) && tables[k].length > 0);
-                console.log('[POS Finance] window.database ready:', {
-                  totalTables: tablesWithData.length,
-                  tables: tablesWithData.map(k => ({ name: k, count: tables[k].length })),
-                  status: status.status
-                });
-
-                return;
-
               } catch (error) {
-                console.error('[POS Finance] Failed to load from REST API, falling back to WebSocket store:', error);
+                window.database = {};
+                status.status = 'error';
               }
-
-              // Fallback: use WebSocket store
-              console.log('[POS Finance] Using fallback WebSocket store');
-              const records = db.list('pos_database');
-              const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
-
-              let payload = {};
-
-              if (latest && latest.payload && typeof latest.payload === 'object' && Object.keys(latest.payload).length > 0) {
-                payload = latest.payload;
-                console.log('[POS Finance] Using OLD structure (pos_database.payload)');
-              } else {
-                console.log('[POS Finance] Using NEW structure (direct table access)');
-                if (typeof db.snapshot === 'function') {
-                  const snapshot = db.snapshot();
-                  payload = snapshot.tables || {};
-                } else {
-                  const registeredObjects = db.config?.objects || {};
-                  Object.keys(registeredObjects).forEach(name => {
-                    try {
-                      const tableName = registeredObjects[name].table || name;
-                      payload[tableName] = db.list(name) || [];
-                    } catch (err) {
-                      console.warn(`[POS Finance] Failed to list table ${name}:`, err);
-                    }
-                  });
-                }
-              }
-
-              window.database = payload;
-              status.status = Object.keys(payload).length > 0 ? 'ready' : 'idle';
-              status.keys = Object.keys(payload || {});
-
-              console.log('[POS Finance] window.database ready (fallback):', {
-                totalTables: Object.keys(payload).length,
-                status: status.status
-              });
             };
 
-            // Initial load
-            updateWindowDatabase();
-            status.finishedAt = Date.now();
+            // Initial load from REST API
+            loadFromRestApi().then(() => {
+              status.finishedAt = Date.now();
 
-            // Watch for changes to pos_database
-            db.watch('pos_database', (records) => {
-              console.log('[POS Finance] pos_database changed, updating window.database...', {
-                recordCount: records.length,
-                timestamp: new Date().toISOString()
+              // Watch for changes and reload from REST API to maintain structure consistency
+              const registeredNames = typeof db.getRegisteredNames === 'function'
+                ? db.getRegisteredNames()
+                : Object.keys(db.config?.objects || {});
+
+              registeredNames.forEach(name => {
+                if (name === 'pos_database') return;
+                db.watch(name, () => {
+                  loadFromRestApi(); // Reload from REST API on any change
+                });
               });
-              updateWindowDatabase();
             });
-
-            // POLLING: Check live/data.json for updates every 30 seconds
-            let lastChecksum = null;
-            const checkForUpdates = async () => {
-              try {
-                const response = await fetch(`/api/branches/${BRANCH_ID}/modules/pos`, {
-                  cache: 'no-store',
-                  headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-                });
-
-                if (!response.ok) return;
-
-                const data = await response.json();
-                const newChecksum = JSON.stringify(data).substring(0, 200);
-
-                if (lastChecksum === null) {
-                  lastChecksum = newChecksum;
-                  return;
-                }
-
-                if (newChecksum !== lastChecksum) {
-                  console.log('[POS Finance] Data changed via REST API! Reloading page...');
-                  lastChecksum = newChecksum;
-                  window.location.reload();
-                }
-              } catch (error) {
-                console.warn('[POS Finance] Polling check failed:', error);
-              }
-            };
-
-            // Check immediately and then every 30 seconds
-            checkForUpdates();
-            setInterval(checkForUpdates, 30000);
 
             const script = document.createElement('script');
             script.src = './pos_finance.js';
             document.head.appendChild(script);
           })
           .catch((error) => {
-            console.error('[POS Finance] Failed to hydrate dataset from /api/schema', error);
             window.database = {};
             status.status = 'error';
             status.error = error;
             status.finishedAt = Date.now();
           });
       } catch (error) {
-        console.error('[POS Finance] Failed to initialize database', error);
         window.database = {};
         status.status = 'error';
         status.error = error;
