@@ -13,10 +13,7 @@
  *   const snapshot = store.snapshot();
  */
 (function (window){
-// Use production server only if not running locally
-window.basedomain = (typeof window !== 'undefined' && window.location && window.location.hostname === 'localhost')
-  ? '' // Use local server for development
-  : 'https://ws.mas.com.eg'; // Use production server
+window.basedomain='https://ws.mas.com.eg';
 
 const DEFAULT_WS_PATH = '/ws';
 const DEFAULT_ROLE = 'pos-sdk';

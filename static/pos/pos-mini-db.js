@@ -276,15 +276,30 @@ async function fetchModuleSchemaLocal(branchId, moduleId) {
 }
 
 async function fetchModuleDataset(branchId, moduleId) {
-  const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
-  const candidates = [`${basePath}/live/data.json`, `${basePath}/seeds/initial.json`];
-  for (const url of candidates) {
-    try {
-      return await fetchJson(url);
-    } catch (_err) {
-      // try next candidate
+  const isLocal = typeof window !== 'undefined' && window.location &&
+                  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  // Try API endpoint first (works for both local and production)
+  try {
+    const params = new URLSearchParams({ branch: branchId, module: moduleId });
+    return await fetchJson(`/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}/snapshot?${params.toString()}`);
+  } catch (_err) {
+    // API not available, try local files only if running locally
+  }
+
+  // Fallback to local static files (only for localhost development)
+  if (isLocal) {
+    const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
+    const candidates = [`${basePath}/live/data.json`, `${basePath}/seeds/initial.json`];
+    for (const url of candidates) {
+      try {
+        return await fetchJson(url);
+      } catch (_err) {
+        // try next candidate
+      }
     }
   }
+
   return null;
 }
 
