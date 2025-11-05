@@ -120,6 +120,10 @@
       // Cache
       this.schemaCache = new Map(); // tableName -> columns schema
       this.dataCache = new Map();   // tableName -> data
+
+      // ✨ IndexedDB support
+      this.useIndexedDB = options.useIndexedDB !== false;
+      this.dbVersion = options.dbVersion || 1;
     }
 
     /**
@@ -378,11 +382,46 @@
       this.store = window.createStore({
         branchId: this.branchId,
         moduleId: this.moduleId,
+        useIndexedDB: this.useIndexedDB,
+        dbVersion: this.dbVersion,
         ...options
       });
 
       await this.store.connect();
       return this.store;
+    }
+
+    /**
+     * Enable IndexedDB caching
+     * - Loads data from cache on connect (offline support)
+     * - Saves snapshots to IndexedDB automatically
+     * - Faster reads with persistent local cache
+     *
+     * @param {Object} options - IndexedDB options
+     * @returns {boolean} - Whether IndexedDB is available
+     */
+    enableIndexedDB(options = {}) {
+      if (!window.MishkahIndexedDB) {
+        console.warn('[CRUD] IndexedDB module not loaded. Include mishkah-indexeddb.js first.');
+        return false;
+      }
+
+      this.useIndexedDB = true;
+      this.dbVersion = options.version || options.dbVersion || 1;
+
+      // If already connected, update store settings
+      if (this.store) {
+        if (!this.store.dbAdapter) {
+          this.store.dbAdapter = window.MishkahIndexedDB.createAdapter({
+            namespace: this.branchId,
+            name: `mishkah-store-${this.moduleId}`,
+            version: this.dbVersion,
+          });
+          console.log('[CRUD] IndexedDB enabled');
+        }
+      }
+
+      return true;
     }
 
     /**

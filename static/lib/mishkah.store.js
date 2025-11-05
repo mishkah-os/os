@@ -150,6 +150,18 @@ class MishkahRealtimeStore extends EventEmitter {
     this.readyReject = null;
     this.lastHello = null;
     this.messageLog = [];
+
+    // ✨ IndexedDB support
+    this.useIndexedDB = options.useIndexedDB !== false;
+    this.dbAdapter = null;
+    if (this.useIndexedDB && window.MishkahIndexedDB) {
+      this.logger.info?.('[Mishkah][Store] IndexedDB adapter enabled');
+      this.dbAdapter = window.MishkahIndexedDB.createAdapter({
+        namespace: this.branchId,
+        name: `mishkah-store-${this.moduleId}`,
+        version: options.dbVersion || 1,
+      });
+    }
   }
 
   async connect() {
@@ -159,6 +171,17 @@ class MishkahRealtimeStore extends EventEmitter {
     this.status = 'connecting';
     this.emit('status', { status: this.status });
     this.logger.info?.('[Mishkah][Store] connecting to', this.wsUrl);
+
+    // ✨ Load from IndexedDB cache before connecting
+    if (this.dbAdapter) {
+      const loadedFromCache = await this.#loadFromCache();
+      if (loadedFromCache) {
+        this.logger.info?.('[Mishkah][Store] state loaded from cache');
+        this.emit('state:change', { reason: 'cache-load', state: clone(this.state) });
+        this.emit('cache:hit', { state: clone(this.state) });
+      }
+    }
+
     this.ws = new WebSocket(this.wsUrl);
     this.ws.addEventListener('open', () => this.#handleOpen());
     this.ws.addEventListener('message', (event) => {
@@ -297,6 +320,16 @@ class MishkahRealtimeStore extends EventEmitter {
       case 'server:snapshot':
         this.#applySnapshot(payload);
         this.emit('snapshot', clone(this.state));
+
+        // ✨ Cache snapshot to IndexedDB
+        if (this.dbAdapter && this.state.modules[this.moduleId]) {
+          this.#cacheModuleState(
+            this.moduleId,
+            this.state.modules[this.moduleId],
+            payload.meta || {}
+          );
+        }
+
         if (this.readyResolve) {
           this.readyResolve(this.state);
           this.readyResolve = null;
@@ -471,6 +504,38 @@ class MishkahRealtimeStore extends EventEmitter {
         this.logger.error?.('[Mishkah][Store] reconnect failed', error);
       });
     }, delay);
+  }
+
+  // ==================== IndexedDB Cache Methods ====================
+
+  async #loadFromCache() {
+    if (!this.dbAdapter) return false;
+    try {
+      const cachedModule = await this.dbAdapter.load(this.moduleId);
+      if (cachedModule && cachedModule.data) {
+        if (!this.state.modules) this.state.modules = {};
+        this.state.modules[this.moduleId] = clone(cachedModule.data);
+        if (cachedModule.meta) {
+          if (!this.state.meta) this.state.meta = {};
+          this.state.meta[this.moduleId] = clone(cachedModule.meta);
+        }
+        this.emit('cache', { status: 'loaded', moduleId: this.moduleId });
+        return true;
+      }
+    } catch (error) {
+      this.logger.error?.('[Mishkah][Store] failed to load from cache', error);
+    }
+    return false;
+  }
+
+  async #cacheModuleState(moduleId, moduleData, meta = {}) {
+    if (!this.dbAdapter) return;
+    try {
+      await this.dbAdapter.save(moduleId, moduleData, { metadata: meta, mergeMetadata: true });
+      this.emit('cache', { status: 'saved', moduleId });
+    } catch (error) {
+      this.logger.error?.('[Mishkah][Store] failed to save to cache', error);
+    }
   }
 }
 
