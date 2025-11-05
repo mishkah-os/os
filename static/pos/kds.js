@@ -3996,6 +3996,19 @@
         item?.section_id
       );
 
+      // ⚡ FALLBACK: If no sectionId found, use default "السخن" section
+      const DEFAULT_SECTION_ID = '1e7a48ec-425a-4268-81db-c8f3fd4d432e'; // شاشة السخن
+      if (!sectionId) {
+        console.warn('[KDS][buildWatcherPayload] ⚠️ No sectionId found - using fallback (السخن):', {
+          orderLineId: line?.id,
+          orderId: line?.orderId,
+          itemId: line?.itemId,
+          itemCode: line?.itemCode,
+          fallbackSectionId: DEFAULT_SECTION_ID
+        });
+        sectionId = DEFAULT_SECTION_ID;
+      }
+
       // 🔍 DEBUG: Log section ID resolution
       console.log('[KDS][buildWatcherPayload] Line sectionId:', {
         orderLineId: line?.id,
@@ -4005,21 +4018,11 @@
         stationId: line?.stationId,
         itemSectionId: item?.kitchenSectionId,
         resolvedSectionId: sectionId,
+        isFallback: sectionId === DEFAULT_SECTION_ID,
         inStationMap: sectionId ? !!stationMap[sectionId] : false,
         itemId: line?.itemId,
         itemCode: line?.itemCode
       });
-
-      if (!sectionId) {
-        console.warn('[KDS][buildWatcherPayload] ❌ No sectionId found in line/metadata/item - skipping!', {
-          orderLineId: line?.id,
-          orderId: line?.orderId,
-          itemId: line?.itemId,
-          itemCode: line?.itemCode,
-          line: line
-        });
-        return; // تخطى هذا الـ line
-      }
       const jobItemId = resolvedItemId || derivedItemId;
       const jobOrderRef = order.jobOrderId || jobOrderId;
       let jobId = jobOrderRef;
