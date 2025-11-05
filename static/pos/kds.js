@@ -3043,14 +3043,14 @@
           settlements[orderId] = settlements[orderId] || { status:'pending', updatedAt: nowIso };
           settlementPayload = settlements[orderId];
 
-          // Also update handoff status to 'served' for delivery orders
+          // Also update handoff status to 'assembled' for delivery orders (not 'served')
           const handoff = state.data.handoff || {};
-          const handoffRecord = { ...(handoff[orderId] || {}), status:'served', servedAt: nowIso, updatedAt: nowIso };
+          const handoffRecord = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
           const nextHandoff = { ...handoff, [orderId]: handoffRecord };
           recordPersistedHandoff(orderId, handoffRecord);
 
           emitSync({ type:'delivery:update', orderId, payload:{ assignment: assignments[orderId] } });
-          emitSync({ type:'handoff:update', orderId, payload:{ status:'served', servedAt: nowIso, updatedAt: nowIso } });
+          emitSync({ type:'handoff:update', orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
 
           return {
             ...state,
@@ -3114,7 +3114,7 @@
   };
 
   const watcherUnsubscribers = [];
-  const store = typeof window !== 'undefined' ? window.__POS_DB__ : null;
+  let store = typeof window !== 'undefined' && window.__POS_DB__ ? window.__POS_DB__ : null;
 
   const watcherState = {
     status: 'idle',
@@ -4163,10 +4163,61 @@
         updateFromWatchers();
       })
     );
-  } else {
+  } else if (!store || typeof store.watch !== 'function') {
     console.warn(
       '[Mishkah][KDS] POS dataset store unavailable. Live updates are disabled.'
     );
+    
+    const checkStoreReady = () => {
+      if (window.__POS_DB__) {
+        store = window.__POS_DB__;
+        if (store && typeof store.watch === 'function') {
+          watcherUnsubscribers.push(
+            store.status((status) => {
+              watcherState.status =
+                typeof status === 'string' ? status : status?.status || 'idle';
+              updateFromWatchers();
+            })
+          );
+          watcherUnsubscribers.push(
+            store.watch('pos_database', (rows) => {
+              const latest =
+                Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
+              watcherState.posPayload =
+                (latest && latest.payload) || {};
+              console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
+              updateFromWatchers();
+            })
+          );
+          watcherUnsubscribers.push(
+            store.watch('order_header', (rows) => {
+              watcherState.headers = ensureArray(rows);
+              console.log('[KDS][WATCH][order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
+              updateFromWatchers();
+            })
+          );
+          watcherUnsubscribers.push(
+            store.watch('order_line', (rows) => {
+              watcherState.lines = ensureArray(rows);
+              console.log('[KDS][WATCH][order_line]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
+              updateFromWatchers();
+            })
+          );
+          watcherUnsubscribers.push(
+            store.watch('order_delivery', (rows) => {
+              watcherState.deliveries = ensureArray(rows);
+              console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
+              updateFromWatchers();
+            })
+          );
+          console.log('[Mishkah][KDS] POS dataset store now available. Live updates enabled.');
+        }
+      } else {
+        setTimeout(checkStoreReady, 100);
+      }
+    };
+    
+    setTimeout(checkStoreReady, 100);
   }
 
   if (typeof window !== 'undefined') {

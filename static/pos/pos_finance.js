@@ -1064,7 +1064,7 @@
     });
     const attemptAt = new Date().toISOString();
     try {
-      const response = await fetch('/api/manage/purge-live-data', {
+      const response = await fetch( window.basedomain +'/api/manage/purge-live-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1088,6 +1088,12 @@
       }
       const removed = Number(body?.totalRemoved ?? 0);
       const historySummary = body?.historyEntry && typeof body.historyEntry === 'object' ? body.historyEntry : null;
+
+      // Clear local data to trigger UI update via watch()
+      if (db && typeof db.clear === 'function') {
+        const tablesToPurge = Array.isArray(DEFAULT_PURGE_TABLES) ? DEFAULT_PURGE_TABLES : [];
+        db.clear(...tablesToPurge);
+      }
       const tablesSummary = Array.isArray(historySummary?.tables)
         ? historySummary.tables
             .filter((table) => table && table.name)
@@ -1101,22 +1107,6 @@
         lastResetResponse: body,
         lastResetHistoryEntry: historySummary
       });
-      if (db && Array.isArray(DEFAULT_PURGE_TABLES)) {
-        for (const tableName of DEFAULT_PURGE_TABLES) {
-          const alias = getAliasForCanonical(tableName);
-          try {
-            if (typeof db.clear === 'function') {
-              db.clear(alias);
-            }
-          } catch (clearError) {
-            console.warn('[POS Finance] Failed to clear local table after reset', {
-              table: tableName,
-              alias,
-              error: clearError
-            });
-          }
-        }
-      }
       updateData();
       console.log('[POS Finance] Reset orders completed', { payload, response: body });
     } catch (error) {
@@ -1160,7 +1150,7 @@
         state,
         payload: dataClose
       });
-      const response = await fetch('/api/closepos', {
+      const response = await fetch(window.basedomain +'/api/closepos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dataClose)

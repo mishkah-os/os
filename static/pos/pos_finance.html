@@ -163,8 +163,13 @@
 </head>
 <body>
   <div id="app"></div>
-  <script type="module">
-    import { createPosDb } from './pos-mini-db.js';
+      <script src="../lib/mishkah.store.js"></script>
+  <script src="../lib/mishkah.simple-store.js"></script>
+  <script src="./pos-mini-db.js"></script>
+    <script src="./pos-mini-utils.js"></script>
+
+    <script>
+      const createPosDb = window.createPosDb;
 
     const params = new URLSearchParams(window.location.search || '');
     const BRANCH_ID = (params.get('brname') || '').trim();
@@ -203,26 +208,40 @@
       window.__POS_BRANCH_ID__ = BRANCH_ID;
 
       try {
-        const { db, moduleEntry } = await createPosDb({ branchId: BRANCH_ID, role: 'finance-shell' });
-        window.__POS_DB__ = db;
-        window.__POS_MODULE_ENTRY__ = moduleEntry;
-        await db.ready();
-        const records = db.list('pos_database');
-        const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
-        const payload = latest && latest.payload ? latest.payload : {};
-        window.database = payload;
-        status.status = latest ? 'ready' : 'idle';
-        status.keys = Object.keys(payload || {});
-        status.finishedAt = Date.now();
+        createPosDb({ branchId: BRANCH_ID, role: 'finance-shell' })
+          .then(({ db, moduleEntry }) => {
+            window.__POS_DB__ = db;
+            window.__POS_MODULE_ENTRY__ = moduleEntry;
+            return db.ready();
+          })
+          .then(() => {
+            const records = window.__POS_DB__.list('pos_database');
+            const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
+            const payload = latest && latest.payload ? latest.payload : {};
+            window.database = payload;
+            status.status = latest ? 'ready' : 'idle';
+            status.keys = Object.keys(payload || {});
+            status.finishedAt = Date.now();
+
+            const script = document.createElement('script');
+            script.src = './pos_finance.js';
+            document.head.appendChild(script);
+          })
+          .catch((error) => {
+            console.error('[POS Finance] Failed to hydrate dataset from /api/schema', error);
+            window.database = {};
+            status.status = 'error';
+            status.error = error;
+            status.finishedAt = Date.now();
+          });
       } catch (error) {
-        console.error('[POS Finance] Failed to hydrate dataset from /api/schema', error);
+        console.error('[POS Finance] Failed to initialize database', error);
         window.database = {};
         status.status = 'error';
         status.error = error;
         status.finishedAt = Date.now();
       }
 
-      await import('./pos_finance.js');
     }
   </script>
 </body>

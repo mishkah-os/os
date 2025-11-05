@@ -565,7 +565,7 @@
     
     async function fetchPosSchemaFromBackend(){
       const branchId = typeof window !== 'undefined' ? (window.__POS_BRANCH_ID__ || 'dar') : 'dar';
-      const url = '../api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
+      const url = window.basedomain +'/api/schema?branch=' + encodeURIComponent(branchId) + '&module=pos';
       try{
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
         const body = await res.json().catch(()=>null);
@@ -1349,7 +1349,7 @@
       const statusId = overrides?.statusId || overrides?.status || 'draft';
       const baseLine = {
         id: uniqueId,
-        itemId,
+        itemId :itemId,
         item_id: itemId,
         name: item.name,
         description: item.description,
@@ -1779,7 +1779,7 @@
       async function nextInvoiceNumber(posId, prefix){
         if(!BRANCH_ID) throw new Error('Branch id is required for invoice sequence');
         const payload = await postJson(
-          `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/sequences`,
+         window.basedomain +`/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/sequences`,
           {
             table:'order_header',
             field:'id',
@@ -2065,7 +2065,7 @@
         if(!order || !order.shiftId){
           throw new Error('Order payload requires an active shift');
         }
-        const endpoint = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders`;
+        const endpoint =window.basedomain + `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders`;
         const outgoing = { ...order };
         const expectedVersion = Number(order?.expectedVersion);
         const currentVersion = Number(order?.version);
@@ -2216,14 +2216,14 @@
           params.set('include', Array.from(includeTokens.values()).join(','));
         }
         const query = params.toString();
-        const endpoint = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders${query ? `?${query}` : ''}`;
+        const endpoint =window.basedomain + `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders${query ? `?${query}` : ''}`;
         const payload = await getJson(endpoint);
         const list = Array.isArray(payload?.orders) ? payload.orders : [];
         return list.map(normalizePersistedOrder).filter(Boolean);
       }
       async function getOrder(orderId){
         if(!BRANCH_ID || !orderId) return null;
-        const url = `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders/${encodeURIComponent(orderId)}`;
+        const url =window.basedomain + `/api/branches/${encodeURIComponent(BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/orders/${encodeURIComponent(orderId)}`;
         const payload = await getJson(url);
         return payload?.order ? normalizePersistedOrder(payload.order) : null;
       }
@@ -2967,7 +2967,7 @@
       // إذا لم نجد itemId، حاول استخراجه من id
       // النمط: "ln-{itemId}-{random}"
       if(!rawItemId && id && typeof id === 'string'){
-        const match = id.match(/^ln-([0-9a-fA-F-]+)-[a-z0-9]+$/);
+        const match = id.match(/^ln-([0-9a-fA-F-]+)-[a-z0-9-]+$/);
         if(match && match[1]){
           rawItemId = match[1];
           console.log('[POS][sanitizeOrderLineRow] Extracted itemId from line id:', {
@@ -2976,9 +2976,26 @@
           });
         }
       }
-      const itemId = rawItemId != null && String(rawItemId).trim() !== '' && String(rawItemId) !== 'null' && String(rawItemId) !== 'undefined'
-        ? String(rawItemId).trim()
+
+      const finalRawItemId = (rawItemId != null && typeof rawItemId === 'object' && rawItemId.value != null)
+        ? rawItemId.value
+        : rawItemId;
+
+      const rawItemIdString = finalRawItemId != null && String(finalRawItemId).trim() !== '' && String(finalRawItemId).trim().toLowerCase() !== 'null' && String(finalRawItemId).trim().toLowerCase() !== 'undefined'
+        ? String(finalRawItemId).trim()
         : null;
+
+      let itemId = null;
+      if (rawItemIdString) {
+        const parsedId = parseInt(rawItemIdString, 10);
+        if (!isNaN(parsedId)) {
+          itemId = parsedId;
+        } else {
+          console.warn('[Mishkah][POS] Could not parse itemId to integer:', { rawItemIdString });
+        }
+      }
+
+      normalized.itemId = itemId;
       if(!itemId){
         console.warn('[Mishkah][POS] Dropping realtime order line - missing itemId', {
           id,
@@ -4417,7 +4434,7 @@
       if(!ACTIVE_BRANCH_ID){
         throw new Error('Branch id is required for invoice allocation');
       }
-      const endpoint = `/api/branches/${encodeURIComponent(ACTIVE_BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/sequences`;
+      const endpoint =window.basedomain + `/api/branches/${encodeURIComponent(ACTIVE_BRANCH_ID)}/modules/${encodeURIComponent(MODULE_ID)}/sequences`;
       const response = await fetch(endpoint, {
         method:'POST',
         headers:{ 'content-type':'application/json' },
@@ -4897,25 +4914,9 @@
       return next;
     }
 
-    function enrichOrderLineWithMenu(line){
+      function enrichOrderLineWithMenu(line){
       if(!line || typeof line !== 'object') return line;
-      const itemIdRaw = line.itemId ?? line.item_id ?? null;
-      const itemId = itemIdRaw != null ? String(itemIdRaw) : null;
-      const menuItem = itemId != null ? menuIndex.get(String(itemId)) : null;
-      const name = menuItem ? menuItem.name : cloneName(line.name || itemId || '');
-      const description = menuItem ? menuItem.description : cloneName(line.description || '');
-      const kitchenSection = line.kitchenSection
-        ?? line.kitchen_section_id
-        ?? line.kitchenSectionId
-        ?? menuItem?.kitchenSection
-        ?? 'expo';
-      return {
-        ...line,
-        itemId,
-        name,
-        description,
-        kitchenSection
-      };
+      return normalizeOrderLine(line, {});
     }
 
     function enrichOrderWithMenu(order){
@@ -5818,6 +5819,7 @@
         return { status:'error', reason:'shift' };
       }
       const order = state.data.order || {};
+      console.log('[Mishkah][POS] persistOrderFlow, order object:', JSON.stringify(order, null, 2));
       const previousOrderId = order.id;
       const orderType = order.type || 'dine_in';
       const mode = normalizeSaveMode(rawMode, orderType);
@@ -5903,71 +5905,45 @@
       const now = Date.now();
       let missingItemLine = null;
       let missingKitchenLine = null;
-      let safeLines = (order.lines || []).map(line=>({
-        ...line,
-        locked:true,
-        status: line.status || 'draft',
-        notes: Array.isArray(line.notes) ? line.notes : (line.notes ? [line.notes] : []),
-        discount: normalizeDiscount(line.discount),
-        updatedAt: now
-      })).map(line=>{
-        const itemToken = line.itemId || line.item_id || line.metadata?.itemId || line.metadata?.item_id;
-        const itemId = itemToken != null && String(itemToken).trim() !== '' && String(itemToken) !== 'null' && String(itemToken) !== 'undefined'
-          ? String(itemToken).trim()
-          : null;
-        if(!itemId){
+      let safeLines = (order.lines || []).map(line=>{
+        const sanitizedLine = normalizeOrderLine(line, { orderId: order.id, createdAt: now, updatedAt: now });
+        if(!sanitizedLine || !sanitizedLine.itemId){
           console.error('[Mishkah][POS] Line missing itemId', {
             lineId: line.id,
-            itemToken,
             name: line.name,
-            qty: line.qty,
-            quantity: line.quantity
+            qty: line.qty
           });
           if(!missingItemLine) missingItemLine = line;
         }
-        let kitchenSection = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.metadata?.kitchenSectionId;
-        if(!kitchenSection || String(kitchenSection).trim() === ''){
+
+        const kitchenSection = sanitizedLine?.kitchenSection || 'expo';
+        if(!sanitizedLine?.kitchenSection || String(sanitizedLine.kitchenSection).trim() === ''){
           if(!missingKitchenLine){
             console.warn('[Mishkah][POS] Line missing kitchenSection, using expo', {
               lineId: line.id,
-              itemId,
+              itemId: sanitizedLine?.itemId,
               name: line.name
             });
             missingKitchenLine = line;
           }
-          kitchenSection = 'expo';
         }
-        kitchenSection = String(kitchenSection).trim();
-        const quantity = line.quantity != null ? Number(line.quantity) : (line.qty != null ? Number(line.qty) : 1);
-        const unitPrice = line.unitPrice != null ? Number(line.unitPrice) : (line.unit_price != null ? Number(line.unit_price) : (line.price != null ? Number(line.price) : (line.basePrice != null ? Number(line.basePrice) : 0)));
-        const total = line.total != null ? Number(line.total) : round(quantity * unitPrice);
-        const statusId = line.statusId || line.status_id || line.status || 'draft';
-        console.log('[Mishkah][POS] Preparing line for save (SCHEMA COMPLIANT):', {
-          lineId: line.id,
-          itemId,
-          quantity,
-          unitPrice,
-          total,
-          statusId,
-          kitchenSection
-        });
+
         return {
-          ...line,
-          itemId,
-          item_id: itemId,
-          quantity,
-          unitPrice,
-          unit_price: unitPrice,
-          total,
-          statusId,
-          status_id: statusId,
+          ...sanitizedLine,
+          locked:true,
+          status: sanitizedLine?.status || 'draft',
+          statusId: sanitizedLine?.statusId || sanitizedLine?.status || 'draft',
+          status_id: sanitizedLine?.status_id || sanitizedLine?.statusId || sanitizedLine?.status || 'draft',
+          notes: Array.isArray(sanitizedLine?.notes) ? sanitizedLine.notes : (sanitizedLine?.notes ? [sanitizedLine.notes] : []),
+          discount: normalizeDiscount(sanitizedLine?.discount),
+          updatedAt: now,
           kitchenSection,
           kitchenSectionId: kitchenSection,
           kitchen_section_id: kitchenSection,
           metadata: {
-            ...(line.metadata || {}),
-            itemId,
-            item_id: itemId,
+            ...(sanitizedLine?.metadata || {}),
+            itemId: sanitizedLine?.itemId,
+            item_id: sanitizedLine?.itemId,
             kitchenSectionId: kitchenSection
           }
         };

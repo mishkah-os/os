@@ -7,7 +7,7 @@ function randomString(length = 8) {
   return out;
 }
 
-export function ensurePosIdentity(global = window) {
+function ensurePosIdentity(global = window) {
   if (!global || !global.document) return;
   const readCookie = (name) => {
     const parts = (global.document.cookie || '').split(';');
@@ -51,7 +51,7 @@ export function ensurePosIdentity(global = window) {
   };
 }
 
-export function localizeText(entry, lang = 'ar') {
+function localizeText(entry, lang = 'ar') {
   if (!entry) return '';
   if (typeof entry === 'string') return entry;
   if (typeof entry === 'object') {
@@ -63,7 +63,7 @@ export function localizeText(entry, lang = 'ar') {
   return String(entry);
 }
 
-export function formatCurrency(amount, options = {}) {
+function formatCurrency(amount, options = {}) {
   const currency = options.currency || 'EGP';
   const locale = options.locale || (options.lang === 'en' ? 'en-US' : 'ar-EG');
   try {
@@ -78,13 +78,13 @@ export function formatCurrency(amount, options = {}) {
   }
 }
 
-export function roundCurrency(value) {
+function roundCurrency(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return 0;
   return Math.round(numeric * 100) / 100;
 }
 
-export function calculateTotals(lines = []) {
+function calculateTotals(lines = []) {
   const subtotal = roundCurrency(
     lines.reduce((sum, line) => sum + Number(line.quantity) * Number(line.unitPrice), 0)
   );
@@ -98,11 +98,11 @@ export function calculateTotals(lines = []) {
   };
 }
 
-export function generateOrderId(prefix = 'ord') {
+function generateOrderId(prefix = 'ord') {
   return `${prefix}-${Date.now().toString(36)}-${randomString(6)}`;
 }
 
-export function deriveMenuFromSnapshot(snapshot = {}) {
+function deriveMenuFromSnapshot(snapshot = {}) {
   const categories = Array.isArray(snapshot.categories) ? snapshot.categories : [];
   const items = Array.isArray(snapshot.items) ? snapshot.items : [];
   const byCategory = new Map();
@@ -122,6 +122,6 @@ export function deriveMenuFromSnapshot(snapshot = {}) {
   };
 }
 
-export function ensureArray(value) {
+function ensureArray(value) {
   return Array.isArray(value) ? value : [];
 }

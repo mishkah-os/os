@@ -33,11 +33,14 @@
   <script src="../lib/mishkah.core.js"></script>
   <script src="../lib/mishkah-ui.js"></script>
   <script src="../lib/mishkah-schema.js"></script>
+    <script src="../lib/mishkah.store.js"></script>
+  <script src="../lib/mishkah.simple-store.js"></script>
+  <script src="./pos-mini-db.js"></script>
 </head>
 <body>
   <div id="app"></div>
-  <script type="module">
-    import { createPosDb } from './pos-mini-db.js';
+  <script>
+    let createPosDb = window.createPosDb;
 
     const params = new URLSearchParams(window.location.search || '');
     const BRANCH_ID = (params.get('brname') || '').trim();
@@ -74,27 +77,32 @@
 
       window.__POS_DATA_STATUS__ = status;
 
-      try {
-        const { db, moduleEntry } = await createPosDb({ branchId: BRANCH_ID });
-        window.__POS_DB__ = db;
-        window.__POS_MODULE_ENTRY__ = moduleEntry;
-        await db.ready();
-        const records = db.list('pos_database');
-        const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
-        const payload = latest && latest.payload ? latest.payload : {};
-        window.database = payload;
-        status.status = latest ? 'ready' : 'idle';
-        status.keys = Object.keys(payload || {});
-        status.finishedAt = Date.now();
-      } catch (error) {
-        console.error('[POS] Failed to hydrate dataset from /api/schema', error);
-        window.database = {};
-        status.status = 'error';
-        status.error = error;
-        status.finishedAt = Date.now();
-      }
-
-      await import('./pos.js');
+      createPosDb({ branchId: BRANCH_ID })
+        .then(({ db, moduleEntry }) => {
+          window.__POS_DB__ = db;
+          window.__POS_MODULE_ENTRY__ = moduleEntry;
+          return db.ready();
+        })
+        .then(() => {
+          const records = window.__POS_DB__.list('pos_database');
+          const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
+          const payload = latest && latest.payload ? latest.payload : {};
+          window.database = payload;
+          status.status = latest ? 'ready' : 'idle';
+          status.keys = Object.keys(payload || {});
+          status.finishedAt = Date.now();
+          
+          const script = document.createElement('script');
+          script.src = './pos.js';
+          document.head.appendChild(script);
+        })
+        .catch((error) => {
+          console.error('[POS] Failed to hydrate dataset from /api/schema', error);
+          window.database = {};
+          status.status = 'error';
+          status.error = error;
+          status.finishedAt = Date.now();
+        });
     }
   </script>
 </body>

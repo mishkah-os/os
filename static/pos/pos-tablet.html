@@ -297,24 +297,21 @@
         }
       }
     </style>
+  <script>window.basedomain='https://ws.mas.com.eg';</script>
   </head>
   <body>
     <div id="app"></div>
 
     <script src="./../lib/mishkah-utils.js"></script>
     <script src="./../lib/mishkah.core.js"></script>
-    <script type="module">
-      import { createPosDb } from './pos-mini-db.js';
-      import {
-        ensurePosIdentity,
-        localizeText,
-        formatCurrency,
-        calculateTotals,
-        generateOrderId,
-        deriveMenuFromSnapshot,
-        roundCurrency
-      } from './pos-mini-utils.js';
+      <script src="../lib/mishkah.store.js"></script>
+  <script src="../lib/mishkah.simple-store.js"></script>
+  <script src="./pos-mini-db.js"></script>
+    <script src="./pos-mini-utils.js"></script>
 
+    <script >
+      let createPosDb = window.createPosDb;
+ 
       ensurePosIdentity(window);
 
       const params = new URLSearchParams(window.location.search || '');
@@ -1306,41 +1303,44 @@
       const posDbPromise = createPosDb({ branchId: BRANCH_ID });
       app = window.Mishkah.app.createApp(database, orders);
       app.mount('#app');
-      const { db: posDb } = await posDbPromise;
+      posDbPromise.then(({ db: posDb }) => {
+        posDb.status((payload) => {
+          const status = typeof payload === 'string' ? payload : payload?.status || 'idle';
+          updateState((state) => ({ ...state, status }));
+        });
 
-      posDb.status((payload) => {
-        const status = typeof payload === 'string' ? payload : payload?.status || 'idle';
-        updateState((state) => ({ ...state, status }));
+        posDb.watch('pos_database', (rows) => {
+          if (!rows || !rows.length) return;
+          const latest = rows[rows.length - 1];
+          if (!latest || !latest.payload) return;
+          runtime.payload = latest.payload;
+          runtime.posInfo = latest.payload?.settings?.pos || {};
+          runtime.tables = latest.payload?.tables || [];
+          runtime.employee = (latest.payload?.employees || [])[0] || runtime.employee;
+          runtime.kitchenSections = latest.payload?.kitchen_sections || [];
+          runtime.orderStatuses = latest.payload?.order_statuses || [];
+          runtime.paymentStates = latest.payload?.order_payment_states || [];
+          runtime.lineStatuses = latest.payload?.order_line_statuses || [];
+          rebuildMenuFromPayload(latest.payload);
+          rebuildOrderTypesFromPayload(latest.payload);
+          syncTables(runtime.tables);
+        });
+
+        posDb.watch('pos_shift', (rows) => {
+          const openShift = (rows || []).find((shift) => shift && shift.status !== 'closed' && !shift.isClosed);
+          currentShiftId = openShift ? openShift.id : null;
+          updateState((state) => ({ ...state, shiftId: currentShiftId }));
+        });
+
+        posDb.watch('order_header', (rows) => {
+          rebuildOrders(rows || []);
+        });
+
+        rebuildHandlers(INITIAL_STATE);
+      }).catch((error) => {
+        console.error('[POS-Tablet] Failed to initialize database', error);
+        updateState((state) => ({ ...state, status: 'error' }));
       });
-
-      posDb.watch('pos_database', (rows) => {
-        if (!rows || !rows.length) return;
-        const latest = rows[rows.length - 1];
-        if (!latest || !latest.payload) return;
-        runtime.payload = latest.payload;
-        runtime.posInfo = latest.payload?.settings?.pos || {};
-        runtime.tables = latest.payload?.tables || [];
-        runtime.employee = (latest.payload?.employees || [])[0] || runtime.employee;
-        runtime.kitchenSections = latest.payload?.kitchen_sections || [];
-        runtime.orderStatuses = latest.payload?.order_statuses || [];
-        runtime.paymentStates = latest.payload?.order_payment_states || [];
-        runtime.lineStatuses = latest.payload?.order_line_statuses || [];
-        rebuildMenuFromPayload(latest.payload);
-        rebuildOrderTypesFromPayload(latest.payload);
-        syncTables(runtime.tables);
-      });
-
-      posDb.watch('pos_shift', (rows) => {
-        const openShift = (rows || []).find((shift) => shift && shift.status !== 'closed' && !shift.isClosed);
-        currentShiftId = openShift ? openShift.id : null;
-        updateState((state) => ({ ...state, shiftId: currentShiftId }));
-      });
-
-      posDb.watch('order_header', (rows) => {
-        rebuildOrders(rows || []);
-      });
-
-      rebuildHandlers(INITIAL_STATE);
     </script>
   </body>
 </html>

@@ -1,5 +1,7 @@
-import { createDBAuto } from '../lib/mishkah.simple-store.js';
 
+(async function(window){
+let createDBAuto = window.createDBAuto ;
+  
 const TABLE_ALIAS_GROUPS = {
   pos_database: ['pos_dataset', 'pos_data', 'dataset', 'pos_snapshot'],
   pos_shift: ['pos_shifts', 'shift_header', 'shiftHeaders', 'shifts'],
@@ -194,14 +196,54 @@ function canonicalizeTableName(name, registry) {
   const text = String(name).trim();
   if (!text) return null;
   const lower = text.toLowerCase();
-  if (registry.has(lower)) return registry.get(lower);
-  return text;
+  
+  // STRICT MODE: Only allow exact matches from official schema names
+  // Official canonical table names from schema definition
+  const OFFICIAL_CANONICAL_NAMES = new Set([
+    'audit_event', 'category_section', 'customer_address', 'customer_profile',
+    'delivery_driver', 'dining_table', 'employee', 'expo_pass_ticket',
+    'job_order_detail', 'job_order_detail_modifier', 'job_order_header',
+    'job_order_status_history', 'kitchen_section', 'menu_category', 'menu_item',
+    'menu_item_media', 'menu_item_modifier', 'menu_item_price', 'menu_modifier',
+    'order_delivery', 'order_header', 'order_line', 'order_line_modifier',
+    'order_line_status', 'order_line_status_log', 'order_payment',
+    'order_payment_state', 'order_refund', 'order_return_header',
+    'order_return_line', 'order_stage', 'order_status', 'order_status_log',
+    'order_type', 'payment_method', 'pos_database', 'pos_shift', 'pos_terminal',
+    'reservation', 'reservation_table', 'shift_cash_audit',
+    'shift_payment_summary', 'table_lock'
+  ]);
+  
+  if (registry.has(lower)) {
+    const canonical = registry.get(lower);
+    
+    // Only allow if it's an official canonical name from schema
+    if (OFFICIAL_CANONICAL_NAMES.has(canonical.toLowerCase())) {
+      // Only return if it's an exact match to canonical name
+      if (lower === canonical.toLowerCase()) {
+        return canonical;
+      }
+      // Throw error for aliases to force code fixes
+      throw new Error(`TABLE_ALIAS_VIOLATION: '${text}' is an alias for '${canonical}'. Use canonical name '${canonical}' instead.`);
+    }
+  }
+  
+  // For unknown tables, throw error to enforce schema compliance
+  throw new Error(`INVALID_TABLE_NAME: '${text}' is not a valid table name according to the official schema.`);
 }
 
 async function fetchJson(url, { cache = 'no-store' } = {}) {
-  const response = await fetch(url, { cache });
+  let finalUrl = url;
+  if (typeof window !== 'undefined') {
+    const base = window.basedomain;
+    if (base && typeof base === 'string' && url && url.startsWith('/')) {
+      const origin = base.replace(/\/+$/, '');
+      finalUrl = `${origin}${url}`;
+    }
+  }
+  const response = await fetch(finalUrl, { cache });
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status}) for ${url}`);
+    throw new Error(`Request failed (${response.status}) for ${finalUrl}`);
   }
   return response.json();
 }
@@ -402,6 +444,42 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
         tables: tablesSnapshot,
         meta: meta || {}
       };
+    },
+    clear(...names) {
+      const tablesToClear = new Set();
+      const getCanonical = (name) => {
+        if (name == null) return null;
+        const text = String(name).trim().toLowerCase();
+        return text && aliasRegistry.has(text) ? aliasRegistry.get(text) : name;
+      };
+
+      for (const name of names) {
+        const canonical = getCanonical(name);
+        if (canonical && tableData.has(canonical)) {
+          tablesToClear.add(canonical);
+        } else {
+          config.logger?.warn?.(`[PosMiniDB][offline] clear: unknown table ${name}`);
+        }
+      }
+
+      for (const table of tablesToClear) {
+        tableData.set(table, []);
+      }
+
+      for (const [defName, def] of definitions.entries()) {
+        if (tablesToClear.has(def.table)) {
+          emit(defName);
+        }
+      }
+      return api;
+    },
+    async getOrder(orderId) {
+      if (!orderId) return null;
+      const header = api.list('order_header').find(h => h.id === orderId);
+      if (!header) return null;
+      const lines = api.list('order_line').filter(l => l.orderId === orderId);
+      const payments = api.list('order_payment').filter(p => p.orderId === orderId);
+      return { ...header, lines, payments };
     }
   };
 
@@ -468,7 +546,7 @@ async function createOfflinePosDb({ branchId, moduleId, tables, logger, role }, 
   };
 }
 
-export async function createPosDb(options = {}) {
+ async function createPosDb(options = {}) {
   const branchId = options.branchId || 'dar';
   const moduleId = options.moduleId || 'pos';
   const tables = options.tables || DEFAULT_TABLES;
@@ -491,4 +569,5 @@ export async function createPosDb(options = {}) {
   }
 }
 
-export default { createPosDb };
+window.createPosDb = createPosDb;
+})(typeof window !== 'undefined' ? window : this);
