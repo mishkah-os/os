@@ -1420,7 +1420,7 @@
     const stats = { total:list.length, expedite:0, alerts:0, ready:0, pending:0 };
 
     list.forEach(job=>{
-      const stationId = normalizeSectionId(job.stationId) || 'general';
+      const stationId = job.stationId || 'general';
       (byStation[stationId] || (byStation[stationId] = [])).push(job);
       const service = job.serviceMode || job.orderTypeId || 'dine_in';
       (byService[service] || (byService[service] = [])).push(job);
@@ -1501,39 +1501,14 @@
     });
   };
 
-  // Section ID aliases: map alternative IDs to their canonical form
-  const SECTION_ID_ALIASES = {
-    'hot_line': '1e7a48ec-425a-4268-81db-c8f3fd4d432e',
-    'e7a48ec-425a-4268-81db-c8f3fd4d432e': '1e7a48ec-425a-4268-81db-c8f3fd4d432e',
-    '1e7a48ec-425a-4268-81db-c8f3fd4d432e': '1e7a48ec-425a-4268-81db-c8f3fd4d432e'
-  };
-
-  const normalizeSectionId = (id)=> {
-    if(id == null) return id;
-    const normalized = SECTION_ID_ALIASES[id];
-    return normalized !== undefined ? normalized : id;
-  };
-
-  const toStationMap = (list)=> {
-    if(!Array.isArray(list)) return {};
-
-    return list.reduce((acc, station)=>{
-      if(station && station.id != null){
-        const normalizedId = normalizeSectionId(station.id);
-
-        // Add entry with normalized ID
-        acc[normalizedId] = station;
-
-        // Also add entries for all aliases that point to this normalized ID
-        Object.keys(SECTION_ID_ALIASES).forEach(aliasId => {
-          if(SECTION_ID_ALIASES[aliasId] === normalizedId){
-            acc[aliasId] = station;
-          }
-        });
-      }
-      return acc;
-    }, {});
-  };
+  const toStationMap = (list)=> (Array.isArray(list)
+    ? list.reduce((acc, station)=>{
+        if(station && station.id != null){
+          acc[station.id] = station;
+        }
+        return acc;
+      }, {})
+    : {});
 
   const buildMenuIndex = (items)=>{
     const index = {};
@@ -1581,14 +1556,13 @@
     let expoIntegrated = false;
     const stationOrder = (db.data.stations || []).slice().sort((a, b)=> (a.sequence || 0) - (b.sequence || 0));
     stationOrder.forEach(station=>{
-      if(locked && normalizeSectionId(station.id) !== normalizeSectionId(filters.activeTab)) return;
+      if(locked && station.id !== filters.activeTab) return;
       const label = db.env.lang === 'ar'
         ? (station.nameAr || station.nameEn || station.id)
         : (station.nameEn || station.nameAr || station.id);
       const isExpoStation = station.isExpo === true || (String(station.stationType || '').toLowerCase() === 'expo');
       const tabId = isExpoStation ? 'expo' : station.id;
-      const normalizedStationId = normalizeSectionId(station.id);
-      const activeJobs = (jobs.byStation[normalizedStationId] || [])
+      const activeJobs = (jobs.byStation[station.id] || [])
         .filter(job=> job.status !== 'ready' && job.status !== 'completed')
         .filter(job=> !servedOrderIds.has(job.orderId));
       const tabCount = isExpoStation ? getExpoOrders(db).length : activeJobs.length;
@@ -1964,16 +1938,15 @@
   };
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
-    const normalizedStationId = normalizeSectionId(stationId);
     const servedOrderIds = new Set(
       computeOrdersSnapshot(db)
         .filter(order=> order.handoffStatus === 'served')
         .map(order=> order.orderId || order.id)
     );
-    const jobs = (db.data.jobs.byStation[normalizedStationId] || [])
+    const jobs = (db.data.jobs.byStation[stationId] || [])
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
       .filter(job=> !servedOrderIds.has(job.orderId));
-    const station = db.data.stationMap?.[normalizedStationId];
+    const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, jobs.map(job=> renderJobCard(job, station, t, lang, now)));
   };
@@ -2275,10 +2248,9 @@
 
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const sectionParam = urlParams.get('section_id');
-  const normalizedSectionParam = sectionParam ? normalizeSectionId(sectionParam) : null;
   const lockedSection = !!sectionParam;
   const firstStationId = stations.length ? stations[0].id : 'prep';
-  const defaultTab = lockedSection ? (stationMap[normalizedSectionParam] ? normalizedSectionParam : firstStationId) : 'prep';
+  const defaultTab = lockedSection ? (stationMap[sectionParam] ? sectionParam : firstStationId) : 'prep';
 
   const initialState = {
     head:{ title: TEXT_DICT.title.ar },
