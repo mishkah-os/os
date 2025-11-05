@@ -6126,16 +6126,14 @@
       const idChanged = previousOrderId !== finalOrderId;
       const primaryTableId = assignedTables.length ? assignedTables[0] : (order.tableId || null);
       // CRITICAL: Determine version to send to backend
-      // - If ID changed (including draft->real), treat as NEW order (version=1)
-      // - If order was draft, treat as NEW order (version=1)
-      // - Otherwise use existing version for updates
+      // Backend uses optimistic locking: expects version to increment on each save
+      // - New order (ID changed or draft): version=1
+      // - Updating existing order: version = currentVersion + 1
       const outgoingVersion = (idChanged || isDraftId)
-        ? 1
-        : (order.isPersisted
-          ? (Number.isFinite(expectedVersion) && expectedVersion > 0
-            ? Math.trunc(expectedVersion)
-            : (Number.isFinite(currentVersion) && currentVersion > 0 ? Math.trunc(currentVersion) : 1))
-          : 1);
+        ? 1  // New order starts at version 1
+        : (order.isPersisted && Number.isFinite(currentVersion) && currentVersion > 0
+          ? Math.trunc(currentVersion) + 1  // Increment version for updates
+          : 1);  // Fallback to version 1
       console.log('[Mishkah][POS] VERSION DECISION', {
         idChanged,
         isDraftId,
@@ -6143,7 +6141,9 @@
         expectedVersion,
         currentVersion,
         outgoingVersion,
-        reason: (idChanged || isDraftId) ? 'new order (ID changed or was draft)' : 'updating existing order'
+        incrementReason: (idChanged || isDraftId)
+          ? 'new order - start at v1'
+          : (order.isPersisted ? `update existing - increment from v${currentVersion} to v${outgoingVersion}` : 'fallback to v1')
       });
       const orderPayload = {
         ...order,
