@@ -96,12 +96,15 @@
             // NEW: data is directly in tables (db.list('menu_items'), db.list('settings'), etc)
             let payload = {};
 
-            if (latest && latest.payload && typeof latest.payload === 'object') {
+            // Check if OLD structure with non-empty payload exists
+            if (latest && latest.payload && typeof latest.payload === 'object' && Object.keys(latest.payload).length > 0) {
               // OLD structure: data inside pos_database[0].payload
               payload = latest.payload;
+              console.log('[POS] Using OLD structure (pos_database.payload)');
             } else {
               // NEW structure: data directly in tables
               // Build payload from all registered tables using db.list()
+              console.log('[POS] Using NEW structure (direct table access)');
               // Check if db has snapshot method (offline store)
               if (typeof db.snapshot === 'function') {
                 const snapshot = db.snapshot();

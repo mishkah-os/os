@@ -148,11 +148,14 @@
             // NEW: data is directly in tables
             let payload = {};
 
-            if (latest && latest.payload && typeof latest.payload === 'object') {
+            // Check if OLD structure with non-empty payload exists
+            if (latest && latest.payload && typeof latest.payload === 'object' && Object.keys(latest.payload).length > 0) {
               // OLD structure: data inside pos_database[0].payload
               payload = latest.payload;
+              console.log('[KDS] Using OLD structure (pos_database.payload)');
             } else {
               // NEW structure: data directly in tables
+              console.log('[KDS] Using NEW structure (direct table access)');
               if (typeof db.snapshot === 'function') {
                 const snapshot = db.snapshot();
                 payload = snapshot.tables || {};
