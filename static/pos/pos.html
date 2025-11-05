@@ -86,60 +86,51 @@
         .then(() => {
           const db = window.__POS_DB__;
 
-          // Function to update window.database from latest record
+          // Function to update window.database from all registered tables
           const updateWindowDatabase = () => {
-            const records = db.list('pos_database');
-            const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
-
-            // Support both old and new data structures:
-            // OLD: pos_database[0].payload contains all data (menu_items, settings, etc)
-            // NEW: data is directly in tables (db.list('menu_items'), db.list('settings'), etc)
+            console.log('[POS] Building window.database from direct table access');
             let payload = {};
 
-            // Check if OLD structure with non-empty payload exists
-            if (latest && latest.payload && typeof latest.payload === 'object' && Object.keys(latest.payload).length > 0) {
-              // OLD structure: data inside pos_database[0].payload
-              payload = latest.payload;
-              console.log('[POS] Using OLD structure (pos_database.payload)', { keys: Object.keys(payload) });
+            // Check if db has snapshot method (offline store)
+            if (typeof db.snapshot === 'function') {
+              console.log('[POS] Using db.snapshot() (offline mode)');
+              const snapshot = db.snapshot();
+              payload = snapshot.tables || {};
+              console.log('[POS] Snapshot tables:', Object.keys(payload).length, 'tables');
             } else {
-              // NEW structure: data directly in tables
-              // Build payload from all registered tables using db.list()
-              console.log('[POS] Using NEW structure (direct table access)');
-              console.log('[POS] pos_database record:', { latest, hasPayload: !!latest?.payload, payloadKeys: latest?.payload ? Object.keys(latest.payload) : [] });
+              // WebSocket store: build from registered objects using db.list()
+              console.log('[POS] Using db.list() for each table (WebSocket mode)');
+              const registeredObjects = db.config?.objects || {};
+              console.log('[POS] Registered objects:', Object.keys(registeredObjects));
 
-              // Check if db has snapshot method (offline store)
-              if (typeof db.snapshot === 'function') {
-                console.log('[POS] Using db.snapshot() (offline mode)');
-                const snapshot = db.snapshot();
-                payload = snapshot.tables || {};
-                console.log('[POS] Snapshot tables:', Object.keys(payload));
-              } else {
-                // Fallback: build from known tables (WebSocket store)
-                console.log('[POS] Using db.list() for each table (WebSocket mode)');
-                // Get registered object names from db.config
-                const registeredObjects = db.config?.objects || {};
-                console.log('[POS] Registered objects:', Object.keys(registeredObjects));
-
-                Object.keys(registeredObjects).forEach(name => {
-                  try {
-                    const tableName = registeredObjects[name].table || name;
-                    const data = db.list(name);
-                    payload[tableName] = data || [];
-                    console.log(`[POS] Listed ${name} (table: ${tableName}): ${data?.length || 0} records`);
-                  } catch (err) {
-                    console.warn(`[POS] Failed to list table ${name}:`, err);
+              Object.keys(registeredObjects).forEach(name => {
+                try {
+                  // Skip pos_database - we don't need it anymore
+                  if (name === 'pos_database') {
+                    console.log('[POS] Skipping pos_database (deprecated)');
+                    return;
                   }
-                });
 
-                console.log('[POS] Final payload tables:', Object.keys(payload));
-              }
+                  const tableName = registeredObjects[name].table || name;
+                  const data = db.list(name);
+                  payload[tableName] = data || [];
+
+                  if (data && data.length > 0) {
+                    console.log(`[POS] ✓ ${name} (table: ${tableName}): ${data.length} records`);
+                  }
+                } catch (err) {
+                  console.warn(`[POS] ✗ Failed to list ${name}:`, err);
+                }
+              });
+
+              console.log('[POS] Final payload:', Object.keys(payload).length, 'tables with data');
             }
 
             const previousKeys = Object.keys(window.database || {}).sort().join(',');
             const newKeys = Object.keys(payload || {}).sort().join(',');
 
             window.database = payload;
-            status.status = (latest || Object.keys(payload).length) ? 'ready' : 'idle';
+            status.status = Object.keys(payload).length > 0 ? 'ready' : 'idle';
             status.keys = Object.keys(payload || {});
 
             // Log update if keys changed
@@ -153,9 +144,10 @@
             }
 
             // Always log final state for debugging
-            console.log('[POS] window.database current state:', {
-              totalTables: Object.keys(window.database).length,
-              tables: Object.keys(window.database).map(k => ({ name: k, count: window.database[k]?.length || 0 })),
+            const tablesWithData = Object.keys(window.database).filter(k => window.database[k]?.length > 0);
+            console.log('[POS] window.database ready:', {
+              totalTables: tablesWithData.length,
+              tables: tablesWithData.map(k => ({ name: k, count: window.database[k]?.length || 0 })),
               status: status.status
             });
           };
@@ -164,13 +156,15 @@
           updateWindowDatabase();
           status.finishedAt = Date.now();
 
-          // Watch for changes to pos_database
-          db.watch('pos_database', (records) => {
-            console.log('[POS] pos_database changed, updating window.database...', {
-              recordCount: records.length,
-              timestamp: new Date().toISOString()
+          // Watch for changes in ALL registered tables (not just pos_database)
+          const registeredObjects = db.config?.objects || {};
+          Object.keys(registeredObjects).forEach(name => {
+            if (name === 'pos_database') return; // Skip deprecated table
+
+            db.watch(name, (records) => {
+              console.log(`[POS] ${name} changed (${records.length} records), updating window.database...`);
+              updateWindowDatabase();
             });
-            updateWindowDatabase();
           });
 
           // POLLING: Check REST API for updates every 30 seconds
