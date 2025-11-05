@@ -87,7 +87,7 @@
   });
 
   // Watch connection status
-  db.onStatusChange((status) => {
+  db.status((status) => {
     console.log('[KDS v2] Connection status:', status);
     state.connected = status === 'connected';
     updateConnectionStatus();
