@@ -1,5 +1,9 @@
+console.log('🚀 [KDS v2] Script loaded, starting initialization...');
+
 (async function() {
   'use strict';
+
+  console.log('🚀 [KDS v2] Inside async function');
 
   // ==================== Configuration ====================
   const CONFIG = {
@@ -56,37 +60,56 @@
 
   // ==================== Database Setup ====================
 
+  console.log('🔍 [KDS v2] Setting up database...');
+  console.log('🔍 [KDS v2] Available globals:', {
+    hasWindow: typeof window !== 'undefined',
+    hasDatabase: typeof window !== 'undefined' && !!window.database,
+    hasCreateDB: typeof createDB !== 'undefined',
+    hasCreateDBAuto: typeof createDBAuto !== 'undefined'
+  });
+
   // Get schema from window.database if available
   const database = typeof window !== 'undefined' ? (window.database || {}) : {};
   const posSchema = database.schema || database.pos_schema || null;
 
+  console.log('🔍 [KDS v2] posSchema:', posSchema ? 'Found' : 'Not found');
+
   let db;
-  if (posSchema && typeof createDBAuto === 'function') {
-    // Use createDBAuto for automatic table registration
-    // NOTE: Only watch live tables (order_header, order_line)
-    // Reference data (menu_item, kitchen_section) loaded from window.database
-    db = createDBAuto(posSchema, ['order_header', 'order_line'], {
-      branchId: CONFIG.branchId,
-      moduleId: CONFIG.moduleId,
-      role: CONFIG.role,
-      wsPath: CONFIG.wsPath,
-      autoConnect: true,
-      useIndexedDB: true
-    });
-  } else {
-    // Fallback to manual registration
-    db = createDB({
-      branchId: CONFIG.branchId,
-      moduleId: CONFIG.moduleId,
-      role: CONFIG.role,
-      wsPath: CONFIG.wsPath,
-      autoConnect: true,
-      useIndexedDB: true,
-      objects: {
-        order_header: { table: 'order_header' },
-        order_line: { table: 'order_line' }
-      }
-    });
+  try {
+    if (posSchema && typeof createDBAuto === 'function') {
+      console.log('🔍 [KDS v2] Using createDBAuto');
+      // Use createDBAuto for automatic table registration
+      // NOTE: Only watch live tables (order_header, order_line)
+      // Reference data (menu_item, kitchen_section) loaded from window.database
+      db = createDBAuto(posSchema, ['order_header', 'order_line'], {
+        branchId: CONFIG.branchId,
+        moduleId: CONFIG.moduleId,
+        role: CONFIG.role,
+        wsPath: CONFIG.wsPath,
+        autoConnect: true,
+        useIndexedDB: true
+      });
+      console.log('✅ [KDS v2] createDBAuto initialized');
+    } else {
+      console.log('🔍 [KDS v2] Using manual createDB');
+      // Fallback to manual registration
+      db = createDB({
+        branchId: CONFIG.branchId,
+        moduleId: CONFIG.moduleId,
+        role: CONFIG.role,
+        wsPath: CONFIG.wsPath,
+        autoConnect: true,
+        useIndexedDB: true,
+        objects: {
+          order_header: { table: 'order_header' },
+          order_line: { table: 'order_line' }
+        }
+      });
+      console.log('✅ [KDS v2] createDB initialized');
+    }
+  } catch (err) {
+    console.error('❌ [KDS v2] Error creating database:', err);
+    throw err;
   }
 
   // ==================== Data Watchers ====================
@@ -170,33 +193,46 @@
     }, 10000);
   }
 
+  console.log('🔍 [KDS v2] Setting up watchers...');
+
   // Watch order headers
   db.watch('order_header', (headers) => {
+    console.log(`📥 [KDS v2] order_header updated: ${headers ? headers.length : 0} records`);
     state.orders = headers || [];
     processOrders();
   });
 
   // Watch order lines
   db.watch('order_line', (lines) => {
+    console.log(`📥 [KDS v2] order_line updated: ${lines ? lines.length : 0} records`);
     state.lines = lines || [];
     processOrders();
   });
 
   // Watch connection status
   db.status((status) => {
+    console.log(`🔌 [KDS v2] Connection status: ${status}`);
     state.connected = status === 'connected';
     updateConnectionStatus();
   });
 
   // ==================== Order Processing ====================
   function processOrders() {
-    if (!state.orders || !state.lines) return;
+    console.log(`🔄 [KDS v2] processOrders called - orders: ${state.orders?.length || 0}, lines: ${state.lines?.length || 0}`);
+
+    if (!state.orders || !state.lines) {
+      console.log('⏸️ [KDS v2] Waiting for orders/lines data');
+      return;
+    }
 
     // Reference data will be loaded by the interval in tryLoadReferenceData()
     // Don't call it here to avoid infinite loop
     if (state.menuItems.length === 0 || state.sections.length === 0) {
+      console.log(`⏸️ [KDS v2] Waiting for reference data - items: ${state.menuItems.length}, sections: ${state.sections.length}`);
       return;
     }
+
+    console.log('✅ [KDS v2] Processing orders with all data available');
 
     // Clear jobs
     state.jobs.clear();
@@ -979,14 +1015,20 @@
 
   // ==================== Initialize ====================
 
+  console.log('🚀 [KDS v2] Connecting to WebSocket...');
+
   try {
     await db.connect();
+    console.log('✅ [KDS v2] Connected to WebSocket');
   } catch (err) {
     console.error('❌ [KDS v2] Connection failed:', err);
   }
 
   // Auto-refresh timer
+  console.log('⏲️ [KDS v2] Setting up auto-refresh timer');
   setInterval(() => {
     renderOrders();
   }, 1000);
+
+  console.log('✅ [KDS v2] Initialization complete');
 })();
