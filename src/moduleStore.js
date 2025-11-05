@@ -1,4 +1,5 @@
 import { deepClone, nowIso } from './utils.js';
+import { populateRecordFks, populateRecordsFks } from './schema/fk-resolver.js';
 
 const VERSIONED_TABLES = new Set(['order_header', 'order_line']);
 
@@ -532,6 +533,72 @@ export default class ModuleStore {
     if (applied) {
       this.meta.lastUpdatedAt = nowIso();
     }
+  }
+
+  /**
+   * يقرأ record واحد من الجدول بناءً على الـ primary key
+   * مع دعم FK population تلقائياً
+   *
+   * @param {string} tableName - اسم الجدول
+   * @param {string|Object} idOrCriteria - الـ id أو criteria للبحث
+   * @param {Object} options - خيارات (populate: true/false)
+   * @returns {Object|null} - الـ record أو null إذا لم يوجد
+   */
+  getRecord(tableName, idOrCriteria, options = {}) {
+    this.ensureTable(tableName);
+
+    // إذا كان id بسيط، نحوله إلى criteria
+    const criteria = typeof idOrCriteria === 'string' || typeof idOrCriteria === 'number'
+      ? { id: idOrCriteria }
+      : idOrCriteria;
+
+    // نبحث عن الـ record
+    const { key } = this.resolveRecordKey(tableName, criteria, { require: false });
+    if (!key) {
+      return null;
+    }
+
+    const index = this.findRecordIndex(tableName, key);
+    if (index < 0) {
+      return null;
+    }
+
+    const record = deepClone(this.data[tableName][index]);
+
+    // FK population إذا مطلوب (default: true)
+    const populate = options.populate !== false;
+    if (populate) {
+      return populateRecordFks(this.schemaEngine, this, tableName, record, options);
+    }
+
+    return record;
+  }
+
+  /**
+   * يقرأ جميع records من جدول مع دعم FK population
+   *
+   * @param {string} tableName - اسم الجدول
+   * @param {Object} options - خيارات (populate: true/false, filter: function)
+   * @returns {Array} - مصفوفة من الـ records
+   */
+  queryTable(tableName, options = {}) {
+    this.ensureTable(tableName);
+
+    // نقرأ جميع الـ records
+    let records = this.data[tableName].map((entry) => deepClone(entry));
+
+    // تطبيق filter إذا موجود
+    if (typeof options.filter === 'function') {
+      records = records.filter(options.filter);
+    }
+
+    // FK population إذا مطلوب (default: true)
+    const populate = options.populate !== false;
+    if (populate) {
+      return populateRecordsFks(this.schemaEngine, this, tableName, records, options);
+    }
+
+    return records;
   }
 
   toJSON() {
