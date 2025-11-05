@@ -6,9 +6,8 @@
     branchId: 'dar',
     moduleId: 'pos',
     role: 'kds-station',
-    wsUrl: window.location.protocol === 'https:'
-      ? 'wss://dar.mishkah.app/ws'
-      : 'ws://localhost:3030/ws'
+    // Use relative path - let the system determine correct URL
+    wsPath: '/ws'
   };
 
   // ==================== State ====================
@@ -45,14 +44,39 @@
   // ==================== Database Setup ====================
   console.log('[KDS v2] Initializing database...');
 
-  const db = createDB({
-    branchId: CONFIG.branchId,
-    moduleId: CONFIG.moduleId,
-    role: CONFIG.role,
-    wsUrl: CONFIG.wsUrl,
-    autoConnect: true,
-    useIndexedDB: true
-  });
+  // Get schema from window.database if available
+  const database = typeof window !== 'undefined' ? (window.database || {}) : {};
+  const posSchema = database.schema || database.pos_schema || null;
+
+  let db;
+  if (posSchema && typeof createDBAuto === 'function') {
+    // Use createDBAuto for automatic table registration
+    console.log('[KDS v2] Using createDBAuto with schema');
+    db = createDBAuto(posSchema, ['kitchen_section', 'order_header', 'order_line'], {
+      branchId: CONFIG.branchId,
+      moduleId: CONFIG.moduleId,
+      role: CONFIG.role,
+      wsPath: CONFIG.wsPath,
+      autoConnect: true,
+      useIndexedDB: true
+    });
+  } else {
+    // Fallback to manual registration
+    console.log('[KDS v2] Using manual table registration');
+    db = createDB({
+      branchId: CONFIG.branchId,
+      moduleId: CONFIG.moduleId,
+      role: CONFIG.role,
+      wsPath: CONFIG.wsPath,
+      autoConnect: true,
+      useIndexedDB: true,
+      objects: {
+        kitchen_section: { table: 'kitchen_section' },
+        order_header: { table: 'order_header' },
+        order_line: { table: 'order_line' }
+      }
+    });
+  }
 
   // ==================== Data Watchers ====================
 
@@ -79,7 +103,7 @@
   });
 
   // Watch connection status
-  db.onStatusChange((status) => {
+  db.status((status) => {
     console.log('[KDS v2] Connection status:', status);
     state.connected = status === 'connected';
     updateConnectionStatus();
@@ -323,7 +347,8 @@
     // Update all items in this job to 'cooking' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await db.update('order_line', {
+          id: item.id,
           statusId: 'cooking'
         });
       } catch (err) {
@@ -340,7 +365,8 @@
     // Update all items in this job to 'ready' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await db.update('order_line', {
+          id: item.id,
           statusId: 'ready'
         });
       } catch (err) {
@@ -357,7 +383,8 @@
     // Update all items in this job to 'completed' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await db.update('order_line', {
+          id: item.id,
           statusId: 'completed'
         });
       } catch (err) {
