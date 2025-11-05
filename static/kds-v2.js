@@ -50,7 +50,19 @@
     role: CONFIG.role,
     wsPath: CONFIG.wsPath,
     autoConnect: true,
-    useIndexedDB: true
+    useIndexedDB: true,
+    objects: {
+      // Register tables we want to watch
+      kitchen_section: {
+        table: 'kitchen_section'
+      },
+      order_header: {
+        table: 'order_header'
+      },
+      order_line: {
+        table: 'order_line'
+      }
+    }
   });
 
   // ==================== Data Watchers ====================
