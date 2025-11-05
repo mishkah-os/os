@@ -1504,6 +1504,7 @@
   // Section ID aliases: map alternative IDs to their canonical form
   const SECTION_ID_ALIASES = {
     'hot_line': '1e7a48ec-425a-4268-81db-c8f3fd4d432e',
+    'hot_linee': '1e7a48ec-425a-4268-81db-c8f3fd4d432e',
     'e7a48ec-425a-4268-81db-c8f3fd4d432e': '1e7a48ec-425a-4268-81db-c8f3fd4d432e',
     '1e7a48ec-425a-4268-81db-c8f3fd4d432e': '1e7a48ec-425a-4268-81db-c8f3fd4d432e'
   };
@@ -3855,6 +3856,8 @@
       if (!sectionId) {
         sectionId = resolveStationForCategory(categoryId) || 'general';
       }
+      // Normalize sectionId to prevent duplicate jobs for the same section
+      sectionId = normalizeSectionId(sectionId) || sectionId;
       const jobItemId = resolvedItemId || derivedItemId;
       const jobOrderRef = order.jobOrderId || jobOrderId;
       let jobId = jobOrderRef;
