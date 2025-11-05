@@ -144,6 +144,17 @@ function buildRow(tableName, record = {}, context = {}) {
     throw new Error(`${tableName} requires branchId and moduleId in context`);
   }
 
+  // 🔍 DEBUG: Log full record for order_line
+  if (tableName === 'order_line') {
+    console.log('[dynamic-sqlite][buildRow] 🔍 FULL RECORD:', {
+      recordKeys: Object.keys(record),
+      itemId: record.itemId,
+      item_id: record.item_id,
+      Item_Id: record.Item_Id,
+      fullRecord: JSON.stringify(record, null, 2)
+    });
+  }
+
   const tableDef = getTableDefinition(
     normalizedContext.branchId,
     normalizedContext.moduleId,
