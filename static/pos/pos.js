@@ -2444,8 +2444,24 @@
       const historyEntries = [];
       lines.forEach((line, index)=>{
         const lineIndex = index + 1;
-        const resolvedStation = toIdentifier(line.kitchenSection);
+        // ✅ Check all variants of kitchenSection field
+        const kitchenSectionSource = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.kitchen_section;
+        const resolvedStation = toIdentifier(kitchenSectionSource);
         const stationId = resolvedStation || 'expo';
+
+        // 🔍 DEBUG: Log kitchen section resolution
+        if(!resolvedStation || resolvedStation === 'expo'){
+          console.log('[POS][serializeOrderForKDS] Line kitchen section:', {
+            lineId: line.id,
+            itemId: line.itemId,
+            kitchenSection: line.kitchenSection,
+            kitchenSectionId: line.kitchenSectionId,
+            kitchen_section_id: line.kitchen_section_id,
+            resolvedStation,
+            stationId
+          });
+        }
+
         const jobId = `${order.id}-${stationId}`;
         const section = sectionMap.get(stationId) || {};
         const stationCode = section.code || (stationId ? String(stationId).toUpperCase() : 'KDS');
@@ -2519,7 +2535,9 @@
           updatedAt: updatedIso,
           itemNameAr: localizeValue(nameSource, 'ar', fallbackNameAr),
           itemNameEn: localizeValue(nameSource, 'en', fallbackNameEn),
-          prepNotes: notesToText(line.notes, '; ')
+          prepNotes: notesToText(line.notes, '; '),
+          stationId,  // ✅ Add stationId to detail for proper routing
+          kitchenSectionId: stationId  // ✅ Also add as kitchenSectionId
         };
         jobDetails.push(detail);
         const modifiers = ensureList(line.modifiers).filter(Boolean);

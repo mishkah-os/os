@@ -2341,7 +2341,20 @@
       updates.forEach(item=>{
         if(!item || item[key] == null) return;
         const id = String(item[key]);
-        map.set(id, Object.assign({}, map.get(id) || {}, item));
+        const existing = map.get(id);
+        const merged = Object.assign({}, existing || {}, item);
+
+        // 🔍 DEBUG: Log station ID changes
+        if(key === 'id' && existing && existing.stationId !== item.stationId){
+          console.log('[KDS][mergeJobOrders] stationId changed:', {
+            jobId: id,
+            oldStationId: existing.stationId,
+            newStationId: item.stationId,
+            mergedStationId: merged.stationId
+          });
+        }
+
+        map.set(id, merged);
       });
       return Array.from(map.values());
     };
