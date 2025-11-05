@@ -4025,13 +4025,19 @@
       });
       const jobItemId = resolvedItemId || derivedItemId;
       const jobOrderRef = order.jobOrderId || jobOrderId;
-      let jobId = jobOrderRef;
-      if (sectionId && jobId && !jobId.includes(':')) {
-        jobId = `${jobId}:${sectionId}`;
-      }
-      if (!jobId) {
-        jobId = sectionId ? `${order.orderId}:${sectionId}` : order.orderId;
-      }
+
+      // ✅ SIMPLIFIED: Always use orderId:sectionId as jobId (unique key per order+section)
+      const jobId = `${order.orderId}:${sectionId}`;
+
+      console.log('[KDS][buildWatcherPayload] Job grouping:', {
+        orderLineId: line?.id,
+        orderId: order.orderId,
+        sectionId: sectionId,
+        generatedJobId: jobId,
+        itemId: line?.itemId,
+        jobExists: order.jobs.has(jobId)
+      });
+
       if (!order.jobs.has(jobId)) {
         const station = stationMap[sectionId] || {};
 
@@ -4068,8 +4074,9 @@
         });
       }
       const job = order.jobs.get(jobId);
+      // ⚠️ IMPORTANT: Don't change job.id - it must remain orderId:sectionId for grouping!
+      // job.id stays as jobId (orderId:sectionId)
       job.jobOrderId = job.jobOrderId || jobOrderRef || jobId;
-      job.id = job.jobOrderId || jobId;
       job.orderId = order.orderId;
       job.orderNumber = order.orderNumber;
       const station = stationMap[sectionId] || {};
