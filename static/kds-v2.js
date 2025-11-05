@@ -6,9 +6,8 @@
     branchId: 'dar',
     moduleId: 'pos',
     role: 'kds-station',
-    wsUrl: window.location.protocol === 'https:'
-      ? 'wss://dar.mishkah.app/ws'
-      : 'ws://localhost:3030/ws'
+    // Use relative path - let the system determine correct URL
+    wsPath: '/ws'
   };
 
   // ==================== State ====================
@@ -49,7 +48,7 @@
     branchId: CONFIG.branchId,
     moduleId: CONFIG.moduleId,
     role: CONFIG.role,
-    wsUrl: CONFIG.wsUrl,
+    wsPath: CONFIG.wsPath,
     autoConnect: true,
     useIndexedDB: true
   });
@@ -79,7 +78,7 @@
   });
 
   // Watch connection status
-  db.onStatusChange((status) => {
+  db.status((status) => {
     console.log('[KDS v2] Connection status:', status);
     state.connected = status === 'connected';
     updateConnectionStatus();
@@ -323,7 +322,8 @@
     // Update all items in this job to 'cooking' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await db.update('order_line', {
+          id: item.id,
           statusId: 'cooking'
         });
       } catch (err) {
@@ -340,7 +340,8 @@
     // Update all items in this job to 'ready' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await db.update('order_line', {
+          id: item.id,
           statusId: 'ready'
         });
       } catch (err) {
@@ -357,7 +358,8 @@
     // Update all items in this job to 'completed' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await db.update('order_line', {
+          id: item.id,
           statusId: 'completed'
         });
       } catch (err) {
