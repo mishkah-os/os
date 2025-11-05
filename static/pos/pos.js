@@ -5901,7 +5901,22 @@
       let missingItemLine = null;
       let missingKitchenLine = null;
       let safeLines = (order.lines || []).map(line=>{
+        console.log('[POS][persistOrderFlow] 🔍 BEFORE normalize:', {
+          lineId: line.id,
+          itemId: line.itemId,
+          item_id: line.item_id,
+          allKeys: Object.keys(line)
+        });
+
         const sanitizedLine = normalizeOrderLine(line, { orderId: order.id, createdAt: now, updatedAt: now });
+
+        console.log('[POS][persistOrderFlow] 🔍 AFTER normalize:', {
+          lineId: sanitizedLine?.id,
+          itemId: sanitizedLine?.itemId,
+          item_id: sanitizedLine?.item_id,
+          allKeys: sanitizedLine ? Object.keys(sanitizedLine) : []
+        });
+
         if(!sanitizedLine || !sanitizedLine.itemId){
           console.error('[Mishkah][POS] Line missing itemId', {
             lineId: line.id,
