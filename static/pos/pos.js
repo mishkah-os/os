@@ -5006,6 +5006,8 @@
         status: statusId,
         stage: stageId,
         kitchenSection,
+        kitchenSectionId: kitchenSection,  // ✅ camelCase
+        kitchen_section_id: kitchenSection,  // ✅ snake_case for schema
         locked: raw.locked !== undefined ? !!raw.locked : (orderStageMap.get(stageId)?.lockLineEdits ?? true),
         notes,
         discount,

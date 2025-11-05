@@ -1640,6 +1640,8 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
     status: resolvedStatus,
     stage,
     kitchenSection,
+    kitchenSectionId: kitchenSection,  // ✅ camelCase variant
+    kitchen_section_id: kitchenSection,  // ✅ snake_case for schema
     locked: line.locked !== undefined ? !!line.locked : !!defaults.lockLineEdits,
     notes: Array.isArray(line.notes) ? line.notes.slice() : line.notes ? [line.notes] : [],
     discount: normalizeDiscount(line.discount),
