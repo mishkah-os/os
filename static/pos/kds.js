@@ -1486,6 +1486,10 @@
       const nameEn = section.section_name?.en || section.name?.en || section.nameEn || id;
       return {
         id,
+        // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
+        section_id: section.section_id || section.id,
+        sectionId: section.sectionId || section.section_id || section.id,
+        kitchen_section_id: section.kitchen_section_id || section.section_id || section.id,
         code: id && id.toString ? id.toString().toUpperCase() : id,
         nameAr,
         nameEn,
@@ -1501,14 +1505,28 @@
     });
   };
 
-  const toStationMap = (list)=> (Array.isArray(list)
-    ? list.reduce((acc, station)=>{
-        if(station && station.id != null){
-          acc[station.id] = station;
-        }
-        return acc;
-      }, {})
-    : {});
+  const toStationMap = (list)=> {
+    if(!Array.isArray(list)) return {};
+    return list.reduce((acc, station)=>{
+      if(!station) return acc;
+      // 🔧 CRITICAL: Add ALL possible ID variations as keys to ensure we can find stations
+      // regardless of which ID format the backend sends (id, section_id, sectionId)
+      const ids = [
+        station.id,
+        station.section_id,
+        station.sectionId,
+        station.kitchen_section_id,
+        station.kitchenSectionId
+      ].filter(id => id != null).map(id => String(id));
+
+      // Add station under all its possible IDs
+      ids.forEach(id => {
+        if(id) acc[id] = station;
+      });
+
+      return acc;
+    }, {});
+  };
 
   const buildMenuIndex = (items)=>{
     const index = {};
@@ -1930,13 +1948,17 @@
     });
     const missingStations = Array.from(allStationIds).filter(id => !stationMap[id]);
     if(missingStations.length > 0){
-      console.warn('[KDS][renderPrepPanel] Missing stations in stationMap:', {
-        missingStations,
-        availableStations: Object.keys(stationMap),
-        stationMapSample: Object.keys(stationMap).slice(0, 5).map(k => ({
-          id: k,
-          nameAr: stationMap[k]?.nameAr,
-          nameEn: stationMap[k]?.nameEn
+      console.error('[KDS][renderPrepPanel] ❌ Missing stations in stationMap:', {
+        missingStationIds: missingStations,
+        totalStationMapKeys: Object.keys(stationMap).length,
+        availableStationKeys: Object.keys(stationMap).slice(0, 10),
+        firstMissingJobExample: orders.flatMap(o => o.jobs).find(j => missingStations.includes(j.stationId)),
+        stationMapValuesSample: Object.values(stationMap).slice(0, 3).map(s => ({
+          id: s.id,
+          section_id: s.section_id,
+          kitchen_section_id: s.kitchen_section_id,
+          nameAr: s.nameAr,
+          nameEn: s.nameEn
         }))
       });
     }
@@ -2224,7 +2246,7 @@
       : (Array.isArray(database?.kitchen_sections)
         ? database.kitchen_sections
         : []));
-  // Normalize kitchen sections inline to ensure consistent structure
+  // Normalize kitchen sections - PRESERVE all original ID fields for stationMap lookup
   const initialKitchenSections = (Array.isArray(rawKitchenSections) ? rawKitchenSections : []).map((section, index) => {
     const id = (section?.id != null ? String(section.id) : null)
       || (section?.section_id != null ? String(section.section_id) : null)
@@ -2233,6 +2255,10 @@
     const code = section?.code || (id ? id.toString().toUpperCase() : `SEC-${index + 1}`);
     return {
       id,
+      // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
+      section_id: section?.section_id || section?.id,
+      sectionId: section?.sectionId || section?.section_id || section?.id,
+      kitchen_section_id: section?.kitchen_section_id || section?.section_id || section?.id,
       code,
       nameAr: section?.section_name?.ar || section?.name?.ar || section?.nameAr || section?.name || code,
       nameEn: section?.section_name?.en || section?.name?.en || section?.nameEn || section?.name || code,
@@ -2261,9 +2287,22 @@
     stationsCount: stations.length,
     kitchenSectionsCount: initialKitchenSections.length,
     combinedCount: combinedStations.length,
-    stationMapKeys: Object.keys(stationMap),
-    stationSample: stations.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn })),
-    sectionSample: initialKitchenSections.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn }))
+    stationMapKeysCount: Object.keys(stationMap).length,
+    stationMapSample: Object.keys(stationMap).slice(0, 5),
+    stationSample: stations.slice(0, 2).map(s => ({
+      id: s.id,
+      section_id: s.section_id,
+      kitchen_section_id: s.kitchen_section_id,
+      nameAr: s.nameAr,
+      nameEn: s.nameEn
+    })),
+    sectionSample: initialKitchenSections.slice(0, 2).map(s => ({
+      id: s.id,
+      section_id: s.section_id,
+      kitchen_section_id: s.kitchen_section_id,
+      nameAr: s.nameAr,
+      nameEn: s.nameEn
+    }))
   });
   const initialStationRoutes = Array.isArray(kdsSource.stationCategoryRoutes)
     ? kdsSource.stationCategoryRoutes.map(route=> ({ ...route }))
@@ -3282,6 +3321,10 @@
         (id ? id.toString().toUpperCase() : `SEC-${index + 1}`);
       return {
         id,
+        // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
+        section_id: section?.section_id || section?.id,
+        sectionId: section?.sectionId || section?.section_id || section?.id,
+        kitchen_section_id: section?.kitchen_section_id || section?.section_id || section?.id,
         code,
         nameAr:
           section?.section_name?.ar ||
