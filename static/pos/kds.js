@@ -1401,7 +1401,23 @@
     });
   };
 
-  const indexJobs = (jobsList)=>{
+  // Helper to build category-to-section map from categorySections data
+  const buildCategoryToSectionMap = (categorySections) => {
+    const map = {};
+    if (!Array.isArray(categorySections)) return map;
+
+    categorySections.forEach(entry => {
+      const categoryId = entry.categoryId || entry.category_id;
+      const sectionId = entry.sectionId || entry.section_id;
+      if (categoryId && sectionId) {
+        map[categoryId] = sectionId;
+      }
+    });
+
+    return map;
+  };
+
+  const indexJobs = (jobsList, categoryToSectionMap = {})=>{
     const list = Array.isArray(jobsList) ? jobsList.slice() : [];
     list.sort((a, b)=>{
       const aKey = a.acceptedMs ?? a.createdMs ?? 0;
@@ -1420,12 +1436,33 @@
     const stats = { total:list.length, expedite:0, alerts:0, ready:0, pending:0 };
 
     list.forEach(job=>{
-      const rawStationId = job.stationId;
-      const stationId = normalizeSectionId(rawStationId) || 'general';
+      let rawStationId = job.stationId;
+      let stationId = normalizeSectionId(rawStationId);
 
-      // Debug: log jobs without proper stationId
-      if (!rawStationId || rawStationId === 'general') {
-        console.warn('[KDS] Job missing stationId:', {
+      // TEMPORARY FIX: If stationId is missing or 'general', try to infer it from job details
+      if (!stationId || stationId === 'general' || !rawStationId || rawStationId === 'general') {
+        const inferredStation = inferStationFromJob(job, categoryToSectionMap);
+        if (inferredStation) {
+          console.log('[KDS] Inferred station for job:', {
+            jobId: job.id,
+            orderId: job.orderId,
+            originalStationId: rawStationId,
+            inferredStationId: inferredStation,
+            items: job.details?.map(d => d.itemNameEn || d.itemNameAr).join(', ')
+          });
+          stationId = normalizeSectionId(inferredStation);
+          rawStationId = inferredStation;
+        }
+      }
+
+      // Fallback to 'general' if still no station
+      if (!stationId) {
+        stationId = 'general';
+      }
+
+      // Debug: log jobs that ended up without proper stationId
+      if (!rawStationId || rawStationId === 'general' || stationId === 'general') {
+        console.warn('[KDS] Job with general/missing stationId:', {
           jobId: job.id,
           orderId: job.orderId,
           rawStationId,
@@ -1538,6 +1575,69 @@
     if(id == null) return id;
     const normalized = SECTION_ID_ALIASES[id];
     return normalized !== undefined ? normalized : id;
+  };
+
+  // TEMPORARY FIX: Infer station from job details when stationId is missing or wrong
+  // This is a workaround until backend data is fixed
+  const inferStationFromJob = (job, categoryToSectionMap) => {
+    if (!job || !job.details || !Array.isArray(job.details)) {
+      return null;
+    }
+
+    // Known station IDs
+    const GRILL_STATION_ID = 'c61d5bc4-1429-42b6-b250-f9254a176848';
+    const HOT_LINE_ID = 'hot_linee';
+
+    // Strategy 1: Check categoryId in job details against category_section mapping
+    if (categoryToSectionMap && Object.keys(categoryToSectionMap).length > 0) {
+      for (const detail of job.details) {
+        const categoryId = detail.categoryId || detail.itemCategoryId;
+        if (categoryId && categoryToSectionMap[categoryId]) {
+          return categoryToSectionMap[categoryId];
+        }
+      }
+    }
+
+    // Strategy 2: Pattern matching on item names (fallback)
+    // Check if ALL items in the job match a specific station pattern
+    const itemNames = job.details.map(d => {
+      const ar = d.itemNameAr || d.nameAr || '';
+      const en = d.itemNameEn || d.nameEn || '';
+      return `${ar} ${en}`.toLowerCase();
+    }).filter(n => n.trim());
+
+    if (itemNames.length === 0) return null;
+
+    // Grill station keywords (المشاوي)
+    const grillKeywords = ['مشوي', 'كباب', 'شيش', 'ريش', 'كفتة', 'grill', 'kabab', 'kebab', 'ribs', 'kofta'];
+
+    // Hot line keywords (السخن)
+    const hotLineKeywords = ['مندي', 'كبسة', 'رز', 'أرز', 'صينية', 'mandi', 'kabsa', 'rice', 'tray'];
+
+    // Count how many items match each station
+    let grillCount = 0;
+    let hotLineCount = 0;
+
+    itemNames.forEach(name => {
+      if (grillKeywords.some(kw => name.includes(kw))) {
+        grillCount++;
+      }
+      if (hotLineKeywords.some(kw => name.includes(kw))) {
+        hotLineCount++;
+      }
+    });
+
+    // If majority of items match grill, assign to grill
+    if (grillCount > 0 && grillCount >= hotLineCount) {
+      return GRILL_STATION_ID;
+    }
+
+    // If majority of items match hot line, assign to hot line
+    if (hotLineCount > 0) {
+      return HOT_LINE_ID;
+    }
+
+    return null;
   };
 
   const toStationMap = (list)=> {
@@ -1923,7 +2023,8 @@
   const applyJobsUpdate = (state, transform)=>{
     const list = state.data.jobs.list.map(cloneJob);
     const nextList = transform(list) || list;
-    const jobs = indexJobs(nextList);
+    const categoryMap = buildCategoryToSectionMap(state.data.categorySections);
+    const jobs = indexJobs(nextList, categoryMap);
     const expoTickets = buildExpoTickets(state.data.expoSource, jobs);
     return {
       ...state,
@@ -2300,7 +2401,8 @@
   const initialMenuIndex = buildMenuIndex(initialMenuItems);
   const rawJobOrders = cloneDeep(kdsSource.jobOrders || {});
   const jobRecords = buildJobRecords(rawJobOrders);
-  const jobsIndexed = indexJobs(jobRecords);
+  const initialCategoryMap = buildCategoryToSectionMap(initialCategorySections);
+  const jobsIndexed = indexJobs(jobRecords, initialCategoryMap);
   const expoSource = Array.isArray(rawJobOrders.expoPassTickets) ? rawJobOrders.expoPassTickets.map(ticket=>({ ...ticket })) : [];
   const expoTickets = buildExpoTickets(expoSource, jobsIndexed);
 
@@ -2523,7 +2625,8 @@
     appInstance.setState(state=>{
       const mergedOrders = mergeJobOrders(state.data.jobOrders || {}, payload.jobOrders);
       const jobRecordsNext = buildJobRecords(mergedOrders);
-      const jobsIndexedNext = indexJobs(jobRecordsNext);
+      const categoryMap = buildCategoryToSectionMap(state.data.categorySections);
+      const jobsIndexedNext = indexJobs(jobRecordsNext, categoryMap);
       const expoSourcePatch = Array.isArray(payload.jobOrders?.expoPassTickets)
         ? payload.jobOrders.expoPassTickets.map(ticket=> ({ ...ticket }))
         : state.data.expoSource;
