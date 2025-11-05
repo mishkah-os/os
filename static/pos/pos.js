@@ -6067,17 +6067,24 @@
       const allowAdditions = finalize ? false : !!typeConfig.allowsLineAdditions;
       const orderNotes = Array.isArray(order.notes) ? order.notes : (order.notes ? [order.notes] : []);
       let finalOrderId = previousOrderId;
-      // Allocate new ID if order is not persisted OR if there's no valid ID
+      // Check if current ID is a draft (local-only) ID
+      const isDraftId = previousOrderId && String(previousOrderId).startsWith('draft-');
+      // Allocate new ID if:
+      // 1. Order is not persisted, OR
+      // 2. No valid previous ID, OR
+      // 3. Previous ID is a draft ID (needs real invoice ID for backend)
       console.log('[Mishkah][POS] INVOICE ID DECISION', {
         isPersisted: order.isPersisted,
         previousOrderId,
-        willAllocateNew: !order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined'
+        isDraftId,
+        willAllocateNew: !order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId
       });
-      if(!order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined'){
+      if(!order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId){
         console.log('[Mishkah][POS] 🆕 Allocating NEW invoice ID', {
           isPersisted: order.isPersisted,
           previousOrderId,
-          reason: !order.isPersisted ? 'order not persisted' : 'no valid previous ID'
+          isDraftId,
+          reason: isDraftId ? 'draft ID needs real invoice ID' : (!order.isPersisted ? 'order not persisted' : 'no valid previous ID')
         });
         try {
           finalOrderId = await allocateInvoiceId();
@@ -6097,11 +6104,26 @@
       }
       const idChanged = previousOrderId !== finalOrderId;
       const primaryTableId = assignedTables.length ? assignedTables[0] : (order.tableId || null);
-      const outgoingVersion = order.isPersisted
-        ? (Number.isFinite(expectedVersion) && expectedVersion > 0
-          ? Math.trunc(expectedVersion)
-          : (Number.isFinite(currentVersion) && currentVersion > 0 ? Math.trunc(currentVersion) : 1))
-        : 1;
+      // CRITICAL: Determine version to send to backend
+      // - If ID changed (including draft->real), treat as NEW order (version=1)
+      // - If order was draft, treat as NEW order (version=1)
+      // - Otherwise use existing version for updates
+      const outgoingVersion = (idChanged || isDraftId)
+        ? 1
+        : (order.isPersisted
+          ? (Number.isFinite(expectedVersion) && expectedVersion > 0
+            ? Math.trunc(expectedVersion)
+            : (Number.isFinite(currentVersion) && currentVersion > 0 ? Math.trunc(currentVersion) : 1))
+          : 1);
+      console.log('[Mishkah][POS] VERSION DECISION', {
+        idChanged,
+        isDraftId,
+        isPersisted: order.isPersisted,
+        expectedVersion,
+        currentVersion,
+        outgoingVersion,
+        reason: (idChanged || isDraftId) ? 'new order (ID changed or was draft)' : 'updating existing order'
+      });
       const orderPayload = {
         ...order,
         id: finalOrderId,
@@ -6182,8 +6204,29 @@
             totalDue: savedOrder?.totalDue
           });
         } catch(error){
+          console.error('[Mishkah][POS] Error saving order to backend:', {
+            errorMessage: error?.message,
+            errorCode: error?.code,
+            errorStatus: error?.status,
+            orderId: persistableOrder.id,
+            isDraftId,
+            idChanged,
+            outgoingVersion
+          });
           if(error && (error.code === 'order-version-conflict' || error.code === 'VERSION_CONFLICT')){
-            await refreshFromRemote(error.order || null, 'order_conflict_refreshed');
+            console.warn('[Mishkah][POS] 409 VERSION CONFLICT detected', {
+              isDraftId,
+              previousOrderId,
+              finalOrderId,
+              willRefresh: !isDraftId && !idChanged
+            });
+            // Only try to refresh from remote if this was a real order update (not a draft conversion)
+            if(!isDraftId && !idChanged){
+              await refreshFromRemote(error.order || null, 'order_conflict_refreshed');
+            } else {
+              console.error('[Mishkah][POS] Cannot refresh draft order from remote - this should not happen with proper version=1');
+              UI.pushToast(ctx, { title:t.toast.order_save_failed || 'فشل حفظ الطلب', message: error.message, icon:'⚠️' });
+            }
             return { status:'error', reason:'version-conflict' };
           }
           throw error;
@@ -7962,8 +8005,11 @@
 
     function activateOrder(ctx, order, options={}){
       if(!order) return;
+      // Check if this is a draft (local-only) order
+      const isDraftOrder = order.id && String(order.id).startsWith('draft-');
       console.log('[Mishkah][POS] activateOrder START', {
         orderId: order.id,
+        isDraftOrder,
         isPersisted: order.isPersisted,
         tableIds: order.tableIds,
         customerId: order.customerId,
@@ -7983,7 +8029,8 @@
         discount: normalizeDiscount(order.discount),
         // Preserve critical fields that MUST NOT be lost when reopening an order
         id: order.id,
-        isPersisted: order.isPersisted !== undefined ? order.isPersisted : true,
+        // CRITICAL: Draft orders should NOT be marked as persisted (they only exist locally)
+        isPersisted: isDraftOrder ? false : (order.isPersisted !== undefined ? order.isPersisted : true),
         tableIds: Array.isArray(order.tableIds) ? order.tableIds.slice() : (order.tableId ? [order.tableId] : []),
         tableId: order.tableId || (Array.isArray(order.tableIds) && order.tableIds.length ? order.tableIds[0] : null),
         customerId: order.customerId || null,
@@ -8009,6 +8056,7 @@
       safeOrder = enrichOrderWithMenu(safeOrder);
       console.log('[Mishkah][POS] activateOrder AFTER enrichment', {
         orderId: safeOrder.id,
+        isDraftOrder,
         isPersisted: safeOrder.isPersisted,
         tableIds: safeOrder.tableIds,
         customerId: safeOrder.customerId,
@@ -8038,6 +8086,7 @@
         const paymentSnapshot = summarizePayments(totals, paymentEntries);
         console.log('[Mishkah][POS] activateOrder FINAL STATE', {
           orderId: safeOrder.id,
+          isDraftOrder,
           isPersisted: safeOrder.isPersisted,
           tableIds: safeOrder.tableIds,
           customerId: safeOrder.customerId,
