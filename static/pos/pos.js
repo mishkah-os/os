@@ -6039,7 +6039,28 @@
         return { status:'error', reason:'order-zero-total' };
       }
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
-      const normalizedPayments = paymentSplit.map(entry=>({
+      // CRITICAL FIX: Filter out payments that already exist in the persisted order
+      // This prevents sending duplicate payments to backend when reopening a saved order
+      const existingPaymentIds = new Set(
+        (order.isPersisted && Array.isArray(order.payments))
+          ? order.payments.map(pay => pay.id).filter(Boolean)
+          : []
+      );
+      const newPaymentsOnly = paymentSplit.filter(pay => !existingPaymentIds.has(pay.id));
+      const allPayments = order.isPersisted
+        ? [...(order.payments || []), ...newPaymentsOnly]  // Existing + new payments
+        : paymentSplit;  // All payments for new orders
+
+      console.log('[Mishkah][POS] PAYMENTS PROCESSING', {
+        isPersisted: order.isPersisted,
+        existingPayments: order.payments?.length || 0,
+        splitPayments: paymentSplit.length,
+        newPaymentsOnly: newPaymentsOnly.length,
+        allPayments: allPayments.length,
+        existingPaymentIds: Array.from(existingPaymentIds)
+      });
+
+      const normalizedPayments = allPayments.map(entry=>({
         id: entry.id || `pm-${Math.random().toString(36).slice(2,8)}`,
         method: entry.method || entry.id || state.data.payments?.activeMethod || 'cash',
         amount: round(Number(entry.amount) || 0)
@@ -8072,7 +8093,10 @@
         const orderNavState = { ...(s.ui?.orderNav || {}) };
         if(options.hideOrderNavPad !== false) orderNavState.showPad = false;
         if(options.resetOrderNavValue) orderNavState.value = '';
-        const paymentsSplit = safeOrder.payments || [];
+        // CRITICAL FIX: Don't copy old payments to split for persisted orders
+        // Old payments should stay in order.payments, not in payments.split
+        // This prevents duplicate payment calculations and backend errors
+        const paymentsSplit = safeOrder.isPersisted ? [] : (safeOrder.payments || []);
         const nextPayments = {
           ...(data.payments || {}),
           split: paymentsSplit
@@ -8084,6 +8108,13 @@
         const totals = calculateTotals(safeOrder.lines || [], data.settings || {}, safeOrder.type || 'dine_in', { orderDiscount: safeOrder.discount });
         const paymentEntries = getActivePaymentEntries({ ...safeOrder, totals }, nextPayments);
         const paymentSnapshot = summarizePayments(totals, paymentEntries);
+        console.log('[Mishkah][POS] activateOrder PAYMENTS STATE', {
+          isPersisted: safeOrder.isPersisted,
+          orderPayments: safeOrder.payments?.length || 0,
+          splitPayments: paymentsSplit.length,
+          totalPaymentEntries: paymentEntries.length,
+          paymentSnapshot
+        });
         console.log('[Mishkah][POS] activateOrder FINAL STATE', {
           orderId: safeOrder.id,
           isDraftOrder,
