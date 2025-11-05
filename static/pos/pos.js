@@ -1087,10 +1087,10 @@
           : round(Math.min(normalizedOrderDiscount.value, orderDiscountBase))
         : 0;
       const subtotalAfterDiscount = Math.max(0, netSubtotal - orderDiscountAmount);
-      const serviceRate = type === 'dine_in' ? (cfg.service_charge_rate || 0) : 0;
+      const serviceRate = 0; // Always zero - service charge disabled
       const service = subtotalAfterDiscount * serviceRate;
       const vatBase = subtotalAfterDiscount + service;
-      const vat = vatBase * (cfg.tax_rate || 0);
+      const vat = 0; // Always zero - tax disabled
       const deliveryFee = type === 'delivery' ? (cfg.default_delivery_fee || 0) : 0;
       const discount = lineDiscountTotal + orderDiscountAmount;
       const due = subtotalAfterDiscount + service + vat + deliveryFee;
@@ -6921,7 +6921,7 @@
                       attrs:{ class: tw`h-full min-h-0 w-full flex-1` },
                       children:[
                         order.lines && order.lines.length
-                          ? UI.List({ children: order.lines.map(line=> OrderLine(db, line)) })
+                          ? UI.List({ children: order.lines.filter(line=> line && Number(line.total || 0) !== 0).map(line=> OrderLine(db, line)) })
                           : UI.EmptyState({ icon:'🧺', title:t.ui.cart_empty, description:t.ui.choose_items })
                       ]
                     })
@@ -7691,9 +7691,8 @@
           case 'lines': return order.lines ? order.lines.length : 0;
           case 'notes': return order.notes ? order.notes.length : 0;
           case 'total': {
-            const totals = order.totals && typeof order.totals === 'object'
-              ? order.totals
-              : calculateTotals(order.lines || [], settings, order.type || 'dine_in', { orderDiscount: order.discount });
+            // Always recalculate totals to ensure current tax/service rates
+            const totals = calculateTotals(order.lines || [], settings, order.type || 'dine_in', { orderDiscount: order.discount });
             return Number(totals?.due || 0);
           }
           case 'updatedAt':
@@ -7753,9 +7752,8 @@
         const stageMeta = orderStageMap.get(order.fulfillmentStage) || null;
         const statusMeta = orderStatusMap.get(order.status) || null;
         const paymentMeta = orderPaymentMap.get(order.paymentState) || null;
-        const totals = order.totals && typeof order.totals === 'object'
-          ? order.totals
-          : calculateTotals(order.lines || [], settings, order.type || 'dine_in', { orderDiscount: order.discount });
+        // Always recalculate totals to ensure current tax/service rates
+        const totals = calculateTotals(order.lines || [], settings, order.type || 'dine_in', { orderDiscount: order.discount });
         const totalDue = Number(totals?.due || 0);
         const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
         const remainingAmount = Math.max(0, round(totalDue - paidAmount));
@@ -7931,9 +7929,8 @@
         if(!Array.isArray(nextPayments.methods) || !nextPayments.methods.length){
           nextPayments.methods = clonePaymentMethods(PAYMENT_METHODS);
         }
-        const totals = safeOrder.totals && typeof safeOrder.totals === 'object'
-          ? { ...safeOrder.totals }
-          : calculateTotals(safeOrder.lines || [], data.settings || {}, safeOrder.type || 'dine_in', { orderDiscount: safeOrder.discount });
+        // Always recalculate totals to ensure current tax/service rates
+        const totals = calculateTotals(safeOrder.lines || [], data.settings || {}, safeOrder.type || 'dine_in', { orderDiscount: safeOrder.discount });
         const paymentEntries = getActivePaymentEntries({ ...safeOrder, totals }, nextPayments);
         const paymentSnapshot = summarizePayments(totals, paymentEntries);
         return {
