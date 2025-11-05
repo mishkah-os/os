@@ -47,12 +47,16 @@
       const roleRaw = source.role || source.position;
       const discountRaw = source.allowed_discount_rate || source.allowedDiscountRate || 0;
       const discountValue = Number.parseFloat(discountRaw);
+      // If discount rate is stored as decimal (0.1 for 10%), convert to percentage
+      const discountRate = Number.isFinite(discountValue) && discountValue > 0 && discountValue < 1
+        ? discountValue * 100
+        : (Number.isFinite(discountValue) ? discountValue : 0);
       const normalized = {
         id: (idRaw != null ? String(idRaw).trim() : '') || `emp-${normalizedPin}-${index + 1}`,
         name: (nameRaw != null ? String(nameRaw).trim() : '') || `موظف ${index + 1}`,
         role: (roleRaw != null ? String(roleRaw).trim() : '') || 'staff',
         pin: normalizedPin,
-        allowedDiscountRate: Number.isFinite(discountValue) ? discountValue : 0
+        allowedDiscountRate: discountRate
       };
       if(toBoolean(source.is_fallback || source.isFallback || source.fallback)){
         normalized.isFallback = true;
@@ -1939,10 +1943,21 @@
       function normalizePersistedOrder(raw){
         if(!raw || typeof raw !== 'object') return null;
         const metadata = { ...ensurePlainObject(raw.metadata || raw.meta) };
+        // Rebuild totals from flat fields if totals object is empty
+        const rawTotals = ensurePlainObject(raw.totals);
+        const hasTotalsObject = rawTotals && Object.keys(rawTotals).length > 0;
+        const totals = hasTotalsObject ? { ...rawTotals } : {
+          subtotal: round(Number(raw.subtotal || 0)),
+          service: round(Number(raw.service_amount || raw.serviceAmount || 0)),
+          vat: round(Number(raw.tax_amount || raw.taxAmount || raw.vat || 0)),
+          discount: round(Number(raw.discount_amount || raw.discountAmount || 0)),
+          deliveryFee: round(Number(raw.delivery_fee || raw.deliveryFee || 0)),
+          due: round(Number(raw.total_due || raw.totalDue || raw.total || 0))
+        };
         const base = {
           ...raw,
           metadata,
-          totals: { ...ensurePlainObject(raw.totals) },
+          totals,
           discount: normalizeDiscount(raw.discount),
           type: raw.type || raw.orderType || raw.order_type || 'dine_in',
           status: raw.status || raw.statusId || raw.status_id || 'open',
