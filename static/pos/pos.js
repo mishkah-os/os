@@ -3517,6 +3517,11 @@
         const bucket = (order.status === 'closed' || order.status === 'finalized') ? history : active;
         bucket.push(cloneOrderSnapshot(order));
       });
+      // Mark all orders as persisted
+      active.forEach((entry)=>{
+        entry.dirty = false;
+        entry.isPersisted = true;
+      });
       history.forEach((entry, idx)=>{
         entry.seq = idx + 1;
         entry.dirty = false;
@@ -9212,6 +9217,7 @@
                   totals,
                   paymentState: paymentSnapshot.state,
                   updatedAt: Date.now(),
+                  dirty: true,  // Mark as dirty when adding items
                   allowAdditions: allowAdditions
                 }
               }
@@ -9298,7 +9304,7 @@
               ...s,
               data:{
                 ...data,
-                order:{ ...order, lines, totals, paymentState: paymentSnapshot.state, updatedAt: Date.now() }
+                order:{ ...order, lines, totals, paymentState: paymentSnapshot.state, updatedAt: Date.now(), dirty: true }
               }
             };
           });
@@ -9338,7 +9344,7 @@
               ...s,
               data:{
                 ...data,
-                order:{ ...order, lines, totals, paymentState: paymentSnapshot.state, updatedAt: Date.now() }
+                order:{ ...order, lines, totals, paymentState: paymentSnapshot.state, updatedAt: Date.now(), dirty: true }
               }
             };
           });
@@ -9375,7 +9381,7 @@
               ...s,
               data:{
                 ...data,
-                order:{ ...order, lines, totals, paymentState: paymentSnapshot.state, updatedAt: Date.now() }
+                order:{ ...order, lines, totals, paymentState: paymentSnapshot.state, updatedAt: Date.now(), dirty: true }
               }
             };
           });
