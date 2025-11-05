@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "meta": {
+    "branchId": "dar",
+    "moduleId": "pos",
+    "lastUpdatedAt": "2025-11-05T19:04:10.000Z",
+    "serverId": "init",
+    "counter": 0,
+    "labCounter": 0
+  },
+  "tables": {}
+}

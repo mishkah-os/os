@@ -142,12 +142,26 @@
           const updateWindowDatabase = () => {
             const records = db.list('pos_database');
             const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
-            const payload = latest && latest.payload ? latest.payload : {};
+
+            // Support both old and new data structures:
+            // OLD: pos_database[0].payload contains all data
+            // NEW: data is directly in tables
+            let payload = {};
+
+            if (latest && latest.payload && typeof latest.payload === 'object') {
+              // OLD structure: data inside pos_database[0].payload
+              payload = latest.payload;
+            } else {
+              // NEW structure: data directly in tables
+              const snapshot = db.snapshot();
+              payload = snapshot.tables || {};
+            }
+
             const previousKeys = Object.keys(window.database || {}).sort().join(',');
             const newKeys = Object.keys(payload || {}).sort().join(',');
 
             window.database = payload;
-            status.status = latest ? 'ready' : 'idle';
+            status.status = (latest || Object.keys(payload).length) ? 'ready' : 'idle';
             status.keys = Object.keys(payload || {});
 
             // Log update if keys changed
