@@ -1,4 +1,4 @@
-(function(){
+(async function(){
   const M = window.Mishkah;
   if(!M || !M.utils || !M.DSL) return;
 
@@ -6,6 +6,56 @@
   const U = M.utils;
   const D = M.DSL;
   const { tw, cx } = U.twcss;
+  const Schema = M.schema || {};
+  const schemaSources = Schema.sources || {};
+  const schemaUtils = Schema.utils || {};
+  const kdsSource = schemaSources.kds || null;
+  const resolveKdsArtifacts = ()=>{
+    if(typeof Schema.getArtifacts === 'function'){
+      return Schema.getArtifacts('kds');
+    }
+    if(kdsSource && typeof Schema.generateArtifacts === 'function'){
+      return Schema.generateArtifacts(kdsSource.definition);
+    }
+    return null;
+  };
+  const kdsArtifacts = resolveKdsArtifacts() || {};
+  const kdsFieldMetadata = kdsArtifacts.fields || {};
+  const kdsFactories = kdsArtifacts.factories || {};
+  const cloneDefault = typeof schemaUtils.clone === 'function'
+    ? schemaUtils.clone
+    : (value)=> (value == null ? value : JSON.parse(JSON.stringify(value)));
+
+  function createRecordUsingSchema(tableName, record){
+    const factory = kdsFactories[tableName];
+    if(factory && typeof factory.create === 'function'){
+      try {
+        return factory.create(record || {});
+      } catch(error){
+        console.warn('[Mishkah][KDS] schema factory failed', { tableName, error });
+      }
+    }
+    const fields = kdsFieldMetadata[tableName];
+    if(!fields) return record;
+    const sanitized = {};
+    Object.keys(fields).forEach((fieldName)=>{
+      if(record && record[fieldName] !== undefined){
+        sanitized[fieldName] = record[fieldName];
+        return;
+      }
+      const column = fields[fieldName].columnName;
+      if(record && column && record[column] !== undefined){
+        sanitized[fieldName] = record[column];
+        return;
+      }
+      if(fields[fieldName].defaultValue !== undefined){
+        sanitized[fieldName] = cloneDefault(fields[fieldName].defaultValue);
+        return;
+      }
+      sanitized[fieldName] = fields[fieldName].nullable ? null : undefined;
+    });
+    return sanitized;
+  }
 
   const hasStructuredClone = typeof structuredClone === 'function';
   const JSONX = U.JSON || {};
@@ -23,118 +73,1091 @@
     }
   };
 
-  const HANDOFF_STORAGE_KEY = 'mishkah:kds:handoff:v1';
-  const resolveStorage = ()=>{
-    if(typeof window === 'undefined') return null;
-    const storage = window.localStorage || null;
-    if(!storage) return null;
-    try{
-      const probeKey = '__kds_storage_probe__';
-      storage.setItem(probeKey, '1');
-      storage.removeItem(probeKey);
-      return storage;
-    } catch(_err){
+  function createWsDeltaDispatcher(options={}){
+    const Control = U.Control || {};
+    const fetchNow = typeof options.fetchNow === 'function' ? options.fetchNow : null;
+    const label = options.label || 'kds-ws-delta';
+    const throttleMs = Math.max(250, Number(options.throttleMs) || 1200);
+    const debounceMs = Math.max(100, Number(options.debounceMs) || 250);
+    const throttleFactory = typeof Control.throttle === 'function'
+      ? (fn, wait)=> Control.throttle(fn, wait)
+      : (fn)=> fn;
+    const debounceFactory = typeof Control.debounce === 'function'
+      ? (fn, wait)=> Control.debounce(fn, wait)
+      : (fn)=> fn;
+    let pending = false;
+    let lastTriggerAt = 0;
+    let lastEvent = null;
+    let lastResult = null;
+
+    const runFetch = async ()=>{
+      if(!fetchNow) return { appliedCount:0, eventsProcessed:0 };
+      pending = true;
+      lastTriggerAt = Date.now();
+      try {
+        const result = await fetchNow();
+        lastResult = result || null;
+        return result;
+      } catch(error){
+        console.warn(`[Mishkah][KDS][WS] ${label} fetch failed.`, error);
+        lastResult = { error };
+        return lastResult;
+      } finally {
+        pending = false;
+      }
+    };
+
+    const throttledFetch = throttleFactory(()=>{ runFetch().catch(()=>{}); }, throttleMs);
+    const scheduleFetch = debounceFactory(()=>{ throttledFetch(); }, debounceMs);
+
+    return {
+      notify(detail={}){
+        if(!fetchNow) return false;
+        lastEvent = { ...detail, notifiedAt: Date.now() };
+        lastTriggerAt = Date.now();
+        scheduleFetch();
+        return true;
+      },
+      async flush(){
+        return runFetch();
+      },
+      getState(){
+        return { pending, lastTriggerAt, lastEvent, lastResult };
+      }
+    };
+  }
+
+  const GLOBAL = typeof window !== 'undefined' ? window : null;
+  const CACHE_TABLE = 'snapshot';
+  let kdsCacheAdapter = GLOBAL && GLOBAL.__MishkahKdsCacheAdapter__ ? GLOBAL.__MishkahKdsCacheAdapter__ : null;
+  let schedulePersist = ()=>{};
+
+  const clearKdsOperationalData = (snapshot)=>{
+    if(!snapshot || typeof snapshot !== 'object') return snapshot;
+    const next = cloneDeep(snapshot);
+    if(next.jobOrders && typeof next.jobOrders === 'object') next.jobOrders = {};
+    if(next.jobs && typeof next.jobs === 'object') next.jobs = {};
+    if(Array.isArray(next.expoSource)) next.expoSource = [];
+    if(Array.isArray(next.expoTickets)) next.expoTickets = [];
+    if(next.deliveries && typeof next.deliveries === 'object') next.deliveries = { assignments:{}, settlements:{} };
+    if(next.handoff && typeof next.handoff === 'object') next.handoff = {};
+    if(next.filters && typeof next.filters === 'object'){ next.filters.activeTab = next.filters.lockedSection ? next.filters.activeTab : 'prep'; }
+    return next;
+  };
+
+  const buildKdsMetadata = (state, metaPatch={})=>{
+    const sync = state?.data?.sync || {};
+    const meta = state?.data?.meta || {};
+    const resolved = {
+      lastSyncAt: metaPatch.lastSyncAt || sync.lastMessage || sync.lastSyncAt || meta.lastSyncAt || Date.now(),
+      schemaVersion: metaPatch.schemaVersion || meta.posSnapshotVersion || meta.schemaVersion || null,
+      lastId: metaPatch.lastId || metaPatch.appliedEventId || metaPatch.cursor || null,
+      requiresFullSync: !!metaPatch.requiresFullSync,
+      source: metaPatch.source || 'kds'
+    };
+    if(metaPatch.serverHash) resolved.serverHash = metaPatch.serverHash;
+    return resolved;
+  };
+
+  const createSnapshotPersistor = (appInstance, adapter, tableName)=>{
+    if(!adapter || !appInstance || typeof appInstance.getState !== 'function') return ()=>{};
+    let timer = null;
+    const delay = 280;
+    return (metaPatch={})=>{
+      if(!adapter || typeof adapter.save !== 'function') return;
+      if(timer) clearTimeout(timer);
+      timer = setTimeout(async ()=>{
+        timer = null;
+        try {
+          const state = appInstance.getState();
+          if(!state || !state.data) return;
+          const payload = cloneDeep(state.data);
+          const metadata = buildKdsMetadata(state, metaPatch);
+          await adapter.save(tableName, payload, { metadata });
+        } catch(error){
+          console.warn('[Mishkah][KDS] Failed to persist snapshot', error);
+        }
+      }, delay);
+    };
+  };
+
+  const toPlainObject = (value)=> (value && typeof value === 'object' ? Object.assign({}, value) : {});
+
+  class UnifiedKitchenTimelineEntry {
+    constructor(entry={}){
+      Object.assign(this, entry);
+      if(this.changedMs == null){
+        const tsSource = this.changedAt || this.updatedAt || this.createdAt || null;
+        const parsed = typeof tsSource === 'number' ? tsSource : (typeof tsSource === 'string' && tsSource.trim() ? Date.parse(tsSource) : null);
+        this.changedMs = Number.isFinite(parsed) ? parsed : null;
+      }
+      this.kind = 'UnifiedKitchenTimelineEntry';
+    }
+
+    get statusKey(){
+      return this.status || this.state || this.event || 'pending';
+    }
+  }
+
+  class UnifiedKitchenLineItem {
+    constructor(detail={}){
+      Object.assign(this, detail);
+      const quantity = detail.quantity ?? detail.qty ?? detail.count ?? 0;
+      const numeric = Number(quantity);
+      this.quantity = Number.isFinite(numeric) ? numeric : 0;
+      this.modifiers = Array.isArray(detail.modifiers) ? detail.modifiers.map(mod=> toPlainObject(mod)) : [];
+      this.kind = 'UnifiedKitchenLineItem';
+    }
+  }
+
+  class UnifiedKitchenTicket {
+    constructor(record={}){
+      const base = isPlainObject(record) ? record : {};
+      Object.assign(this, base);
+      this.details = Array.isArray(base.details)
+        ? base.details.map(detail=> detail instanceof UnifiedKitchenLineItem ? detail : new UnifiedKitchenLineItem(detail))
+        : [];
+      this.history = Array.isArray(base.history)
+        ? base.history.map(entry=> entry instanceof UnifiedKitchenTimelineEntry ? entry : new UnifiedKitchenTimelineEntry(entry))
+        : [];
+      this.kind = 'UnifiedKitchenTicket';
+    }
+
+    static fromRecord(record){
+      return record instanceof UnifiedKitchenTicket ? record : new UnifiedKitchenTicket(record || {});
+    }
+
+    clone(){
+      return new UnifiedKitchenTicket(this);
+    }
+
+    get timeline(){
+      return this.history;
+    }
+
+    get isDelayed(){
+      if(this.dueMs == null) return false;
+      const reference = this.readyMs ?? this.completedMs ?? Date.now();
+      return reference > this.dueMs;
+    }
+
+    get hasAlerts(){
+      if(this.isDelayed) return true;
+      if(this.isExpedite) return true;
+      return this.details.some(detail=> detail.alert === true || detail.status === 'delayed');
+    }
+  }
+
+  const computeMaxTimestamp = (...sources)=>{
+    let max = 0;
+    const inspect = (value)=>{
+      if(!value || typeof value !== 'object') return;
+      const candidates = [
+        value.updatedAt,
+        value.updated_at,
+        value.modifyDate,
+        value.modify_date,
+        value.changedAt,
+        value.createdAt,
+        value.created_at,
+        value.completedAt,
+        value.completed_at
+      ];
+      for(const candidate of candidates){
+        if(candidate == null) continue;
+        const ms = typeof candidate === 'number' ? candidate : (typeof candidate === 'string' && candidate.trim() ? Date.parse(candidate) : null);
+        if(Number.isFinite(ms) && ms > max) max = ms;
+      }
+    };
+    sources.forEach(source=>{
+      const list = Array.isArray(source) ? source : [];
+      list.forEach(entry=> inspect(entry));
+    });
+    return max > 0 ? new Date(max).toISOString() : null;
+  };
+
+  const mergeListByKey = (base=[], updates=[], key='id')=>{
+    const map = new Map();
+    (Array.isArray(base) ? base : []).forEach(item=>{
+      if(!item || item[key] == null) return;
+      map.set(String(item[key]), Object.assign({}, item));
+    });
+    (Array.isArray(updates) ? updates : []).forEach(item=>{
+      if(!item || item[key] == null) return;
+      const id = String(item[key]);
+      map.set(id, Object.assign({}, map.get(id) || {}, item));
+    });
+    return Array.from(map.values());
+  };
+
+  const mergeJobOrderCollections = (current={}, patch={})=>({
+    headers: mergeListByKey(current.headers, patch.headers, 'id'),
+    details: mergeListByKey(current.details, patch.details, 'id'),
+    modifiers: mergeListByKey(current.modifiers, patch.modifiers, 'id'),
+    statusHistory: mergeListByKey(current.statusHistory, patch.statusHistory, 'id')
+  });
+
+  const mergeDeliveryState = (base={}, patch={})=>{
+    const assignments = Object.assign({}, base.assignments || {});
+    Object.keys(patch.assignments || {}).forEach(orderId=>{
+      assignments[orderId] = Object.assign({}, assignments[orderId] || {}, cloneDeep(patch.assignments[orderId] || {}));
+    });
+    const settlements = Object.assign({}, base.settlements || {});
+    Object.keys(patch.settlements || {}).forEach(orderId=>{
+      settlements[orderId] = Object.assign({}, settlements[orderId] || {}, cloneDeep(patch.settlements[orderId] || {}));
+    });
+    return { assignments, settlements };
+  };
+
+  const mergeHandoffState = (base={}, patch={})=>{
+    const next = Object.assign({}, base || {});
+    Object.keys(patch || {}).forEach(orderId=>{
+      next[orderId] = Object.assign({}, next[orderId] || {}, cloneDeep(patch[orderId] || {}));
+    });
+    return next;
+  };
+
+  const mergeDriversList = (base=[], updates=[])=>{
+    const map = new Map();
+    (Array.isArray(base) ? base : []).forEach(driver=>{
+      if(!driver) return;
+      const key = driver.id != null ? String(driver.id) : (driver.code != null ? String(driver.code) : null);
+      if(!key) return;
+      map.set(key, Object.assign({}, driver));
+    });
+    (Array.isArray(updates) ? updates : []).forEach(driver=>{
+      if(!driver) return;
+      const key = driver.id != null ? String(driver.id) : (driver.code != null ? String(driver.code) : null);
+      if(!key) return;
+      map.set(key, Object.assign({}, map.get(key) || {}, driver));
+    });
+    return Array.from(map.values());
+  };
+
+  const mergeExpoTickets = (base=[], updates=[])=>{
+    if(!Array.isArray(updates) || !updates.length){
+      return Array.isArray(base) ? base.map(ticket=> Object.assign({}, ticket)) : [];
+    }
+    const map = new Map();
+    (Array.isArray(base) ? base : []).forEach(ticket=>{
+      if(!ticket || ticket.id == null) return;
+      map.set(String(ticket.id), Object.assign({}, ticket));
+    });
+    updates.forEach(ticket=>{
+      if(!ticket || ticket.id == null) return;
+      const id = String(ticket.id);
+      map.set(id, Object.assign({}, map.get(id) || {}, ticket));
+    });
+    return Array.from(map.values());
+  };
+
+  const mergeDatasetDeep = (base={}, overlay={})=>{
+    const target = cloneDeep(base || {});
+    const assign = (dest, src)=>{
+      if(!src || typeof src !== 'object') return;
+      Object.keys(src).forEach((key)=>{
+        const value = src[key];
+        if(Array.isArray(value)){
+          dest[key] = value.map(entry=> cloneDeep(entry));
+        } else if(value && typeof value === 'object'){
+          if(!dest[key] || typeof dest[key] !== 'object' || Array.isArray(dest[key])){
+            dest[key] = cloneDeep(value);
+          } else {
+            assign(dest[key], value);
+          }
+        } else {
+          dest[key] = value;
+        }
+      });
+    };
+    assign(target, overlay || {});
+    return target;
+  };
+
+  function createKdsIndexedDBAdapter(options={}){
+    const IndexedDBX = U.IndexedDBX || U.IndexedDB || null;
+    if(!IndexedDBX){
+      console.warn('[Mishkah][KDS] IndexedDB adapter unavailable.');
       return null;
     }
-  };
-  const handoffStorage = resolveStorage();
-  const normalizeOrderKey = (value)=>{
-    if(value == null) return null;
-    const text = String(value).trim();
-    return text.length ? text : null;
-  };
-  const shouldPersistHandoff = (record)=>{
-    if(!record || typeof record !== 'object') return false;
-    const status = record.status ? String(record.status).toLowerCase() : '';
-    return status === 'assembled' || status === 'served';
-  };
-  const parsePersistedHandoff = ()=>{
-    if(!handoffStorage) return {};
-    try{
-      const raw = handoffStorage.getItem(HANDOFF_STORAGE_KEY);
-      if(!raw) return {};
-      const parsed = JSON.parse(raw);
-      if(!parsed || typeof parsed !== 'object') return {};
-      return Object.keys(parsed).reduce((acc, key)=>{
-        const entry = parsed[key];
-        if(entry && typeof entry === 'object'){
-          acc[key] = { ...entry };
+    const branch = options.branch || 'default';
+    const manifest = options.manifest || {};
+    const dbName = options.name || `mishkah-kds-${branch}`;
+    const version = Math.max(1, Number(options.version) || Number(manifest.version) || 1);
+    const idb = new IndexedDBX({
+      name: dbName,
+      version,
+      autoBumpVersion:true,
+      schema:{
+        stores:{
+          snapshots:{ keyPath:'id' },
+          sync:{ keyPath:'id' }
         }
-        return acc;
-      }, {});
-    } catch(_err){
-      return {};
-    }
-  };
-  const persistedHandoff = parsePersistedHandoff();
-  const writePersistedHandoff = ()=>{
-    if(!handoffStorage) return;
-    try{
-      handoffStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify(persistedHandoff));
-    } catch(_err){ /* ignore persistence errors */ }
-  };
-  const recordPersistedHandoff = (orderId, record)=>{
-    const key = normalizeOrderKey(orderId);
-    if(!key) return;
-    if(record && shouldPersistHandoff(record)){
-      persistedHandoff[key] = { ...record };
-    } else if(persistedHandoff[key]){
-      delete persistedHandoff[key];
-    }
-    writePersistedHandoff();
-  };
-  const clonePersistedHandoff = ()=> Object.keys(persistedHandoff).reduce((acc, key)=>{
-    acc[key] = cloneDeep(persistedHandoff[key]);
-    return acc;
-  }, {});
-  const resolveHandoffTimestamp = (record)=>{
-    if(!record || typeof record !== 'object') return 0;
-    const candidates = [record.updatedAt, record.servedAt, record.assembledAt];
-    for(const value of candidates){
-      const ms = value ? Date.parse(value) : NaN;
-      if(Number.isFinite(ms)) return ms;
-    }
-    return 0;
-  };
-  const applyExpoStatusForOrder = (source, orderId, patch={})=>{
-    if(!Array.isArray(source)) return source;
-    const key = normalizeOrderKey(orderId);
-    if(!key) return source;
-    let changed = false;
-    const next = source.map(ticket=>{
-      if(!ticket || typeof ticket !== 'object') return ticket;
-      const ticketKey = normalizeOrderKey(ticket.orderId || ticket.order_id || ticket.orderID);
-      if(ticketKey && ticketKey === key){
-        changed = true;
-        return { ...ticket, ...patch };
       }
-      return ticket;
     });
-    return changed ? next : source;
-  };
-  const syncExpoSourceWithHandoff = (source, handoffMap)=>{
-    if(!Array.isArray(source)) return source;
-    if(!handoffMap || typeof handoffMap !== 'object') return source;
-    let changed = false;
-    const next = source.map(ticket=>{
-      if(!ticket || typeof ticket !== 'object') return ticket;
-      const ticketKey = normalizeOrderKey(ticket.orderId || ticket.order_id || ticket.orderID);
-      if(!ticketKey) return ticket;
-      const record = handoffMap[ticketKey];
-      if(!record || typeof record !== 'object') return ticket;
-      const status = record.status;
-      if(status && status !== ticket.status){
-        changed = true;
-        const patch = { status };
-        if(record.updatedAt) patch.updatedAt = record.updatedAt;
-        if(record.assembledAt) patch.assembledAt = record.assembledAt;
-        if(record.servedAt) patch.servedAt = record.servedAt;
-        return { ...ticket, ...patch };
+
+    const loadSnapshotRecord = async ()=>{
+      try {
+        return await idb.get('snapshots', 'active');
+      } catch(error){
+        console.warn('[Mishkah][KDS] Failed to load snapshot record.', error);
+        return null;
       }
-      return ticket;
-    });
-    return changed ? next : source;
+    };
+
+    const loadSnapshot = async ()=>{
+      const record = await loadSnapshotRecord();
+      if(!record || !record.snapshot) return null;
+      return cloneDeep(record.snapshot);
+    };
+
+    const saveSnapshotRecord = async (snapshot, context={})=>{
+      const payload = {
+        id:'active',
+        snapshot: cloneDeep(snapshot || {}),
+        branch,
+        schemaVersion: version,
+        savedAt: new Date().toISOString(),
+        meta: Object.assign({}, context.meta || {})
+      };
+      await idb.put('snapshots', payload);
+      return payload;
+    };
+
+    const getSyncState = async ()=>{
+      try {
+        const state = await idb.get('sync', 'state');
+        if(state) return Object.assign({}, state);
+      } catch(error){
+        console.warn('[Mishkah][KDS] Failed to read sync state.', error);
+      }
+      return {
+        id:'state',
+        branch,
+        ordersUpdatedAt:null,
+        deliveriesUpdatedAt:null,
+        handoffUpdatedAt:null,
+        driversUpdatedAt:null,
+        updatedAt:null
+      };
+    };
+
+    const updateSyncState = async (patch={})=>{
+      const current = await getSyncState();
+      const next = Object.assign({}, current, cloneDeep(patch || {}), {
+        id:'state',
+        branch,
+        updatedAt: new Date().toISOString()
+      });
+      await idb.put('sync', next);
+      return next;
+    };
+
+    const applyOrdersDelta = async (delta={}, context={})=>{
+      if(!delta || typeof delta !== 'object') return null;
+      const record = await loadSnapshotRecord();
+      const snapshot = record && record.snapshot ? cloneDeep(record.snapshot) : {};
+      const kdsState = snapshot.kds && typeof snapshot.kds === 'object' ? snapshot.kds : (snapshot.kds = {});
+      const jobOrdersCurrent = kdsState.jobOrders || {};
+      const mergedJobOrders = mergeJobOrderCollections(jobOrdersCurrent, delta.jobOrders || {});
+      mergedJobOrders.expoPassTickets = Array.isArray(delta.jobOrders?.expoPassTickets)
+        ? delta.jobOrders.expoPassTickets.map(ticket=> Object.assign({}, ticket))
+        : mergedJobOrders.expoPassTickets || [];
+      kdsState.jobOrders = mergedJobOrders;
+      if(Array.isArray(delta.expoTickets)){
+        kdsState.expoSource = mergeExpoTickets(kdsState.expoSource || [], delta.expoTickets);
+      }
+      if(delta.deliveries){
+        kdsState.deliveries = mergeDeliveryState(kdsState.deliveries || {}, delta.deliveries);
+      }
+      if(delta.handoff){
+        kdsState.handoff = mergeHandoffState(kdsState.handoff || {}, delta.handoff);
+      }
+      if(Array.isArray(delta.drivers)){
+        kdsState.drivers = mergeDriversList(kdsState.drivers || [], delta.drivers);
+      }
+      if(delta.master){
+        const master = delta.master;
+        if(Array.isArray(master.drivers)){
+          kdsState.drivers = mergeDriversList(kdsState.drivers || [], master.drivers);
+        }
+        if(Array.isArray(master.stations)){
+          kdsState.stations = master.stations.map(entry=> toPlainObject(entry));
+        }
+        if(Array.isArray(master.stationCategoryRoutes)){
+          kdsState.stationCategoryRoutes = master.stationCategoryRoutes.map(entry=> toPlainObject(entry));
+        }
+        if(Array.isArray(master.kitchenSections)){
+          kdsState.kitchenSections = master.kitchenSections.map(entry=> toPlainObject(entry));
+        }
+        if(Array.isArray(master.categorySections)){
+          kdsState.categorySections = master.categorySections.map(entry=> toPlainObject(entry));
+        }
+        if(master.categories || master.items){
+          const menuState = kdsState.menu || {};
+          kdsState.menu = {
+            categories: Array.isArray(master.categories) ? master.categories.map(entry=> toPlainObject(entry)) : (menuState.categories || []),
+            items: Array.isArray(master.items) ? master.items.map(entry=> toPlainObject(entry)) : (menuState.items || [])
+          };
+        }
+        if(master.metadata){
+          kdsState.metadata = Object.assign({}, kdsState.metadata || {}, toPlainObject(master.metadata));
+        }
+        if(master.sync){
+          kdsState.sync = Object.assign({}, kdsState.sync || {}, toPlainObject(master.sync));
+        }
+        if(master.channel){
+          kdsState.channel = master.channel;
+          kdsState.sync = Object.assign({}, kdsState.sync || {}, { channel: master.channel });
+        }
+      }
+      if(delta.meta){
+        kdsState.meta = Object.assign({}, kdsState.meta || {}, toPlainObject(delta.meta));
+      }
+      snapshot.kds = kdsState;
+      await saveSnapshotRecord(snapshot, context);
+      if(context.cursor){
+        await updateSyncState(context.cursor);
+      }
+      return snapshot;
+    };
+
+    const replaceSnapshot = async (snapshot, context={})=>{
+      await saveSnapshotRecord(snapshot, context);
+      if(context.cursor){
+        await updateSyncState(context.cursor);
+      }
+      return snapshot;
+    };
+
+    const reset = async ()=>{
+      try { await idb.clear('snapshots'); } catch(_err){}
+      try { await idb.clear('sync'); } catch(_err){}
+    };
+
+    return {
+      db: idb,
+      loadSnapshot,
+      loadSnapshotRecord,
+      saveSnapshot: replaceSnapshot,
+      applyOrdersDelta,
+      getSyncState,
+      updateSyncState,
+      replaceSnapshot,
+      reset
+    };
+  }
+
+  function createKdsDeltaFetcher(options={}){
+    const fetchImpl = typeof options.fetch === 'function' ? options.fetch : (typeof fetch === 'function' ? fetch : null);
+    const rawBase = typeof options.restBase === 'string' ? options.restBase.trim() : '';
+    if(!fetchImpl || !rawBase){
+      return {
+        async fetchOrders(){ return null; },
+        async fetchFullSnapshot(){ return null; }
+      };
+    }
+    const restBase = rawBase.replace(/\/$/, '');
+    const branch = options.branch || null;
+
+    const cloneRow = (row)=> (row && typeof row === 'object' ? Object.assign({}, row) : {});
+    const resolveOrderId = (row)=>{
+      if(!row || typeof row !== 'object') return null;
+      const candidates = [
+        'orderId',
+        'order_id',
+        'orderID',
+        'order',
+        'orderNumber',
+        'order_number',
+        'jobOrderId',
+        'job_order_id',
+        'parentOrderId',
+        'parent_order_id'
+      ];
+      for(const key of candidates){
+        if(row[key] == null) continue;
+        const value = row[key];
+        if(value === '') continue;
+        return String(value);
+      }
+      return null;
+    };
+
+    const mergeDeliveryRecords = (rows=[])=>{
+      const map = {};
+      rows.forEach((row)=>{
+        const orderId = resolveOrderId(row);
+        if(!orderId) return;
+        const normalized = cloneRow(row);
+        delete normalized.orderId;
+        delete normalized.order_id;
+        delete normalized.orderID;
+        delete normalized.order;
+        delete normalized.orderNumber;
+        delete normalized.order_number;
+        delete normalized.jobOrderId;
+        delete normalized.job_order_id;
+        delete normalized.parentOrderId;
+        delete normalized.parent_order_id;
+        map[orderId] = Object.assign({}, map[orderId] || {}, normalized);
+      });
+      return map;
+    };
+
+    const mapHandoffRecords = (rows=[])=>{
+      const map = {};
+      rows.forEach((row)=>{
+        const orderId = resolveOrderId(row) || (row && row.id != null ? String(row.id) : null);
+        if(!orderId) return;
+        const normalized = cloneRow(row);
+        delete normalized.orderId;
+        delete normalized.order_id;
+        delete normalized.orderID;
+        delete normalized.order;
+        delete normalized.orderNumber;
+        delete normalized.order_number;
+        map[orderId] = Object.assign({}, map[orderId] || {}, normalized);
+      });
+      return map;
+    };
+
+    const mapDriversList = (rows=[])=>{
+      const seen = new Map();
+      rows.forEach((row)=>{
+        if(!row || typeof row !== 'object') return;
+        const normalized = cloneRow(row);
+        const keyCandidate = normalized.id ?? normalized.driverId ?? normalized.driver_id ?? normalized.code ?? normalized.driverCode;
+        const key = keyCandidate != null ? String(keyCandidate) : `idx-${seen.size}`;
+        const existing = seen.get(key) || {};
+        seen.set(key, Object.assign({}, existing, normalized));
+      });
+      return Array.from(seen.values());
+    };
+
+    const safeFetch = async (url)=>{
+      let response;
+      try {
+        response = await fetchImpl(url, { cache:'no-store' });
+      } catch(error){
+        const err = new Error(`Network failure for ${url}`);
+        err.cause = error;
+        throw err;
+      }
+      if(response.status === 404){
+        return { rows: [] };
+      }
+      if(response.status === 409){
+        let payload = null;
+        try { payload = await response.json(); } catch(_err){}
+        const err = new Error('Requires full sync');
+        err.code = 'requires-full-sync';
+        err.body = payload;
+        throw err;
+      }
+      if(!response.ok){
+        const text = await response.text().catch(()=> response.statusText || '');
+        const err = new Error(`HTTP ${response.status}`);
+        err.status = response.status;
+        err.body = text;
+        throw err;
+      }
+      try {
+        return await response.json();
+      } catch(error){
+        const err = new Error('Failed to parse JSON response');
+        err.cause = error;
+        throw err;
+      }
+    };
+
+    const fetchTable = async (table, cursor)=>{
+      const query = cursor ? `?updated_after=${encodeURIComponent(cursor)}` : '';
+      const url = `${restBase}/tables/${table}${query}`;
+      try {
+        return await safeFetch(url);
+      } catch(error){
+        if(error.status === 404) return { rows: [] };
+        throw error;
+      }
+    };
+
+    const fetchRows = async (tables, cursor)=>{
+      const names = Array.isArray(tables) ? tables.filter(Boolean) : [tables];
+      if(!names.length) return [];
+      const responses = await Promise.all(names.map(name=> fetchTable(name, cursor).catch(()=> ({ rows: [] }))));
+      const rows = [];
+      responses.forEach(result=>{
+        if(Array.isArray(result.rows)){
+          result.rows.forEach(row=> rows.push(row));
+        }
+      });
+      return rows;
+    };
+
+    const fetchOrders = async (state={})=>{
+      const sinceOrders = state.ordersUpdatedAt || state.updatedAt || null;
+      const sinceDeliveries = state.deliveriesUpdatedAt || sinceOrders;
+      const sinceHandoff = state.handoffUpdatedAt || sinceOrders;
+      const sinceDrivers = state.driversUpdatedAt || sinceOrders;
+      try {
+        const [
+          headers,
+          details,
+          modifiers,
+          history,
+          expo,
+          deliveryAssignments,
+          deliverySettlements,
+          handoffRows,
+          driversRows
+        ] = await Promise.all([
+          fetchTable('job_order_header', sinceOrders),
+          fetchTable('job_order_detail', sinceOrders),
+          fetchTable('job_order_detail_modifier', sinceOrders),
+          fetchTable('job_order_status_history', sinceOrders),
+          fetchTable('expo_pass_ticket', sinceOrders).catch(()=> ({ rows: [] })),
+          fetchRows(['delivery_assignment', 'order_delivery_assignment', 'kds_delivery_assignment'], sinceDeliveries),
+          fetchRows(['delivery_settlement', 'order_delivery_settlement', 'kds_delivery_settlement'], sinceDeliveries),
+          fetchRows(['order_handoff', 'handoff_status', 'handoff_order', 'kds_handoff'], sinceHandoff),
+          fetchRows(['delivery_driver', 'kds_delivery_driver', 'driver'], sinceDrivers)
+        ]);
+        const payload = {
+          jobOrders:{
+            headers: headers.rows || [],
+            details: details.rows || [],
+            modifiers: modifiers.rows || [],
+            statusHistory: history.rows || []
+          },
+          expoTickets: expo.rows || []
+        };
+        const assignmentRows = Array.isArray(deliveryAssignments) ? deliveryAssignments : [];
+        const settlementRows = Array.isArray(deliverySettlements) ? deliverySettlements : [];
+        const handoffList = Array.isArray(handoffRows) ? handoffRows : [];
+        const driversList = Array.isArray(driversRows) ? driversRows : [];
+        const assignmentsMap = mergeDeliveryRecords(assignmentRows);
+        const settlementsMap = mergeDeliveryRecords(settlementRows);
+        if(Object.keys(assignmentsMap).length || Object.keys(settlementsMap).length){
+          payload.deliveries = {};
+          if(Object.keys(assignmentsMap).length) payload.deliveries.assignments = assignmentsMap;
+          if(Object.keys(settlementsMap).length) payload.deliveries.settlements = settlementsMap;
+        }
+        const handoffMap = mapHandoffRecords(handoffList);
+        if(Object.keys(handoffMap).length){
+          payload.handoff = handoffMap;
+        }
+        const driversNormalized = mapDriversList(driversList).map(cloneRow);
+        if(driversNormalized.length){
+          payload.drivers = driversNormalized;
+        }
+        const updatedAt = computeMaxTimestamp(
+          payload.jobOrders.headers,
+          payload.jobOrders.details,
+          payload.jobOrders.statusHistory,
+          payload.expoTickets
+        );
+        const deliveriesUpdatedAt = computeMaxTimestamp(assignmentRows, settlementRows);
+        const handoffUpdatedAt = computeMaxTimestamp(handoffList);
+        const driversUpdatedAt = computeMaxTimestamp(driversList);
+        const cursor = {
+          ordersUpdatedAt: updatedAt || sinceOrders || state.ordersUpdatedAt || null,
+          deliveriesUpdatedAt: deliveriesUpdatedAt || sinceDeliveries || state.deliveriesUpdatedAt || null,
+          handoffUpdatedAt: handoffUpdatedAt || sinceHandoff || state.handoffUpdatedAt || null,
+          driversUpdatedAt: driversUpdatedAt || sinceDrivers || state.driversUpdatedAt || null
+        };
+        return {
+          payload,
+          cursor,
+          requiresFullSync:false,
+          meta:{ branch }
+        };
+      } catch(error){
+        if(error.code === 'requires-full-sync'){
+          return { payload:null, cursor:null, requiresFullSync:true, error, meta:{ branch } };
+        }
+        console.warn('[Mishkah][KDS] Orders delta fetch failed.', error);
+        return null;
+      }
+    };
+
+    const fetchFullSnapshot = async ()=>{
+      try {
+        return await safeFetch(restBase);
+      } catch(error){
+        console.warn('[Mishkah][KDS] Failed to fetch full snapshot.', error);
+        return null;
+      }
+    };
+
+    return { fetchOrders, fetchFullSnapshot };
+  }
+
+  let kdsStorage = null;
+
+  function createEventReplicator(options={}){
+    const adapter = options.adapter;
+    const endpoint = options.endpoint || null;
+    const branch = options.branch || 'default';
+    const interval = Math.max(2000, Number(options.interval) || 15000);
+    const fetcher = typeof options.fetch === 'function' ? options.fetch : (typeof fetch === 'function' ? fetch : null);
+    const applyEvent = typeof options.applyEvent === 'function' ? options.applyEvent : null;
+    const onBatchApplied = typeof options.onBatchApplied === 'function' ? options.onBatchApplied : null;
+    const onError = typeof options.onError === 'function' ? options.onError : null;
+    const onDiagnostic = typeof options.onDiagnostic === 'function' ? options.onDiagnostic : null;
+    if(!adapter || typeof adapter.getSyncMetadata !== 'function' || typeof adapter.updateSyncMetadata !== 'function'){
+      console.warn('[Mishkah][KDS] Event replicator requires adapter with sync metadata helpers.');
+      return {
+        start(){},
+        stop(){},
+        async fetchNow(){ return { appliedCount:0, eventsProcessed:0 }; },
+        getCursor(){ return { appliedEventId:null, branchSnapshotVersion:null }; }
+      };
+    }
+    if(!endpoint || !fetcher){
+      console.warn('[Mishkah][KDS] Event replicator inactive — missing endpoint or fetch implementation.');
+      return {
+        start(){},
+        stop(){},
+        async fetchNow(){ return { appliedCount:0, eventsProcessed:0 }; },
+        getCursor(){ return { appliedEventId:null, branchSnapshotVersion:null }; }
+      };
+    }
+    let cursorCache = null;
+    let timer = null;
+    let stopped = true;
+    let queue = Promise.resolve();
+
+    const emitDiagnostic = (event, payload)=>{
+      if(!onDiagnostic) return;
+      try { onDiagnostic(event, payload); } catch(_err){}
+    };
+
+    const loadCursor = async ()=>{
+      if(cursorCache) return cursorCache;
+      try {
+        const record = await adapter.getSyncMetadata(branch);
+        cursorCache = {
+          appliedEventId: record?.appliedEventId || null,
+          branchSnapshotVersion: record?.branchSnapshotVersion || null,
+          updatedAt: record?.updatedAt || null
+        };
+      } catch(error){
+        emitDiagnostic('cursor:error', { error, stage:'load' });
+        cursorCache = { appliedEventId:null, branchSnapshotVersion:null, updatedAt:null };
+      }
+      return cursorCache;
+    };
+
+    const persistCursor = async (patch={})=>{
+      cursorCache = { ...(cursorCache || {}), ...patch };
+      try {
+        const saved = await adapter.updateSyncMetadata(branch, cursorCache);
+        cursorCache = { ...cursorCache, ...saved };
+      } catch(error){
+        emitDiagnostic('cursor:error', { error, stage:'save', patch });
+      }
+      return cursorCache;
+    };
+
+    const resolveEventId = (event)=>{
+      if(!event || typeof event !== 'object') return null;
+      const direct = event.id || event.eventId || event.uuid || event.dataset_id || null;
+      if(direct != null) return String(direct);
+      if(event.record && event.record.id != null) return String(event.record.id);
+      if(event.entry && event.entry.id != null) return String(event.entry.id);
+      const payload = event.payload && typeof event.payload === 'object' ? event.payload : null;
+      if(payload){
+        if(payload.id != null) return String(payload.id);
+        if(payload.orderId != null) return String(payload.orderId);
+        if(payload.eventId != null) return String(payload.eventId);
+      }
+      return null;
+    };
+
+    const resolveTimestamp = (event)=>{
+      if(!event || typeof event !== 'object') return Date.now();
+      const candidates = [
+        event.updatedAt,
+        event.createdAt,
+        event.ts,
+        event.time,
+        event.meta?.updatedAt,
+        event.meta?.createdAt,
+        event.meta?.ts
+      ];
+      for(const candidate of candidates){
+        if(candidate == null) continue;
+        const value = typeof candidate === 'string' ? Date.parse(candidate) : Number(candidate);
+        if(Number.isFinite(value)) return value;
+      }
+      return Date.now();
+    };
+
+    const sortEvents = (events)=>{
+      return events.slice().sort((a,b)=>{
+        const tsA = resolveTimestamp(a);
+        const tsB = resolveTimestamp(b);
+        if(tsA !== tsB) return tsA - tsB;
+        const idA = resolveEventId(a) || '';
+        const idB = resolveEventId(b) || '';
+        return idA.localeCompare(idB);
+      });
+    };
+
+    const buildUrl = ()=>{
+      let url = endpoint;
+      const query = new URLSearchParams();
+      const cursor = cursorCache || {};
+      if(cursor.appliedEventId){
+        query.set('after', cursor.appliedEventId);
+      }
+      if(cursor.branchSnapshotVersion){
+        query.set('since_version', cursor.branchSnapshotVersion);
+      }
+      if(options.limit){
+        query.set('limit', options.limit);
+      }
+      if(options.query && typeof options.query === 'object'){
+        Object.entries(options.query).forEach(([key, value])=>{
+          if(value === undefined || value === null) return;
+          query.set(key, value);
+        });
+      }
+      if(typeof options.queryBuilder === 'function'){
+        try {
+          const extra = options.queryBuilder({ cursor, branch });
+          if(extra && typeof extra === 'object'){
+            Object.entries(extra).forEach(([key, value])=>{
+              if(value === undefined || value === null) return;
+              query.set(key, value);
+            });
+          }
+        } catch(error){
+          emitDiagnostic('query:error', { error });
+        }
+      }
+      const queryString = query.toString();
+      if(queryString){
+        url += (url.includes('?') ? '&' : '?') + queryString;
+      }
+      return url;
+    };
+
+    const applyBatch = async (events, context)=>{
+      if(!Array.isArray(events) || !events.length) return { appliedCount:0, eventsProcessed:0 };
+      await loadCursor();
+      const sorted = sortEvents(events);
+      const pointerId = cursorCache?.appliedEventId || null;
+      const startIndex = pointerId ? sorted.findIndex(evt=> resolveEventId(evt) === pointerId) : -1;
+      const slice = startIndex >= 0 ? sorted.slice(startIndex + 1) : sorted;
+      let applied = 0;
+      for(const event of slice){
+        const eventId = resolveEventId(event);
+        let handled = false;
+        if(applyEvent){
+          try {
+            const result = await applyEvent(event, { branch, eventId, context });
+            handled = result !== false;
+          } catch(error){
+            emitDiagnostic('apply:error', { error, eventId, event });
+            if(onError){
+              try { onError(error, event, { branch, stage:'apply' }); } catch(_err){}
+            } else {
+              console.warn('[Mishkah][KDS] Event replicator failed to apply event.', error);
+            }
+            handled = false;
+          }
+        }
+        if(handled && eventId){
+          applied += 1;
+          await persistCursor({ appliedEventId: eventId, updatedAt: Date.now() });
+        }
+      }
+      if(context && context.version !== undefined && context.version !== null){
+        await persistCursor({ branchSnapshotVersion: context.version, updatedAt: Date.now() });
+      }
+      return { appliedCount: applied, eventsProcessed: slice.length };
+    };
+
+    const fetchOnce = async ()=>{
+      await loadCursor();
+      const url = buildUrl();
+      let body = null;
+      let response = null;
+      try {
+        response = await fetcher(url, { cache:'no-store' });
+      } catch(error){
+        emitDiagnostic('fetch:error', { error, url, stage:'network' });
+        if(onError){
+          try { onError(error, null, { branch, stage:'fetch-network' }); } catch(_err){}
+        }
+        throw error;
+      }
+      if(!response || !response.ok){
+        const status = response ? response.status : 'network';
+        const error = new Error(`WS2 events HTTP ${status}`);
+        emitDiagnostic('fetch:error', { error, url, status, stage:'http' });
+        if(onError){
+          try { onError(error, null, { branch, stage:'fetch-http', status }); } catch(_err){}
+        }
+        throw error;
+      }
+      try {
+        body = await response.json();
+      } catch(error){
+        emitDiagnostic('fetch:error', { error, url, stage:'json' });
+        if(onError){
+          try { onError(error, null, { branch, stage:'fetch-json' }); } catch(_err){}
+        }
+        throw error;
+      }
+      const events = Array.isArray(body?.events) ? body.events : [];
+      const version = body?.version ?? body?.branchSnapshotVersion ?? body?.meta?.version ?? body?.snapshot?.version ?? null;
+      const result = await applyBatch(events, { version, raw: body });
+      if(onBatchApplied){
+        try { await onBatchApplied({ ...result, version, body }); } catch(error){ emitDiagnostic('batch:error', { error }); }
+      }
+      if(events.length === 0 && version != null){
+        await persistCursor({ branchSnapshotVersion: version, updatedAt: Date.now() });
+      }
+      return result;
+    };
+
+    const schedule = ()=>{
+      if(stopped) return;
+      if(timer){
+        clearTimeout(timer);
+        timer = null;
+      }
+      timer = setTimeout(()=>{
+        if(stopped) return;
+        queue = queue.then(()=> fetchOnce()).catch(()=>{}).finally(()=> schedule());
+      }, interval);
+    };
+
+    return {
+      start(){
+        if(!stopped) return;
+        stopped = false;
+        queue = queue.then(()=> loadCursor()).catch(()=>{}).then(()=> fetchOnce()).catch(()=>{});
+        schedule();
+      },
+      stop(){
+        stopped = true;
+        if(timer){
+          clearTimeout(timer);
+          timer = null;
+        }
+      },
+      async fetchNow(){
+        await loadCursor();
+        return queue = queue.then(()=> fetchOnce()).catch(error=>{
+          emitDiagnostic('fetch:error', { error, stage:'manual' });
+          return { appliedCount:0, eventsProcessed:0, error };
+        });
+      },
+      getCursor(){
+        return { ...(cursorCache || {}) };
+      }
+    };
+  }
+
+  function createSyncPointerAdapter(){
+    const store = new Map();
+    return {
+      async getSyncMetadata(scope='default'){
+        const key = scope ? `sync:${scope}` : 'sync:default';
+        if(!store.has(key)){
+          store.set(key, { appliedEventId:null, branchSnapshotVersion:null, updatedAt:null });
+        }
+        const record = store.get(key) || { appliedEventId:null, branchSnapshotVersion:null, updatedAt:null };
+        return { ...record };
+      },
+      async updateSyncMetadata(scope='default', patch={}){
+        const key = scope ? `sync:${scope}` : 'sync:default';
+        const base = store.get(key) || { appliedEventId:null, branchSnapshotVersion:null, updatedAt:null };
+        if(Object.prototype.hasOwnProperty.call(patch, 'appliedEventId')){
+          base.appliedEventId = patch.appliedEventId;
+        }
+        if(Object.prototype.hasOwnProperty.call(patch, 'branchSnapshotVersion')){
+          base.branchSnapshotVersion = patch.branchSnapshotVersion;
+        }
+        const hasUpdatedAt = Object.prototype.hasOwnProperty.call(patch, 'updatedAt');
+        base.updatedAt = hasUpdatedAt ? patch.updatedAt : Date.now();
+        store.set(key, { ...base });
+        return { ...base };
+      }
+    };
+  }
+
+  const resolveEventType = (value)=>{
+    if(!value || typeof value !== 'object') return '';
+    const payload = value.payload && typeof value.payload === 'object' ? value.payload : null;
+    const type = payload?.type || payload?.action || value.type || value.action;
+    return String(type || '').toLowerCase();
   };
+
+  const isKdsPayload = (value)=>{
+    if(!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    if(value.kds && typeof value.kds === 'object') return true;
+    if(value.jobOrders || value.jobs || value.deliveries || value.handoff) return true;
+    if(Array.isArray(value.orders) && value.orders.length && value.orders[0]?.lines) return true;
+    return false;
+  };
+
+  function extractKdsPayloads(event){
+    if(!event || typeof event !== 'object') return [];
+    const queue = [event];
+    const seen = new Set();
+    const results = [];
+    while(queue.length){
+      const current = queue.shift();
+      if(!current || typeof current !== 'object') continue;
+      if(seen.has(current)) continue;
+      seen.add(current);
+      if(Array.isArray(current)){
+        current.forEach(item=> queue.push(item));
+        continue;
+      }
+      if(isKdsPayload(current)){
+        results.push(current);
+      }
+      Object.keys(current).forEach(key=>{
+        if(['meta','serverId','version','moduleId','branchId','event','action'].includes(key)) return;
+        const value = current[key];
+        if(value && typeof value === 'object') queue.push(value);
+      });
+    }
+    return results;
+  }
+
+  function applyWs2EventToKds(event, appInstance){
+    if(!appInstance || typeof appInstance.setState !== 'function') return false;
+    const payloads = extractKdsPayloads(event);
+    if(!payloads.length) return false;
+    const meta = event?.meta || {};
+    let applied = false;
+    payloads.forEach(entry=>{
+      const dataset = entry.kds && typeof entry.kds === 'object' ? entry.kds : entry;
+      if(dataset.jobOrders || dataset.deliveries || dataset.handoff || dataset.drivers || dataset.meta || dataset.master){
+        applyRemoteOrder(appInstance, dataset, meta);
+        applied = true;
+      }
+      if(dataset.jobUpdate && dataset.jobUpdate.jobId){
+        applyJobUpdateMessage(appInstance, dataset.jobUpdate, meta);
+        applied = true;
+      }
+      if(dataset.deliveryUpdate && dataset.deliveryUpdate.orderId){
+        applyDeliveryUpdateMessage(appInstance, dataset.deliveryUpdate, meta);
+        applied = true;
+      }
+      if(dataset.handoffUpdate && dataset.handoffUpdate.orderId){
+        applyHandoffUpdateMessage(appInstance, dataset.handoffUpdate, meta);
+        applied = true;
+      }
+    });
+    return applied;
+  }
 
   const normalizeChannelName = (value, fallback='default')=>{
     const base = value == null ? '' : String(value).trim();
@@ -142,25 +1165,9 @@
     return raw.replace(/[^A-Za-z0-9:_-]+/g, '-').toLowerCase();
   };
 
-  const safeText = (value)=> (value == null ? '' : String(value).trim());
-
-  const resolveOrderNumber = (rawNumber, fallbackId)=>{
-    const raw = safeText(rawNumber);
-    const fallback = safeText(fallbackId);
-    if(!raw) return fallback || raw;
-    const numeric = /^#?\d+$/.test(raw);
-    if(!fallback) return raw;
-    if(raw === fallback) return raw;
-    const fallbackHasLetters = /[A-Za-z]/.test(fallback);
-    const fallbackHasSymbol = /[-_]/.test(fallback);
-    if(numeric && (fallbackHasLetters || fallbackHasSymbol)) return fallback;
-    if(numeric && fallback.length > raw.replace(/^#/, '').length) return fallback;
-    return raw;
-  };
-
   const TEXT_DICT = {
     "title": {
-      "ar": " شاشة المطبخ",
+      "ar": "مشكاة — شاشة المطبخ",
       "en": "Mishkah — Kitchen display"
     },
     "subtitle": {
@@ -179,6 +1186,14 @@
       "syncing": {
         "ar": "🔄 مزامنة",
         "en": "🔄 Syncing"
+      },
+      "requiresFullSync": {
+        "ar": "♻️ إعادة التهيئة مطلوبة",
+        "en": "♻️ Full sync required"
+      },
+      "resetting": {
+        "ar": "🧹 جارٍ إعادة التهيئة",
+        "en": "🧹 Resetting"
       }
     },
     "stats": {
@@ -210,7 +1225,7 @@
       },
       "expo": {
         "ar": "شاشة التجميع",
-        "en": "Expeditor"
+        "en": "Expo pass"
       },
       "handoff": {
         "ar": "شاشة التسليم",
@@ -348,10 +1363,6 @@
         "takeaway": {
           "ar": "تيك أواي",
           "en": "Takeaway"
-        },
-        "drive_thru": {
-          "ar": "درايف ثرو",
-          "en": "Drive-thru"
         },
         "pickup": {
           "ar": "استلام",
@@ -534,363 +1545,7 @@
     served: tw`border-slate-500/40 bg-slate-800/70 text-slate-100`
   };
 
-  const SERVICE_ICONS = { dine_in:'🍽️', delivery:'🚚', takeaway:'🧾', pickup:'🛍️', drive_thru:'🚗' };
-  const SERVICE_MODE_FALLBACK = 'dine_in';
-
-  const SERVICE_ALIASES = {
-    dine_in: [
-      'dine',
-      'dine in',
-      'dine-in',
-      'dine_in',
-      'eat in',
-      'eat-in',
-      'eat_in',
-      'hall',
-      'inhouse',
-      'in-house',
-      'in house',
-      'inside',
-      'internal',
-      'restaurant',
-      'table',
-      'صالة',
-      'صاله',
-      'داخل',
-      'داخلي',
-      'جلسة',
-      'مجلس'
-    ],
-    delivery: [
-      'delivery',
-      'deliver',
-      'del',
-      'deliv',
-      'delevery',
-      'dilivery',
-      'courier',
-      'express',
-      'خارجي',
-      'التوصيل',
-      'توصيل',
-      'خارجية',
-      'دليفري',
-      'ديليفري',
-      'ديلفري',
-      'ديليفري'
-    ],
-    takeaway: [
-      'takeaway',
-      'take away',
-      'take-away',
-      'take_away',
-      'carryout',
-      'carry out',
-      'carry-out',
-      'counter',
-      'walk in',
-      'walk-in',
-      'walkin',
-      'سفري',
-      'سفريه',
-      'تيك',
-      'تيك اوي',
-      'تيك أوي',
-      'تيكاوي',
-      'تيك-اوي'
-    ],
-    pickup: [
-      'pickup',
-      'pick up',
-      'pick-up',
-      'collection',
-      'collect',
-      'self pickup',
-      'self-pickup',
-      'self_pickup',
-      'استلام',
-      'استلام ذاتي',
-      'استلام شخصي',
-      'استلم'
-    ],
-    drive_thru: [
-      'drive',
-      'drive thru',
-      'drive-thru',
-      'drive_thru',
-      'drive through',
-      'car',
-      'سيارة',
-      'سياره',
-      'درايف'
-    ]
-  };
-
-  const normalizeServiceToken = (value) => {
-    const text = safeText(value);
-    if (!text) return '';
-    return text
-      .replace(/[\u064B-\u065F]/g, '')
-      .replace(/[()]/g, ' ')
-      .replace(/[_-]+/g, ' ')
-      .replace(/[^A-Za-z0-9\u0600-\u06FF]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-  };
-
-  const SERVICE_ALIAS_LOOKUP = new Map();
-  Object.keys(SERVICE_ALIASES).forEach((service) => {
-    const aliases = SERVICE_ALIASES[service] || [];
-    const tokens = new Set();
-    tokens.add(service);
-    aliases.forEach((alias) => tokens.add(alias));
-    tokens.forEach((token) => {
-      const normalized = normalizeServiceToken(token);
-      if (!normalized) return;
-      SERVICE_ALIAS_LOOKUP.set(normalized, service);
-      const collapsed = normalized.replace(/\s+/g, '');
-      if (collapsed) SERVICE_ALIAS_LOOKUP.set(collapsed, service);
-    });
-  });
-
-  const detectServiceModeFromValue = (value) => {
-    if (!value && value !== 0) return '';
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        const detected = detectServiceModeFromValue(entry);
-        if (detected) return detected;
-      }
-      return '';
-    }
-    if (typeof value === 'object') {
-      if (!value) return '';
-      const fields = [
-        value.serviceMode,
-        value.service_mode,
-        value.orderType,
-        value.order_type,
-        value.orderTypeId,
-        value.order_type_id,
-        value.orderTypeCode,
-        value.order_type_code,
-        value.orderTypeName,
-        value.order_type_name,
-        value.type,
-        value.typeName,
-        value.type_name,
-        value.slug,
-        value.code,
-        value.value,
-        value.name,
-        value.label,
-        value.title,
-        value.text,
-        value.nameAr,
-        value.nameAR,
-        value.name_ar,
-        value.nameEn,
-        value.nameEN,
-        value.name_en,
-        value.labelAr,
-        value.labelAR,
-        value.label_ar,
-        value.labelEn,
-        value.labelEN,
-        value.label_en,
-        value.type_name?.ar,
-        value.type_name?.en,
-        value.name?.ar,
-        value.name?.en,
-        value.label?.ar,
-        value.label?.en
-      ];
-      for (const field of fields) {
-        const detected = detectServiceModeFromValue(field);
-        if (detected) return detected;
-      }
-      return '';
-    }
-    const normalized = normalizeServiceToken(value);
-    if (!normalized) return '';
-    if (SERVICE_ALIAS_LOOKUP.has(normalized)) {
-      return SERVICE_ALIAS_LOOKUP.get(normalized);
-    }
-    const collapsed = normalized.replace(/\s+/g, '');
-    if (SERVICE_ALIAS_LOOKUP.has(collapsed)) {
-      return SERVICE_ALIAS_LOOKUP.get(collapsed);
-    }
-    return '';
-  };
-
-  const registerServiceLookup = (lookup, key, service) => {
-    if (!lookup || !service) return;
-    const raw = safeText(key);
-    if (!raw) return;
-    const lowered = raw.toLowerCase();
-    if (lowered) lookup.set(lowered, service);
-    const collapsedId = lowered.replace(/\s+/g, '');
-    if (collapsedId) lookup.set(collapsedId, service);
-    const normalized = normalizeServiceToken(raw);
-    if (normalized) {
-      lookup.set(normalized, service);
-      const collapsed = normalized.replace(/\s+/g, '');
-      if (collapsed) lookup.set(collapsed, service);
-    }
-  };
-
-  const buildOrderTypeMapLookup = (payload) => {
-    const lookup = new Map();
-    const sources = [
-      payload?.orderTypeMap,
-      payload?.order_type_map,
-      payload?.orderTypesMap,
-      payload?.order_types_map,
-      payload?.orderTypeLookup,
-      payload?.order_type_lookup,
-      payload?.meta?.orderTypeMap,
-      payload?.meta?.order_type_map,
-      payload?.meta?.orderTypeLookup,
-      payload?.meta?.order_type_lookup,
-      payload?.settings?.orderTypeMap,
-      payload?.settings?.order_type_map,
-      payload?.settings?.orderTypeLookup,
-      payload?.settings?.order_type_lookup,
-      payload?.kds?.orderTypeMap,
-      payload?.kds?.order_type_map,
-      payload?.kds?.orderTypeLookup,
-      payload?.kds?.order_type_lookup,
-      payload?.master?.orderTypeMap,
-      payload?.master?.order_type_map,
-      payload?.master?.orderTypeLookup,
-      payload?.master?.order_type_lookup
-    ];
-    sources.forEach((source) => {
-      if (!source) return;
-      if (Array.isArray(source)) {
-        source.forEach((entry) => {
-          if (!entry) return;
-          if (Array.isArray(entry) && entry.length >= 2) {
-            const service = detectServiceModeFromValue(entry[1]);
-            if (service) registerServiceLookup(lookup, entry[0], service);
-          } else if (typeof entry === 'object') {
-            const key = entry.key || entry.id || entry.code || entry.value;
-            const value =
-              entry.serviceMode ||
-              entry.service_mode ||
-              entry.value ||
-              entry.type ||
-              entry.slug ||
-              entry.code ||
-              entry.name ||
-              entry.label;
-            const service = detectServiceModeFromValue(value);
-            if (service) registerServiceLookup(lookup, key, service);
-          }
-        });
-      } else if (typeof source === 'object') {
-        Object.entries(source).forEach(([key, value]) => {
-          const service = detectServiceModeFromValue(value);
-          if (service) registerServiceLookup(lookup, key, service);
-        });
-      }
-    });
-    return lookup;
-  };
-
-  const buildOrderTypeTypeLookup = (payload, mapLookup) => {
-    const lookup = new Map();
-    const types = ensureArray(
-      payload?.order_types || payload?.orderTypes || payload?.master?.orderTypes
-    );
-    types.forEach((type) => {
-      if (!type) return;
-      const candidates = new Set();
-      [
-        type.id,
-        type.orderTypeId,
-        type.order_type_id,
-        type.orderTypeCode,
-        type.order_type_code,
-        type.code,
-        type.slug,
-        type.type,
-        type.value,
-        type.name,
-        type.label,
-        type.type_name?.ar,
-        type.type_name?.en,
-        type.name?.ar,
-        type.name?.en,
-        type.label?.ar,
-        type.label?.en
-      ].forEach((field) => {
-        const text = safeText(field);
-        if (text) candidates.add(text);
-      });
-      let resolved = '';
-      for (const candidate of candidates) {
-        resolved = resolved || detectServiceModeFromValue(candidate);
-        if (resolved) break;
-      }
-      if (!resolved) {
-        resolved = detectServiceModeFromValue(type);
-      }
-      if (!resolved) {
-        for (const candidate of candidates) {
-          const mapMatch = (key) => mapLookup.get(key) || '';
-          const lowered = safeText(candidate).toLowerCase();
-          resolved = mapMatch(lowered);
-          if (!resolved) {
-            const collapsed = lowered.replace(/\s+/g, '');
-            resolved = mapMatch(collapsed);
-          }
-          if (!resolved) {
-            const normalized = normalizeServiceToken(candidate);
-            resolved = mapMatch(normalized);
-            if (!resolved) {
-              const collapsedNorm = normalized.replace(/\s+/g, '');
-              resolved = mapMatch(collapsedNorm);
-            }
-          }
-          if (resolved) break;
-        }
-      }
-      const service = resolved || SERVICE_MODE_FALLBACK;
-      candidates.forEach((candidate) => {
-        registerServiceLookup(lookup, candidate, service);
-      });
-    });
-    return lookup;
-  };
-
-  let lastServiceLookupPayload = null;
-  let lastServiceLookup = null;
-  const getOrderTypeLookups = (payload) => {
-    if (payload && payload === lastServiceLookupPayload && lastServiceLookup) {
-      return lastServiceLookup;
-    }
-    const mapLookup = buildOrderTypeMapLookup(payload || {});
-    const typeLookup = buildOrderTypeTypeLookup(payload || {}, mapLookup);
-    lastServiceLookupPayload = payload;
-    lastServiceLookup = { mapLookup, typeLookup };
-    return lastServiceLookup;
-  };
-
-  const lookupServiceCandidate = (lookup, candidate) => {
-    if (!lookup) return '';
-    const text = safeText(candidate);
-    if (!text) return '';
-    const lowered = text.toLowerCase();
-    if (lookup.has(lowered)) return lookup.get(lowered);
-    const collapsedId = lowered.replace(/\s+/g, '');
-    if (lookup.has(collapsedId)) return lookup.get(collapsedId);
-    const normalized = normalizeServiceToken(text);
-    if (lookup.has(normalized)) return lookup.get(normalized);
-    const collapsed = normalized.replace(/\s+/g, '');
-    if (lookup.has(collapsed)) return lookup.get(collapsed);
-    return '';
-  };
+  const SERVICE_ICONS = { dine_in:'🍽️', delivery:'🚚', takeaway:'🧾', pickup:'🛍️' };
 
   const parseTime = (value)=>{
     if(!value) return null;
@@ -922,197 +1577,14 @@
     return 1;
   };
 
-  const previewList = (value, limit = 5)=> Array.isArray(value) ? value.slice(0, limit) : [];
-  const mapSectionPreview = (section = {})=>{
-    const id = section.id || section.stationId || section.sectionId || null;
-    return {
-      id,
-      code: section.code || section.stationCode || (id ? String(id).toUpperCase() : null),
-      nameAr: section.nameAr || section.section_name?.ar || section.name?.ar || section.nameAr || section.name || '',
-      nameEn: section.nameEn || section.section_name?.en || section.name?.en || section.nameEn || section.name || '',
-      stationType: section.stationType || (section.isExpo || section.is_expo ? 'expo' : 'prep')
-    };
-  };
-  const mapRoutePreview = (route = {})=>({
-    id: route.id || route.routeId || null,
-    categoryId: route.categoryId || route.category_id || null,
-    sectionId: route.stationId || route.station_id || route.sectionId || null,
-    priority: route.priority ?? null,
-    isActive: route.isActive ?? route.active ?? null
-  });
-  const mapMenuItemPreview = (item = {})=>({
-    id: item.id || item.itemId || item.menuItemId || null,
-    code: item.code || item.itemCode || item.menuItemCode || null,
-    nameAr: item.nameAr || item.itemNameAr || item.item_name_ar || item.name?.ar || '',
-    nameEn: item.nameEn || item.itemNameEn || item.item_name_en || item.name?.en || '',
-    sectionId: item.kitchenSectionId || item.sectionId || item.stationId || null,
-    categoryId: item.categoryId || item.menuCategoryId || null
-  });
-  const mapJobHeaderPreview = (header = {})=>({
-    id: header.id || header.jobOrderId || null,
-    orderId: header.orderId || header.order_id || null,
-    stationId: header.stationId || header.sectionId || null,
-    stationCode: header.stationCode || header.station_code || null,
-    status: header.status || '',
-    totalItems: header.totalItems || 0,
-    completedItems: header.completedItems || 0
-  });
-  const mapDetailPreview = (detail = {})=>({
-    id: detail.id || detail.detailId || null,
-    jobOrderId: detail.jobOrderId || detail.job_id || null,
-    itemId: detail.itemId || detail.menuItemId || null,
-    itemCode: detail.itemCode || detail.code || null,
-    quantity: detail.quantity || 0,
-    status: detail.status || '',
-    itemNameAr: detail.itemNameAr || detail.nameAr || detail.item_name_ar || '',
-    itemNameEn: detail.itemNameEn || detail.nameEn || detail.item_name_en || ''
-  });
-  const mapDriverPreview = (driver = {})=>({
-    id: driver.id || driver.driverId || driver.code || null,
-    name: driver.name || driver.driverName || driver.fullName || driver.displayName || '',
-    phone: driver.phone || driver.driverPhone || driver.mobile || ''
-  });
-
-  const summarizeJobPayload = (payload = {})=>{
-    const jobOrders = payload.jobOrders || {};
-    const master = payload.master || {};
-    const headers = Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
-    const details = Array.isArray(jobOrders.details) ? jobOrders.details : [];
-    const stations = Array.isArray(master.stations) ? master.stations : [];
-    const kitchenSections = Array.isArray(master.kitchenSections) ? master.kitchenSections : [];
-    const stationCategoryRoutes = Array.isArray(master.stationCategoryRoutes) ? master.stationCategoryRoutes : [];
-    const menuItems = Array.isArray(master.menu_items) ? master.menu_items : [];
-    const menuCategories = Array.isArray(master.menu_categories) ? master.menu_categories : [];
-    const drivers = Array.isArray(payload.drivers)
-      ? payload.drivers
-      : (Array.isArray(master.drivers) ? master.drivers : []);
-    return {
-      counts:{
-        headers: headers.length,
-        details: details.length,
-        stations: stations.length,
-        kitchenSections: kitchenSections.length,
-        stationCategoryRoutes: stationCategoryRoutes.length,
-        menuItems: menuItems.length,
-        menuCategories: menuCategories.length,
-        drivers: drivers.length
-      },
-      samples:{
-        headers: previewList(headers, 5).map(mapJobHeaderPreview),
-        details: previewList(details, 5).map(mapDetailPreview),
-        stations: previewList(stations, 5).map(mapSectionPreview),
-        kitchenSections: previewList(kitchenSections, 5).map(mapSectionPreview),
-        stationCategoryRoutes: previewList(stationCategoryRoutes, 5).map(mapRoutePreview),
-        menuItems: previewList(menuItems, 5).map(mapMenuItemPreview),
-        drivers: previewList(drivers, 5).map(mapDriverPreview)
-      }
-    };
-  };
-
-  const summarizeAppStateSnapshot = (state)=>{
-    if(!state || typeof state !== 'object') return null;
-    const data = state.data || {};
-    const jobsList = Array.isArray(data.jobs?.list)
-      ? data.jobs.list
-      : (Array.isArray(data.jobs) ? data.jobs : []);
-    const byStation = data.jobs && data.jobs.byStation ? data.jobs.byStation : {};
-    const stations = Array.isArray(data.stations) ? data.stations : [];
-    const kitchenSections = Array.isArray(data.kitchenSections) ? data.kitchenSections : [];
-    const stationCategoryRoutes = Array.isArray(data.stationCategoryRoutes) ? data.stationCategoryRoutes : [];
-    const categorySections = Array.isArray(data.categorySections) ? data.categorySections : [];
-    const menuItems = Array.isArray(data.menu?.items) ? data.menu.items : [];
-    const drivers = Array.isArray(data.drivers) ? data.drivers : [];
-    const deliveries = data.deliveries || {};
-    const assignmentKeys = deliveries.assignments ? Object.keys(deliveries.assignments) : [];
-    const settlementKeys = deliveries.settlements ? Object.keys(deliveries.settlements) : [];
-    const jobsByStation = Object.keys(byStation).map((stationId)=>({
-      stationId,
-      jobCount: Array.isArray(byStation[stationId]) ? byStation[stationId].length : 0
-    }));
-    return {
-      filters:{
-        activeTab: data.filters?.activeTab || null,
-        lockedSection: data.filters?.lockedSection || null
-      },
-      counts:{
-        jobs: jobsList.length,
-        stations: stations.length,
-        kitchenSections: kitchenSections.length,
-        stationCategoryRoutes: stationCategoryRoutes.length,
-        categorySections: categorySections.length,
-        menuItems: menuItems.length,
-        drivers: drivers.length,
-        deliveryAssignments: assignmentKeys.length,
-        deliverySettlements: settlementKeys.length
-      },
-      stations: previewList(stations, 5).map(mapSectionPreview),
-      kitchenSections: previewList(kitchenSections, 5).map(mapSectionPreview),
-      stationCategoryRoutes: previewList(stationCategoryRoutes, 5).map(mapRoutePreview),
-      categorySections: previewList(categorySections, 5).map(mapRoutePreview),
-      menuItems: previewList(menuItems, 5).map(mapMenuItemPreview),
-      drivers: previewList(drivers, 5).map(mapDriverPreview),
-      jobsByStation: previewList(jobsByStation, 10),
-      jobs: previewList(jobsList, 5).map(job=>({
-        id: job.id || job.jobOrderId || null,
-        orderId: job.orderId || null,
-        stationId: job.stationId || job.sectionId || null,
-        stationCode: job.stationCode || null,
-        status: job.status || '',
-        totalItems: job.totalItems || 0,
-        completedItems: job.completedItems || 0,
-        details: previewList(job.details, 3).map(mapDetailPreview)
-      }))
-    };
-  };
-
-  const logDebugGroup = (label, details)=>{
-    if(typeof console === 'undefined') return;
-    try{
-      if(typeof console.groupCollapsed === 'function'){
-        console.groupCollapsed(label);
-        if(details && typeof details === 'object'){
-          Object.keys(details).forEach(key=>{
-            console.log(`${key}:`, details[key]);
-          });
-        } else {
-          console.log(details);
-        }
-        console.groupEnd();
-      } else {
-        console.log(label, details);
-      }
-    } catch(_err){
-      try{ console.log(label, details); } catch(__err){ /* ignore */ }
-    }
-  };
-
-  let lastWatcherSnapshot = null;
-  let lastStateSnapshot = null;
-
   const computeOrdersSnapshot = (db)=>{
     const orders = Array.isArray(db?.data?.jobs?.orders) ? db.data.jobs.orders : [];
     const handoff = db?.data?.handoff || {};
     const stationMap = db?.data?.stationMap || {};
-    const menuIndex = db?.data?.menuIndex || {};
     return orders.map(order=>{
-      const orderKey = normalizeOrderKey(order.orderId || order.id);
-      let record = (orderKey && (handoff[orderKey] || handoff[order.orderId] || handoff[order.id])) || {};
-      const recordStatus = record.status ? String(record.status).toLowerCase() : '';
-      if(orderKey && (recordStatus === 'assembled' || recordStatus === 'served')){
-        const orderTimeCandidates = [order.updatedAt, order.completedAt, order.readyAt, order.acceptedAt, order.createdAt];
-        const orderTimestamp = orderTimeCandidates.reduce((acc, value)=>{
-          const ms = parseTime(value);
-          return ms && ms > acc ? ms : acc;
-        }, 0);
-        const recordTimestamp = resolveHandoffTimestamp(record);
-        if(!recordTimestamp || (orderTimestamp && orderTimestamp > recordTimestamp)){
-          recordPersistedHandoff(orderKey, null);
-          record = {};
-        }
-      }
+      const record = handoff[order.orderId] || handoff[order.id] || {};
       let totalItems = 0;
       let readyItems = 0;
-      let pendingItems = 0;
       const detailRows = [];
       const jobs = Array.isArray(order.jobs) ? order.jobs : [];
       jobs.forEach(job=>{
@@ -1123,19 +1595,9 @@
         if(jobDetails.length){
           jobDetails.forEach(detail=>{
             const quantity = ensureQuantity(detail.quantity);
-            const menuItem = detail.itemId ? menuIndex[String(detail.itemId)] : null;
-            const detailClone = {
-              ...detail,
-              quantity,
-              itemNameAr: detail.itemNameAr || menuItem?.nameAr || detail.itemId || stationLabelAr,
-              itemNameEn: detail.itemNameEn || menuItem?.nameEn || detail.itemId || stationLabelEn
-            };
+            const detailClone = { ...detail, quantity };
             totalItems += quantity;
-            if(detailClone.status === 'ready' || detailClone.status === 'completed'){
-              readyItems += quantity;
-            } else {
-              pendingItems += quantity;
-            }
+            if(detailClone.status === 'ready' || detailClone.status === 'completed') readyItems += quantity;
             detailRows.push({ detail: detailClone, stationLabelAr, stationLabelEn });
           });
         } else {
@@ -1149,11 +1611,7 @@
             prepNotes: job.notes || '',
             modifiers: []
           };
-          if(job.status === 'ready' || job.status === 'completed'){
-            readyItems += quantity;
-          } else {
-            pendingItems += quantity;
-          }
+          if(job.status === 'ready' || job.status === 'completed') readyItems += quantity;
           totalItems += quantity;
           detailRows.push({ detail: fallbackDetail, stationLabelAr, stationLabelEn });
         }
@@ -1161,193 +1619,22 @@
       if(totalItems === 0){
         totalItems = jobs.reduce((acc, job)=> acc + (Number(job.totalItems) || (Array.isArray(job.details) ? job.details.reduce((dAcc, detail)=> dAcc + ensureQuantity(detail.quantity), 0) : 0)), 0);
         readyItems = jobs.reduce((acc, job)=> acc + (Number(job.completedItems) || 0), 0);
-        pendingItems = Math.max(0, totalItems - readyItems);
       }
       let status = record.status;
-      if(status === 'assembled' || status === 'served'){
-        if(pendingItems > 0){
-          status = 'pending';
-        } else if(readyItems < totalItems){
-          status = 'pending';
-        }
-      } else {
+      if(status !== 'assembled' && status !== 'served'){
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
-      return { ...order, handoffStatus: status, handoffRecord: record, readyItems, totalItems, pendingItems, detailRows };
+      return { ...order, handoffStatus: status, handoffRecord: record, readyItems, totalItems, detailRows };
     });
   };
 
-  const buildExpoFallbackOrder = (ticket, db)=>{
-    if(!ticket || typeof ticket !== 'object') return null;
-    const stationMap = db?.data?.stationMap || {};
-    const menuIndex = db?.data?.menuIndex || {};
-    const jobs = Array.isArray(ticket.jobs) ? ticket.jobs : [];
-    let totalItems = 0;
-    let readyItems = 0;
-    const detailRows = [];
-
-    jobs.forEach(job=>{
-      if(!job || typeof job !== 'object') return;
-      const station = stationMap[job.stationId] || {};
-      const stationLabelAr = station.nameAr || job.stationCode || job.stationId;
-      const stationLabelEn = station.nameEn || job.stationCode || job.stationId;
-      const jobDetails = Array.isArray(job.details) ? job.details : [];
-      if(jobDetails.length){
-        jobDetails.forEach(detail=>{
-          if(!detail || typeof detail !== 'object') return;
-          const quantity = ensureQuantity(detail.quantity);
-          const menuItem = detail.itemId ? menuIndex[String(detail.itemId)] : null;
-          const detailClone = {
-            ...detail,
-            quantity,
-            itemNameAr: detail.itemNameAr || menuItem?.nameAr || detail.itemId || stationLabelAr,
-            itemNameEn: detail.itemNameEn || menuItem?.nameEn || detail.itemId || stationLabelEn
-          };
-          totalItems += quantity;
-          if(detailClone.status === 'ready' || detailClone.status === 'completed'){
-            readyItems += quantity;
-          }
-          detailRows.push({ detail: detailClone, stationLabelAr, stationLabelEn });
-        });
-      } else {
-        const quantity = ensureQuantity(job.totalItems || job.completedItems || 1);
-        const fallbackDetail = {
-          id: `${job.id || 'job'}-fallback`,
-          itemNameAr: stationLabelAr,
-          itemNameEn: stationLabelEn,
-          status: job.status,
-          quantity,
-          prepNotes: job.notes || '',
-          modifiers: []
-        };
-        if(job.status === 'ready' || job.status === 'completed'){
-          readyItems += quantity;
-        }
-        totalItems += quantity;
-        detailRows.push({ detail: fallbackDetail, stationLabelAr, stationLabelEn });
-      }
-    });
-
-    if(totalItems === 0){
-      totalItems = Number(ticket.totalItems) || 0;
-      readyItems = Number(ticket.readyItems) || 0;
-    }
-    const pendingItems = Math.max(0, totalItems - readyItems);
-    const normalizeStatus = (value)=> value == null ? '' : String(value).toLowerCase();
-    const ticketStatus = normalizeStatus(ticket.status);
-    const orderId = ticket.orderId || ticket.order_id || ticket.orderID || ticket.id;
-    const orderKey = normalizeOrderKey(orderId);
-    const handoffMap = db?.data?.handoff || {};
-    const persistedRecord = orderKey
-      ? cloneDeep(
-          handoffMap[orderKey]
-          || handoffMap[ticket.orderId]
-          || handoffMap[ticket.order_id]
-          || handoffMap[ticket.orderID]
-          || handoffMap[ticket.id]
-        )
-      : null;
-    const persistedStatus = normalizeStatus(persistedRecord?.status);
-    const baseStatus = ticketStatus === 'served'
-      ? 'served'
-      : ((totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending');
-    let status = baseStatus;
-
-    // Check if persisted status is still valid by comparing timestamps
-    if(persistedStatus === 'served' || persistedStatus === 'assembled'){
-      const ticketTimeCandidates = [ticket.updatedAt, ticket.updated_at, ticket.completedAt, ticket.readyAt, ticket.acceptedAt, ticket.createdAt];
-      const ticketTimestamp = ticketTimeCandidates.reduce((acc, value)=>{
-        const ms = parseTime(value);
-        return ms && ms > acc ? ms : acc;
-      }, 0);
-      const recordTimestamp = resolveHandoffTimestamp(persistedRecord);
-      // Only use persisted status if it's newer than the ticket data
-      if(recordTimestamp && ticketTimestamp && ticketTimestamp <= recordTimestamp){
-        status = persistedStatus;
-      }
-    } else if(persistedStatus === 'ready'){
-      status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
-    } else if(persistedStatus === 'pending'){
-      status = 'pending';
-    }
-
-    const createdAt = ticket.createdAt || ticket.acceptedAt || ticket.updatedAt || null;
-    const createdMs = parseTime(createdAt);
-    const orderNumber = resolveOrderNumber(ticket.orderNumber || ticket.order_number, orderId);
-    const serviceModeSource = ticket.serviceMode || ticket.service_mode || ticket.orderType || ticket.order_type || 'dine_in';
-    const serviceMode = String(serviceModeSource || 'dine_in').toLowerCase();
-    const handoffRecord = persistedRecord
-      ? { ...persistedRecord, status }
-      : {
-          status,
-          updatedAt: ticket.updatedAt || ticket.updated_at || createdAt || null,
-          assembledAt: ticket.assembledAt || ticket.assembled_at || null,
-          servedAt: ticket.servedAt || ticket.served_at || null
-        };
-
-    return {
-      orderId,
-      orderNumber: orderNumber || orderId,
-      serviceMode,
-      tableLabel: ticket.tableLabel || ticket.table || ticket.tableName || ticket.table_name || null,
-      customerName: ticket.customerName || ticket.customer || ticket.guestName || null,
-      createdAt,
-      createdMs,
-      jobs,
-      readyItems,
-      totalItems,
-      pendingItems,
-      detailRows,
-      handoffStatus: status,
-      handoffRecord
-    };
-  };
-
-  const getExpoOrders = (db)=>{
-    const snapshot = computeOrdersSnapshot(db)
-      .filter(order=>{
-        if(!order) return false;
-        const status = order.handoffStatus;
-        return status !== 'assembled';
-      });
-    const orderMap = new Map();
-    snapshot.forEach(order=>{
-      const key = normalizeOrderKey(order.orderId || order.id);
-      if(key) orderMap.set(key, order);
-    });
-
-    const expoTickets = Array.isArray(db?.data?.expoTickets) ? db.data.expoTickets : [];
-    expoTickets.forEach(ticket=>{
-      const key = normalizeOrderKey(ticket?.orderId || ticket?.order_id || ticket?.orderID || ticket?.id);
-      if(!key || orderMap.has(key)) return;
-      const fallbackOrder = buildExpoFallbackOrder(ticket, db);
-      if(fallbackOrder) orderMap.set(key, fallbackOrder);
-    });
-
-    return Array.from(orderMap.values()).sort((a, b)=>{
-      const aCreated = a.createdMs ?? parseTime(a.createdAt) ?? 0;
-      const bCreated = b.createdMs ?? parseTime(b.createdAt) ?? 0;
-      return aCreated - bCreated;
-    });
-  };
+  const getExpoOrders = (db)=> computeOrdersSnapshot(db)
+    .filter(order=> order.handoffStatus !== 'assembled' && order.handoffStatus !== 'served');
 
   const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
-    .filter(order=>{
-      if(!order) return false;
-      const status = order.handoffStatus;
-      if(status !== 'assembled') return false;
-      const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
-      return serviceMode !== 'delivery';
-    });
+    .filter(order=> order.handoffStatus === 'assembled' && (order.serviceMode || 'dine_in') !== 'delivery');
 
-  const cloneJob = (job)=>({
-    ...job,
-    details: Array.isArray(job.details) ? job.details.map(detail=>({
-      ...detail,
-      modifiers: Array.isArray(detail.modifiers) ? detail.modifiers.map(mod=>({ ...mod })) : []
-    })) : [],
-    history: Array.isArray(job.history) ? job.history.map(entry=>({ ...entry })) : []
-  });
+  const cloneJob = (job)=> UnifiedKitchenTicket.fromRecord(job).clone();
 
   const buildJobRecords = (jobOrders)=>{
     if(!jobOrders) return [];
@@ -1397,7 +1684,7 @@
       cloned.completedMs = parseTime(cloned.completedAt);
       cloned.updatedMs = parseTime(cloned.updatedAt);
       cloned.dueMs = parseTime(cloned.dueAt);
-      return cloned;
+      return UnifiedKitchenTicket.fromRecord(cloned);
     });
   };
 
@@ -1455,6 +1742,21 @@
     return { list, byStation, byService, orders, stats };
   };
 
+  const computeStatsForJobs = (jobs)=>{
+    const stats = { total:0, expedite:0, alerts:0, ready:0, pending:0 };
+    const source = Array.isArray(jobs) ? jobs : [];
+    source.forEach(job=>{
+      if(!job) return;
+      stats.total += 1;
+      if(job.isExpedite) stats.expedite += 1;
+      if(job.hasAlerts) stats.alerts += 1;
+      if(job.status === 'ready' || job.status === 'completed') stats.ready += 1;
+      else stats.pending += 1;
+    });
+    stats.pending = Math.max(0, stats.pending);
+    return stats;
+  };
+
   const buildExpoTickets = (expoSource, jobsIndex)=>{
     const source = Array.isArray(expoSource) ? expoSource : [];
     const jobMap = new Map((jobsIndex.list || []).map(job=> [job.id, job]));
@@ -1472,11 +1774,11 @@
     const explicitStations = Array.isArray(kdsSource?.stations) && kdsSource.stations.length
       ? kdsSource.stations.map(station=> ({ ...station }))
       : [];
-    if(explicitStations.length) return explicitStations;
+    if(explicitStations.length) return explicitStations.map(station=> createRecordUsingSchema('kds_station', station));
     const masterStations = Array.isArray(masterSource?.stations) && masterSource.stations.length
       ? masterSource.stations.map(station=> ({ ...station }))
       : [];
-    if(masterStations.length) return masterStations;
+    if(masterStations.length) return masterStations.map(station=> createRecordUsingSchema('kds_station', station));
     const sectionSource = (Array.isArray(database?.kitchen_sections) && database.kitchen_sections.length)
       ? database.kitchen_sections
       : (Array.isArray(masterSource?.kitchenSections) ? masterSource.kitchenSections : []);
@@ -1484,12 +1786,8 @@
       const id = section.id || section.section_id || section.sectionId;
       const nameAr = section.section_name?.ar || section.name?.ar || section.nameAr || id;
       const nameEn = section.section_name?.en || section.name?.en || section.nameEn || id;
-      return {
+      const station = {
         id,
-        // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
-        section_id: section.section_id || section.id,
-        sectionId: section.sectionId || section.section_id || section.id,
-        kitchen_section_id: section.kitchen_section_id || section.section_id || section.id,
         code: id && id.toString ? id.toString().toUpperCase() : id,
         nameAr,
         nameEn,
@@ -1502,110 +1800,46 @@
         createdAt: null,
         updatedAt: null
       };
+      return createRecordUsingSchema('kds_station', station);
     });
   };
 
-  const toStationMap = (list)=> {
-    if(!Array.isArray(list)) return {};
-    return list.reduce((acc, station)=>{
-      if(!station) return acc;
-      // 🔧 CRITICAL: Add ALL possible ID variations as keys to ensure we can find stations
-      // regardless of which ID format the backend sends (id, section_id, sectionId)
-      const ids = [
-        station.id,
-        station.section_id,
-        station.sectionId,
-        station.kitchen_section_id,
-        station.kitchenSectionId
-      ].filter(id => id != null).map(id => String(id));
+  const toStationMap = (list)=> (Array.isArray(list)
+    ? list.reduce((acc, station)=>{
+        if(station && station.id != null){
+          acc[station.id] = station;
+        }
+        return acc;
+      }, {})
+    : {});
 
-      // Add station under all its possible IDs
-      ids.forEach(id => {
-        if(id) acc[id] = station;
-      });
-
-      return acc;
-    }, {});
-  };
-
-  const buildMenuIndex = (items)=>{
-    const index = {};
-    if(!Array.isArray(items)) return index;
-    items.forEach(item=>{
-      if(!item || item.id == null) return;
-      const id = String(item.id);
-      const code = item.code || item.itemCode || item.menuItemCode;
-      index[id] = {
-        id,
-        code,
-        name: item.name || item.itemName || item.nameAr || item.nameEn || id,
-        nameAr: item.nameAr || item.itemNameAr || item.name?.ar || item.name || '',
-        nameEn: item.nameEn || item.itemNameEn || item.name?.en || item.name || '',
-        description: item.description || item.itemDescription || '',
-        price: Number(item.price) || 0
-      };
-      if(code){
-        index[String(code)] = index[id];
-      }
-    });
-    return index;
+  const resolveStationId = (stations, stationMap, value)=>{
+    if(value == null) return null;
+    const raw = String(value).trim();
+    if(!raw) return null;
+    if(stationMap && stationMap[raw]) return raw;
+    const list = Array.isArray(stations) ? stations : [];
+    const lower = raw.toLowerCase();
+    const match = list.find(entry=> String(entry?.id ?? '').toLowerCase() === lower);
+    return match ? match.id : null;
   };
 
   const buildTabs = (db, t)=>{
     const tabs = [];
-    const toLabelKey = (value)=> (value == null ? '' : String(value).toLowerCase().replace(/\s+/g, ''));
-    const labelKeys = new Set();
-    const registerLabel = (value)=>{
-      const key = toLabelKey(value);
-      if(key) labelKeys.add(key);
-    };
     const { filters, jobs } = db.data;
     const locked = filters.lockedSection;
-    const servedOrderIds = new Set(
-      computeOrdersSnapshot(db)
-        .filter(order=> order.handoffStatus === 'served')
-        .map(order=> order.orderId || order.id)
-    );
     if(!locked){
-      const prepCount = computeOrdersSnapshot(db).filter(order=> order.handoffStatus !== 'served').length;
-      tabs.push({ id:'prep', label:t.tabs.prep, count: prepCount });
-      registerLabel(t.tabs.prep);
+      tabs.push({ id:'prep', label:t.tabs.prep, count: jobs.orders.length });
     }
-    let expoIntegrated = false;
     const stationOrder = (db.data.stations || []).slice().sort((a, b)=> (a.sequence || 0) - (b.sequence || 0));
     stationOrder.forEach(station=>{
       if(locked && station.id !== filters.activeTab) return;
-      const label = db.env.lang === 'ar'
-        ? (station.nameAr || station.nameEn || station.id)
-        : (station.nameEn || station.nameAr || station.id);
-      const isExpoStation = station.isExpo === true || (String(station.stationType || '').toLowerCase() === 'expo');
-      const tabId = isExpoStation ? 'expo' : station.id;
-      const activeJobs = (jobs.byStation[station.id] || [])
-        .filter(job=> job.status !== 'ready' && job.status !== 'completed')
-        .filter(job=> !servedOrderIds.has(job.orderId));
-      const tabCount = isExpoStation ? getExpoOrders(db).length : activeJobs.length;
-      if(!tabs.some(tab=> tab.id === tabId)){
-        tabs.push({
-          id: tabId,
-          label,
-          count: tabCount,
-          color: station.themeColor || null
-        });
-      } else {
-        const existingIndex = tabs.findIndex(tab=> tab.id === tabId);
-        if(existingIndex >= 0){
-          tabs[existingIndex] = {
-            ...tabs[existingIndex],
-            label,
-            count: tabCount,
-            color: tabs[existingIndex].color || station.themeColor || null
-          };
-        }
-      }
-      if(isExpoStation) expoIntegrated = true;
-      registerLabel(label);
-      registerLabel(tabId);
-      registerLabel(station.code);
+      tabs.push({
+        id: station.id,
+        label: db.env.lang === 'ar' ? (station.nameAr || station.nameEn || station.id) : (station.nameEn || station.nameAr || station.id),
+        count: (jobs.byStation[station.id] || []).length,
+        color: station.themeColor || null
+      });
     });
     if(!locked){
       const existingIds = new Set(tabs.map(tab=> tab.id));
@@ -1616,39 +1850,11 @@
         { id:'delivery-pending', label:t.tabs.pendingDelivery, count: getPendingDeliveryOrders(db).length }
       ];
       stageTabs.forEach(tab=>{
-        if(existingIds.has(tab.id)){
-          if(tab.id === 'expo' && !expoIntegrated){
-            // Allow expo stage tab if we only have a station entry but it wasn't mapped earlier
-            existingIds.delete(tab.id);
-          } else {
-            return;
-          }
-        }
-        const labelKey = toLabelKey(tab.label);
-        if(labelKey && labelKeys.has(labelKey)) return;
-        if(tab.id === 'expo' && expoIntegrated) return;
+        if(existingIds.has(tab.id)) return;
         existingIds.add(tab.id);
         tabs.push(tab);
-        if(labelKey) labelKeys.add(labelKey);
       });
     }
-    const ensureHandoffTab = ()=>{
-      const handoffCount = getHandoffOrders(db).length;
-      const existingIndex = tabs.findIndex(tab=> tab.id === 'handoff');
-      if(existingIndex >= 0){
-        const existing = tabs[existingIndex];
-        tabs[existingIndex] = {
-          ...existing,
-          label: existing.label || t.tabs.handoff,
-          count: handoffCount
-        };
-      } else {
-        const labelKey = toLabelKey(t.tabs.handoff);
-        if(labelKey) labelKeys.add(labelKey);
-        tabs.push({ id:'handoff', label:t.tabs.handoff, count: handoffCount });
-      }
-    };
-    ensureHandoffTab();
     return tabs;
   };
 
@@ -1657,11 +1863,7 @@
     const assignments = deliveriesState.assignments || {};
     const settlements = deliveriesState.settlements || {};
     return computeOrdersSnapshot(db)
-      .filter(order=>{
-        if(!order) return false;
-        if(order.handoffStatus !== 'assembled') return false;
-        return (order.serviceMode || 'dine_in').toLowerCase() === 'delivery';
-      })
+      .filter(order=> (order.serviceMode || 'dine_in') === 'delivery' && order.handoffStatus === 'assembled')
       .map(order=> ({
         ...order,
         assignment: assignments[order.orderId] || null,
@@ -1669,23 +1871,14 @@
       }));
   };
 
-  const getPendingDeliveryOrders = (db)=>{
-    const deliveriesState = db.data.deliveries || {};
-    const assignments = deliveriesState.assignments || {};
-    const settlements = deliveriesState.settlements || {};
-    return computeOrdersSnapshot(db)
-      .filter(order=> (order.serviceMode || 'dine_in') === 'delivery' && order.handoffStatus === 'served')
-      .map(order=> ({
-        ...order,
-        assignment: assignments[order.orderId] || null,
-        settlement: settlements[order.orderId] || null
-      }))
-      .filter(order=>{
-        const settlement = order.settlement;
-        if(!settlement) return true;
-        return settlement.status !== 'settled';
-      });
-  };
+  const getPendingDeliveryOrders = (db)=> getDeliveryOrders(db)
+    .filter(order=>{
+      const assigned = order.assignment;
+      if(!assigned || assigned.status !== 'delivered') return false;
+      const settlement = order.settlement;
+      if(!settlement) return true;
+      return settlement.status !== 'settled';
+    });
 
   const createBadge = (text, className)=> D.Text.Span({ attrs:{ class: cx(tw`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold`, className) } }, [text]);
 
@@ -1695,10 +1888,25 @@
   ]);
 
   const renderHeader = (db, t)=>{
-    const stats = db.data.jobs.stats || { total:0, expedite:0, alerts:0, ready:0, pending:0 };
+    const rawStats = db.data.jobs.stats || { total:0, expedite:0, alerts:0, ready:0, pending:0 };
+    const filters = db.data.filters || {};
+    const locked = !!filters.lockedSection;
     const lang = db.env.lang || 'ar';
     const theme = db.env.theme || 'dark';
     const now = db.data.now || Date.now();
+    const activeTab = filters.activeTab;
+    const stationJobs = locked ? (db.data.jobs?.byStation?.[activeTab] || []) : null;
+    const stats = locked ? computeStatsForJobs(stationJobs) : rawStats;
+    const stationMap = db.data.stationMap || {};
+    const activeStation = locked ? stationMap[activeTab] : null;
+    const stationName = locked
+      ? (activeStation
+        ? (lang === 'ar'
+          ? (activeStation.nameAr || activeStation.nameEn || activeTab)
+          : (activeStation.nameEn || activeStation.nameAr || activeTab))
+        : (activeTab || null))
+      : null;
+    const stationLabelText = locked ? (lang === 'ar' ? t.labels.station.ar : t.labels.station.en) : null;
     const statusState = db.data.sync?.state || 'online';
     const statusLabel = t.status[statusState] || t.status.online;
     const themeButtonClass = (mode)=> cx(
@@ -1724,6 +1932,7 @@
             createBadge(statusLabel, tw`border-sky-400/40 bg-sky-500/10 text-sky-100`),
             createBadge(formatClock(now, lang), tw`border-slate-500/40 bg-slate-800/60 text-slate-100`),
             createBadge(`${t.stats.total}: ${stats.total}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`),
+            locked && stationName ? createBadge(`${stationLabelText}: ${stationName}`, tw`border-emerald-400/50 bg-emerald-500/15 text-emerald-50`) : null,
             D.Containers.Div({ attrs:{ class: tw`flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/60 px-3 py-1` }}, [
               D.Text.Span({ attrs:{ class: tw`text-xs text-slate-400` }}, [t.controls.theme]),
               D.Forms.Button({ attrs:{ type:'button', gkey:'kds:theme:set', 'data-theme':'light', class: themeButtonClass('light') }}, [t.controls.light]),
@@ -1734,7 +1943,7 @@
               D.Forms.Button({ attrs:{ type:'button', gkey:'kds:lang:set', 'data-lang':'ar', class: langButtonClass('ar') }}, [t.controls.arabic]),
               D.Forms.Button({ attrs:{ type:'button', gkey:'kds:lang:set', 'data-lang':'en', class: langButtonClass('en') }}, [t.controls.english])
             ])
-          ])
+          ].filter(Boolean))
         ]),
         D.Containers.Div({ attrs:{ class: tw`grid gap-3 sm:grid-cols-2 xl:grid-cols-4` }}, [
           D.Containers.Div({ attrs:{ class: tw`rounded-2xl border border-slate-800/50 bg-slate-900/70 p-4` }}, [
@@ -1800,7 +2009,7 @@
     const stationText = lang === 'ar' ? t.labels.station.ar : t.labels.station.en;
     return D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
-        D.Text.Strong({ attrs:{ class: tw`text-base font-semibold leading-tight text-slate-100 sm:text-lg` }}, [`${detail.quantity}× ${lang === 'ar' ? (detail.itemNameAr || detail.itemNameEn || detail.itemId) : (detail.itemNameEn || detail.itemNameAr || detail.itemId)}`]),
+        D.Text.Strong({ attrs:{ class: tw`text-sm text-slate-100` }}, [`${detail.quantity}× ${lang === 'ar' ? (detail.itemNameAr || detail.itemNameEn || detail.itemId) : (detail.itemNameEn || detail.itemNameAr || detail.itemId)}`]),
         createBadge(statusLabel, STATUS_CLASS[detail.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
       ]),
       stationLabel ? createBadge(`${stationText}: ${stationLabel}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
@@ -1825,6 +2034,8 @@
       ...lastEntries.map(entry=> D.Text.Span({ attrs:{ class: tw`text-xs text-slate-300` }}, [`${formatClock(entry.changedAt, lang)} · ${t.labels.jobStatus[entry.status] || entry.status}${entry.actorName ? ` — ${entry.actorName}` : ''}`]))
     ]);
   };
+
+  const isJobActive = (job)=> job && job.status !== 'ready' && job.status !== 'completed';
 
   const startJob = (job, nowIso, nowMs)=>{
     if(job.status === 'ready' || job.status === 'completed') return {
@@ -1887,9 +2098,12 @@
   };
 
   const applyJobsUpdate = (state, transform)=>{
-    const list = state.data.jobs.list.map(cloneJob);
-    const nextList = transform(list) || list;
-    const jobs = indexJobs(nextList);
+    const sourceList = Array.isArray(state.data.jobs?.list) ? state.data.jobs.list : [];
+    const list = sourceList.map(cloneJob);
+    const transformed = typeof transform === 'function' ? transform(list) || list : list;
+    const normalizedList = (Array.isArray(transformed) ? transformed : list)
+      .map(job=> UnifiedKitchenTicket.fromRecord(job).clone());
+    const jobs = indexJobs(normalizedList);
     const expoTickets = buildExpoTickets(state.data.expoSource, jobs);
     return {
       ...state,
@@ -1935,60 +2149,33 @@
   };
 
   const renderPrepPanel = (db, t, lang, now)=>{
-    const orders = computeOrdersSnapshot(db).filter(order=> order.handoffStatus !== 'served');
-    if(!orders.length) return renderEmpty(t.empty.prep);
+    const orders = db.data.jobs.orders || [];
+    const pendingOrders = orders.filter(order=> Array.isArray(order.jobs) && order.jobs.some(isJobActive));
+    if(!pendingOrders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
-
-    // 🔍 DEBUG: Log stationMap contents and missing stations
-    const allStationIds = new Set();
-    orders.forEach(order => {
-      order.jobs.forEach(job => {
-        if(job.stationId) allStationIds.add(job.stationId);
-      });
-    });
-    const missingStations = Array.from(allStationIds).filter(id => !stationMap[id]);
-    if(missingStations.length > 0){
-      console.error('[KDS][renderPrepPanel] ❌ Missing stations in stationMap:', {
-        missingStationIds: missingStations,
-        totalStationMapKeys: Object.keys(stationMap).length,
-        availableStationKeys: Object.keys(stationMap).slice(0, 10),
-        firstMissingJobExample: orders.flatMap(o => o.jobs).find(j => missingStations.includes(j.stationId)),
-        stationMapValuesSample: Object.values(stationMap).slice(0, 3).map(s => ({
-          id: s.id,
-          section_id: s.section_id,
-          kitchen_section_id: s.kitchen_section_id,
-          nameAr: s.nameAr,
-          nameEn: s.nameEn
-        }))
-      });
-    }
-
-    return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
+    return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, pendingOrders.map(order=>{
+      const activeJobs = (order.jobs || []).filter(isJobActive);
+      return D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
         D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber}`]),
         createBadge(`${SERVICE_ICONS[order.serviceMode] || '🧾'} ${t.labels.serviceMode[order.serviceMode] || order.serviceMode}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`)
       ]),
       order.tableLabel ? createBadge(`${t.labels.table} ${order.tableLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`) : null,
       order.customerName ? D.Text.P({ attrs:{ class: tw`text-sm text-slate-300` }}, [`${t.labels.customer}: ${order.customerName}`]) : null,
-      D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, order.jobs.map(job=> D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-1 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3` }}, [
+      D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, activeJobs.map(job=> D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-1 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3` }}, [
         D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between gap-3` }}, [
           D.Text.Span({ attrs:{ class: tw`text-sm font-semibold text-slate-100` }}, [stationMap[job.stationId] ? (lang === 'ar' ? (stationMap[job.stationId].nameAr || stationMap[job.stationId].nameEn) : (stationMap[job.stationId].nameEn || stationMap[job.stationId].nameAr)) : job.stationCode || job.stationId]),
           createBadge(t.labels.jobStatus[job.status] || job.status, STATUS_CLASS[job.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
         ]),
         D.Text.Span({ attrs:{ class: tw`text-xs text-slate-400` }}, [`${t.labels.timer}: ${job.startMs ? formatDuration(now - job.startMs) : '00:00'}`])
       ])))
-    ].filter(Boolean))));
+    ].filter(Boolean));
+    }));
   };
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
-    const servedOrderIds = new Set(
-      computeOrdersSnapshot(db)
-        .filter(order=> order.handoffStatus === 'served')
-        .map(order=> order.orderId || order.id)
-    );
-    const jobs = (db.data.jobs.byStation[stationId] || [])
-      .filter(job=> job.status !== 'ready' && job.status !== 'completed')
-      .filter(job=> !servedOrderIds.has(job.orderId));
+    const allJobs = db.data.jobs.byStation[stationId] || [];
+    const jobs = allJobs.filter(isJobActive);
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, jobs.map(job=> renderJobCard(job, station, t, lang, now)));
@@ -2021,7 +2208,7 @@
               type:'button',
               gkey:'kds:handoff:assembled',
               'data-order-id': order.orderId,
-              class: tw`w-full rounded-full border border-emerald-300/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-50 shadow-lg shadow-emerald-900/30 hover:bg-emerald-500/30`
+              class: tw`w-full rounded-full border border-emerald-400/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-900 shadow-lg shadow-emerald-900/30 hover:bg-emerald-500/30`
             }
           }, [t.actions.handoffComplete])
         : createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`);
@@ -2081,7 +2268,7 @@
   const renderDeliveryPanel = (db, t, lang)=>{
     const orders = getDeliveryOrders(db);
     if(!orders.length) return renderEmpty(t.empty.delivery);
-    return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> renderDeliveryCard(order, t, lang)));
+    return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2` }}, orders.map(order=> renderDeliveryCard(order, t, lang)));
   };
 
   const renderHandoffPanel = (db, t, lang)=>{
@@ -2089,34 +2276,15 @@
     if(!orders.length) return renderEmpty(t.empty.handoff);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=>{
       const serviceLabel = t.labels.serviceMode[order.serviceMode] || order.serviceMode;
-      const statusLabel = t.labels.handoffStatus[order.handoffStatus] || order.handoffStatus;
-      const isAssembled = order.handoffStatus === 'assembled';
       const headerBadges = [
         createBadge(`${SERVICE_ICONS[order.serviceMode] || '🧾'} ${serviceLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`)
       ];
       if(order.tableLabel) headerBadges.push(createBadge(`${t.labels.table} ${order.tableLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`));
       if(order.customerName && !order.tableLabel) headerBadges.push(createBadge(`${t.labels.customer}: ${order.customerName}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`));
-
-      const cardClass = cx(
-        tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40`,
-        isAssembled ? tw`border-emerald-300/70 bg-emerald-500/10` : null
-      );
-
-      const actionButton = isAssembled
-        ? D.Forms.Button({
-            attrs:{
-              type:'button',
-              gkey:'kds:handoff:served',
-              'data-order-id': order.orderId,
-              class: tw`w-full rounded-full border border-sky-400/70 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/30`
-            }
-          }, [t.actions.handoffServe])
-        : null;
-
-      return D.Containers.Article({ attrs:{ class: cardClass }}, [
+      return D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
         D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
           D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.orderId}`]),
-          createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
+          createBadge(t.labels.handoffStatus.assembled || t.labels.handoffStatus.ready, HANDOFF_STATUS_CLASS.assembled)
         ]),
         headerBadges.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, headerBadges) : null,
         D.Containers.Div({ attrs:{ class: tw`grid gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3 text-xs text-slate-300 sm:grid-cols-2` }}, [
@@ -2129,7 +2297,14 @@
               return renderDetailRow(entry.detail, t, lang, stationLabel);
             }))
           : null,
-        actionButton
+        D.Forms.Button({
+          attrs:{
+            type:'button',
+            gkey:'kds:handoff:served',
+            'data-order-id': order.orderId,
+            class: tw`w-full rounded-full border border-sky-400/70 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/30`
+          }
+        }, [t.actions.handoffServe])
       ].filter(Boolean));
     }));
   };
@@ -2192,20 +2367,10 @@
     const lang = db.env.lang || 'ar';
     const t = getTexts(db);
     const now = db.data.now || Date.now();
-    const theme = db.env.theme || 'dark';
-    const shellClass = cx(
-      'kds-shell',
-      tw`flex min-h-screen w-full flex-col bg-slate-950/95 text-slate-100`,
-      theme === 'light' ? tw`bg-slate-100 text-slate-900` : null
-    );
-    const mainClass = cx(
-      'kds-scroll-region',
-      tw`flex-1 min-h-0 w-full overflow-y-auto px-6 pb-6 [scrollbar-gutter:stable]`
-    );
     return UI.AppRoot({
-      shell: D.Containers.Div({ attrs:{ class: shellClass, 'data-theme': theme }}, [
+      shell: D.Containers.Div({ attrs:{ class: tw`flex min-h-screen w-full flex-col bg-slate-950/95 text-slate-100` }}, [
         renderHeader(db, t),
-        D.Containers.Main({ attrs:{ class: mainClass }}, [
+        D.Containers.Main({ attrs:{ class: tw`flex-1 min-h-0 w-full px-6 pb-6` }}, [
           db.data.filters.lockedSection ? null : renderTabs(db, t),
           renderActivePanel(db, t, lang, now)
         ].filter(Boolean))
@@ -2216,7 +2381,42 @@
 
   Mishkah.app.setBody(AppView);
 
-  const database = typeof window !== 'undefined' ? (window.database || {}) : {};
+  let schemaManifest = null;
+  if(typeof window !== 'undefined'){
+    try {
+      if(window.MishkahSchemaManifestPromise && typeof window.MishkahSchemaManifestPromise.then === 'function'){
+        schemaManifest = await window.MishkahSchemaManifestPromise.catch(()=> window.MishkahSchemaManifest || null);
+      } else {
+        schemaManifest = window.MishkahSchemaManifest || null;
+      }
+    } catch(error){
+      console.warn('[Mishkah][KDS] Failed to resolve schema manifest.', error);
+      schemaManifest = (typeof window.MishkahSchemaManifest !== 'undefined') ? window.MishkahSchemaManifest : null;
+    }
+  }
+  const kdsSchemaManifest = schemaManifest && typeof schemaManifest === 'object'
+    ? (schemaManifest.schemas ? schemaManifest.schemas.kds || null : null)
+    : null;
+
+  const branchFromWindow = typeof window !== 'undefined'
+    ? (window.KDS_BRANCH_PARAM || window.MishkahKdsChannel || window.MishkahBranchChannel || null)
+    : null;
+  const storageBranch = normalizeChannelName(branchFromWindow || 'branch-main', 'branch-main');
+
+  kdsStorage = createKdsIndexedDBAdapter({ manifest: kdsSchemaManifest, branch: storageBranch });
+  let persistedDataset = null;
+  if(kdsStorage && typeof kdsStorage.loadSnapshot === 'function'){
+    try { persistedDataset = await kdsStorage.loadSnapshot(); } catch(error){ console.warn('[Mishkah][KDS] Failed to load persisted snapshot.', error); }
+  }
+
+  const baseDatabase = (typeof window !== 'undefined' && window.database && typeof window.database === 'object')
+    ? cloneDeep(window.database)
+    : {};
+  const database = persistedDataset ? mergeDatasetDeep(baseDatabase, persistedDataset) : baseDatabase;
+  if(kdsStorage && !persistedDataset){
+    kdsStorage.saveSnapshot(database, { meta:{ reason:'bootstrap' } }).catch(()=>{});
+  }
+
   const kdsSource = database.kds || {};
   const masterSource = typeof kdsSource.master === 'object' && kdsSource.master ? kdsSource.master : {};
   const settings = typeof database.settings === 'object' && database.settings ? database.settings : {};
@@ -2237,79 +2437,52 @@
   if(typeof window !== 'undefined'){
     window.MishkahKdsChannel = BRANCH_CHANNEL;
   }
-  const stations = buildStations(database, kdsSource, masterSource);
-  // 🔧 IMPORTANT: Normalize kitchen sections to ensure consistent IDs
-  const rawKitchenSections = Array.isArray(kdsSource.kitchenSections)
-    ? kdsSource.kitchenSections
-    : (Array.isArray(masterSource?.kitchenSections)
-      ? masterSource.kitchenSections
-      : (Array.isArray(database?.kitchen_sections)
-        ? database.kitchen_sections
-        : []));
-  // Normalize kitchen sections - PRESERVE all original ID fields for stationMap lookup
-  const initialKitchenSections = (Array.isArray(rawKitchenSections) ? rawKitchenSections : []).map((section, index) => {
-    const id = (section?.id != null ? String(section.id) : null)
-      || (section?.section_id != null ? String(section.section_id) : null)
-      || (section?.sectionId != null ? String(section.sectionId) : null)
-      || `section-${index + 1}`;
-    const code = section?.code || (id ? id.toString().toUpperCase() : `SEC-${index + 1}`);
-    return {
-      id,
-      // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
-      section_id: section?.section_id || section?.id,
-      sectionId: section?.sectionId || section?.section_id || section?.id,
-      kitchen_section_id: section?.kitchen_section_id || section?.section_id || section?.id,
-      code,
-      nameAr: section?.section_name?.ar || section?.name?.ar || section?.nameAr || section?.name || code,
-      nameEn: section?.section_name?.en || section?.name?.en || section?.nameEn || section?.name || code,
-      description: section?.description?.ar || section?.description?.en || section?.description || '',
-      stationType: section?.stationType || (section?.isExpo || section?.is_expo || id === 'expo' ? 'expo' : 'prep'),
-      isExpo: !!(section?.isExpo || section?.is_expo || id === 'expo'),
-      sequence: typeof section?.sequence === 'number' ? section.sequence : index + 1,
-      themeColor: section?.themeColor || null,
-      autoRouteRules: Array.isArray(section?.autoRouteRules) ? section.autoRouteRules : [],
-      displayConfig: (typeof section?.displayConfig === 'object' && section?.displayConfig) ? { ...section.displayConfig } : { layout: 'grid', columns: 2 },
-      createdAt: section?.createdAt || null,
-      updatedAt: section?.updatedAt || null
-    };
-  });
-  // ✅ Build stationMap from BOTH stations and kitchenSections
-  const combinedStations = [...stations];
-  initialKitchenSections.forEach(section=> {
-    if(!combinedStations.find(s=> s.id === section.id)){
-      combinedStations.push(section);
+  if(!kdsCacheAdapter){
+    const idbModule = GLOBAL && GLOBAL.MishkahIndexedDB ? GLOBAL.MishkahIndexedDB : null;
+    if(idbModule){
+      const namespace = BRANCH_CHANNEL ? `kds:${BRANCH_CHANNEL}` : 'kds:default';
+      kdsCacheAdapter = idbModule.createAdapter({ name:'mishkah-sync', namespace, version:1 });
+      if(GLOBAL) GLOBAL.__MishkahKdsCacheAdapter__ = kdsCacheAdapter;
     }
-  });
-  const stationMap = toStationMap(combinedStations);
+  }
+  if(kdsCacheAdapter && GLOBAL){
+    GLOBAL.KDS_CACHE = Object.assign({}, GLOBAL.KDS_CACHE || {}, { adapter: kdsCacheAdapter, table: CACHE_TABLE });
+    kdsCacheAdapter.ready
+      .then(async ()=>{
+        try {
+          const cached = await kdsCacheAdapter.load(CACHE_TABLE);
+          if(cached && cached.data && typeof database === 'object'){
+            Object.assign(database, cached.data);
+            GLOBAL.__MishkahCachedKdsSnapshot__ = cached;
+          }
+        } catch(error){
+          console.warn('[Mishkah][KDS] Failed to hydrate from IndexedDB', error);
+        }
+      })
+      .catch((error)=>{
+        console.warn('[Mishkah][KDS] IndexedDB adapter unavailable', error);
+      });
+  }
 
-  // 🔍 DEBUG: Log initial stationMap construction
-  console.log('[KDS][init] Initial stationMap built:', {
-    stationsCount: stations.length,
-    kitchenSectionsCount: initialKitchenSections.length,
-    combinedCount: combinedStations.length,
-    stationMapKeysCount: Object.keys(stationMap).length,
-    stationMapSample: Object.keys(stationMap).slice(0, 5),
-    stationSample: stations.slice(0, 2).map(s => ({
-      id: s.id,
-      section_id: s.section_id,
-      kitchen_section_id: s.kitchen_section_id,
-      nameAr: s.nameAr,
-      nameEn: s.nameEn
-    })),
-    sectionSample: initialKitchenSections.slice(0, 2).map(s => ({
-      id: s.id,
-      section_id: s.section_id,
-      kitchen_section_id: s.kitchen_section_id,
-      nameAr: s.nameAr,
-      nameEn: s.nameEn
-    }))
-  });
+  const restConfig = typeof window !== 'undefined' ? window.KDS_WS2_DYNAMIC_ENDPOINTS || null : null;
+  const restBase = restConfig && typeof restConfig.restBase === 'string' ? restConfig.restBase.replace(/\/$/, '') : null;
+  const deltaFetcher = createKdsDeltaFetcher({ restBase, fetch: typeof fetch === 'function' ? fetch : null, branch: BRANCH_CHANNEL });
+
+  const stations = buildStations(database, kdsSource, masterSource);
+  const stationMap = toStationMap(stations);
   const initialStationRoutes = Array.isArray(kdsSource.stationCategoryRoutes)
     ? kdsSource.stationCategoryRoutes.map(route=> ({ ...route }))
     : (Array.isArray(masterSource?.stationCategoryRoutes)
       ? masterSource.stationCategoryRoutes.map(route=> ({ ...route }))
       : (Array.isArray(database?.station_category_routes)
         ? database.station_category_routes.map(route=> ({ ...route }))
+        : []));
+  const initialKitchenSections = Array.isArray(kdsSource.kitchenSections)
+    ? kdsSource.kitchenSections.map(section=> ({ ...section }))
+    : (Array.isArray(masterSource?.kitchenSections)
+      ? masterSource.kitchenSections.map(section=> ({ ...section }))
+      : (Array.isArray(database?.kitchen_sections)
+        ? database.kitchen_sections.map(section=> ({ ...section }))
         : []));
   const initialCategorySections = Array.isArray(kdsSource.categorySections)
     ? kdsSource.categorySections.map(entry=> ({ ...entry }))
@@ -2320,8 +2493,8 @@
         : []));
   const initialMenuCategories = Array.isArray(kdsSource.menu?.categories)
     ? kdsSource.menu.categories.map(category=> ({ ...category }))
-    : (Array.isArray(masterSource?.menu_categories)
-      ? masterSource.menu_categories.map(category=> ({ ...category }))
+    : (Array.isArray(masterSource?.categories)
+      ? masterSource.categories.map(category=> ({ ...category }))
       : (Array.isArray(masterSource?.menu?.categories)
         ? masterSource.menu.categories.map(category=> ({ ...category }))
         : (Array.isArray(database?.menu?.categories)
@@ -2329,8 +2502,8 @@
           : [])));
   const initialMenuItems = Array.isArray(kdsSource.menu?.items)
     ? kdsSource.menu.items.map(item=> ({ ...item }))
-    : (Array.isArray(masterSource?.menu_items)
-      ? masterSource.menu_items.map(item=> ({ ...item }))
+    : (Array.isArray(masterSource?.items)
+      ? masterSource.items.map(item=> ({ ...item }))
       : (Array.isArray(masterSource?.menu?.items)
         ? masterSource.menu.items.map(item=> ({ ...item }))
         : (Array.isArray(database?.menu?.items)
@@ -2340,7 +2513,6 @@
     categories: initialMenuCategories,
     items: initialMenuItems
   };
-  const initialMenuIndex = buildMenuIndex(initialMenuItems);
   const rawJobOrders = cloneDeep(kdsSource.jobOrders || {});
   const jobRecords = buildJobRecords(rawJobOrders);
   const jobsIndexed = indexJobs(jobRecords);
@@ -2348,10 +2520,12 @@
   const expoTickets = buildExpoTickets(expoSource, jobsIndexed);
 
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-  const sectionParam = urlParams.get('section_id');
-  const lockedSection = !!sectionParam;
-  const firstStationId = stations.length ? stations[0].id : 'prep';
-  const defaultTab = lockedSection ? (stationMap[sectionParam] ? sectionParam : firstStationId) : 'prep';
+  const sectionParamRaw = urlParams.get('section_id')
+    ?? urlParams.get('station_id')
+    ?? urlParams.get('kitchen_section_id');
+  const resolvedSectionId = resolveStationId(stations, stationMap, sectionParamRaw);
+  const lockedSection = !!resolvedSectionId;
+  const defaultTab = lockedSection ? resolvedSectionId : 'prep';
 
   const initialState = {
     head:{ title: TEXT_DICT.title.ar },
@@ -2379,10 +2553,9 @@
       kitchenSections: initialKitchenSections,
       categorySections: initialCategorySections,
       menu: initialMenu,
-      menuIndex: initialMenuIndex,
       filters:{ activeTab: defaultTab, lockedSection },
       deliveries:{ assignments:{}, settlements:{} },
-      handoff: clonePersistedHandoff(),
+      handoff:{},
       drivers: Array.isArray(database.drivers)
         ? database.drivers.map(driver=>({ ...driver }))
         : (Array.isArray(masterSource?.drivers) ? masterSource.drivers.map(driver=> ({ ...driver })) : []),
@@ -2391,75 +2564,187 @@
     ui:{
       modals:{ driver:false },
       modalOpen:false,
-      deliveryAssignment:null
+      deliveryAssignment:null,
+      fullSync:{ state:'idle', reason:null, error:null }
     }
   };
-
-  initialState.data.expoSource = syncExpoSourceWithHandoff(initialState.data.expoSource, initialState.data.handoff);
-  initialState.data.expoTickets = buildExpoTickets(initialState.data.expoSource, initialState.data.jobs);
 
   const app = M.app.createApp(initialState, {});
-  const auto = U.twcss.auto(initialState, app, { pageScaffold:true });
 
-  const LOCAL_SYNC_CHANNEL_NAME = 'mishkah-pos-kds-sync';
-  const syncInstanceId = `kds-${Math.random().toString(36).slice(2)}`;
-  const localSyncChannel = (typeof BroadcastChannel !== 'undefined')
-    ? new BroadcastChannel(LOCAL_SYNC_CHANNEL_NAME)
-    : null;
-
-  const syncClient = null;
-  const emitSync = (message={})=>{
-    if(!localSyncChannel || !message || typeof message !== 'object' || !message.type) return;
-    const nowIso = new Date().toISOString();
-    const state = typeof app.getState === 'function' ? app.getState() : initialState;
-    const channel = normalizeChannelName(state?.data?.sync?.channel || BRANCH_CHANNEL, BRANCH_CHANNEL);
-    const meta = {
-      channel,
-      publishedAt: nowIso,
-      ...(message.meta && typeof message.meta === 'object' ? message.meta : {})
+  const resetStateForFullSync = (state={}, info={})=>{
+    const now = Date.now();
+    const reason = info.reason || 'requires-full-sync';
+    const currentData = state.data || {};
+    const filters = currentData.filters || {};
+    const locked = !!filters.lockedSection;
+    const nextFilters = locked ? { ...filters } : { ...filters, activeTab: 'prep' };
+    return {
+      ...state,
+      data:{
+        ...currentData,
+        filters: nextFilters,
+        sync:{
+          ...(currentData.sync || {}),
+          state:'requiresFullSync',
+          requiresFullSync:true,
+          lastMessage: now,
+          reason
+        }
+      },
+      ui:{
+        ...(state.ui || {}),
+        modalOpen:false,
+        modals:{ ...(state.ui?.modals || {}), driver:false },
+        deliveryAssignment:null,
+        fullSync:{ state:'required', reason, error: info.error || null, updatedAt: now }
+      }
     };
-    try{
-      localSyncChannel.postMessage({ origin:'kds', source: syncInstanceId, ...message, meta });
-    } catch(err){
-      console.warn('[Mishkah][KDS] Failed to broadcast sync message.', err);
+  };
+
+  const handleFullSyncRequest = (info={})=>{
+    const reason = info.reason || 'requires-full-sync';
+    if(kdsStorage && typeof kdsStorage.reset === 'function'){
+      kdsStorage.reset().catch(()=>{});
+    }
+    app.setState(state=> resetStateForFullSync(state, { reason, error: info.error || null }));
+    if(typeof document !== 'undefined'){
+      try {
+        const lang = (document.documentElement && document.documentElement.lang) || 'ar';
+        const message = lang && lang.toLowerCase().startsWith('en')
+          ? '♻️ Full kitchen sync required. Reloading…'
+          : '♻️ تتطلب الشاشة مزامنة كاملة، سيتم إعادة التهيئة...';
+        let banner = document.getElementById('kds-fullsync-banner');
+        if(!banner){
+          banner = document.createElement('div');
+          banner.id = 'kds-fullsync-banner';
+          banner.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:0.9rem 1.6rem;background:rgba(15,23,42,0.92);color:#f8fafc;font-size:0.95rem;font-weight:600;text-align:center;z-index:9999;box-shadow:0 18px 40px rgba(15,23,42,0.6);';
+          document.body.appendChild(banner);
+        }
+        banner.textContent = message;
+      } catch(_err){}
+    }
+    if(typeof window !== 'undefined'){
+      setTimeout(()=>{ try { window.location.reload(); } catch(_err){} }, 1500);
     }
   };
 
-  const mergeJobOrders = (current={}, patch={})=>{
-    const mergeList = (base=[], updates=[], key='id')=>{
-      const map = new Map();
-      base.forEach(item=>{
-        if(!item || item[key] == null) return;
-        map.set(String(item[key]), { ...item });
+  const auto = U.twcss.auto(initialState, app, { pageScaffold:true });
+
+  schedulePersist = createSnapshotPersistor(app, kdsCacheAdapter, CACHE_TABLE);
+  if(kdsCacheAdapter){
+    schedulePersist({ source:'bootstrap', lastSyncAt: Date.now() });
+    if(GLOBAL){
+      const purgeOperational = async ()=>{
+        return kdsCacheAdapter.mutate(CACHE_TABLE, (snapshot)=> clearKdsOperationalData(snapshot), {
+          metadata:{ source:'admin-purge', updatedAt: Date.now(), lastSyncAt: Date.now() },
+          mergeMetadata:true
+        });
+      };
+      GLOBAL.KDS_CACHE = Object.assign({}, GLOBAL.KDS_CACHE || {}, {
+        adapter: kdsCacheAdapter,
+        table: CACHE_TABLE,
+        purgeOperational,
+        clear: ()=> kdsCacheAdapter.clear(CACHE_TABLE)
       });
-      updates.forEach(item=>{
-        if(!item || item[key] == null) return;
-        const id = String(item[key]);
-        const existing = map.get(id);
+    }
+  }
 
-        // ✅ Simple merge: let incoming data override existing data
-        // Backend knows the correct stationId - trust it!
-        const merged = Object.assign({}, existing || {}, item);
+  const wsEndpoint = kdsSource?.sync?.endpoint || database?.kds?.endpoint || database?.sync?.endpoint || 'wss://ws.mas.com.eg/ws';
+  const wsToken = kdsSource?.sync?.token || database?.kds?.token || null;
+  let ws2KdsEventReplicator = null;
+  const wsNotificationDispatcher = createWsDeltaDispatcher({
+    fetchNow: ()=> ws2KdsEventReplicator ? ws2KdsEventReplicator.fetchNow() : Promise.resolve({ appliedCount:0, eventsProcessed:0 }),
+    throttleMs: 1500,
+    debounceMs: 250,
+    label:'kds-sync'
+  });
 
-        // 🔍 DEBUG: Log stationId changes for diagnostics only
-        if(key === 'id' && existing && existing.stationId && item.stationId && existing.stationId !== item.stationId){
-          console.log('[KDS][mergeJobOrders] stationId updated:', {
-            jobId: id,
-            oldStationId: existing.stationId,
-            newStationId: item.stationId
-          });
+  const syncClient = createKitchenSync(app, {
+    endpoint: wsEndpoint,
+    token: wsToken,
+    channel: BRANCH_CHANNEL,
+    notificationDispatcher: wsNotificationDispatcher
+    adapter: kdsStorage,
+    deltaFetcher,
+    onRequiresFullSync: handleFullSyncRequest
+  });
+  if(syncClient){
+    syncClient.connect();
+  }
+
+  const eventsEndpointCandidate = (
+    (kdsSource?.sync && (kdsSource.sync.eventsEndpoint || kdsSource.sync.events_endpoint))
+      || syncSettings.events_endpoint
+      || syncSettings.eventsEndpoint
+      || syncSettings.http_endpoint
+      || syncSettings.httpEndpoint
+      || database?.settings?.sync?.events_endpoint
+      || database?.settings?.sync?.http_endpoint
+  );
+  const branchForEvents = database?.branch?.id || database?.branchId || BRANCH_CHANNEL || 'default';
+  const eventsEndpoint = (typeof eventsEndpointCandidate === 'string' && eventsEndpointCandidate.trim())
+    ? eventsEndpointCandidate.trim()
+    : `/api/branches/${encodeURIComponent(branchForEvents)}/modules/pos/events`;
+  const eventsPollInterval = Number(syncSettings.events_poll_interval
+    ?? syncSettings.eventsPollInterval
+    ?? syncSettings.ws2_poll_interval
+    ?? syncSettings.ws2PollInterval
+    ?? 0);
+  const kdsEventCursor = createSyncPointerAdapter();
+  ws2KdsEventReplicator = createEventReplicator({
+    adapter: kdsEventCursor,
+    branch: BRANCH_CHANNEL,
+    endpoint: eventsEndpoint,
+    interval: Math.max(15000, Number.isFinite(eventsPollInterval) ? eventsPollInterval : 0),
+    applyEvent: (event)=> applyWs2EventToKds(event, app),
+    onBatchApplied: (result={})=>{
+      if(!result || !result.appliedCount) return;
+      app.setState(state=>({
+        ...state,
+        data:{
+          ...state.data,
+          sync:{ ...(state.data.sync || {}), lastMessage: Date.now(), state:'online' }
         }
+      }));
+      schedulePersist({ source:'ws2-events', lastSyncAt: Date.now(), lastId: result?.cursor?.appliedEventId || null });
+    },
+    onError:(error)=>{
+      console.warn('[Mishkah][KDS] WS2 event replicator error.', error);
+    }
+  });
+  ws2KdsEventReplicator.start();
 
-        map.set(id, merged);
-      });
-      return Array.from(map.values());
-    };
-    return {
-      headers: mergeList(Array.isArray(current.headers) ? current.headers : [], Array.isArray(patch.headers) ? patch.headers : []),
-      details: mergeList(Array.isArray(current.details) ? current.details : [], Array.isArray(patch.details) ? patch.details : []),
-      modifiers: mergeList(Array.isArray(current.modifiers) ? current.modifiers : [], Array.isArray(patch.modifiers) ? patch.modifiers : []),
-      statusHistory: mergeList(Array.isArray(current.statusHistory) ? current.statusHistory : [], Array.isArray(patch.statusHistory) ? patch.statusHistory : [])
-    };
+  let broadcastChannel = null;
+  if(typeof BroadcastChannel !== 'undefined'){
+    try{
+      broadcastChannel = new BroadcastChannel('mishkah-pos-kds-sync');
+      broadcastChannel.onmessage = (event)=>{
+        const msg = event?.data;
+        if(!msg || !msg.type || msg.origin === 'kds') return;
+        const meta = msg.meta || {};
+        if(msg.type === 'orders:payload' && msg.payload){
+          applyRemoteOrder(app, msg.payload, meta);
+          return;
+        }
+        if(msg.type === 'job:update' && msg.jobId){
+          applyJobUpdateMessage(app, { jobId: msg.jobId, payload: msg.payload || {} }, meta);
+        }
+        if(msg.type === 'delivery:update' && msg.orderId){
+          applyDeliveryUpdateMessage(app, { orderId: msg.orderId, payload: msg.payload || {} }, meta);
+        }
+        if(msg.type === 'handoff:update' && msg.orderId){
+          applyHandoffUpdateMessage(app, { orderId: msg.orderId, payload: msg.payload || {} }, meta);
+        }
+      };
+    } catch(_err) {
+      broadcastChannel = null;
+    }
+  }
+
+  const emitSync = (message)=>{
+    if(!broadcastChannel || !message) return;
+    const payload = { origin:'kds', ...message };
+    try{ broadcastChannel.postMessage(payload); } catch(_err){}
   };
 
   const applyJobUpdateMessage = (appInstance, data={}, meta={})=>{
@@ -2500,6 +2785,7 @@
         }
       };
     });
+    schedulePersist(meta);
   };
 
   const applyDeliveryUpdateMessage = (appInstance, data={}, meta={})=>{
@@ -2531,10 +2817,11 @@
         ...baseNext,
         data:{
           ...baseNext.data,
-          sync
+        sync
         }
       };
     });
+    schedulePersist(meta);
   };
 
   const applyHandoffUpdateMessage = (appInstance, data={}, meta={})=>{
@@ -2545,21 +2832,11 @@
     appInstance.setState(state=>{
       const handoff = state.data.handoff || {};
       const next = { ...handoff, [orderId]: { ...(handoff[orderId] || {}), ...patch } };
-      const expoSourceNext = syncExpoSourceWithHandoff(state.data.expoSource, next);
-      const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
-      const record = next[orderId];
-      if(record && shouldPersistHandoff(record)){
-        recordPersistedHandoff(orderId, cloneDeep(record));
-      } else {
-        recordPersistedHandoff(orderId, null);
-      }
       const baseNext = {
         ...state,
         data:{
           ...state.data,
-          handoff: next,
-          expoSource: expoSourceNext,
-          expoTickets: expoTicketsNext
+          handoff: next
         }
       };
       const syncBase = baseNext.data?.sync || state.data?.sync || {};
@@ -2573,18 +2850,34 @@
         }
       };
     });
+    schedulePersist(meta);
   };
 
   const applyRemoteOrder = (appInstance, payload={}, meta={})=>{
+    if(kdsStorage && typeof kdsStorage.applyOrdersDelta === 'function'){
+      try {
+        const storagePayload = Object.assign({}, payload, {
+          jobOrders: Object.assign({}, payload.jobOrders || {}, {
+            expoPassTickets: Array.isArray(payload.jobOrders?.expoPassTickets)
+              ? payload.jobOrders.expoPassTickets.map(entry=> ({ ...entry }))
+              : (Array.isArray(payload.expoTickets) ? payload.expoTickets.map(entry=> ({ ...entry })) : [])
+          })
+        });
+        Promise.resolve()
+          .then(()=> kdsStorage.applyOrdersDelta(storagePayload, { meta }))
+          .catch(()=>{});
+      } catch(_err){}
+    }
     if(!payload || !payload.jobOrders) return;
     appInstance.setState(state=>{
-      const mergedOrders = mergeJobOrders(state.data.jobOrders || {}, payload.jobOrders);
+      const mergedOrders = mergeJobOrderCollections(state.data.jobOrders || {}, payload.jobOrders);
       const jobRecordsNext = buildJobRecords(mergedOrders);
       const jobsIndexedNext = indexJobs(jobRecordsNext);
       const expoSourcePatch = Array.isArray(payload.jobOrders?.expoPassTickets)
         ? payload.jobOrders.expoPassTickets.map(ticket=> ({ ...ticket }))
         : state.data.expoSource;
-      let expoSourceNext = Array.isArray(expoSourcePatch) ? expoSourcePatch : [];
+      const expoSourceNext = Array.isArray(expoSourcePatch) ? expoSourcePatch : [];
+      const expoTicketsNext = buildExpoTickets(expoSourceNext, jobsIndexedNext);
       let deliveriesNext = state.data.deliveries || { assignments:{}, settlements:{} };
       if(payload.deliveries){
         const assignments = { ...(deliveriesNext.assignments || {}) };
@@ -2617,99 +2910,32 @@
         });
         driversNext = Array.from(map.values());
       }
-      const existingHandoff = state.data.handoff || {};
-      let handoffNext = { ...existingHandoff };
+      let handoffNext = state.data.handoff || {};
       if(payload.handoff && typeof payload.handoff === 'object'){
         const merged = { ...handoffNext };
         Object.keys(payload.handoff).forEach(orderId=>{
-          const existing = handoffNext[orderId] || {};
-          const incoming = payload.handoff[orderId] || {};
-          const existingStatus = existing.status ? String(existing.status).toLowerCase() : '';
-          const preservedStatus = (existingStatus === 'assembled' || existingStatus === 'served')
-            ? existing.status
-            : incoming.status;
-          merged[orderId] = {
-            ...existing,
-            ...incoming,
-            status: preservedStatus
-          };
+          merged[orderId] = { ...(handoffNext[orderId] || {}), ...(payload.handoff[orderId] || {}) };
         });
         handoffNext = merged;
       }
-      const persistedEntries = Object.entries(persistedHandoff);
-      if(persistedEntries.length){
-        const merged = { ...handoffNext };
-        persistedEntries.forEach(([orderId, record])=>{
-          if(!record || typeof record !== 'object') return;
-          const key = normalizeOrderKey(orderId);
-          if(!key) return;
-          const storedStatus = record.status ? String(record.status).toLowerCase() : '';
-          if(storedStatus !== 'assembled' && storedStatus !== 'served') return;
-          const existing = merged[key] || {};
-          const existingStatus = existing.status ? String(existing.status).toLowerCase() : '';
-          const storedTime = resolveHandoffTimestamp(record);
-          const existingTime = resolveHandoffTimestamp(existing);
-          if(existingStatus && existingStatus !== storedStatus && existingTime >= storedTime){
-            recordPersistedHandoff(key, cloneDeep(existing));
-            return;
-          }
-          if(!existingStatus || storedTime >= existingTime){
-            merged[key] = { ...existing, ...record };
-          }
-        });
-        handoffNext = merged;
-      }
-      Object.keys(handoffNext).forEach(orderId=>{
-        const record = handoffNext[orderId];
-        if(record && shouldPersistHandoff(record)){
-          recordPersistedHandoff(orderId, cloneDeep(record));
-        } else {
-          recordPersistedHandoff(orderId, null);
-        }
-      });
-      Object.keys(persistedHandoff).forEach(orderId=>{
-        if(handoffNext[orderId]) return;
-        recordPersistedHandoff(orderId, null);
-      });
-      expoSourceNext = syncExpoSourceWithHandoff(expoSourceNext, handoffNext);
-      const expoTicketsNext = buildExpoTickets(expoSourceNext, jobsIndexedNext);
       let stationsNext = Array.isArray(state.data.stations)
         ? state.data.stations.map(station=> ({ ...station }))
         : [];
       if(Array.isArray(payload.master?.stations) && payload.master.stations.length){
         stationsNext = payload.master.stations.map(station=> ({ ...station }));
       }
-      let kitchenSectionsNext = Array.isArray(state.data.kitchenSections)
-        ? state.data.kitchenSections.map(section=> ({ ...section }))
-        : [];
-      if(Array.isArray(payload.master?.kitchenSections)){
-        kitchenSectionsNext = payload.master.kitchenSections.map(section=> ({ ...section }));
-      }
-      // ✅ Build stationMap from BOTH stations and kitchenSections
-      const combinedStations = [...stationsNext];
-      kitchenSectionsNext.forEach(section=> {
-        // Only add if not already in stationsNext
-        if(!combinedStations.find(s=> s.id === section.id)){
-          combinedStations.push(section);
-        }
-      });
-      const stationMapNext = toStationMap(combinedStations);
-
-      // 🔍 DEBUG: Log stationMap construction in applyRemoteOrder
-      console.log('[KDS][applyRemoteOrder] stationMap built:', {
-        stationsCount: stationsNext.length,
-        kitchenSectionsCount: kitchenSectionsNext.length,
-        combinedCount: combinedStations.length,
-        stationMapKeys: Object.keys(stationMapNext),
-        prevStationMapKeys: Object.keys(state.data.stationMap || {}),
-        stationSample: stationsNext.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn })),
-        sectionSample: kitchenSectionsNext.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn }))
-      });
+      const stationMapNext = toStationMap(stationsNext);
       let stationRoutesNext = Array.isArray(state.data.stationCategoryRoutes)
         ? state.data.stationCategoryRoutes.map(route=> ({ ...route }))
         : [];
       if(Array.isArray(payload.master?.stationCategoryRoutes)){
         stationRoutesNext = payload.master.stationCategoryRoutes.map(route=> ({ ...route }));
+      }
+      let kitchenSectionsNext = Array.isArray(state.data.kitchenSections)
+        ? state.data.kitchenSections.map(section=> ({ ...section }))
+        : [];
+      if(Array.isArray(payload.master?.kitchenSections)){
+        kitchenSectionsNext = payload.master.kitchenSections.map(section=> ({ ...section }));
       }
       let categorySectionsNext = Array.isArray(state.data.categorySections)
         ? state.data.categorySections.map(entry=> ({ ...entry }))
@@ -2728,7 +2954,6 @@
       if(Array.isArray(payload.master?.items)){
         menuNext = { ...menuNext, items: payload.master.items.map(item=> ({ ...item })) };
       }
-      const menuIndexNext = buildMenuIndex(menuNext.items);
       let metaNext = { ...(state.data.meta || {}) };
       if(payload.master?.metadata){
         metaNext = { ...metaNext, ...payload.master.metadata };
@@ -2751,7 +2976,7 @@
       if(!syncNext.channel){
         syncNext.channel = BRANCH_CHANNEL;
       }
-      const nextState = {
+      return {
         ...state,
         data:{
           ...state.data,
@@ -2768,58 +2993,297 @@
           kitchenSections: kitchenSectionsNext,
           categorySections: categorySectionsNext,
           menu: menuNext,
-          menuIndex: menuIndexNext,
           meta: metaNext,
           sync: syncNext
         }
       };
-      const payloadSummary = summarizeJobPayload(payload);
-      const stateSummary = summarizeAppStateSnapshot(nextState);
-      const counts = payloadSummary?.counts || {};
-      const label = `[Mishkah][KDS] applyRemoteOrder → headers:${counts.headers ?? 0} details:${counts.details ?? 0} sections:${counts.kitchenSections ?? counts.stations ?? 0}`;
-      lastStateSnapshot = {
-        context:'applyRemoteOrder',
-        appliedAt: new Date().toISOString(),
-        channel: syncNext?.channel || null,
-        metaChannel: meta?.channel || null,
-        payload: payloadSummary,
-        state: stateSummary
-      };
-      logDebugGroup(label, lastStateSnapshot);
-      return nextState;
     });
+    schedulePersist(meta);
   };
 
-  const handleLocalSyncMessage = (message)=>{
-    if(!message || typeof message !== 'object' || !message.type) return;
-    if(message.origin === 'kds' && message.source === syncInstanceId) return;
-    const meta = message.meta && typeof message.meta === 'object' ? message.meta : {};
-    if(message.type === 'orders:payload' && message.payload){
-      applyRemoteOrder(app, message.payload, meta);
-      return;
+  function createKitchenSync(appInstance, options={}){
+    const WebSocketX = U.WebSocketX || U.WebSocket;
+    const endpoint = options.endpoint;
+    if(!WebSocketX){
+      console.warn('[Mishkah][KDS] WebSocket adapter unavailable. Sync is disabled.');
     }
-    if(message.type === 'job:update' && message.jobId){
-      applyJobUpdateMessage(app, { jobId: message.jobId, payload: message.payload || {} }, meta);
-      return;
+    if(!endpoint){
+      console.warn('[Mishkah][KDS] Missing WebSocket endpoint. Sync is disabled.');
     }
-    if(message.type === 'handoff:update' && message.orderId){
-      applyHandoffUpdateMessage(app, { orderId: message.orderId, payload: message.payload || {} }, meta);
-      return;
-    }
-    if(message.type === 'delivery:update' && message.orderId){
-      applyDeliveryUpdateMessage(app, { orderId: message.orderId, payload: message.payload || {} }, meta);
-    }
-  };
+    if(!WebSocketX || !endpoint) return null;
 
-  if(localSyncChannel){
-    localSyncChannel.onmessage = (event)=> handleLocalSyncMessage(event?.data);
-    if(typeof window !== 'undefined'){
-      window.addEventListener('beforeunload', ()=>{
-        try{ localSyncChannel.close(); } catch(_err){}
+    const adapter = options.adapter || null;
+    const deltaFetcher = options.deltaFetcher || null;
+    const onRequiresFullSync = typeof options.onRequiresFullSync === 'function' ? options.onRequiresFullSync : null;
+
+    const channelName = options.channel ? normalizeChannelName(options.channel, BRANCH_CHANNEL) : '';
+    const topicPrefix = channelName ? `${channelName}:` : '';
+    const topicOrders = options.topicOrders || `${topicPrefix}pos:kds:orders`;
+    const topicJobs = options.topicJobs || `${topicPrefix}kds:jobs:updates`;
+    const topicDelivery = options.topicDelivery || `${topicPrefix}kds:delivery:updates`;
+    const topicHandoff = options.topicHandoff || `${topicPrefix}kds:handoff:updates`;
+    const notificationDispatcher = options.notificationDispatcher;
+    const token = options.token;
+
+    const fetchSyncState = async ()=>{
+      if(!adapter || typeof adapter.getSyncState !== 'function') return {};
+      try {
+        return await adapter.getSyncState();
+      } catch(error){
+        console.warn('[Mishkah][KDS] Failed to load sync cursor from adapter.', error);
+        return {};
+      }
+    };
+
+    const handleFullSync = (context={})=>{
+      if(!onRequiresFullSync) return;
+      try { onRequiresFullSync(context); } catch(handlerErr){ console.warn('[Mishkah][KDS] Full sync handler failed.', handlerErr); }
+    };
+
+    let socket = null;
+    let ready = false;
+    let awaitingAuth = false;
+    const queue = [];
+    let deltaQueue = Promise.resolve();
+
+    const enqueueDelta = (runner)=>{
+      deltaQueue = deltaQueue.then(()=> runner()).catch(error=>{
+        console.warn('[Mishkah][KDS] Delta processing failed.', error);
       });
-    }
-  }
+      return deltaQueue;
+    };
 
+    const sendEnvelope = (payload)=>{
+      if(!socket) return;
+      if(ready && !awaitingAuth){
+        socket.send(payload);
+      } else {
+        queue.push(payload);
+      }
+    };
+
+    const flushQueue = ()=>{
+      if(!ready || awaitingAuth) return;
+      while(queue.length){
+        socket.send(queue.shift());
+      }
+    };
+
+    const applyOrdersDelta = async (meta={}, fallbackPayload=null, fallbackHandler=null, expectKeys=null)=>{
+      if(!deltaFetcher || typeof deltaFetcher.fetchOrders !== 'function'){
+        if(typeof fallbackHandler === 'function'){
+          fallbackHandler();
+        } else if(fallbackPayload){
+          applyRemoteOrder(appInstance, fallbackPayload, meta);
+        }
+        return false;
+      }
+      let result = null;
+      try {
+        const state = await fetchSyncState();
+        result = await deltaFetcher.fetchOrders(state);
+      } catch(error){
+        console.warn('[Mishkah][KDS] Orders delta fetch failed.', error);
+        result = null;
+      }
+      if(!result){
+        if(typeof fallbackHandler === 'function'){
+          fallbackHandler();
+        } else if(fallbackPayload){
+          applyRemoteOrder(appInstance, fallbackPayload, meta);
+        }
+        return false;
+      }
+      if(result.requiresFullSync){
+        handleFullSync({ reason:'orders-delta', meta: result.meta || {}, error: result.error || null });
+        if(Array.isArray(expectKeys) && expectKeys.includes('*') && typeof fallbackHandler === 'function'){
+          fallbackHandler();
+        }
+        return true;
+      }
+      if(result.payload){
+        const normalizedPayload = Object.assign({}, result.payload, {
+          jobOrders: Object.assign({}, result.payload.jobOrders || {}, {
+            expoPassTickets: Array.isArray(result.payload.expoTickets)
+              ? result.payload.expoTickets.map(entry=> ({ ...entry }))
+              : (result.payload.jobOrders?.expoPassTickets || [])
+          })
+        });
+        if(adapter && typeof adapter.applyOrdersDelta === 'function'){
+          try { await adapter.applyOrdersDelta(normalizedPayload, { cursor: result.cursor || {}, meta }); } catch(error){ console.warn('[Mishkah][KDS] Failed to persist delta snapshot.', error); }
+        }
+        applyRemoteOrder(appInstance, normalizedPayload, meta);
+        const expectations = Array.isArray(expectKeys) ? expectKeys : (expectKeys ? ['*'] : []);
+        const shouldFallback = expectations.some((key)=>{
+          if(key === '*') return true;
+          if(key === 'deliveries'){
+            const deliveries = normalizedPayload.deliveries || {};
+            const assignments = deliveries.assignments || {};
+            const settlements = deliveries.settlements || {};
+            return !Object.keys(assignments).length && !Object.keys(settlements).length;
+          }
+          if(key === 'handoff'){
+            const handoff = normalizedPayload.handoff || {};
+            return !Object.keys(handoff).length;
+          }
+          if(key === 'drivers'){
+            const drivers = normalizedPayload.drivers;
+            return !Array.isArray(drivers) || !drivers.length;
+          }
+          if(key === 'jobOrders'){
+            const jobOrders = normalizedPayload.jobOrders || {};
+            const total = ['headers','details','modifiers','statusHistory']
+              .reduce((acc, field)=> acc + (Array.isArray(jobOrders[field]) ? jobOrders[field].length : 0), 0);
+            return total === 0;
+          }
+          if(key === 'expoTickets'){
+            const tickets = normalizedPayload.expoTickets;
+            return !Array.isArray(tickets) || !tickets.length;
+          }
+          const value = normalizedPayload[key];
+          if(value == null) return true;
+          if(Array.isArray(value)) return !value.length;
+          if(typeof value === 'object') return !Object.keys(value).length;
+          return false;
+        });
+        if(shouldFallback){
+          if(typeof fallbackHandler === 'function') fallbackHandler();
+          else if(fallbackPayload){
+            applyRemoteOrder(appInstance, fallbackPayload, meta);
+          }
+        }
+        return true;
+      }
+      if(typeof fallbackHandler === 'function'){
+        fallbackHandler();
+      } else if(fallbackPayload){
+        applyRemoteOrder(appInstance, fallbackPayload, meta);
+      }
+      return false;
+    };
+
+    socket = new WebSocketX(endpoint, {
+      autoReconnect:true,
+      ping:{ interval:15000, timeout:7000, send:{ type:'ping' }, expect:'pong' }
+    });
+
+    const dispatchNotification = (topicKey, payload, meta={})=>{
+      if(!notificationDispatcher || typeof notificationDispatcher.notify !== 'function') return false;
+      try {
+        return notificationDispatcher.notify({
+          topic: topicKey,
+          channel: channelName || BRANCH_CHANNEL,
+          payload,
+          meta
+        }) === true;
+      } catch(error){
+        console.warn('[Mishkah][KDS] Notification dispatcher failed.', error);
+        return false;
+      }
+    };
+
+    socket.on('open', ()=>{
+      ready = true;
+      console.info('[Mishkah][KDS] Sync connection opened.', { endpoint });
+      if(token){
+        awaitingAuth = true;
+        socket.send({ type:'auth', data:{ token } });
+      } else {
+        socket.send({ type:'subscribe', topic: topicOrders });
+        socket.send({ type:'subscribe', topic: topicJobs });
+        socket.send({ type:'subscribe', topic: topicDelivery });
+        socket.send({ type:'subscribe', topic: topicHandoff });
+        flushQueue();
+      }
+    });
+    socket.on('close', (event)=>{
+      ready = false;
+      awaitingAuth = false;
+      console.warn('[Mishkah][KDS] Sync connection closed.', { code: event?.code, reason: event?.reason });
+    });
+    socket.on('error', (error)=>{
+      ready = false;
+      console.error('[Mishkah][KDS] Sync connection error.', error);
+    });
+    socket.on('message', (msg)=>{
+      if(!msg || typeof msg !== 'object') return;
+      if(msg.type === 'ack'){
+        if(msg.event === 'auth'){
+          awaitingAuth = false;
+          socket.send({ type:'subscribe', topic: topicOrders });
+          socket.send({ type:'subscribe', topic: topicJobs });
+          socket.send({ type:'subscribe', topic: topicDelivery });
+          socket.send({ type:'subscribe', topic: topicHandoff });
+          flushQueue();
+        } else if(msg.event === 'subscribe'){
+          flushQueue();
+        }
+        return;
+      }
+      if(msg.type === 'publish'){
+        const meta = msg.meta || {};
+        if(msg.topic === topicOrders){
+          const dispatched = dispatchNotification('orders', msg.data || {}, meta);
+          if(!dispatched){
+            applyRemoteOrder(appInstance, msg.data || {}, meta);
+          }
+        }
+        if(msg.topic === topicJobs){
+          const dispatched = dispatchNotification('jobs', msg.data || {}, meta);
+          if(!dispatched){
+            applyJobUpdateMessage(appInstance, msg.data || {}, meta);
+          }
+        }
+        if(msg.topic === topicDelivery){
+          const dispatched = dispatchNotification('delivery', msg.data || {}, meta);
+          if(!dispatched){
+            applyDeliveryUpdateMessage(appInstance, msg.data || {}, meta);
+          }
+        }
+        if(msg.topic === topicHandoff){
+          const dispatched = dispatchNotification('handoff', msg.data || {}, meta);
+          if(!dispatched){
+            applyHandoffUpdateMessage(appInstance, msg.data || {}, meta);
+          }
+        const data = msg.data || {};
+        if(msg.topic === topicOrders){
+          enqueueDelta(()=> applyOrdersDelta(meta, data, ()=> applyRemoteOrder(appInstance, data, meta)));
+        }
+        if(msg.topic === topicJobs){
+          enqueueDelta(()=> applyOrdersDelta(meta, null, ()=> applyJobUpdateMessage(appInstance, data, meta)));
+        }
+        if(msg.topic === topicDelivery){
+          enqueueDelta(()=> applyOrdersDelta(meta, null, ()=> applyDeliveryUpdateMessage(appInstance, data, meta), ['deliveries']));
+        }
+        if(msg.topic === topicHandoff){
+          enqueueDelta(()=> applyOrdersDelta(meta, null, ()=> applyHandoffUpdateMessage(appInstance, data, meta), ['handoff']));
+        }
+        return;
+      }
+    });
+    const connect = ()=>{
+      try { socket.connect({ waitOpen:false }); } catch(_err){}
+    };
+    return {
+      connect,
+      publishJobUpdate(update){
+        if(!update || !update.jobId) return;
+        sendEnvelope({ type:'publish', topic: topicJobs, data:update });
+      },
+      publishDeliveryUpdate(update){
+        if(!update || !update.orderId) return;
+        sendEnvelope({ type:'publish', topic: topicDelivery, data:update });
+      },
+      publishHandoffUpdate(update){
+        if(!update || !update.orderId) return;
+        sendEnvelope({ type:'publish', topic: topicHandoff, data:update });
+      },
+      publishOrder(payload){
+        if(!payload) return;
+        sendEnvelope({ type:'publish', topic: topicOrders, data:payload });
+      }
+    };
+  }
   const describeInteractiveNode = (node)=>{
     if(!node || node.nodeType !== 1) return null;
     const dataset = {};
@@ -2917,24 +3381,6 @@
     dev.getOrders = ()=> (typeof app.getOrders === 'function' ? app.getOrders() : []);
     dev.snapshot = ()=>({ orders: logKdsOrdersRegistry(), nodes: logKdsInteractiveNodes() });
     dev.logDomSnapshot = logKdsInteractiveNodes;
-    dev.getStateSummary = ()=> lastStateSnapshot;
-    dev.logState = ()=>{
-      if(lastStateSnapshot){
-        logDebugGroup('[Mishkah][KDS] Last state summary', lastStateSnapshot);
-      } else if(typeof console !== 'undefined' && typeof console.info === 'function'){
-        console.info('[Mishkah KDS] No state snapshot has been captured yet.');
-      }
-      return lastStateSnapshot;
-    };
-    dev.getWatcherSummary = ()=> lastWatcherSnapshot;
-    dev.logWatcherPayload = ()=>{
-      if(lastWatcherSnapshot){
-        logDebugGroup('[Mishkah][KDS] Last watcher payload summary', lastWatcherSnapshot);
-      } else if(typeof console !== 'undefined' && typeof console.info === 'function'){
-        console.info('[Mishkah KDS] No watcher payload snapshot has been captured yet.');
-      }
-      return lastWatcherSnapshot;
-    };
     window.__MishkahKDSDev__ = dev;
     if(!announced){
       if(typeof console !== 'undefined'){
@@ -2983,13 +3429,19 @@
         if(!btn) return;
         const sectionId = btn.getAttribute('data-section-id');
         if(!sectionId) return;
-        ctx.setState(state=>({
-          ...state,
-          data:{
-            ...state.data,
-            filters:{ ...state.data.filters, activeTab: sectionId }
+        ctx.setState(state=>{
+          const filters = state?.data?.filters || {};
+          if(filters.lockedSection && filters.activeTab && filters.activeTab !== sectionId){
+            return state;
           }
-        }));
+          return {
+            ...state,
+            data:{
+              ...state.data,
+              filters:{ ...filters, activeTab: sectionId }
+            }
+          };
+        });
       }
     },
     'kds.job.start':{
@@ -3020,9 +3472,9 @@
         const nowIso = new Date().toISOString();
         const nowMs = Date.parse(nowIso);
         ctx.setState(state=> applyJobsUpdate(state, list=> list.map(job=> job.id === jobId ? finishJob(job, nowIso, nowMs) : job)));
-        emitSync({ type:'job:update', jobId, payload:{ status:'ready', progressState:'completed',status:'finish', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
+        emitSync({ type:'job:update', jobId, payload:{ status:'ready', progressState:'completed', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
         if(syncClient){
-          syncClient.publishJobUpdate({ jobId, payload:{ status:'ready', progressState:'completed',status:'finish', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
+          syncClient.publishJobUpdate({ jobId, payload:{ status:'ready', progressState:'completed', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
         }
       }
     },
@@ -3037,18 +3489,12 @@
         const nowIso = new Date().toISOString();
         ctx.setState(state=>{
           const handoff = state.data.handoff || {};
-          const record = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
-          const next = { ...handoff, [orderId]: record };
-          const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'assembled', assembledAt: nowIso, updatedAt: nowIso });
-          const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
-          recordPersistedHandoff(orderId, cloneDeep(record));
+          const next = { ...handoff, [orderId]: { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso } };
           return {
             ...state,
             data:{
               ...state.data,
-              handoff: next,
-              expoSource: expoSourceNext,
-              expoTickets: expoTicketsNext
+              handoff: next
             }
           };
         });
@@ -3069,18 +3515,12 @@
         const nowIso = new Date().toISOString();
         ctx.setState(state=>{
           const handoff = state.data.handoff || {};
-          const record = { ...(handoff[orderId] || {}), status:'served', servedAt: nowIso, updatedAt: nowIso };
-          const next = { ...handoff, [orderId]: record };
-          const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'served', servedAt: nowIso, updatedAt: nowIso });
-          const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
-          recordPersistedHandoff(orderId, cloneDeep(record));
+          const next = { ...handoff, [orderId]: { ...(handoff[orderId] || {}), status:'served', servedAt: nowIso, updatedAt: nowIso } };
           return {
             ...state,
             data:{
               ...state.data,
-              handoff: next,
-              expoSource: expoSourceNext,
-              expoTickets: expoTicketsNext
+              handoff: next
             }
           };
         });
@@ -3177,22 +3617,12 @@
           assignmentPayload = assignments[orderId];
           settlements[orderId] = settlements[orderId] || { status:'pending', updatedAt: nowIso };
           settlementPayload = settlements[orderId];
-
-          // Also update handoff status to 'assembled' for delivery orders (not 'served')
-          const handoff = state.data.handoff || {};
-          const handoffRecord = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
-          const nextHandoff = { ...handoff, [orderId]: handoffRecord };
-          recordPersistedHandoff(orderId, handoffRecord);
-
           emitSync({ type:'delivery:update', orderId, payload:{ assignment: assignments[orderId] } });
-          emitSync({ type:'handoff:update', orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
-
           return {
             ...state,
             data:{
               ...state.data,
-              deliveries:{ assignments, settlements },
-              handoff: nextHandoff
+              deliveries:{ assignments, settlements }
             }
           };
         });
@@ -3247,1186 +3677,6 @@
       }
     }
   };
-
-  const watcherUnsubscribers = [];
-  let store = typeof window !== 'undefined' && window.__POS_DB__ ? window.__POS_DB__ : null;
-
-  const watcherState = {
-    status: 'idle',
-    posPayload: database,
-    headers: [],
-    lines: [],
-    deliveries: []
-  };
-
-  const ensureArray = (value) => (Array.isArray(value) ? value : []);
-  const normalizeId = (value) => (value == null ? null : String(value));
-  const canonicalId = (value) => {
-    const id = normalizeId(value);
-    if (!id) return null;
-    const trimmed = id.trim();
-    return trimmed.length ? trimmed : null;
-  };
-  const canonicalCode = (value) => {
-    const code = canonicalId(value);
-    return code ? code.toLowerCase() : null;
-  };
-  const extractOrderLineItemId = (line) => {
-    if (!line) return null;
-    const rawId = canonicalId(
-      line?.orderLineId || line?.order_line_id || line?.id
-    );
-    if (!rawId) return null;
-    const trimmed = rawId.startsWith('ln-') ? rawId.slice(3) : rawId;
-    const uuidMatch = trimmed.match(
-      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
-    );
-    if (uuidMatch) return uuidMatch[0];
-    const hexMatch = trimmed.match(/[0-9a-f]{32}/i);
-    if (hexMatch) return hexMatch[0];
-    const markerIndex = trimmed.indexOf('-m');
-    if (markerIndex > 0) return trimmed.slice(0, markerIndex);
-    const dashIndex = trimmed.indexOf('-');
-    if (dashIndex > 0) return trimmed.slice(0, dashIndex);
-    return trimmed || null;
-  };
-  const extractBaseOrderId = (value) => {
-    const id = canonicalId(value);
-    if (!id) return null;
-    const colonIndex = id.indexOf(':');
-    if (colonIndex > 0) return id.slice(0, colonIndex);
-    return id;
-  };
-  const toNumber = (value, fallback = 0) => {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : fallback;
-  };
-
-  const normalizeKitchenSections = (sections) =>
-    ensureArray(sections).map((section, index) => {
-      const id =
-        normalizeId(section?.id) ||
-        normalizeId(section?.section_id) ||
-        normalizeId(section?.sectionId) ||
-        `section-${index + 1}`;
-      const code =
-        section?.code ||
-        (id ? id.toString().toUpperCase() : `SEC-${index + 1}`);
-      return {
-        id,
-        // 🔧 IMPORTANT: Preserve ALL original ID fields so toStationMap can index by any of them
-        section_id: section?.section_id || section?.id,
-        sectionId: section?.sectionId || section?.section_id || section?.id,
-        kitchen_section_id: section?.kitchen_section_id || section?.section_id || section?.id,
-        code,
-        nameAr:
-          section?.section_name?.ar ||
-          section?.name?.ar ||
-          section?.nameAr ||
-          section?.name ||
-          code,
-        nameEn:
-          section?.section_name?.en ||
-          section?.name?.en ||
-          section?.nameEn ||
-          section?.name ||
-          code,
-        description:
-          section?.description?.ar ||
-          section?.description?.en ||
-          section?.description ||
-          '',
-        stationType:
-          section?.stationType ||
-          (section?.isExpo || section?.is_expo || id === 'expo'
-            ? 'expo'
-            : 'prep'),
-        isExpo: !!(section?.isExpo || section?.is_expo || id === 'expo'),
-        sequence: toNumber(section?.sequence, index + 1),
-        themeColor: section?.themeColor || null,
-        autoRouteRules: ensureArray(section?.autoRouteRules),
-        displayConfig:
-          typeof section?.displayConfig === 'object' && section?.displayConfig
-            ? { ...section.displayConfig }
-            : { layout: 'grid', columns: 2 },
-        createdAt: section?.createdAt || null,
-        updatedAt: section?.updatedAt || null
-      };
-    });
-
-  const normalizeCategoryRoutes = (routes) =>
-    ensureArray(routes)
-      .map((entry, index) => {
-        const categoryId =
-          normalizeId(entry?.categoryId) ||
-          normalizeId(entry?.category_id);
-        const stationId =
-          normalizeId(entry?.stationId) ||
-          normalizeId(entry?.station_id) ||
-          normalizeId(entry?.sectionId) ||
-          normalizeId(entry?.section_id);
-        if (!categoryId || !stationId) return null;
-        return {
-          id:
-            normalizeId(entry?.id) ||
-            `route-${index + 1}-${categoryId}-${stationId}`,
-          categoryId,
-          stationId,
-          priority: toNumber(entry?.priority || entry?.sequence, 0),
-          isActive: entry?.isActive !== false && entry?.active !== false,
-          createdAt: entry?.createdAt || null,
-          updatedAt: entry?.updatedAt || null
-        };
-      })
-      .filter(Boolean);
-
-  const deriveMenuCategories = (payload) =>
-    ensureArray(payload?.categories).map((entry, index) => ({
-      id: normalizeId(entry?.id || entry?.categoryId) || `cat-${index + 1}`,
-      nameAr:
-        entry?.category_name?.ar ||
-        entry?.name?.ar ||
-        entry?.nameAr ||
-        entry?.titleAr ||
-        '',
-      nameEn:
-        entry?.category_name?.en ||
-        entry?.name?.en ||
-        entry?.nameEn ||
-        entry?.titleEn ||
-        '',
-      sectionId:
-        normalizeId(entry?.section_id || entry?.sectionId) || null,
-      sequence: toNumber(entry?.sequence || entry?.displayOrder, index)
-    }));
-
-  const mergeMeta = (left = {}, right = {}) => ({
-    ...left,
-    ...right,
-    media: { ...(left?.media || {}), ...(right?.media || {}) }
-  });
-
-  const deriveMenuItems = (payload) => {
-    const sources = [
-      payload?.items,
-      payload?.menu_items,
-      payload?.menuItems,
-      payload?.menu?.items,
-      payload?.menu?.menu_items,
-      payload?.menu?.menuItems,
-      payload?.master?.items,
-      payload?.master?.menu_items,
-      payload?.master?.menuItems
-    ];
-
-    const records = new Map();
-    let fallbackIndex = 0;
-
-    const normalizeItem = (entry, id) => {
-      const categoryId = normalizeId(entry?.category_id || entry?.categoryId);
-      const sectionId =
-        normalizeId(
-          entry?.kitchen_section_id ||
-            entry?.kitchenSectionId ||
-            entry?.station_id ||
-            entry?.stationId
-        ) || null;
-      const code =
-        entry?.code ||
-        entry?.sku ||
-        entry?.item_code ||
-        entry?.itemCode ||
-        id;
-      const nameAr =
-        entry?.item_name?.ar ||
-        entry?.name?.ar ||
-        entry?.nameAr ||
-        entry?.titleAr ||
-        entry?.label?.ar ||
-        entry?.labelAr ||
-        '';
-      const nameEn =
-        entry?.item_name?.en ||
-        entry?.name?.en ||
-        entry?.nameEn ||
-        entry?.titleEn ||
-        entry?.label?.en ||
-        entry?.labelEn ||
-        '';
-      return {
-        id,
-        itemId: id,
-        categoryId,
-        sectionId,
-        code,
-        nameAr,
-        nameEn,
-        price: toNumber(entry?.pricing?.base || entry?.price, 0),
-        meta: mergeMeta(entry?.meta || {}, { media: entry?.media || {} })
-      };
-    };
-
-    sources.forEach((source) => {
-      ensureArray(source).forEach((entry) => {
-        if (!entry) return;
-        let id =
-          normalizeId(
-            entry?.id ||
-              entry?.itemId ||
-              entry?.item_id ||
-              entry?.menu_item_id ||
-              entry?.menuItemId
-          );
-        if (!id) {
-          fallbackIndex += 1;
-          id = `item-${fallbackIndex}`;
-        }
-        const normalized = normalizeItem(entry, id);
-        if (records.has(id)) {
-          const existing = records.get(id);
-          records.set(id, {
-            ...existing,
-            categoryId: existing.categoryId || normalized.categoryId,
-            sectionId: existing.sectionId || normalized.sectionId,
-            code:
-              existing.code && existing.code !== existing.itemId
-                ? existing.code
-                : normalized.code || existing.code,
-            nameAr: existing.nameAr || normalized.nameAr,
-            nameEn: existing.nameEn || normalized.nameEn,
-            price: existing.price || normalized.price,
-            meta: mergeMeta(normalized.meta, existing.meta)
-          });
-        } else {
-          records.set(id, normalized);
-        }
-      });
-    });
-
-    return Array.from(records.values());
-  };
-
-  const deriveDrivers = (payload) => {
-    const drivers = [];
-    const upsert = (source) => {
-      ensureArray(source).forEach((driver) => {
-        if (!driver) return;
-        const id =
-          normalizeId(driver?.id) ||
-          normalizeId(driver?.driverId) ||
-          normalizeId(driver?.code) ||
-          normalizeId(driver?.employeeId);
-        if (!id) return;
-        const record = {
-          id,
-          code: driver?.code || id,
-          name:
-            driver?.name ||
-            driver?.fullName ||
-            driver?.displayName ||
-            driver?.employeeName ||
-            id,
-          phone: driver?.phone || driver?.mobile || driver?.contact || '',
-          vehicleId: driver?.vehicleId || driver?.vehicle_id || ''
-        };
-        const existing = drivers.find((entry) => entry.id === id);
-        if (existing) Object.assign(existing, record);
-        else drivers.push(record);
-      });
-    };
-    upsert(payload?.drivers);
-    upsert(payload?.settings?.drivers);
-    upsert(payload?.master?.drivers);
-    return drivers;
-  };
-
-  const buildStatusLookup = (payload) => {
-    const map = new Map();
-    ensureArray(payload?.order_line_statuses).forEach((entry) => {
-      const id = normalizeId(entry?.id || entry?.statusId);
-      if (!id) return;
-      const key = (entry?.slug || entry?.code || id).toString().toLowerCase();
-      map.set(id.toLowerCase(), key);
-      map.set(key, key);
-      const nameAr = entry?.status_name?.ar || entry?.name?.ar;
-      const nameEn = entry?.status_name?.en || entry?.name?.en;
-      if (nameAr) map.set(String(nameAr).toLowerCase(), key);
-      if (nameEn) map.set(String(nameEn).toLowerCase(), key);
-    });
-    return map;
-  };
-
-  const resolveLineStatus = (value, lookup) => {
-    const raw = normalizeId(value);
-    const key = raw ? raw.toLowerCase() : '';
-    const resolved = lookup.get(key) || key;
-    if (
-      ['ready', 'completed', 'done', 'served', 'finished'].includes(resolved)
-    )
-      return 'ready';
-    if (
-      ['in_progress', 'preparing', 'cooking', 'progress', 'started'].includes(
-        resolved
-      )
-    )
-      return 'in_progress';
-    if (['cancelled', 'void', 'rejected'].includes(resolved)) return 'cancelled';
-    return 'queued';
-  };
-
-  const resolveServiceMode = (entry, payload) => {
-    const source = entry || {};
-    const { mapLookup, typeLookup } = getOrderTypeLookups(payload || {});
-    let immediateService = '';
-    const candidates = [];
-    const seen = new Set();
-    const enqueue = (value) => {
-      if (immediateService || (!value && value !== 0)) return;
-      const detected = detectServiceModeFromValue(value);
-      if (detected) {
-        immediateService = detected;
-      }
-      if (typeof value === 'object') {
-        if (Array.isArray(value)) {
-          value.forEach(enqueue);
-        }
-        return;
-      }
-      const text = safeText(value);
-      if (!text || seen.has(text)) return;
-      seen.add(text);
-      candidates.push(text);
-    };
-
-    [
-      source.serviceMode,
-      source.service_mode,
-      source.orderType,
-      source.order_type,
-      source.orderTypeId,
-      source.order_type_id,
-      source.orderTypeCode,
-      source.order_type_code,
-      source.orderTypeName,
-      source.order_type_name,
-      source.orderTypeLabel,
-      source.order_type_label,
-      source.orderTypeValue,
-      source.order_type_value,
-      source.orderTypeSlug,
-      source.order_type_slug,
-      source.type,
-      source.typeName,
-      source.type_name,
-      source.typeId,
-      source.type_id,
-      source.typeCode,
-      source.type_code,
-      source.channel,
-      source.stationType,
-      source.station_type,
-      source.service,
-      source.serviceType,
-      source.service_type,
-      source.orderCategory,
-      source.order_category,
-      source.deliveryMode,
-      source.delivery_mode
-    ].forEach(enqueue);
-
-    if (source?.metadata && typeof source.metadata === 'object') {
-      const meta = source.metadata;
-      [
-        meta.serviceMode,
-        meta.service_mode,
-        meta.orderType,
-        meta.order_type,
-        meta.orderTypeId,
-        meta.order_type_id,
-        meta.orderTypeCode,
-        meta.order_type_code,
-        meta.orderTypeName,
-        meta.order_type_name,
-        meta.type,
-        meta.typeName,
-        meta.type_name,
-        meta.channel
-      ].forEach(enqueue);
-    }
-
-    if (Array.isArray(source?.tags)) {
-      source.tags.forEach(enqueue);
-    }
-
-    if (immediateService) return immediateService;
-
-    for (const candidate of candidates) {
-      const mapped = lookupServiceCandidate(mapLookup, candidate);
-      if (mapped) return mapped;
-    }
-
-    for (const candidate of candidates) {
-      const typed = lookupServiceCandidate(typeLookup, candidate);
-      if (typed) return typed;
-    }
-
-    if (immediateService) return immediateService;
-
-    for (const candidate of candidates) {
-      const detected = detectServiceModeFromValue(candidate);
-      if (detected) return detected;
-    }
-
-    return SERVICE_MODE_FALLBACK;
-  };
-
-  const resolveTableLabel = (header, payload) => {
-    const tableId =
-      normalizeId(header?.tableId) ||
-      normalizeId(header?.table_id) ||
-      normalizeId(header?.tableCode);
-    if (!tableId) return '';
-    const tables = ensureArray(payload?.tables);
-    const match = tables.find(
-      (table) =>
-        normalizeId(table?.id || table?.tableId || table?.code) === tableId
-    );
-    return match?.name || match?.label || tableId;
-  };
-
-  const resolveCustomerName = (header, payload) => {
-    if (header?.customerName) return header.customerName;
-    const customerId =
-      normalizeId(header?.customerId) || normalizeId(header?.customer_id);
-    if (!customerId) return '';
-    const customers = ensureArray(
-      payload?.customers || payload?.customer_profile || payload?.customerProfiles
-    );
-    const match = customers.find(
-      (entry) => normalizeId(entry?.id || entry?.customerId) === customerId
-    );
-    return (
-      match?.name ||
-      match?.fullName ||
-      match?.displayName ||
-      match?.customerName ||
-      ''
-    );
-  };
-
-  const buildWatcherPayload = () => {
-    const posPayload = watcherState.posPayload || {};
-    const stations = buildStations(
-      posPayload,
-      posPayload?.kds || {},
-      posPayload?.master || {}
-    );
-    const kitchenSections = normalizeKitchenSections(
-      posPayload?.kitchen_sections
-    );
-    // ✅ Build stationMap from BOTH stations and kitchenSections
-    const combinedStations = [...stations];
-    kitchenSections.forEach(section=> {
-      if(!combinedStations.find(s=> s.id === section.id)){
-        combinedStations.push(section);
-      }
-    });
-    const stationMap = toStationMap(combinedStations);
-
-    // 🔍 DEBUG: Log stationMap construction
-    console.log('[KDS][buildWatcherPayload] stationMap built:', {
-      stationsCount: stations.length,
-      kitchenSectionsCount: kitchenSections.length,
-      combinedCount: combinedStations.length,
-      stationMapKeys: Object.keys(stationMap),
-      stationSample: stations.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn })),
-      sectionSample: kitchenSections.slice(0, 3).map(s => ({ id: s.id, nameAr: s.nameAr, nameEn: s.nameEn }))
-    });
-    const stationCategoryRoutes = normalizeCategoryRoutes(
-      posPayload?.category_sections
-    );
-    const categorySections = stationCategoryRoutes.map((route) => ({
-      id: route.id,
-      categoryId: route.categoryId,
-      sectionId: route.stationId,
-      priority: route.priority,
-      isActive: route.isActive,
-      createdAt: route.createdAt,
-      updatedAt: route.updatedAt
-    }));
-    const categories = deriveMenuCategories(posPayload);
-    const items = deriveMenuItems(posPayload);
-    const itemById = new Map();
-    const itemByCode = new Map();
-    items.forEach((item) => {
-      const idKey = canonicalId(item?.id || item?.itemId);
-      if (idKey) {
-        itemById.set(idKey, item);
-        itemById.set(idKey.toLowerCase(), item);
-      }
-      const codeKey = canonicalCode(item?.code);
-      if (codeKey && !itemByCode.has(codeKey)) {
-        itemByCode.set(codeKey, item);
-      }
-    });
-    const getItemById = (value) => {
-      const key = canonicalId(value);
-      if (!key) return null;
-      return itemById.get(key) || itemById.get(key.toLowerCase()) || null;
-    };
-    const getItemByCode = (value) => {
-      const key = canonicalCode(value);
-      if (!key) return null;
-      return itemByCode.get(key) || null;
-    };
-    const categoryRouteIndex = new Map();
-    stationCategoryRoutes.forEach((route) => {
-      if (!route?.categoryId || !route?.stationId) return;
-      const categoryId = canonicalId(route.categoryId);
-      const stationId = canonicalId(route.stationId);
-      if (!categoryId || !stationId) return;
-      const bucket = categoryRouteIndex.get(categoryId) || [];
-      bucket.push({ ...route, categoryId, stationId });
-      categoryRouteIndex.set(categoryId, bucket);
-      const lowerKey = categoryId.toLowerCase();
-      if (!categoryRouteIndex.has(lowerKey)) {
-        categoryRouteIndex.set(lowerKey, bucket);
-      }
-    });
-    categoryRouteIndex.forEach((bucket, key) => {
-      const sorted = bucket
-        .slice()
-        .sort((a, b) => (a.priority || 0) - (b.priority || 0));
-      const active = sorted.filter((route) => route.isActive !== false);
-      categoryRouteIndex.set(key, active.length ? active : sorted);
-    });
-    const resolveStationForCategory = (categoryId) => {
-      const key = canonicalId(categoryId);
-      if (!key) return null;
-      const bucket =
-        categoryRouteIndex.get(key) || categoryRouteIndex.get(key.toLowerCase());
-      if (bucket && bucket.length) return bucket[0].stationId;
-      return null;
-    };
-    const statusLookup = buildStatusLookup(posPayload);
-    const drivers = deriveDrivers(posPayload);
-    const driverIndex = new Map(drivers.map((driver) => [driver.id, driver]));
-
-    const orders = new Map();
-    ensureArray(watcherState.headers).forEach((header) => {
-      const jobOrderId = canonicalId(
-        header?.id ||
-          header?.jobOrderId ||
-          header?.job_order_id ||
-          header?.orderJobId ||
-          header?.job_id ||
-          header?.orderId ||
-          header?.order_id
-      );
-      if (!jobOrderId) return;
-      const displayOrderId =
-        canonicalId(header?.orderId || header?.order_id) ||
-        extractBaseOrderId(jobOrderId);
-      const orderNumber = resolveOrderNumber(
-        header?.orderNumber ||
-          header?.order_number ||
-          header?.posNumber ||
-          header?.ticketNumber,
-        displayOrderId || jobOrderId
-      );
-
-      // 🔍 DEBUG: Log header processing - check for stationId
-      if(header?.stationId || header?.station_id || header?.kitchenSectionId || header?.kitchen_section_id){
-        console.log('[KDS][buildWatcherPayload] order_header contains stationId:', {
-          jobOrderId,
-          stationId: header?.stationId,
-          station_id: header?.station_id,
-          kitchenSectionId: header?.kitchenSectionId,
-          kitchen_section_id: header?.kitchen_section_id
-        });
-      }
-
-      orders.set(jobOrderId, {
-        jobOrderId,
-        orderId: displayOrderId || jobOrderId,
-        header,
-        orderNumber,
-        serviceMode: resolveServiceMode(header, posPayload),
-        tableLabel: resolveTableLabel(header, posPayload),
-        customerName: resolveCustomerName(header, posPayload),
-        openedAt: header?.openedAt || header?.createdAt || null,
-        dueAt: header?.dueAt || header?.expectedAt || null,
-        jobs: new Map()
-      });
-    });
-
-    const jobDetails = [];
-    const jobHeaders = [];
-
-    ensureArray(watcherState.lines).forEach((line) => {
-      const jobOrderId = canonicalId(
-        line?.jobOrderId ||
-          line?.job_order_id ||
-          line?.orderId ||
-          line?.order_id
-      );
-      if (!jobOrderId) return;
-      if (!orders.has(jobOrderId)) {
-        const fallbackDisplayId =
-          canonicalId(line?.orderNumber || line?.order_number) ||
-          extractBaseOrderId(jobOrderId);
-        const derivedService = resolveServiceMode(line, posPayload);
-        orders.set(jobOrderId, {
-          jobOrderId,
-          orderId: fallbackDisplayId || jobOrderId,
-          header: {},
-          orderNumber: resolveOrderNumber(
-            line?.orderNumber || line?.order_number,
-            fallbackDisplayId || jobOrderId
-          ),
-          serviceMode: derivedService || SERVICE_MODE_FALLBACK,
-          tableLabel: '',
-          customerName: '',
-          openedAt: line?.createdAt || null,
-          dueAt: null,
-          jobs: new Map()
-        });
-      }
-      const order = orders.get(jobOrderId);
-      if (!order) return;
-      const lineService = resolveServiceMode(line, posPayload);
-      if (
-        lineService &&
-        lineService !== order.serviceMode &&
-        (order.serviceMode === SERVICE_MODE_FALLBACK || lineService !== SERVICE_MODE_FALLBACK)
-      ) {
-        order.serviceMode = lineService;
-        order.jobs.forEach((existingJob) => {
-          if (existingJob && typeof existingJob === 'object') {
-            existingJob.serviceMode = lineService;
-          }
-        });
-      }
-      const lineDisplayId =
-        canonicalId(line?.orderNumber || line?.order_number) ||
-        extractBaseOrderId(jobOrderId);
-      if (lineDisplayId && lineDisplayId !== order.orderId) {
-        order.orderId = lineDisplayId;
-        order.orderNumber = resolveOrderNumber(
-          order.orderNumber,
-          lineDisplayId
-        );
-      }
-      const metadata =
-        line && typeof line.metadata === 'object' && !Array.isArray(line.metadata)
-          ? line.metadata
-          : {};
-      const rawItemId = canonicalId(
-        line?.itemId ||
-          line?.item_id ||
-          line?.menuItemId ||
-          line?.menu_item_id
-      );
-      const metadataItemId = canonicalId(
-        metadata?.itemId ||
-          metadata?.item_id ||
-          metadata?.menuItemId ||
-          metadata?.menu_item_id ||
-          metadata?.id
-      );
-      const derivedItemId = extractOrderLineItemId(line);
-      const rawItemCode = canonicalId(
-        line?.itemCode ||
-          line?.item_code ||
-          line?.sku ||
-          line?.code
-      );
-      const metadataItemCode = canonicalId(
-        metadata?.itemCode ||
-          metadata?.item_code ||
-          metadata?.sku ||
-          metadata?.code
-      );
-      const item =
-        getItemById(rawItemId) ||
-        getItemById(metadataItemId) ||
-        getItemById(derivedItemId) ||
-        getItemByCode(rawItemCode) ||
-        getItemByCode(metadataItemCode) ||
-        {};
-      const resolvedItemId =
-        rawItemId ||
-        metadataItemId ||
-        derivedItemId ||
-        canonicalId(item?.id || item?.itemId);
-      const resolvedItemCode =
-        canonicalId(item?.code || item?.itemCode) ||
-        rawItemCode ||
-        metadataItemCode;
-      const rawCategoryId = canonicalId(
-        line?.categoryId ||
-          line?.category_id ||
-          line?.menuCategoryId ||
-          line?.menu_category_id
-      );
-      const metadataCategoryId = canonicalId(
-        metadata?.categoryId ||
-          metadata?.category_id ||
-          metadata?.menuCategoryId ||
-          metadata?.menu_category_id
-      );
-      const categoryId =
-        rawCategoryId || metadataCategoryId || canonicalId(item?.categoryId);
-      let sectionId =
-        canonicalId(
-          line?.kitchenSectionId ||
-            line?.kitchen_section_id ||
-            line?.sectionId ||
-            line?.stationId
-        ) ||
-        canonicalId(
-          metadata?.kitchenSectionId ||
-            metadata?.kitchen_section_id ||
-            metadata?.sectionId ||
-            metadata?.stationId
-        ) ||
-        canonicalId(item?.sectionId) ||
-        null;
-
-      // 🔍 DEBUG: Log section ID resolution
-      const sectionIdSource = sectionId ? 'line/metadata/item' : null;
-
-      if (!sectionId) {
-        sectionId = resolveStationForCategory(categoryId) || 'general';
-        if(sectionId && sectionId !== 'general'){
-          console.log('[KDS][buildWatcherPayload] Resolved sectionId from category:', {
-            categoryId,
-            sectionId,
-            itemId: jobItemId,
-            itemCode: resolvedItemCode || rawItemCode,
-            inStationMap: !!stationMap[sectionId]
-          });
-        }
-      }
-      const jobItemId = resolvedItemId || derivedItemId;
-      const jobOrderRef = order.jobOrderId || jobOrderId;
-      let jobId = jobOrderRef;
-      if (sectionId && jobId && !jobId.includes(':')) {
-        jobId = `${jobId}:${sectionId}`;
-      }
-      if (!jobId) {
-        jobId = sectionId ? `${order.orderId}:${sectionId}` : order.orderId;
-      }
-      if (!order.jobs.has(jobId)) {
-        const station = stationMap[sectionId] || {};
-
-        // 🔍 DEBUG: Log job creation with stationId
-        console.log('[KDS][buildWatcherPayload] Creating new job:', {
-          jobId,
-          orderId: order.orderId,
-          sectionId,
-          stationCode: station?.code,
-          stationInMap: !!station?.id,
-          stationName: station?.nameAr || station?.nameEn
-        });
-
-        order.jobs.set(jobId, {
-          id: jobId,
-          jobOrderId: jobOrderRef || jobId,
-          orderId: order.orderId,
-          orderNumber: order.orderNumber,
-          stationId: sectionId,
-          stationCode: station?.code || sectionId,
-          serviceMode: order.serviceMode,
-          tableLabel: order.tableLabel,
-          customerName: order.customerName,
-          totalItems: 0,
-          completedItems: 0,
-          remainingItems: 0,
-          createdAt: order.openedAt,
-          acceptedAt: order.openedAt,
-          dueAt: order.dueAt,
-          readyAt: null,
-          completedAt: null,
-          updatedAt: order.openedAt,
-          details: []
-        });
-      }
-      const job = order.jobs.get(jobId);
-      job.jobOrderId = job.jobOrderId || jobOrderRef || jobId;
-      job.id = job.jobOrderId || jobId;
-      job.orderId = order.orderId;
-      job.orderNumber = order.orderNumber;
-      const station = stationMap[sectionId] || {};
-      if (station?.code && job.stationCode !== station.code) {
-        job.stationCode = station.code;
-      }
-      const quantity = ensureQuantity(line?.quantity);
-      const status = resolveLineStatus(
-        line?.statusId || line?.status_id || line?.status,
-        statusLookup
-      );
-      job.totalItems += quantity;
-      if (status === 'ready') job.completedItems += quantity;
-      const detailId =
-        normalizeId(line?.id) || `${jobId}-detail-${job.details.length + 1}`;
-      job.details.push({
-        id: detailId,
-        jobOrderId: job.jobOrderId || jobId,
-        orderLineId: normalizeId(line?.id) || detailId,
-        itemId: jobItemId,
-        itemCode:
-          metadata?.itemCode ||
-            metadata?.code ||
-          resolvedItemCode ||
-          rawItemCode ||
-          jobItemId ||
-          metadataItemId,
-        quantity,
-        status,
-        itemNameAr:
-          metadata?.itemNameAr ||
-          metadata?.nameAr ||
-          metadata?.itemName ||
-          metadata?.name ||
-          line?.item_name?.ar ||
-          line?.itemNameAr ||
-          line?.nameAr ||
-          line?.itemName ||
-          line?.name ||
-          item?.nameAr ||
-          item?.name ||
-          item?.item_name?.ar ||
-          station?.nameAr ||
-          job.stationCode,
-        itemNameEn:
-          metadata?.itemNameEn ||
-          metadata?.nameEn ||
-          metadata?.itemName ||
-          metadata?.name ||
-          line?.item_name?.en ||
-          line?.itemNameEn ||
-          line?.nameEn ||
-          line?.itemName ||
-          line?.name ||
-          item?.nameEn ||
-          item?.name ||
-          item?.item_name?.en ||
-          station?.nameEn ||
-          job.stationCode,
-        prepNotes: Array.isArray(line?.notes)
-          ? line.notes.filter(Boolean).join(' • ')
-          :
-            line?.notes ||
-            line?.prepNotes ||
-            metadata?.prepNotes ||
-            metadata?.notes ||
-            ''
-      });
-    });
-
-    orders.forEach((order) => {
-      order.jobs.forEach((job) => {
-        job.remainingItems = Math.max(0, job.totalItems - job.completedItems);
-        const status =
-          job.totalItems > 0 && job.completedItems >= job.totalItems
-            ? 'ready'
-            : job.completedItems > 0
-            ? 'in_progress'
-            : 'queued';
-        const progressState =
-          status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting';
-        // ✅ IMPORTANT: Use job.id (includes sectionId) as the unique identifier
-        // This prevents stationId conflicts when merging jobs
-        jobHeaders.push({
-          id: job.id,  // "DAR-001057:67ba4d64..." - includes sectionId for uniqueness
-          jobOrderId: job.jobOrderId || job.id,  // "DAR-001057" - base order ID
-          orderId: job.orderId,
-          orderNumber: job.orderNumber,
-          stationId: job.stationId,
-          stationCode: job.stationCode,
-          status,
-          progressState,
-          totalItems: job.totalItems,
-          completedItems: job.completedItems,
-          remainingItems: job.remainingItems,
-          tableLabel: job.tableLabel,
-          customerName: job.customerName,
-          serviceMode: job.serviceMode,
-          acceptedAt: job.acceptedAt,
-          createdAt: job.createdAt,
-          readyAt: job.readyAt,
-          completedAt: job.completedAt,
-          dueAt: job.dueAt,
-          updatedAt: new Date().toISOString(),
-          meta: { source: 'watcher' }
-        });
-        job.details.forEach((detail) => {
-          jobDetails.push({
-            id: detail.id,
-            jobOrderId: job.jobOrderId || job.id,
-            orderLineId: detail.orderLineId,
-            itemId: detail.itemId,
-            itemCode: detail.itemCode,
-            quantity: detail.quantity,
-            status: detail.status,
-            itemNameAr: detail.itemNameAr,
-            itemNameEn: detail.itemNameEn,
-            prepNotes: detail.prepNotes,
-            modifiers: []
-          });
-        });
-      });
-    });
-
-    const handoff = {};
-    const handoffBuckets = new Map();
-    orders.forEach((order) => {
-      const key = order.orderId || order.jobOrderId;
-      if (!key) return;
-      const bucket = handoffBuckets.get(key) || [];
-      bucket.push(order);
-      handoffBuckets.set(key, bucket);
-    });
-    const handoffTimestamp = new Date().toISOString();
-    handoffBuckets.forEach((bucket, key) => {
-      const jobs = [];
-      bucket.forEach((order) => {
-        order.jobs.forEach((job) => {
-          jobs.push(job);
-        });
-      });
-      const readyJobs = jobs.filter((job) => job.status === 'ready');
-      handoff[key] = {
-        status:
-          jobs.length && readyJobs.length === jobs.length ? 'ready' : 'pending',
-        updatedAt: handoffTimestamp
-      };
-    });
-
-    const deliveries = { assignments: {}, settlements: {} };
-    ensureArray(watcherState.deliveries).forEach((entry) => {
-      const orderId =
-        normalizeId(entry?.orderId) || normalizeId(entry?.order_id);
-      if (!orderId) return;
-      const driverId =
-        normalizeId(entry?.driverId) || normalizeId(entry?.driver_id);
-      const driver = driverIndex.get(driverId) || {};
-      deliveries.assignments[orderId] = {
-        ...(deliveries.assignments[orderId] || {}),
-        driverId,
-        driverName: entry?.driverName || driver?.name || driverId || '',
-        driverPhone: entry?.driverPhone || driver?.phone || '',
-        vehicleId: entry?.vehicleId || driver?.vehicleId || '',
-        status: (normalizeId(entry?.status) || 'pending').toLowerCase(),
-        assignedAt: entry?.assignedAt || entry?.createdAt || null,
-        deliveredAt: entry?.deliveredAt || null,
-        updatedAt: entry?.updatedAt || null
-      };
-    });
-
-    const channelSource =
-      posPayload?.settings?.sync?.channel ||
-      posPayload?.sync?.channel ||
-      posPayload?.branch?.channel ||
-      watcherState.channel ||
-      BRANCH_CHANNEL;
-    const channel = normalizeChannelName(channelSource, BRANCH_CHANNEL);
-    watcherState.channel = channel;
-
-    const payload = {
-      jobOrders: {
-        headers: jobHeaders,
-        details: jobDetails,
-        modifiers: [],
-        statusHistory: [],
-        expoPassTickets: ensureArray(
-          posPayload?.kds?.expoPassTickets || posPayload?.expo_pass_tickets
-        )
-      },
-      master: {
-        stations,
-        stationCategoryRoutes,
-        kitchenSections,
-        categorySections,
-        categories,
-        items,
-        drivers,
-        metadata: posPayload?.metadata || posPayload?.settings || {},
-        sync: { ...(posPayload?.settings?.sync || {}), channel },
-        channel
-      },
-      deliveries,
-      handoff,
-      drivers,
-      meta: posPayload?.meta || posPayload?.settings || {},
-      branch: posPayload?.branch || {}
-    };
-    const payloadSummary = summarizeJobPayload(payload);
-    const counts = payloadSummary?.counts || {};
-    lastWatcherSnapshot = {
-      source:'watcher',
-      generatedAt: new Date().toISOString(),
-      status: watcherState.status,
-      channel,
-      watcher:{
-        headers: ensureArray(watcherState.headers).length,
-        lines: ensureArray(watcherState.lines).length,
-        deliveries: ensureArray(watcherState.deliveries).length
-      },
-      payload: payloadSummary
-    };
-    const label = `[Mishkah][KDS][Watcher] payload → headers:${counts.headers ?? 0} details:${counts.details ?? 0} sections:${counts.kitchenSections ?? counts.stations ?? 0}`;
-    logDebugGroup(label, lastWatcherSnapshot);
-    return payload;
-  };
-
-  const updateFromWatchers = () => {
-    const payload = buildWatcherPayload();
-    if (!payload || !payload.jobOrders) return;
-    applyRemoteOrder(app, payload, { channel: watcherState.channel || BRANCH_CHANNEL });
-    const posPayload = watcherState.posPayload || {};
-    const lang = posPayload?.settings?.lang || initialState.env.lang || 'ar';
-    const dir = lang === 'ar' ? 'rtl' : 'ltr';
-    app.setState((state) => {
-      const syncBase = state.data?.sync || {};
-      const sync = {
-        ...syncBase,
-        channel: watcherState.channel || BRANCH_CHANNEL,
-        state: watcherState.status,
-        lastMessage: Date.now()
-      };
-      return {
-        ...state,
-        env: { ...(state.env || {}), lang, dir },
-        data: {
-          ...state.data,
-          sync,
-          meta: {
-          ...(state.data.meta || {}),
-          ...(posPayload?.metadata || {}),
-          ...(posPayload?.settings || {})
-        },
-          branch: payload.branch || state.data.branch || {}
-        }
-      };
-    });
-    if (typeof window !== 'undefined') {
-      window.database = watcherState.posPayload || {};
-      window.MishkahBranchChannel = watcherState.channel || BRANCH_CHANNEL;
-      window.MishkahKdsChannel = window.MishkahBranchChannel;
-    }
-  };
-
-  if (store && typeof store.watch === 'function') {
-    watcherUnsubscribers.push(
-      store.status((status) => {
-        watcherState.status =
-          typeof status === 'string' ? status : status?.status || 'idle';
-        updateFromWatchers();
-      })
-    );
-    watcherUnsubscribers.push(
-      store.watch('pos_database', (rows) => {
-        const latest =
-          Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
-        watcherState.posPayload =
-          (latest && latest.payload) || {};
-        console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
-        updateFromWatchers();
-      })
-    );
-    watcherUnsubscribers.push(
-      store.watch('order_header', (rows) => {
-        watcherState.headers = ensureArray(rows);
-        console.log('[KDS][WATCH][order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
-        updateFromWatchers();
-      })
-    );
-    watcherUnsubscribers.push(
-      store.watch('order_line', (rows) => {
-        watcherState.lines = ensureArray(rows);
-        console.log('[KDS][WATCH][order_line]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
-        updateFromWatchers();
-      })
-    );
-    watcherUnsubscribers.push(
-      store.watch('order_delivery', (rows) => {
-        watcherState.deliveries = ensureArray(rows);
-        console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
-        updateFromWatchers();
-      })
-    );
-  } else if (!store || typeof store.watch !== 'function') {
-    console.warn(
-      '[Mishkah][KDS] POS dataset store unavailable. Live updates are disabled.'
-    );
-    
-    const checkStoreReady = () => {
-      if (window.__POS_DB__) {
-        store = window.__POS_DB__;
-        if (store && typeof store.watch === 'function') {
-          watcherUnsubscribers.push(
-            store.status((status) => {
-              watcherState.status =
-                typeof status === 'string' ? status : status?.status || 'idle';
-              updateFromWatchers();
-            })
-          );
-          watcherUnsubscribers.push(
-            store.watch('pos_database', (rows) => {
-              const latest =
-                Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
-              watcherState.posPayload =
-                (latest && latest.payload) || {};
-              console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
-              updateFromWatchers();
-            })
-          );
-          watcherUnsubscribers.push(
-            store.watch('order_header', (rows) => {
-              watcherState.headers = ensureArray(rows);
-              console.log('[KDS][WATCH][order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
-              updateFromWatchers();
-            })
-          );
-          watcherUnsubscribers.push(
-            store.watch('order_line', (rows) => {
-              watcherState.lines = ensureArray(rows);
-              console.log('[KDS][WATCH][order_line]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
-              updateFromWatchers();
-            })
-          );
-          watcherUnsubscribers.push(
-            store.watch('order_delivery', (rows) => {
-              watcherState.deliveries = ensureArray(rows);
-              console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
-              updateFromWatchers();
-            })
-          );
-          console.log('[Mishkah][KDS] POS dataset store now available. Live updates enabled.');
-        }
-      } else {
-        setTimeout(checkStoreReady, 100);
-      }
-    };
-    
-    setTimeout(checkStoreReady, 100);
-  }
-
-  if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', () => {
-      watcherUnsubscribers.splice(0).forEach((unsub) => {
-        try {
-          if (typeof unsub === 'function') unsub();
-        } catch (_err) {
-          /* ignore */
-        }
-      });
-    });
-  }
-
-  updateFromWatchers();
 
   app.setOrders(Object.assign({}, UI.orders || {}, auto.orders || {}, kdsOrders));
   logKdsOrdersRegistry();
