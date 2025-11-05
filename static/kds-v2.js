@@ -1,16 +1,6 @@
 (async function() {
   'use strict';
 
-  // ==================== Configuration ====================
-  const CONFIG = {
-    branchId: 'dar',
-    moduleId: 'pos',
-    role: 'kds-station',
-    wsUrl: window.location.protocol === 'https:'
-      ? 'wss://dar.mishkah.app/ws'
-      : 'ws://localhost:3030/ws'
-  };
-
   // ==================== State ====================
   const state = {
     connected: false,
@@ -18,8 +8,10 @@
     sections: [],
     menuItems: [],
     orders: [],
+    lines: [],
     jobs: new Map(),
-    lang: 'ar'
+    lang: 'ar',
+    posPayload: {}
   };
 
   // ==================== Helpers ====================
@@ -43,51 +35,99 @@
     return '';
   }
 
-  // ==================== Database Setup ====================
-  console.log('[KDS v2] Initializing database...');
+  const ensureArray = (value) => (Array.isArray(value) ? value : []);
 
-  const db = createDB({
-    branchId: CONFIG.branchId,
-    moduleId: CONFIG.moduleId,
-    role: CONFIG.role,
-    wsUrl: CONFIG.wsUrl,
-    autoConnect: true,
-    useIndexedDB: true
-  });
+  // ==================== Database Setup ====================
+  console.log('[KDS v2] Waiting for database...');
+
+  // Wait for window.__POS_DB__ to be available
+  const waitForStore = () => {
+    return new Promise((resolve) => {
+      if (window.__POS_DB__) {
+        resolve(window.__POS_DB__);
+      } else {
+        const checkInterval = setInterval(() => {
+          if (window.__POS_DB__) {
+            clearInterval(checkInterval);
+            resolve(window.__POS_DB__);
+          }
+        }, 100);
+      }
+    });
+  };
+
+  const store = await waitForStore();
+  console.log('[KDS v2] Store is ready:', store);
 
   // ==================== Data Watchers ====================
 
-  // Watch kitchen sections
-  db.watch('kitchen_section', (sections) => {
-    console.log('[KDS v2] kitchen_section updated:', sections.length);
-    state.sections = sections || [];
-    renderTabs();
-    renderOrders();
-  });
+  // Watch pos_database for master data (menu_items, kitchen_sections, etc.)
+  store.watch('pos_database', (rows) => {
+    const latest = Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
+    const payload = (latest && latest.payload) || {};
 
-  // Watch menu items
-  db.watch('menu_item', (items) => {
-    console.log('[KDS v2] menu_item updated:', items.length);
-    state.menuItems = items || [];
+    console.log('[KDS v2] pos_database updated:', {
+      hasPayload: !!payload,
+      keys: payload ? Object.keys(payload) : []
+    });
+
+    state.posPayload = payload;
+
+    // Extract menu_items from payload
+    const menuItems = ensureArray(
+      payload.menu_items ||
+      payload.menuItems ||
+      payload.master?.menu_items ||
+      payload.master?.menuItems
+    );
+
+    // Extract kitchen_sections from payload
+    const kitchenSections = ensureArray(
+      payload.kitchen_sections ||
+      payload.kitchenSections ||
+      payload.master?.kitchen_sections ||
+      payload.master?.kitchenSections ||
+      payload.master?.stations
+    );
+
+    console.log('[KDS v2] Extracted from payload:', {
+      menuItems: menuItems.length,
+      kitchenSections: kitchenSections.length,
+      menuSample: menuItems[0],
+      sectionSample: kitchenSections[0]
+    });
+
+    state.menuItems = menuItems;
+    state.sections = kitchenSections;
+
+    renderTabs();
     processOrders();
   });
 
   // Watch order headers
-  db.watch('order_header', (headers) => {
-    console.log('[KDS v2] order_header updated:', headers.length);
-    state.orders = headers || [];
+  store.watch('order_header', (rows) => {
+    const headers = ensureArray(rows);
+    console.log('[KDS v2] order_header updated:', {
+      count: headers.length,
+      sample: headers[0]
+    });
+    state.orders = headers;
     processOrders();
   });
 
   // Watch order lines
-  db.watch('order_line', (lines) => {
-    console.log('[KDS v2] order_line updated:', lines.length);
-    state.lines = lines || [];
+  store.watch('order_line', (rows) => {
+    const lines = ensureArray(rows);
+    console.log('[KDS v2] order_line updated:', {
+      count: lines.length,
+      sample: lines[0]
+    });
+    state.lines = lines;
     processOrders();
   });
 
   // Watch connection status
-  db.status((status) => {
+  store.status((status) => {
     console.log('[KDS v2] Connection status:', status);
     state.connected = status === 'connected';
     updateConnectionStatus();
@@ -95,7 +135,20 @@
 
   // ==================== Order Processing ====================
   function processOrders() {
-    if (!state.orders || !state.lines) return;
+    if (!state.orders || !state.lines) {
+      console.log('[KDS v2] processOrders: Waiting for data...', {
+        hasOrders: !!state.orders,
+        hasLines: !!state.lines
+      });
+      return;
+    }
+
+    console.log('[KDS v2] Processing orders:', {
+      orders: state.orders.length,
+      lines: state.lines.length,
+      menuItems: state.menuItems.length,
+      sections: state.sections.length
+    });
 
     // Clear jobs
     state.jobs.clear();
@@ -103,28 +156,44 @@
     // Create index for menu items for fast lookup
     const itemsIndex = {};
     (state.menuItems || []).forEach(item => {
-      itemsIndex[item.id] = item;
+      const itemId = item.id || item.itemId || item.menuItemId;
+      if (itemId) {
+        itemsIndex[itemId] = item;
+      }
+    });
+
+    console.log('[KDS v2] Menu items index:', {
+      total: Object.keys(itemsIndex).length,
+      sampleKeys: Object.keys(itemsIndex).slice(0, 5),
+      sampleItem: Object.values(itemsIndex)[0]
     });
 
     // Group lines by orderId and kitchenSectionId
     state.lines.forEach(line => {
-      const orderId = line.orderId;
-      const sectionId = line.kitchenSectionId;
+      const orderId = line.orderId || line.order_id;
+      const sectionId = line.kitchenSectionId || line.kitchen_section_id || line.sectionId;
 
-      if (!orderId || !sectionId) return;
+      if (!orderId || !sectionId) {
+        console.log('[KDS v2] Skipping line - missing orderId or sectionId:', line);
+        return;
+      }
 
       // Find order header
-      const order = state.orders.find(o => o.id === orderId);
-      if (!order) return;
+      const order = state.orders.find(o => (o.id === orderId || o.orderId === orderId));
+      if (!order) {
+        console.log('[KDS v2] Skipping line - order not found:', { orderId, lineId: line.id });
+        return;
+      }
 
       // Get item details from menu_item table
-      const menuItem = itemsIndex[line.itemId];
+      const itemId = line.itemId || line.item_id || line.menuItemId;
+      const menuItem = itemsIndex[itemId];
 
       // Use names from menu_item if available, fallback to line data
       const nameAr = menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar ||
-                     line.itemNameAr || line.itemName || line.itemId;
+                     line.itemNameAr || line.item_name_ar || line.itemName || itemId;
       const nameEn = menuItem?.item_name?.en || menuItem?.nameEn || menuItem?.name_en ||
-                     line.itemNameEn || line.itemName || line.itemId;
+                     line.itemNameEn || line.item_name_en || line.itemName || itemId;
 
       // Create job ID: orderId:sectionId
       const jobId = `${orderId}:${sectionId}`;
@@ -134,13 +203,13 @@
         state.jobs.set(jobId, {
           id: jobId,
           orderId: orderId,
-          orderNumber: order.orderNumber || orderId,
+          orderNumber: order.orderNumber || order.order_number || orderId,
           sectionId: sectionId,
-          serviceMode: order.serviceMode || 'dine_in',
-          tableLabel: order.tableLabel || '',
-          customerName: order.customerName || '',
+          serviceMode: order.serviceMode || order.service_mode || 'dine_in',
+          tableLabel: order.tableLabel || order.table_label || '',
+          customerName: order.customerName || order.customer_name || '',
           status: 'queued',
-          createdAt: order.createdAt,
+          createdAt: order.createdAt || order.created_at,
           items: [],
           totalItems: 0,
           completedItems: 0
@@ -152,16 +221,18 @@
       // Add item to job
       job.items.push({
         id: line.id,
-        itemId: line.itemId,
+        itemId: itemId,
         nameAr: nameAr,
         nameEn: nameEn,
         quantity: line.quantity || 1,
-        notes: line.notes || '',
-        status: line.statusId || 'queued'
+        notes: line.notes || line.prep_notes || '',
+        status: line.statusId || line.status_id || line.status || 'queued'
       });
 
       job.totalItems += (line.quantity || 1);
-      if (line.statusId === 'ready' || line.statusId === 'completed') {
+      if (line.statusId === 'ready' || line.statusId === 'completed' ||
+          line.status_id === 'ready' || line.status_id === 'completed' ||
+          line.status === 'ready' || line.status === 'completed') {
         job.completedItems += (line.quantity || 1);
       }
     });
@@ -177,6 +248,16 @@
       }
     });
 
+    console.log('[KDS v2] Processed jobs:', {
+      total: state.jobs.size,
+      jobs: Array.from(state.jobs.values()).map(j => ({
+        id: j.id,
+        status: j.status,
+        items: j.items.length
+      }))
+    });
+
+    renderTabs();
     renderOrders();
   }
 
@@ -205,13 +286,16 @@
 
     // Add section tabs
     state.sections.forEach(section => {
+      const sectionId = section.id || section.sectionId || section.stationId;
       const count = Array.from(state.jobs.values())
-        .filter(job => job.sectionId === section.id && job.status !== 'ready')
+        .filter(job => job.sectionId === sectionId && job.status !== 'ready')
         .length;
 
       tabs.push({
-        id: section.id,
-        nameAr: section.nameAr || section.nameEn || section.id,
+        id: sectionId,
+        nameAr: section.nameAr || section.name_ar || section.section_name?.ar ||
+                section.nameEn || section.name_en || section.section_name?.en ||
+                sectionId,
         count: count
       });
     });
@@ -264,8 +348,14 @@
   function renderOrderCard(job) {
     const timeSince = getTimeSinceCreated(job.createdAt);
     const timeClass = getTimeClass(timeSince);
-    const section = state.sections.find(s => s.id === job.sectionId);
-    const sectionName = section ? (section.nameAr || section.nameEn) : job.sectionId;
+    const section = state.sections.find(s => {
+      const sId = s.id || s.sectionId || s.stationId;
+      return sId === job.sectionId;
+    });
+    const sectionName = section ?
+      (section.nameAr || section.name_ar || section.section_name?.ar ||
+       section.nameEn || section.name_en || section.section_name?.en) :
+      job.sectionId;
 
     return `
       <div class="order-card ${timeSince > 20 * 60 * 1000 ? 'urgent' : ''}">
@@ -346,7 +436,8 @@
     // Update all items in this job to 'cooking' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await store.update('order_line', {
+          id: item.id,
           statusId: 'cooking'
         });
       } catch (err) {
@@ -363,7 +454,8 @@
     // Update all items in this job to 'ready' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await store.update('order_line', {
+          id: item.id,
           statusId: 'ready'
         });
       } catch (err) {
@@ -380,7 +472,8 @@
     // Update all items in this job to 'completed' status
     for (const item of job.items) {
       try {
-        await db.update('order_line', item.id, {
+        await store.update('order_line', {
+          id: item.id,
           statusId: 'completed'
         });
       } catch (err) {
@@ -390,13 +483,6 @@
   };
 
   // ==================== Initialize ====================
-
-  try {
-    await db.connect();
-    console.log('[KDS v2] Connected to database');
-  } catch (err) {
-    console.error('[KDS v2] Connection failed:', err);
-  }
 
   // Auto-refresh timer
   setInterval(() => {
