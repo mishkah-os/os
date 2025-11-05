@@ -234,6 +234,11 @@ class MishkahRealtimeStore extends EventEmitter {
     return snap ? clone(snap.tables) : {};
   }
 
+  listTable(tableName, moduleId = this.moduleId) {
+    const allTables = this.tables(moduleId);
+    return allTables && allTables[tableName] ? clone(allTables[tableName]) : [];
+  }
+
   getState() {
     return clone(this.state);
   }
