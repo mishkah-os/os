@@ -95,12 +95,29 @@ export default class ModuleStore {
     if (!this.isVersionedTable(tableName)) return null;
     const currentVersion = this.normalizeVersionInput(currentRecord?.version) || 1;
     const expectedVersion = this.normalizeVersionInput(patch?.version);
+
+    // Missing version in request
     if (!expectedVersion) {
       this.resolveConcurrencyConflict(tableName, key, expectedVersion, currentVersion, 'missing-version');
     }
-    if (expectedVersion !== currentVersion) {
+
+    // CRITICAL FIX: Support optimistic locking properly
+    // Frontend sends expectedVersion = currentVersion + 1 for updates
+    // Backend should validate: expectedVersion === currentVersion + 1
+
+    // Case 1: New record (version=1, currentVersion=1)
+    // This happens when a new order is created or when converting draft→real
+    if (expectedVersion === 1 && currentVersion === 1) {
+      // Allow: This is a new record or a retry after conflict
+      return currentVersion + 1;
+    }
+
+    // Case 2: Update (expectedVersion should be currentVersion + 1)
+    if (expectedVersion !== currentVersion + 1) {
+      // Version mismatch: frontend is out of sync or another device updated
       this.resolveConcurrencyConflict(tableName, key, expectedVersion, currentVersion, 'stale-version');
     }
+
     return currentVersion + 1;
   }
 
@@ -253,6 +270,29 @@ export default class ModuleStore {
       return { record: created, created: true };
     }
     const index = this.findRecordIndex(tableName, key);
+
+    // CRITICAL FIX: Support UPSERT for versioned tables
+    // If record exists but request has version=1, treat as UPSERT (replace)
+    // This handles case where Frontend allocated new ID but Backend already has it
+    if (index >= 0 && this.isVersionedTable(tableName)) {
+      const incomingVersion = this.normalizeVersionInput(record?.version);
+      const currentRecord = this.data[tableName][index];
+      const currentVersion = this.normalizeVersionInput(currentRecord?.version) || 1;
+
+      // If incoming version=1 and current version=1, allow REPLACE
+      // This handles retries and race conditions with invoice ID allocation
+      if (incomingVersion === 1 && currentVersion === 1) {
+        // UPSERT: Replace the entire record (not just update)
+        const enrichedContext = { branchId: this.branchId, ...context };
+        const replaced = this.schemaEngine.createRecord(tableName, record, enrichedContext);
+        this.initializeRecordVersion(tableName, replaced);
+        this.data[tableName][index] = replaced;
+        this.version += 1;
+        this.touchMeta();
+        return { record: deepClone(replaced), created: false, replaced: true };
+      }
+    }
+
     if (index < 0) {
       const created = this.insert(tableName, record, context);
       return { record: created, created: true };
