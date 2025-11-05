@@ -1,5 +1,6 @@
 import { readFile } from 'fs/promises';
 import { deepClone, createId, nowIso } from '../utils.js';
+import { normalizeRecordForSave } from './fk-resolver.js';
 
 function normalizeType(type) {
   if (!type) return 'string';
@@ -85,6 +86,10 @@ export default class SchemaEngine {
 
   createRecord(tableName, input = {}, context = {}) {
     const table = this.getTable(tableName);
+
+    // ✅ Normalize FK objects: {id, name} → extract id only
+    const normalizedInput = normalizeRecordForSave(this, tableName, input);
+
     const record = {};
 
     for (const field of table.fields || []) {
@@ -92,9 +97,9 @@ export default class SchemaEngine {
       const columnName = field.columnName || field.name;
 
       // Try to get value from both camelCase (field.name) and snake_case (field.columnName)
-      let value = input[fieldName];
+      let value = normalizedInput[fieldName];
       if ((value === undefined || value === null || value === '') && columnName !== fieldName) {
-        value = input[columnName];
+        value = normalizedInput[columnName];
       }
 
       if (value === undefined || value === null || value === '') {

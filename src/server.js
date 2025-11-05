@@ -5680,6 +5680,68 @@ async function handleMessage(client, raw) {
       }
       break;
     }
+    case 'client:query': {
+      // ✅ Dynamic read operations with FK population
+      if (!client.branchId) {
+        sendServerLog(client, 'error', 'Client attempted query before hello handshake');
+        return;
+      }
+      const branchId = client.branchId;
+      const moduleId = parsed.moduleId || parsed.module || null;
+      if (!moduleId) {
+        sendServerLog(client, 'error', 'Module ID missing in query payload');
+        return;
+      }
+      try {
+        const store = await ensureModuleStore(branchId, moduleId);
+        const tableName = parsed.table || parsed.tableName;
+        const queryType = parsed.queryType || 'list'; // 'get' or 'list'
+        const populate = parsed.populate !== false; // default: true
+
+        let result = null;
+
+        if (queryType === 'get') {
+          // Get single record
+          const id = parsed.id || parsed.recordId;
+          if (!id) {
+            throw new Error('Missing record ID for get query');
+          }
+          result = store.getRecord(tableName, id, { populate });
+        } else {
+          // List all records (with optional filter)
+          const options = { populate };
+          if (parsed.filter && typeof parsed.filter === 'object') {
+            // Simple filter support
+            options.filter = (record) => {
+              for (const [key, value] of Object.entries(parsed.filter)) {
+                if (record[key] !== value) return false;
+              }
+              return true;
+            };
+          }
+          result = store.queryTable(tableName, options);
+        }
+
+        // Send result back to client
+        client.ws.send(JSON.stringify({
+          type: 'server:query:result',
+          requestId: parsed.requestId,
+          table: tableName,
+          queryType,
+          result,
+          timestamp: nowIso()
+        }));
+      } catch (error) {
+        logger.warn({ err: error, clientId: client.id, branchId, moduleId }, 'Query failed');
+        client.ws.send(JSON.stringify({
+          type: 'server:query:error',
+          requestId: parsed.requestId,
+          error: error.message || 'Query failed',
+          timestamp: nowIso()
+        }));
+      }
+      break;
+    }
     default:
       sendServerLog(client, 'warn', 'Unknown message type', { type: parsed.type });
   }
