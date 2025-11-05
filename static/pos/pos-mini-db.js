@@ -283,20 +283,28 @@ async function fetchModuleDataset(branchId, moduleId) {
   const isLocal = typeof window !== 'undefined' && window.location &&
                   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-  // Only try to fetch dataset files on localhost (production doesn't have these endpoints)
-  if (!isLocal) {
-    return null; // Production relies on WebSocket - no static file fallback
+  // Try static files first (local development)
+  if (isLocal) {
+    const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
+    const candidates = [`${basePath}/live/data.json`, `${basePath}/seeds/initial.json`];
+    for (const url of candidates) {
+      try {
+        return await fetchJson(url);
+      } catch (_err) {
+        // try next candidate
+      }
+    }
   }
 
-  // Local development: try static files
-  const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
-  const candidates = [`${basePath}/live/data.json`, `${basePath}/seeds/initial.json`];
-  for (const url of candidates) {
-    try {
-      return await fetchJson(url);
-    } catch (_err) {
-      // try next candidate
-    }
+  // Fallback to REST API (works for both local and production)
+  try {
+    const apiUrl = `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
+    const snapshot = await fetchJson(apiUrl);
+    // The API returns a snapshot with { branchId, moduleId, tables, meta, version }
+    // Return it in the expected format
+    return snapshot;
+  } catch (error) {
+    console.warn(`[fetchModuleDataset] Failed to fetch from REST API: ${error.message}`);
   }
 
   return null;
