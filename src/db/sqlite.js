@@ -286,8 +286,8 @@ function buildLineRow(record = {}, context = {}) {
   const updatedAt = record.updatedAt || record.updated_at || createdAt;
   const version = Number.isFinite(Number(record.version)) ? Math.trunc(Number(record.version)) : 1;
 
-  // Extract item_id from both camelCase and snake_case variants
-  let itemId = record.itemId || record.item_id || null;
+  // Extract item_id from all variants (camelCase, snake_case, PascalCase)
+  let itemId = record.itemId || record.item_id || record.Item_Id || null;
 
   // If itemId is an object, extract the id or stringify it
   if (itemId && typeof itemId === 'object' && !Array.isArray(itemId)) {

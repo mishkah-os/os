@@ -1594,6 +1594,7 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
   const itemId =
     line.itemId ||
     line.item_id ||
+    line.Item_Id ||  // PascalCase from schema!
     line.menuItemId ||
     line.menu_item_id ||
     line.productId ||
