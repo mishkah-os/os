@@ -61,6 +61,16 @@
   const database = typeof window !== 'undefined' ? (window.database || {}) : {};
   const posSchema = database.schema || database.pos_schema || null;
 
+  // 🔍 DEBUG: Print schema structure
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🔍 [DEBUG] window.database:', database);
+  console.log('🔍 [DEBUG] window.database keys:', Object.keys(database));
+  console.log('🔍 [DEBUG] posSchema:', posSchema);
+  if (posSchema && posSchema.tables) {
+    console.log('🔍 [DEBUG] Schema tables:', posSchema.tables.map(t => t.name || t.sqlName));
+  }
+  console.log('═══════════════════════════════════════════════════');
+
   let db;
   if (posSchema && typeof createDBAuto === 'function') {
     // Use createDBAuto for automatic table registration
@@ -96,7 +106,15 @@
 
   // Watch kitchen sections
   db.watch('kitchen_section', (sections) => {
-    console.log('[KDS v2] kitchen_section updated:', sections ? sections.length : 0);
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🔍 [DEBUG] kitchen_section updated:', sections ? sections.length : 0);
+    if (sections && sections.length > 0) {
+      console.log('🔍 [DEBUG] First kitchen_section record:', sections[0]);
+      console.log('🔍 [DEBUG] kitchen_section fields:', Object.keys(sections[0]));
+      console.log('🔍 [DEBUG] All kitchen_sections:', sections);
+    }
+    console.log('═══════════════════════════════════════════════════');
+
     state.sections = sections || [];
     renderTabs();
     renderOrders();
@@ -104,21 +122,44 @@
 
   // Watch menu items (for item names)
   db.watch('menu_item', (items) => {
-    console.log('[KDS v2] menu_item updated:', items ? items.length : 0);
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🔍 [DEBUG] menu_item updated:', items ? items.length : 0);
+    if (items && items.length > 0) {
+      console.log('🔍 [DEBUG] First menu_item record:', items[0]);
+      console.log('🔍 [DEBUG] menu_item fields:', Object.keys(items[0]));
+      console.log('🔍 [DEBUG] First 5 menu_items:', items.slice(0, 5));
+    }
+    console.log('═══════════════════════════════════════════════════');
+
     state.menuItems = items || [];
     processOrders();
   });
 
   // Watch order headers
   db.watch('order_header', (headers) => {
-    console.log('[KDS v2] order_header updated:', headers ? headers.length : 0);
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🔍 [DEBUG] order_header updated:', headers ? headers.length : 0);
+    if (headers && headers.length > 0) {
+      console.log('🔍 [DEBUG] First order_header record:', headers[0]);
+      console.log('🔍 [DEBUG] order_header fields:', Object.keys(headers[0]));
+    }
+    console.log('═══════════════════════════════════════════════════');
+
     state.orders = headers || [];
     processOrders();
   });
 
   // Watch order lines
   db.watch('order_line', (lines) => {
-    console.log('[KDS v2] order_line updated:', lines ? lines.length : 0);
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🔍 [DEBUG] order_line updated:', lines ? lines.length : 0);
+    if (lines && lines.length > 0) {
+      console.log('🔍 [DEBUG] First order_line record:', lines[0]);
+      console.log('🔍 [DEBUG] order_line fields:', Object.keys(lines[0]));
+      console.log('🔍 [DEBUG] First 3 order_lines:', lines.slice(0, 3));
+    }
+    console.log('═══════════════════════════════════════════════════');
+
     state.lines = lines || [];
     processOrders();
   });
@@ -134,6 +175,13 @@
   function processOrders() {
     if (!state.orders || !state.lines) return;
 
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🔍 [DEBUG] processOrders() called');
+    console.log('🔍 [DEBUG] state.orders:', state.orders.length);
+    console.log('🔍 [DEBUG] state.lines:', state.lines.length);
+    console.log('🔍 [DEBUG] state.menuItems:', state.menuItems.length);
+    console.log('🔍 [DEBUG] state.sections:', state.sections.length);
+
     // Clear jobs
     state.jobs.clear();
 
@@ -143,10 +191,21 @@
       itemsIndex[item.id] = item;
     });
 
+    console.log('🔍 [DEBUG] itemsIndex created with', Object.keys(itemsIndex).length, 'items');
+
     // Group lines by orderId and kitchenSectionId
-    state.lines.forEach(line => {
+    let firstLineProcessed = false;
+    state.lines.forEach((line, index) => {
       const orderId = line.orderId || line.order_id;
       const sectionId = line.kitchenSectionId || line.kitchen_section_id;
+
+      // Debug first line only
+      if (!firstLineProcessed && index === 0) {
+        console.log('🔍 [DEBUG] Processing first line:', line);
+        console.log('🔍 [DEBUG] orderId:', orderId);
+        console.log('🔍 [DEBUG] sectionId:', sectionId);
+        firstLineProcessed = true;
+      }
 
       if (!orderId || !sectionId) return;
 
@@ -158,9 +217,20 @@
       const itemId = line.itemId || line.item_id;
       const menuItem = itemId ? itemsIndex[itemId] : null;
 
+      // Debug first item lookup
+      if (index === 0) {
+        console.log('🔍 [DEBUG] itemId:', itemId);
+        console.log('🔍 [DEBUG] menuItem found:', menuItem);
+      }
+
       // Use names from menu_item if available, fallback to line data
       const nameAr = menuItem?.nameAr || menuItem?.name_ar || line.itemNameAr || line.item_name_ar || itemId;
       const nameEn = menuItem?.nameEn || menuItem?.name_en || line.itemNameEn || line.item_name_en || itemId;
+
+      if (index === 0) {
+        console.log('🔍 [DEBUG] Resolved nameAr:', nameAr);
+        console.log('🔍 [DEBUG] Resolved nameEn:', nameEn);
+      }
 
       // Create job ID: orderId:sectionId
       const jobId = `${orderId}:${sectionId}`;
@@ -213,6 +283,13 @@
         job.status = 'queued';
       }
     });
+
+    console.log('🔍 [DEBUG] Total jobs created:', state.jobs.size);
+    if (state.jobs.size > 0) {
+      const firstJob = Array.from(state.jobs.values())[0];
+      console.log('🔍 [DEBUG] First job:', firstJob);
+    }
+    console.log('═══════════════════════════════════════════════════');
 
     renderOrders();
   }
@@ -300,6 +377,10 @@
     const container = document.getElementById('tabs-container');
     if (!container) return;
 
+    console.log('═══════════════════════════════════════════════════');
+    console.log('🔍 [DEBUG] renderTabs() called');
+    console.log('🔍 [DEBUG] state.sections:', state.sections);
+
     const tabs = [];
 
     // Add 'prep' tab (all orders view)
@@ -318,13 +399,20 @@
       return seqA - seqB;
     });
 
+    console.log('🔍 [DEBUG] sortedSections:', sortedSections);
+
     sortedSections.forEach(section => {
       const count = getJobsForSection(section.id).length;
 
+      const nameAr = section.nameAr || section.name_ar || section.nameEn || section.name_en || section.id;
+      const nameEn = section.nameEn || section.name_en || section.nameAr || section.name_ar || section.id;
+
+      console.log('🔍 [DEBUG] Section:', section.id, '→ nameAr:', nameAr, ', nameEn:', nameEn);
+
       tabs.push({
         id: section.id,
-        nameAr: section.nameAr || section.name_ar || section.nameEn || section.name_en || section.id,
-        nameEn: section.nameEn || section.name_en || section.nameAr || section.name_ar || section.id,
+        nameAr: nameAr,
+        nameEn: nameEn,
         count: count
       });
     });
@@ -357,6 +445,10 @@
       nameEn: MANUAL_STAGES['delivery-pending'].nameEn,
       count: getPendingDeliveryOrders().length
     });
+
+    console.log('🔍 [DEBUG] Final tabs array:', tabs);
+    console.log('🔍 [DEBUG] Active language:', state.lang);
+    console.log('═══════════════════════════════════════════════════');
 
     container.innerHTML = tabs.map(tab => {
       const displayName = state.lang === 'ar' ? tab.nameAr : tab.nameEn;
@@ -860,17 +952,32 @@
 
   // ==================== Initialize ====================
 
+  console.log('═══════════════════════════════════════════════════');
+  console.log('🔍 [DEBUG] Starting database connection...');
+
   try {
     await db.connect();
-    console.log('[KDS v2] Connected to database');
+    console.log('✅ [KDS v2] Connected to database successfully');
+
+    // Wait a bit for initial data load
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    console.log('🔍 [DEBUG] After 2 seconds wait:');
+    console.log('🔍 [DEBUG] - Sections loaded:', state.sections.length);
+    console.log('🔍 [DEBUG] - Menu items loaded:', state.menuItems.length);
+    console.log('🔍 [DEBUG] - Orders loaded:', state.orders.length);
+    console.log('🔍 [DEBUG] - Lines loaded:', state.lines.length);
+    console.log('🔍 [DEBUG] - Jobs created:', state.jobs.size);
   } catch (err) {
-    console.error('[KDS v2] Connection failed:', err);
+    console.error('❌ [KDS v2] Connection failed:', err);
   }
+
+  console.log('═══════════════════════════════════════════════════');
 
   // Auto-refresh timer
   setInterval(() => {
     renderOrders();
   }, 1000);
 
-  console.log('[KDS v2] Initialization complete');
+  console.log('✅ [KDS v2] Initialization complete');
 })();
