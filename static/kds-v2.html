@@ -4,26 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>مشكاة | شاشة المطبخ</title>
-  <script src="./lib/mishkah-utils.js"></script>
   <script src="./lib/mishkah.core.js"></script>
-  <script src="./lib/mishkah-ui.js"></script>
-  <script src="./lib/mishkah-schema.js"></script>
   <script src="./lib/mishkah.store.js"></script>
-  <script src="./lib/mishkah.crud.js"></script>
   <script src="./lib/mishkah.simple-store.js"></script>
-  <script src="./pos/pos-mini-db.js"></script>
   <style>
-    :root {
-      color-scheme: dark;
-      --kds-page-bg: radial-gradient(circle at top, #0f172a 0%, #020617 55%);
-      --kds-page-fg: #f8fafc;
-      --kds-surface-1: rgba(15, 23, 42, 0.92);
-      --kds-surface-2: rgba(30, 41, 59, 0.78);
-      --kds-border: rgba(71, 85, 105, 0.62);
-      --kds-muted: rgba(148, 163, 184, 0.78);
-      --kds-shadow: 0 28px 60px rgba(2, 6, 23, 0.65);
-    }
-
     * {
       margin: 0;
       padding: 0;
@@ -31,12 +15,11 @@
     }
 
     body {
-      font-family: "Tajawal", "Cairo", system-ui, sans-serif;
-      background: var(--kds-page-bg);
-      color: var(--kds-page-fg);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      color: #fff;
       overflow: hidden;
       height: 100vh;
-      transition: background 320ms ease, color 240ms ease;
     }
 
     .kds-container {
@@ -352,61 +335,6 @@
       </div>
     </div>
   </div>
-
-  <script>
-    // Initialize database from pos-mini-db
-    let createPosDb = window.createPosDb;
-
-    const params = new URLSearchParams(window.location.search || '');
-    const BRANCH_ID = (params.get('brname') || 'dar').trim();
-
-    const status = {
-      status: 'loading',
-      startedAt: Date.now(),
-      finishedAt: null,
-      error: null,
-      keys: [],
-      branchId: BRANCH_ID
-    };
-
-    window.__POS_DATA_STATUS__ = status;
-
-    try {
-      createPosDb({ branchId: BRANCH_ID, role: 'kds-v2' }).then(({ db, moduleEntry }) => {
-        window.__POS_DB__ = db;
-        window.__POS_MODULE_ENTRY__ = moduleEntry;
-        db.ready().then(() => {
-          const records = db.list('pos_database');
-          const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
-          const payload = latest && latest.payload ? latest.payload : {};
-          window.database = payload;
-          status.status = latest ? 'ready' : 'idle';
-          status.keys = Object.keys(payload || {});
-          status.finishedAt = Date.now();
-
-          console.log('[KDS v2 HTML] Database loaded:', Object.keys(payload));
-        }).catch(error => {
-          console.error('[KDS v2 HTML] Failed to ready database', error);
-          window.database = {};
-          status.status = 'error';
-          status.error = error;
-          status.finishedAt = Date.now();
-        });
-      }).catch(error => {
-        console.error('[KDS v2 HTML] Failed to create database', error);
-        window.database = {};
-        status.status = 'error';
-        status.error = error;
-        status.finishedAt = Date.now();
-      });
-    } catch (error) {
-      console.error('[KDS v2 HTML] Failed to initialize', error);
-      window.database = {};
-      status.status = 'error';
-      status.error = error;
-      status.finishedAt = Date.now();
-    }
-  </script>
 
   <script src="./kds-v2.js"></script>
 </body>
