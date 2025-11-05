@@ -167,6 +167,17 @@ function buildRow(tableName, record = {}, context = {}) {
     const fieldName = field.name;
     const columnName = field.columnName;
 
+    // 🔍 DEBUG: Log column names for item_id
+    if (tableName === 'order_line' && fieldName.toLowerCase().includes('item')) {
+      console.log('[dynamic-sqlite][buildRow] 🔍', {
+        tableName,
+        fieldName,
+        columnName,
+        recordValue: record[fieldName],
+        recordColumnValue: record[columnName]
+      });
+    }
+
     // Try to get value from both camelCase and snake_case
     let value = record[fieldName];
     if ((value === undefined || value === null) && columnName !== fieldName) {
