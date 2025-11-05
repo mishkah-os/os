@@ -152,15 +152,15 @@
             },
             {
               "category_id": "sandwiches",
-              "section_id": "hot_line"
+              "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
             },
             {
               "category_id": "hawawshi",
-              "section_id": "hot_line"
+              "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
             },
             {
               "category_id": "combo_meals",
-              "section_id": "hot_line"
+              "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
             },
             {
               "category_id": "kilo_grills",
@@ -548,7 +548,7 @@
                 "en": "Sandwiches",
                 "ar": "السندويتشات"
               },
-              "section_id": "hot_line"
+              "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
             },
             {
               "id": "hawawshi",
@@ -556,7 +556,7 @@
                 "en": "Hawawshi",
                 "ar": "الحواوشي"
               },
-              "section_id": "hot_line"
+              "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
             },
             {
               "id": "combo_meals",
@@ -564,7 +564,7 @@
                 "en": "Combo Meals",
                 "ar": "وجبات الكومبو"
               },
-              "section_id": "hot_line"
+              "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
             },
             {
               "id": "kilo_grills",
@@ -660,7 +660,7 @@
             {
               "id": 5,
               "category_id": "sandwiches",
-              "kitchen_section_id": "hot_line",
+              "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
               "pricing": {
                 "base": 100
               },
@@ -679,7 +679,7 @@
             {
               "id": 6,
               "category_id": "sandwiches",
-              "kitchen_section_id": "hot_line",
+              "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
               "pricing": {
                 "base": 100
               },
@@ -698,7 +698,7 @@
             {
               "id": 9,
               "category_id": "sandwiches",
-              "kitchen_section_id": "hot_line",
+              "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
               "pricing": {
                 "base": 55
               },
@@ -717,7 +717,7 @@
             {
               "id": 10,
               "category_id": "hawawshi",
-              "kitchen_section_id": "hot_line",
+              "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
               "pricing": {
                 "base": 120
               },
@@ -736,7 +736,7 @@
             {
               "id": 13,
               "category_id": "hawawshi",
-              "kitchen_section_id": "hot_line",
+              "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
               "pricing": {
                 "base": 120
               },
@@ -755,7 +755,7 @@
             {
               "id": 14,
               "category_id": "combo_meals",
-              "kitchen_section_id": "hot_line",
+              "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
               "pricing": {
                 "base": 149
               },
@@ -774,7 +774,7 @@
             {
               "id": 15,
               "category_id": "combo_meals",
-              "kitchen_section_id": "hot_line",
+              "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
               "pricing": {
                 "base": 205
               },
