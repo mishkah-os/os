@@ -6032,6 +6032,12 @@
       }
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
       console.log('[Mishkah][POS] Order totals calculated:', { totals, linesCount: safeLines.length });
+      // CRITICAL: Prevent saving orders with zero total (unless they are already persisted)
+      if(totals.due <= 0 && !order.isPersisted){
+        console.error('[Mishkah][POS] Cannot save new order with zero or negative total', { totals, isPersisted: order.isPersisted });
+        UI.pushToast(ctx, { title:t.toast.order_zero_total || 'لا يمكن حفظ طلب بقيمة صفرية', icon:'⚠️' });
+        return { status:'error', reason:'order-zero-total' };
+      }
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
       const normalizedPayments = paymentSplit.map(entry=>({
         id: entry.id || `pm-${Math.random().toString(36).slice(2,8)}`,
@@ -6062,18 +6068,32 @@
       const orderNotes = Array.isArray(order.notes) ? order.notes : (order.notes ? [order.notes] : []);
       let finalOrderId = previousOrderId;
       // Allocate new ID if order is not persisted OR if there's no valid ID
+      console.log('[Mishkah][POS] INVOICE ID DECISION', {
+        isPersisted: order.isPersisted,
+        previousOrderId,
+        willAllocateNew: !order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined'
+      });
       if(!order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined'){
-        console.log('[Mishkah][POS] Allocating new invoice ID', { isPersisted: order.isPersisted, previousOrderId });
+        console.log('[Mishkah][POS] 🆕 Allocating NEW invoice ID', {
+          isPersisted: order.isPersisted,
+          previousOrderId,
+          reason: !order.isPersisted ? 'order not persisted' : 'no valid previous ID'
+        });
         try {
           finalOrderId = await allocateInvoiceId();
-          console.log('[Mishkah][POS] New invoice ID allocated:', finalOrderId);
+          console.log('[Mishkah][POS] ✅ New invoice ID allocated:', finalOrderId);
         } catch(allocError){
-          console.warn('[Mishkah][POS] invoice allocation failed during save', allocError);
+          console.error('[Mishkah][POS] ❌ Invoice allocation failed during save', allocError);
           UI.pushToast(ctx, { title:t.toast.indexeddb_error, message:String(allocError), icon:'🛑' });
           return { status:'error', reason:'invoice' };
         }
       } else {
-        console.log('[Mishkah][POS] Using existing order ID:', previousOrderId);
+        console.log('[Mishkah][POS] ♻️ Using EXISTING order ID:', previousOrderId, {
+          isPersisted: order.isPersisted,
+          version: order.version,
+          currentVersion: order.currentVersion,
+          expectedVersion: order.expectedVersion
+        });
       }
       const idChanged = previousOrderId !== finalOrderId;
       const primaryTableId = assignedTables.length ? assignedTables[0] : (order.tableId || null);
@@ -7942,16 +7962,61 @@
 
     function activateOrder(ctx, order, options={}){
       if(!order) return;
+      console.log('[Mishkah][POS] activateOrder START', {
+        orderId: order.id,
+        isPersisted: order.isPersisted,
+        tableIds: order.tableIds,
+        customerId: order.customerId,
+        totals: order.totals,
+        version: order.version,
+        currentVersion: order.currentVersion,
+        expectedVersion: order.expectedVersion
+      });
       const typeConfig = getOrderTypeConfig(order.type || 'dine_in');
+      // IMPORTANT: Preserve ALL critical order data when activating an existing order
       let safeOrder = {
         ...order,
         lines: Array.isArray(order.lines) ? order.lines.map(line=> ({ ...line })) : [],
         notes: Array.isArray(order.notes) ? order.notes.map(note=> ({ ...note })) : [],
         payments: Array.isArray(order.payments) ? order.payments.map(pay=> ({ ...pay })) : [],
         dirty:false,
-        discount: normalizeDiscount(order.discount)
+        discount: normalizeDiscount(order.discount),
+        // Preserve critical fields that MUST NOT be lost when reopening an order
+        id: order.id,
+        isPersisted: order.isPersisted !== undefined ? order.isPersisted : true,
+        tableIds: Array.isArray(order.tableIds) ? order.tableIds.slice() : (order.tableId ? [order.tableId] : []),
+        tableId: order.tableId || (Array.isArray(order.tableIds) && order.tableIds.length ? order.tableIds[0] : null),
+        customerId: order.customerId || null,
+        customerAddressId: order.customerAddressId || null,
+        customerName: order.customerName || '',
+        customerPhone: order.customerPhone || '',
+        customerAddress: order.customerAddress || '',
+        customerAreaId: order.customerAreaId || null,
+        createdAt: order.createdAt || Date.now(),
+        updatedAt: order.updatedAt || Date.now(),
+        savedAt: order.savedAt || Date.now(),
+        version: order.version || order.currentVersion || 1,
+        currentVersion: order.currentVersion || order.version || 1,
+        expectedVersion: order.expectedVersion || order.currentVersion || order.version || 1,
+        status: order.status || 'open',
+        fulfillmentStage: order.fulfillmentStage || order.stage || 'new',
+        posId: order.posId || null,
+        posLabel: order.posLabel || null,
+        posNumber: order.posNumber || null,
+        shiftId: order.shiftId || null,
+        metadata: order.metadata ? { ...order.metadata } : {}
       };
       safeOrder = enrichOrderWithMenu(safeOrder);
+      console.log('[Mishkah][POS] activateOrder AFTER enrichment', {
+        orderId: safeOrder.id,
+        isPersisted: safeOrder.isPersisted,
+        tableIds: safeOrder.tableIds,
+        customerId: safeOrder.customerId,
+        totals: safeOrder.totals,
+        version: safeOrder.version,
+        currentVersion: safeOrder.currentVersion,
+        expectedVersion: safeOrder.expectedVersion
+      });
       ctx.setState(s=>{
         const data = s.data || {};
         const modals = { ...(s.ui?.modals || {}) };
@@ -7971,6 +8036,17 @@
         const totals = calculateTotals(safeOrder.lines || [], data.settings || {}, safeOrder.type || 'dine_in', { orderDiscount: safeOrder.discount });
         const paymentEntries = getActivePaymentEntries({ ...safeOrder, totals }, nextPayments);
         const paymentSnapshot = summarizePayments(totals, paymentEntries);
+        console.log('[Mishkah][POS] activateOrder FINAL STATE', {
+          orderId: safeOrder.id,
+          isPersisted: safeOrder.isPersisted,
+          tableIds: safeOrder.tableIds,
+          customerId: safeOrder.customerId,
+          totals,
+          paymentState: paymentSnapshot.state,
+          version: safeOrder.version,
+          currentVersion: safeOrder.currentVersion,
+          expectedVersion: safeOrder.expectedVersion
+        });
         return {
           ...s,
           data:{
@@ -7982,7 +8058,7 @@
               paymentState: paymentSnapshot.state,
               allowAdditions: safeOrder.allowAdditions !== undefined ? safeOrder.allowAdditions : !!typeConfig.allowsLineAdditions,
               lockLineEdits: safeOrder.lockLineEdits !== undefined ? safeOrder.lockLineEdits : true,
-              isPersisted: safeOrder.isPersisted !== undefined ? safeOrder.isPersisted : true
+              isPersisted: safeOrder.isPersisted
             },
             payments: nextPayments
           },
