@@ -5866,7 +5866,13 @@
         return { status:'error', reason:'shift' };
       }
       const order = state.data.order || {};
-      console.log('[Mishkah][POS] persistOrderFlow, order object:', JSON.stringify(order, null, 2));
+      console.log('[Mishkah][POS] persistOrderFlow START', {
+        orderId: order.id,
+        isPersisted: order.isPersisted,
+        dirty: order.dirty,
+        linesCount: order.lines?.length || 0,
+        mode: rawMode
+      });
       const previousOrderId = order.id;
       const orderType = order.type || 'dine_in';
       const mode = normalizeSaveMode(rawMode, orderType);
@@ -6018,7 +6024,14 @@
       if(missingKitchenLine){
         console.warn('[Mishkah][POS] Continuing save with expo as default kitchen section');
       }
+      // Validate that order has lines with non-zero totals
+      if(!safeLines.length){
+        console.error('[Mishkah][POS] Cannot save order with no lines');
+        UI.pushToast(ctx, { title:t.toast.order_empty || 'لا يمكن حفظ طلب فارغ', icon:'⚠️' });
+        return { status:'error', reason:'order-empty' };
+      }
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
+      console.log('[Mishkah][POS] Order totals calculated:', { totals, linesCount: safeLines.length });
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
       const normalizedPayments = paymentSplit.map(entry=>({
         id: entry.id || `pm-${Math.random().toString(36).slice(2,8)}`,
@@ -6048,14 +6061,19 @@
       const allowAdditions = finalize ? false : !!typeConfig.allowsLineAdditions;
       const orderNotes = Array.isArray(order.notes) ? order.notes : (order.notes ? [order.notes] : []);
       let finalOrderId = previousOrderId;
-      if(!order.isPersisted){
+      // Allocate new ID if order is not persisted OR if there's no valid ID
+      if(!order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined'){
+        console.log('[Mishkah][POS] Allocating new invoice ID', { isPersisted: order.isPersisted, previousOrderId });
         try {
           finalOrderId = await allocateInvoiceId();
+          console.log('[Mishkah][POS] New invoice ID allocated:', finalOrderId);
         } catch(allocError){
           console.warn('[Mishkah][POS] invoice allocation failed during save', allocError);
           UI.pushToast(ctx, { title:t.toast.indexeddb_error, message:String(allocError), icon:'🛑' });
           return { status:'error', reason:'invoice' };
         }
+      } else {
+        console.log('[Mishkah][POS] Using existing order ID:', previousOrderId);
       }
       const idChanged = previousOrderId !== finalOrderId;
       const primaryTableId = assignedTables.length ? assignedTables[0] : (order.tableId || null);
