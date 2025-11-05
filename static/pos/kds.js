@@ -2195,20 +2195,27 @@
     window.MishkahKdsChannel = BRANCH_CHANNEL;
   }
   const stations = buildStations(database, kdsSource, masterSource);
-  const stationMap = toStationMap(stations);
-  const initialStationRoutes = Array.isArray(kdsSource.stationCategoryRoutes)
-    ? kdsSource.stationCategoryRoutes.map(route=> ({ ...route }))
-    : (Array.isArray(masterSource?.stationCategoryRoutes)
-      ? masterSource.stationCategoryRoutes.map(route=> ({ ...route }))
-      : (Array.isArray(database?.station_category_routes)
-        ? database.station_category_routes.map(route=> ({ ...route }))
-        : []));
   const initialKitchenSections = Array.isArray(kdsSource.kitchenSections)
     ? kdsSource.kitchenSections.map(section=> ({ ...section }))
     : (Array.isArray(masterSource?.kitchenSections)
       ? masterSource.kitchenSections.map(section=> ({ ...section }))
       : (Array.isArray(database?.kitchen_sections)
         ? database.kitchen_sections.map(section=> ({ ...section }))
+        : []));
+  // ✅ Build stationMap from BOTH stations and kitchenSections
+  const combinedStations = [...stations];
+  initialKitchenSections.forEach(section=> {
+    if(!combinedStations.find(s=> s.id === section.id)){
+      combinedStations.push(section);
+    }
+  });
+  const stationMap = toStationMap(combinedStations);
+  const initialStationRoutes = Array.isArray(kdsSource.stationCategoryRoutes)
+    ? kdsSource.stationCategoryRoutes.map(route=> ({ ...route }))
+    : (Array.isArray(masterSource?.stationCategoryRoutes)
+      ? masterSource.stationCategoryRoutes.map(route=> ({ ...route }))
+      : (Array.isArray(database?.station_category_routes)
+        ? database.station_category_routes.map(route=> ({ ...route }))
         : []));
   const initialCategorySections = Array.isArray(kdsSource.categorySections)
     ? kdsSource.categorySections.map(entry=> ({ ...entry }))
@@ -2563,18 +2570,26 @@
       if(Array.isArray(payload.master?.stations) && payload.master.stations.length){
         stationsNext = payload.master.stations.map(station=> ({ ...station }));
       }
-      const stationMapNext = toStationMap(stationsNext);
-      let stationRoutesNext = Array.isArray(state.data.stationCategoryRoutes)
-        ? state.data.stationCategoryRoutes.map(route=> ({ ...route }))
-        : [];
-      if(Array.isArray(payload.master?.stationCategoryRoutes)){
-        stationRoutesNext = payload.master.stationCategoryRoutes.map(route=> ({ ...route }));
-      }
       let kitchenSectionsNext = Array.isArray(state.data.kitchenSections)
         ? state.data.kitchenSections.map(section=> ({ ...section }))
         : [];
       if(Array.isArray(payload.master?.kitchenSections)){
         kitchenSectionsNext = payload.master.kitchenSections.map(section=> ({ ...section }));
+      }
+      // ✅ Build stationMap from BOTH stations and kitchenSections
+      const combinedStations = [...stationsNext];
+      kitchenSectionsNext.forEach(section=> {
+        // Only add if not already in stationsNext
+        if(!combinedStations.find(s=> s.id === section.id)){
+          combinedStations.push(section);
+        }
+      });
+      const stationMapNext = toStationMap(combinedStations);
+      let stationRoutesNext = Array.isArray(state.data.stationCategoryRoutes)
+        ? state.data.stationCategoryRoutes.map(route=> ({ ...route }))
+        : [];
+      if(Array.isArray(payload.master?.stationCategoryRoutes)){
+        stationRoutesNext = payload.master.stationCategoryRoutes.map(route=> ({ ...route }));
       }
       let categorySectionsNext = Array.isArray(state.data.categorySections)
         ? state.data.categorySections.map(entry=> ({ ...entry }))
@@ -3582,10 +3597,17 @@
       posPayload?.kds || {},
       posPayload?.master || {}
     );
-    const stationMap = toStationMap(stations);
     const kitchenSections = normalizeKitchenSections(
       posPayload?.kitchen_sections
     );
+    // ✅ Build stationMap from BOTH stations and kitchenSections
+    const combinedStations = [...stations];
+    kitchenSections.forEach(section=> {
+      if(!combinedStations.find(s=> s.id === section.id)){
+        combinedStations.push(section);
+      }
+    });
+    const stationMap = toStationMap(combinedStations);
     const stationCategoryRoutes = normalizeCategoryRoutes(
       posPayload?.category_sections
     );
