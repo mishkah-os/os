@@ -1,0 +1,5466 @@
+{
+  "id": "purge-fd3d86cd-1df1-45fc-a243-e258c481ff4f",
+  "type": "purge",
+  "branchId": "dar",
+  "moduleId": "pos",
+  "createdAt": "2025-11-05T20:01:17.356Z",
+  "reason": "branch-api-reset",
+  "requestedBy": null,
+  "clearedTables": [
+    "pos_database",
+    "pos_terminal",
+    "employee",
+    "pos_shift",
+    "shift_cash_audit",
+    "shift_payment_summary",
+    "order_type",
+    "order_status",
+    "order_stage",
+    "order_payment_state",
+    "order_line_status",
+    "payment_method",
+    "kitchen_section",
+    "menu_category",
+    "category_section",
+    "menu_item",
+    "menu_item_price",
+    "menu_item_media",
+    "menu_modifier",
+    "menu_item_modifier",
+    "customer_profile",
+    "customer_address",
+    "dining_table",
+    "table_lock",
+    "reservation",
+    "reservation_table",
+    "delivery_driver",
+    "order_header",
+    "order_line",
+    "order_status_log",
+    "order_line_status_log",
+    "order_line_modifier",
+    "order_payment",
+    "order_refund",
+    "order_delivery",
+    "audit_event"
+  ],
+  "originalVersion": 1,
+  "totalRecords": 159,
+  "tables": [
+    {
+      "name": "pos_database",
+      "count": 1,
+      "records": [
+        {
+          "branchId": "dar",
+          "createdAt": "2025-11-05T20:00:55.603Z",
+          "id": "id-7cb58d02-497e-4c7f-831d-52ddfc72d146",
+          "payload": {},
+          "updatedAt": "2025-11-05T20:00:55.604Z",
+          "orders": [],
+          "shifts": [],
+          "orderLines": [],
+          "orderNotes": [],
+          "orderStatusLogs": [],
+          "posMeta": [],
+          "syncLog": []
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "pos_database",
+          "key": "id-7cb58d02-497e-4c7f-831d-52ddfc72d146",
+          "primaryKey": {
+            "id": "id-7cb58d02-497e-4c7f-831d-52ddfc72d146"
+          },
+          "id": "id-7cb58d02-497e-4c7f-831d-52ddfc72d146"
+        }
+      ]
+    },
+    {
+      "name": "pos_terminal",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "employee",
+      "count": 5,
+      "records": [
+        {
+          "allowedDiscountRate": 0.1,
+          "createdAt": "2025-11-05T20:00:55.604Z",
+          "email": null,
+          "fullName": "أحمد محمود",
+          "hiredAt": "2025-11-05T20:00:55.604Z",
+          "id": "e7a8f0b4",
+          "phone": null,
+          "pinCode": "1122",
+          "role": "cashier",
+          "status": "active",
+          "updatedAt": "2025-11-05T20:00:55.604Z",
+          "pin_code": "1122",
+          "full_name": "أحمد محمود",
+          "allowed_discount_rate": 0.1
+        },
+        {
+          "allowedDiscountRate": 0.1,
+          "createdAt": "2025-11-05T20:00:55.604Z",
+          "email": null,
+          "fullName": "سارة علي",
+          "hiredAt": "2025-11-05T20:00:55.604Z",
+          "id": "f3c9d8e1",
+          "phone": null,
+          "pinCode": "3344",
+          "role": "cashier",
+          "status": "active",
+          "updatedAt": "2025-11-05T20:00:55.604Z",
+          "pin_code": "3344",
+          "full_name": "سارة علي",
+          "allowed_discount_rate": 0.1
+        },
+        {
+          "allowedDiscountRate": 0.25,
+          "createdAt": "2025-11-05T20:00:55.604Z",
+          "email": null,
+          "fullName": "خالد إبراهيم",
+          "hiredAt": "2025-11-05T20:00:55.604Z",
+          "id": "a1b2c3d4",
+          "phone": null,
+          "pinCode": "9999",
+          "role": "manager",
+          "status": "active",
+          "updatedAt": "2025-11-05T20:00:55.604Z",
+          "pin_code": "9999",
+          "full_name": "خالد إبراهيم",
+          "allowed_discount_rate": 0.25
+        },
+        {
+          "allowedDiscountRate": 0,
+          "createdAt": "2025-11-05T20:00:55.604Z",
+          "email": null,
+          "fullName": "فاطمة حسن",
+          "hiredAt": "2025-11-05T20:00:55.604Z",
+          "id": "b5c6d7e8",
+          "phone": null,
+          "pinCode": "5566",
+          "role": "kitchen_staff",
+          "status": "active",
+          "updatedAt": "2025-11-05T20:00:55.604Z",
+          "pin_code": "5566",
+          "full_name": "فاطمة حسن",
+          "allowed_discount_rate": 0
+        },
+        {
+          "allowedDiscountRate": 0,
+          "createdAt": "2025-11-05T20:00:55.604Z",
+          "email": null,
+          "fullName": "يوسف كريم",
+          "hiredAt": "2025-11-05T20:00:55.604Z",
+          "id": "c9d0e1f2",
+          "phone": null,
+          "pinCode": "7788",
+          "role": "delivery_driver",
+          "status": "active",
+          "updatedAt": "2025-11-05T20:00:55.604Z",
+          "pin_code": "7788",
+          "full_name": "يوسف كريم",
+          "allowed_discount_rate": 0
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "employee",
+          "key": "e7a8f0b4",
+          "primaryKey": {
+            "id": "e7a8f0b4"
+          },
+          "id": "e7a8f0b4"
+        },
+        {
+          "table": "employee",
+          "key": "f3c9d8e1",
+          "primaryKey": {
+            "id": "f3c9d8e1"
+          },
+          "id": "f3c9d8e1"
+        },
+        {
+          "table": "employee",
+          "key": "a1b2c3d4",
+          "primaryKey": {
+            "id": "a1b2c3d4"
+          },
+          "id": "a1b2c3d4"
+        },
+        {
+          "table": "employee",
+          "key": "b5c6d7e8",
+          "primaryKey": {
+            "id": "b5c6d7e8"
+          },
+          "id": "b5c6d7e8"
+        },
+        {
+          "table": "employee",
+          "key": "c9d0e1f2",
+          "primaryKey": {
+            "id": "c9d0e1f2"
+          },
+          "id": "c9d0e1f2"
+        }
+      ]
+    },
+    {
+      "name": "pos_shift",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "shift_cash_audit",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "shift_payment_summary",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_type",
+      "count": 3,
+      "records": [
+        {
+          "allowsFinalizeLater": true,
+          "allowsLineAdditions": true,
+          "allowsReturns": true,
+          "allowsSave": true,
+          "id": "dine_in",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "workflow": "multi-step",
+          "type_name": {
+            "en": "Dine-in",
+            "ar": "صالة"
+          },
+          "description": {
+            "en": "Table service orders managed inside the restaurant.",
+            "ar": "طلبات الصالة التي تُدار داخل المطعم."
+          },
+          "allows_save": true,
+          "allows_finalize_later": true,
+          "allows_line_additions": true,
+          "allows_returns": true
+        },
+        {
+          "allowsFinalizeLater": false,
+          "allowsLineAdditions": false,
+          "allowsReturns": false,
+          "allowsSave": false,
+          "id": "delivery",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "workflow": "single-step",
+          "type_name": {
+            "en": "Delivery",
+            "ar": "دليفري"
+          },
+          "description": {
+            "en": "Orders delivered to customers with a single-step closure.",
+            "ar": "طلبات التوصيل التي تُغلق في خطوة واحدة."
+          },
+          "allows_save": false,
+          "allows_finalize_later": false,
+          "allows_line_additions": false,
+          "allows_returns": false
+        },
+        {
+          "allowsFinalizeLater": false,
+          "allowsLineAdditions": false,
+          "allowsReturns": false,
+          "allowsSave": false,
+          "id": "takeaway",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "workflow": "single-step",
+          "type_name": {
+            "en": "Takeaway",
+            "ar": "تيك أواي"
+          },
+          "description": {
+            "en": "Counter pickup orders paid on capture.",
+            "ar": "طلبات التيك أواي تُدفع وتُغلق في نفس الخطوة."
+          },
+          "allows_save": false,
+          "allows_finalize_later": false,
+          "allows_line_additions": false,
+          "allows_returns": false
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "order_type",
+          "key": "dine_in",
+          "primaryKey": {
+            "id": "dine_in"
+          },
+          "id": "dine_in"
+        },
+        {
+          "table": "order_type",
+          "key": "delivery",
+          "primaryKey": {
+            "id": "delivery"
+          },
+          "id": "delivery"
+        },
+        {
+          "table": "order_type",
+          "key": "takeaway",
+          "primaryKey": {
+            "id": "takeaway"
+          },
+          "id": "takeaway"
+        }
+      ]
+    },
+    {
+      "name": "order_status",
+      "count": 4,
+      "records": [
+        {
+          "id": "open",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "Open",
+            "ar": "مفتوح"
+          }
+        },
+        {
+          "id": "held",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "On Hold",
+            "ar": "معلّق"
+          }
+        },
+        {
+          "id": "finalized",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "Finalized",
+            "ar": "منتهي"
+          }
+        },
+        {
+          "id": "closed",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "Closed",
+            "ar": "مغلق"
+          }
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "order_status",
+          "key": "open",
+          "primaryKey": {
+            "id": "open"
+          },
+          "id": "open"
+        },
+        {
+          "table": "order_status",
+          "key": "held",
+          "primaryKey": {
+            "id": "held"
+          },
+          "id": "held"
+        },
+        {
+          "table": "order_status",
+          "key": "finalized",
+          "primaryKey": {
+            "id": "finalized"
+          },
+          "id": "finalized"
+        },
+        {
+          "table": "order_status",
+          "key": "closed",
+          "primaryKey": {
+            "id": "closed"
+          },
+          "id": "closed"
+        }
+      ]
+    },
+    {
+      "name": "order_stage",
+      "count": 7,
+      "records": [
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "new",
+          "lockLineEdits": false,
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 1,
+          "stage_name": {
+            "en": "New",
+            "ar": "جديد"
+          },
+          "description": {
+            "en": "Order is created and waiting to be sent to the kitchen.",
+            "ar": "تم إنشاء الطلب وينتظر الإرسال إلى المطبخ."
+          },
+          "lock_line_edits": false
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "preparing",
+          "lockLineEdits": true,
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 2,
+          "stage_name": {
+            "en": "Preparing",
+            "ar": "جاري التجهيز"
+          },
+          "description": {
+            "en": "Kitchen started preparing the order items.",
+            "ar": "المطبخ بدأ في تجهيز أصناف الطلب."
+          },
+          "lock_line_edits": true
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "prepared",
+          "lockLineEdits": true,
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 3,
+          "stage_name": {
+            "en": "Prepared",
+            "ar": "تم التجهيز"
+          },
+          "description": {
+            "en": "Items are ready and waiting for dispatch.",
+            "ar": "الأصناف جاهزة وتنتظر التسليم."
+          },
+          "lock_line_edits": true
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "delivering",
+          "lockLineEdits": true,
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 4,
+          "stage_name": {
+            "en": "Delivering",
+            "ar": "جاري التسليم"
+          },
+          "description": {
+            "en": "Order is on the way to the guest.",
+            "ar": "الطلب في الطريق إلى العميل."
+          },
+          "lock_line_edits": true
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "delivered",
+          "lockLineEdits": true,
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 5,
+          "stage_name": {
+            "en": "Delivered",
+            "ar": "تم التسليم"
+          },
+          "description": {
+            "en": "Order was delivered or served.",
+            "ar": "تم تسليم الطلب أو تقديمه."
+          },
+          "lock_line_edits": true
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "paid",
+          "lockLineEdits": true,
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 6,
+          "stage_name": {
+            "en": "Paid",
+            "ar": "تم الدفع"
+          },
+          "description": {
+            "en": "Payment has been captured for the order.",
+            "ar": "تم تحصيل قيمة الطلب."
+          },
+          "lock_line_edits": true
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "closed",
+          "lockLineEdits": true,
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 7,
+          "stage_name": {
+            "en": "Closed",
+            "ar": "تم الإغلاق"
+          },
+          "description": {
+            "en": "Order was audited and closed after shift end.",
+            "ar": "تمت مراجعة الطلب وإغلاقه بعد نهاية الوردية."
+          },
+          "lock_line_edits": true
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "order_stage",
+          "key": "new",
+          "primaryKey": {
+            "id": "new"
+          },
+          "id": "new"
+        },
+        {
+          "table": "order_stage",
+          "key": "preparing",
+          "primaryKey": {
+            "id": "preparing"
+          },
+          "id": "preparing"
+        },
+        {
+          "table": "order_stage",
+          "key": "prepared",
+          "primaryKey": {
+            "id": "prepared"
+          },
+          "id": "prepared"
+        },
+        {
+          "table": "order_stage",
+          "key": "delivering",
+          "primaryKey": {
+            "id": "delivering"
+          },
+          "id": "delivering"
+        },
+        {
+          "table": "order_stage",
+          "key": "delivered",
+          "primaryKey": {
+            "id": "delivered"
+          },
+          "id": "delivered"
+        }
+      ]
+    },
+    {
+      "name": "order_payment_state",
+      "count": 3,
+      "records": [
+        {
+          "id": "unpaid",
+          "nameAr": "",
+          "nameEn": "",
+          "payment_name": {
+            "en": "Unpaid",
+            "ar": "غير مدفوع"
+          }
+        },
+        {
+          "id": "partial",
+          "nameAr": "",
+          "nameEn": "",
+          "payment_name": {
+            "en": "Partially Paid",
+            "ar": "مدفوع جزئيًا"
+          }
+        },
+        {
+          "id": "paid",
+          "nameAr": "",
+          "nameEn": "",
+          "payment_name": {
+            "en": "Paid",
+            "ar": "مدفوع"
+          }
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "order_payment_state",
+          "key": "unpaid",
+          "primaryKey": {
+            "id": "unpaid"
+          },
+          "id": "unpaid"
+        },
+        {
+          "table": "order_payment_state",
+          "key": "partial",
+          "primaryKey": {
+            "id": "partial"
+          },
+          "id": "partial"
+        },
+        {
+          "table": "order_payment_state",
+          "key": "paid",
+          "primaryKey": {
+            "id": "paid"
+          },
+          "id": "paid"
+        }
+      ]
+    },
+    {
+      "name": "order_line_status",
+      "count": 5,
+      "records": [
+        {
+          "id": "draft",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "Draft",
+            "ar": "مسودة"
+          }
+        },
+        {
+          "id": "queued",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "Queued",
+            "ar": "بانتظار التحضير"
+          }
+        },
+        {
+          "id": "preparing",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "Preparing",
+            "ar": "جاري التحضير"
+          }
+        },
+        {
+          "id": "ready",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "Ready",
+            "ar": "جاهز"
+          }
+        },
+        {
+          "id": "served",
+          "nameAr": "",
+          "nameEn": "",
+          "sequence": 0,
+          "status_name": {
+            "en": "Served",
+            "ar": "مُقدّم"
+          }
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "order_line_status",
+          "key": "draft",
+          "primaryKey": {
+            "id": "draft"
+          },
+          "id": "draft"
+        },
+        {
+          "table": "order_line_status",
+          "key": "queued",
+          "primaryKey": {
+            "id": "queued"
+          },
+          "id": "queued"
+        },
+        {
+          "table": "order_line_status",
+          "key": "preparing",
+          "primaryKey": {
+            "id": "preparing"
+          },
+          "id": "preparing"
+        },
+        {
+          "table": "order_line_status",
+          "key": "ready",
+          "primaryKey": {
+            "id": "ready"
+          },
+          "id": "ready"
+        },
+        {
+          "table": "order_line_status",
+          "key": "served",
+          "primaryKey": {
+            "id": "served"
+          },
+          "id": "served"
+        }
+      ]
+    },
+    {
+      "name": "payment_method",
+      "count": 4,
+      "records": [
+        {
+          "icon": "📱",
+          "id": "1a5b8418-88aa-47b2-a106-f2318e68dd9a",
+          "isActive": true,
+          "nameAr": "",
+          "nameEn": "",
+          "requiresReference": false,
+          "type": "wallet",
+          "name": {
+            "ar": "انستا",
+            "en": "insta"
+          }
+        },
+        {
+          "icon": "💳",
+          "id": "4d3c1d65-4620-4421-8782-c008f2a3e857",
+          "isActive": true,
+          "nameAr": "",
+          "nameEn": "",
+          "requiresReference": false,
+          "type": "card",
+          "name": {
+            "ar": "فيزا",
+            "en": "visa"
+          }
+        },
+        {
+          "icon": "📱",
+          "id": "608b58a4-8f49-4d65-9f01-889d79f27350",
+          "isActive": true,
+          "nameAr": "",
+          "nameEn": "",
+          "requiresReference": false,
+          "type": "wallet",
+          "name": {
+            "ar": "محفظة إلكترونية ",
+            "en": "wallet"
+          }
+        },
+        {
+          "icon": "💵",
+          "id": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59",
+          "isActive": true,
+          "nameAr": "",
+          "nameEn": "",
+          "requiresReference": false,
+          "type": "cash",
+          "name": {
+            "ar": "نقدا",
+            "en": "cash"
+          }
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "payment_method",
+          "key": "1a5b8418-88aa-47b2-a106-f2318e68dd9a",
+          "primaryKey": {
+            "id": "1a5b8418-88aa-47b2-a106-f2318e68dd9a"
+          },
+          "id": "1a5b8418-88aa-47b2-a106-f2318e68dd9a"
+        },
+        {
+          "table": "payment_method",
+          "key": "4d3c1d65-4620-4421-8782-c008f2a3e857",
+          "primaryKey": {
+            "id": "4d3c1d65-4620-4421-8782-c008f2a3e857"
+          },
+          "id": "4d3c1d65-4620-4421-8782-c008f2a3e857"
+        },
+        {
+          "table": "payment_method",
+          "key": "608b58a4-8f49-4d65-9f01-889d79f27350",
+          "primaryKey": {
+            "id": "608b58a4-8f49-4d65-9f01-889d79f27350"
+          },
+          "id": "608b58a4-8f49-4d65-9f01-889d79f27350"
+        },
+        {
+          "table": "payment_method",
+          "key": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59",
+          "primaryKey": {
+            "id": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59"
+          },
+          "id": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59"
+        }
+      ]
+    },
+    {
+      "name": "kitchen_section",
+      "count": 4,
+      "records": [
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "sortOrder": 0,
+          "section_name": {
+            "en": "Hot Line",
+            "ar": "شاشة السخن"
+          },
+          "description": {
+            "en": "Soups, stews, sandwiches and cooked meals.",
+            "ar": "الشوربات واليخنات والسندويتشات والأطباق المطهية."
+          }
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "nameAr": "",
+          "nameEn": "",
+          "sortOrder": 0,
+          "section_name": {
+            "en": "Buffet & Drinks",
+            "ar": "شاشة البوفيه"
+          },
+          "description": {
+            "en": "Desserts, beverages and cold items.",
+            "ar": "الحلويات والمشروبات والأصناف الباردة"
+          }
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "sortOrder": 0,
+          "section_name": {
+            "en": "Mandi & Kabsa",
+            "ar": "شاشه المندي"
+          },
+          "description": {
+            "en": "Traditional mandi, kabsa and rice based trays.",
+            "ar": "أطباق المندي والكبسة والأرز في الصواني "
+          }
+        },
+        {
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "sortOrder": 0,
+          "section_name": {
+            "en": "Grill Station",
+            "ar": "شاشة المشاوي"
+          },
+          "description": {
+            "en": "All grilled meats prepared by the butchery team.",
+            "ar": "كل اللحوم المشوية التي يجهزها فريق المشويات"
+          }
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "kitchen_section",
+          "key": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "primaryKey": {
+            "id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+          },
+          "id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "table": "kitchen_section",
+          "key": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "primaryKey": {
+            "id": "34476cab-abec-47fc-ac37-34faa4ab4092"
+          },
+          "id": "34476cab-abec-47fc-ac37-34faa4ab4092"
+        },
+        {
+          "table": "kitchen_section",
+          "key": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "primaryKey": {
+            "id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
+          },
+          "id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
+        },
+        {
+          "table": "kitchen_section",
+          "key": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "primaryKey": {
+            "id": "c61d5bc4-1429-42b6-b250-f9254a176848"
+          },
+          "id": "c61d5bc4-1429-42b6-b250-f9254a176848"
+        }
+      ]
+    },
+    {
+      "name": "menu_category",
+      "count": 9,
+      "records": [
+        {
+          "id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "Appetizers",
+            "ar": "المقبلات"
+          },
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "id": "17E1117979A94AEC93B71C80ADDF1561",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "Salad",
+            "ar": "السلطات"
+          },
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "Casserole",
+            "ar": "الطواجن"
+          },
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "Juices and drinks",
+            "ar": "عصائر و مشروبات"
+          },
+          "section_id": "34476cab-abec-47fc-ac37-34faa4ab4092"
+        },
+        {
+          "id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "Grills",
+            "ar": "المشويات"
+          },
+          "section_id": "c61d5bc4-1429-42b6-b250-f9254a176848"
+        },
+        {
+          "id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "Rice and Pasta",
+            "ar": "الأرز والمكرونة"
+          },
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "id": "CF44B6AEE120414796208411A11D82BD",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "Soup",
+            "ar": "الشورب"
+          },
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "Fattah",
+            "ar": "الفتة"
+          },
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "nameAr": "",
+          "nameEn": "",
+          "sectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "sortOrder": 0,
+          "isActive": true,
+          "category_name": {
+            "en": "mandy",
+            "ar": "المندي"
+          },
+          "section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "menu_category",
+          "key": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "primaryKey": {
+            "id": "0CDCD17AE3A741D089FA17B8F1EEB57F"
+          },
+          "id": "0CDCD17AE3A741D089FA17B8F1EEB57F"
+        },
+        {
+          "table": "menu_category",
+          "key": "17E1117979A94AEC93B71C80ADDF1561",
+          "primaryKey": {
+            "id": "17E1117979A94AEC93B71C80ADDF1561"
+          },
+          "id": "17E1117979A94AEC93B71C80ADDF1561"
+        },
+        {
+          "table": "menu_category",
+          "key": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "primaryKey": {
+            "id": "4AA74FE9AF23457E874FBF53F15DAFD3"
+          },
+          "id": "4AA74FE9AF23457E874FBF53F15DAFD3"
+        },
+        {
+          "table": "menu_category",
+          "key": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "primaryKey": {
+            "id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254"
+          },
+          "id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254"
+        },
+        {
+          "table": "menu_category",
+          "key": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "primaryKey": {
+            "id": "80AAC2AC551B4BFCA39607CE4F0A8CF2"
+          },
+          "id": "80AAC2AC551B4BFCA39607CE4F0A8CF2"
+        }
+      ]
+    },
+    {
+      "name": "category_section",
+      "count": 9,
+      "records": [
+        {
+          "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "sectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "section_id": "34476cab-abec-47fc-ac37-34faa4ab4092"
+        },
+        {
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "sectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "section_id": "c61d5bc4-1429-42b6-b250-f9254a176848"
+        },
+        {
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "categoryId": "CF44B6AEE120414796208411A11D82BD",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "category_id": "CF44B6AEE120414796208411A11D82BD",
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "sectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
+        }
+      ],
+      "primaryKeyFields": [
+        "categoryId"
+      ],
+      "sample": [
+        {
+          "table": "category_section",
+          "key": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "primaryKey": {
+            "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F"
+          }
+        },
+        {
+          "table": "category_section",
+          "key": "17E1117979A94AEC93B71C80ADDF1561",
+          "primaryKey": {
+            "categoryId": "17E1117979A94AEC93B71C80ADDF1561"
+          }
+        },
+        {
+          "table": "category_section",
+          "key": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "primaryKey": {
+            "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3"
+          }
+        },
+        {
+          "table": "category_section",
+          "key": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "primaryKey": {
+            "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254"
+          }
+        },
+        {
+          "table": "category_section",
+          "key": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "primaryKey": {
+            "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "menu_item",
+      "count": 94,
+      "records": [
+        {
+          "id": "04b2b3c7-be56-4066-940f-2675fb740247",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.605Z",
+          "updatedAt": "2025-11-05T20:00:55.605Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 501
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/سباجيتي_بالصلصة_17092025141157948.jpg"
+          },
+          "item_name": {
+            "en": "اسباجيتي بالصلصة",
+            "ar": "اسباجيتي بالصلصة"
+          },
+          "item_description": {
+            "en": "اسباجيتي بالصلصة",
+            "ar": "اسباجيتي بالصلصة"
+          }
+        },
+        {
+          "id": "05d98de6-7bb6-48dc-930a-642144514159",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.605Z",
+          "updatedAt": "2025-11-05T20:00:55.605Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 324
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/شيش_طاووق_16092025151612868.jpg"
+          },
+          "item_name": {
+            "en": "شيش طاووق",
+            "ar": "شيش طاووق"
+          },
+          "item_description": {
+            "en": "شيش طاووق",
+            "ar": "شيش طاووق"
+          }
+        },
+        {
+          "id": "060E11D89BF042D4A89B76EAFB025D01",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 152
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/طاجن_بامية_باللحمة_16092025173555457.jpg"
+          },
+          "item_name": {
+            "en": "بامية باللحمة الضاني",
+            "ar": "بامية باللحمة الضاني"
+          },
+          "item_description": {
+            "en": "بامية باللحمة الضاني",
+            "ar": "بامية باللحمة الضاني"
+          }
+        },
+        {
+          "id": "09cc9ae6-402c-4cb3-95e8-0c0b0902bb9a",
+          "sku": null,
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "pricing": {
+            "base": 38
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/دجاج_مندي_15092025190627064.jpg"
+          },
+          "item_name": {
+            "en": "دجاج كاملة مندي",
+            "ar": "دجاج كاملة مندي"
+          },
+          "item_description": {
+            "en": "دجاج كاملة مندي",
+            "ar": "دجاج كاملة مندي"
+          }
+        },
+        {
+          "id": "0ff8cd4a-005b-4a44-9187-c50eaaa84643",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 580
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/مبكبكة_باللحمة_الضاني_-_ا_17092025151055041.jpg"
+          },
+          "item_name": {
+            "en": "مبكبكة باللحمة الضاني / الشمبري",
+            "ar": "مبكبكة باللحمة الضاني / الشمبري"
+          },
+          "item_description": {
+            "en": "مبكبكة باللحمة الضاني / الشمبري",
+            "ar": "مبكبكة باللحمة الضاني / الشمبري"
+          }
+        },
+        {
+          "id": "157997A151BC4C4CBF40FC0724718662",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 76
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ورقة_كبدة_16092025141942685.jpg"
+          },
+          "item_name": {
+            "en": "ورقة كبدة",
+            "ar": "ورقة كبدة"
+          },
+          "item_description": {
+            "en": "ورقة كبدة",
+            "ar": "ورقة كبدة"
+          }
+        },
+        {
+          "id": "17435D48A4A546E696AAAB3B974A9B03",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 645
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/فرد-حمام-محشي_16092025142058970.jpg"
+          },
+          "item_name": {
+            "en": "فرد حمام محشي",
+            "ar": "فرد حمام محشي"
+          },
+          "item_description": {
+            "en": "فرد حمام محشي",
+            "ar": "فرد حمام محشي"
+          }
+        },
+        {
+          "id": "1ce2e699-9e55-4d4f-86b8-e90a446f385b",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 12
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/مكرونة_نيجريسكو_17092025150650369.jpg"
+          },
+          "item_name": {
+            "en": "مكرونة نيجريسكو",
+            "ar": "مكرونة نيجريسكو"
+          },
+          "item_description": {
+            "en": "مكرونة نيجريسكو",
+            "ar": "مكرونة نيجريسكو"
+          }
+        },
+        {
+          "id": "22330C99983E483EA748660133546BB5",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 720
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/طاجن-عكاوي-1_15092025141536326.png"
+          },
+          "item_name": {
+            "en": "طحينة",
+            "ar": "طحينة"
+          },
+          "item_description": {
+            "en": "طحينة",
+            "ar": "طحينة"
+          }
+        },
+        {
+          "id": "23a3f9df-d213-4215-9e38-30e6b0d350b5",
+          "sku": null,
+          "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 28
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/فتة_كوارع_17092025152616830.jpg"
+          },
+          "item_name": {
+            "en": "فتة كوارع",
+            "ar": "فتة كوارع"
+          },
+          "item_description": {
+            "en": "فتة كوارع",
+            "ar": "فتة كوارع"
+          }
+        },
+        {
+          "id": "23EFFEA6AF914C59B27E98C76ED0E350",
+          "sku": null,
+          "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "kitchenSectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "kitchen_section_id": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "pricing": {
+            "base": 861
+          },
+          "item_name": {
+            "en": "مياة معدنية *600 مللى ",
+            "ar": "مياة معدنية *600 مللى "
+          },
+          "item_description": {
+            "en": "مياة معدنية *600 مللى ",
+            "ar": "مياة معدنية *600 مللى "
+          }
+        },
+        {
+          "id": "246299ec-debe-4e9d-9fb9-eb113b6026bc",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 87
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/باسمتي_سادة_17092025135937947.jpg"
+          },
+          "item_name": {
+            "en": "ارز باسمتي سادة",
+            "ar": "ارز باسمتي سادة"
+          },
+          "item_description": {
+            "en": "ارز باسمتي سادة",
+            "ar": "ارز باسمتي سادة"
+          }
+        },
+        {
+          "id": "253dcaa6-ddc5-4eea-bdeb-d81e36e25a1b",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 574
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ارز_معمر_بالفراخ_17092025140951377.jpg"
+          },
+          "item_name": {
+            "en": "ارز معمر بالفراخ",
+            "ar": "ارز معمر بالفراخ"
+          },
+          "item_description": {
+            "en": "ارز معمر بالفراخ",
+            "ar": "ارز معمر بالفراخ"
+          }
+        },
+        {
+          "id": "2B51504E5F52442599137563447D56B8",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 866
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ثومية_17092025180833707.jpg"
+          },
+          "item_name": {
+            "en": "ثومية",
+            "ar": "ثومية"
+          },
+          "item_description": {
+            "en": "ثومية",
+            "ar": "ثومية"
+          }
+        },
+        {
+          "id": "2D45E484D3014257B9871C827AAA55E4",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 143
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/مخاصى_و_كلاوى_16092025142150110.jpg"
+          },
+          "item_name": {
+            "en": "كلاوي ومخاصي",
+            "ar": "كلاوي ومخاصي"
+          },
+          "item_description": {
+            "en": "كلاوي ومخاصي",
+            "ar": "كلاوي ومخاصي"
+          }
+        },
+        {
+          "id": "31A7A1D70788433B87D47CE9BE09BAD0",
+          "sku": null,
+          "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 813
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/محشي_مشكل_17092025161945392.jpg"
+          },
+          "item_name": {
+            "en": "محشي مشكل",
+            "ar": "محشي مشكل"
+          },
+          "item_description": {
+            "en": "محشي مشكل",
+            "ar": "محشي مشكل"
+          }
+        },
+        {
+          "id": "32ACB7E2BEE54F698D062F93F6860301",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 517
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/كفتة_ضاني_16092025142332528.jpg"
+          },
+          "item_name": {
+            "en": "كفتة ضاني",
+            "ar": "كفتة ضاني"
+          },
+          "item_description": {
+            "en": "كفتة ضاني",
+            "ar": "كفتة ضاني"
+          }
+        },
+        {
+          "id": "348393a1-0e12-41a7-9c33-9bd3de2cded4",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 337
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/مبكبكة_بالموزة_الضاني_17092025151253885.jpeg"
+          },
+          "item_name": {
+            "en": "مبكبكة بالموزة الضاني",
+            "ar": "مبكبكة بالموزة الضاني"
+          },
+          "item_description": {
+            "en": "مبكبكة بالموزة الضاني",
+            "ar": "مبكبكة بالموزة الضاني"
+          }
+        },
+        {
+          "id": "36521D1FCD2248EA95994E2464CEAC3A",
+          "sku": null,
+          "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 84
+          },
+          "item_name": {
+            "en": "رقاق باللحمة المفرومة",
+            "ar": "رقاق باللحمة المفرومة"
+          },
+          "item_description": {
+            "en": "رقاق باللحمة المفرومة",
+            "ar": "رقاق باللحمة المفرومة"
+          }
+        },
+        {
+          "id": "41328805-90bd-4bf3-a2e1-6f520f0e2d14",
+          "sku": null,
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "pricing": {
+            "base": 268
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ربع_تيس_مندي_15092025184505455.jpg"
+          },
+          "item_name": {
+            "en": "1/4 تيس مندي",
+            "ar": "1/4 تيس مندي"
+          },
+          "item_description": {
+            "en": "1/4 تيس مندي",
+            "ar": "1/4 تيس مندي"
+          }
+        },
+        {
+          "id": "4191dee2-2392-4c0a-88e7-9c96a1682df0",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 5
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/برياني_سادة_17092025140117302.jpg"
+          },
+          "item_name": {
+            "en": "برياني سادة",
+            "ar": "برياني سادة"
+          },
+          "item_description": {
+            "en": "برياني سادة",
+            "ar": "برياني سادة"
+          }
+        },
+        {
+          "id": "44600bcc-b0a2-4f45-b934-6f882d444b96",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 340
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/رز_معمر_سادة_17092025140312593.jpg"
+          },
+          "item_name": {
+            "en": "ارز معمر سادة",
+            "ar": "ارز معمر سادة"
+          },
+          "item_description": {
+            "en": "ارز معمر سادة",
+            "ar": "ارز معمر سادة"
+          }
+        },
+        {
+          "id": "484526DA12E24B9690FEF6B1F0590A0B",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 837
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/فرخة_مشوية_16092025110929691.jpg"
+          },
+          "item_name": {
+            "en": "فراخ مشوية",
+            "ar": "فراخ مشوية"
+          },
+          "item_description": {
+            "en": "فراخ مشوية",
+            "ar": "فراخ مشوية"
+          }
+        },
+        {
+          "id": "48A3DDD886DD4D81A7862CC9E0187836",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 731
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/face_cover_photo_15092025141516312.jpg"
+          },
+          "item_name": {
+            "en": "باذنجان مخلل",
+            "ar": "باذنجان مخلل"
+          },
+          "item_description": {
+            "en": "باذنجان مخلل",
+            "ar": "باذنجان مخلل"
+          }
+        },
+        {
+          "id": "4B727BCBF0DA472FA156AD7FEB64E084",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 26
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/تورلي_16092025153726420.jpg"
+          },
+          "item_name": {
+            "en": "تورلي باللحمة الضاني",
+            "ar": "تورلي باللحمة الضاني"
+          },
+          "item_description": {
+            "en": "تورلي باللحمة الضاني",
+            "ar": "تورلي باللحمة الضاني"
+          }
+        },
+        {
+          "id": "4fc5ffe7-bf87-4c4d-9270-5ad431ffefa2",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 36
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/فاصولياء_بيضا_باللحمة_17092025132319666.jpg"
+          },
+          "item_name": {
+            "en": "فاصولياء بيضاء باللحمة",
+            "ar": "فاصولياء بيضاء باللحمة"
+          },
+          "item_description": {
+            "en": "فاصولياء بيضاء باللحمة",
+            "ar": "فاصولياء بيضاء باللحمة"
+          }
+        },
+        {
+          "id": "58745ECD28C94B5AB3C2A00423C07443",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 771
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/طرب_عجالي_16092025110933627.jpg"
+          },
+          "item_name": {
+            "en": "طرب عجالي",
+            "ar": "طرب عجالي"
+          },
+          "item_description": {
+            "en": "طرب عجالي",
+            "ar": "طرب عجالي"
+          }
+        },
+        {
+          "id": "58ACF4ED464A4F7DB3B5D7AF3AB6F378",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 71
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ورقة_لحمة_16092025110937012.jpg"
+          },
+          "item_name": {
+            "en": "ورقة لحمة",
+            "ar": "ورقة لحمة"
+          },
+          "item_description": {
+            "en": "ورقة لحمة",
+            "ar": "ورقة لحمة"
+          }
+        },
+        {
+          "id": "5BBF99B4D9F94B2C8155C3E82E3354A8",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 567
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/كول_سلو_17092025181027077.jpg"
+          },
+          "item_name": {
+            "en": "كلو سلو",
+            "ar": "كلو سلو"
+          },
+          "item_description": {
+            "en": "كلو سلو",
+            "ar": "كلو سلو"
+          }
+        },
+        {
+          "id": "5E5E982385C1483686493059DFEB265D",
+          "sku": null,
+          "categoryId": "CF44B6AEE120414796208411A11D82BD",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "CF44B6AEE120414796208411A11D82BD",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 158
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/لسان_عصفور_17092025153924136.jpg"
+          },
+          "item_name": {
+            "en": "لسان عصفور",
+            "ar": "لسان عصفور"
+          },
+          "item_description": {
+            "en": "لسان عصفور",
+            "ar": "لسان عصفور"
+          }
+        },
+        {
+          "id": "60301604-d257-4e4c-8614-995554eea195",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 40
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/دبابيس_16092025152032343.jpg"
+          },
+          "item_name": {
+            "en": "دبابيس فراخ",
+            "ar": "دبابيس فراخ"
+          },
+          "item_description": {
+            "en": "دبابيس فراخ",
+            "ar": "دبابيس فراخ"
+          }
+        },
+        {
+          "id": "6094B864B09B4F90912C84A800F886C9",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 747
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/فريك_باللحمة_الضاني_(1)_16092025170615979.jpg"
+          },
+          "item_name": {
+            "en": "فريك باللحمة الضاني",
+            "ar": "فريك باللحمة الضاني"
+          },
+          "item_description": {
+            "en": "فريك باللحمة الضاني",
+            "ar": "فريك باللحمة الضاني"
+          }
+        },
+        {
+          "id": "64757CC825B347538B008F2DD6CDEAE4",
+          "sku": null,
+          "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "kitchenSectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "kitchen_section_id": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "pricing": {
+            "base": 385
+          },
+          "item_name": {
+            "en": "سفن اب دايت *320 مللى  ",
+            "ar": "سفن اب دايت *320 مللى  "
+          },
+          "item_description": {
+            "en": "سفن اب دايت *320 مللى  ",
+            "ar": "سفن اب دايت *320 مللى  "
+          }
+        },
+        {
+          "id": "65AC8F98788B4D0EA70CD8BB2D742910",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 135
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/كباب_16092025110941706.png"
+          },
+          "item_name": {
+            "en": "كباب صافي",
+            "ar": "كباب صافي"
+          },
+          "item_description": {
+            "en": "كباب صافي",
+            "ar": "كباب صافي"
+          }
+        },
+        {
+          "id": "6795dca3-e8a7-4848-bbb5-5fca71ba8135",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 204
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/مسقعة_بالبشاميل_17092025132837859.jpg"
+          },
+          "item_name": {
+            "en": "مسقعة بالبشاميل",
+            "ar": "مسقعة بالبشاميل"
+          },
+          "item_description": {
+            "en": "مسقعة بالبشاميل",
+            "ar": "مسقعة بالبشاميل"
+          }
+        },
+        {
+          "id": "6991e6f7-6c32-40ee-b390-2135f4962945",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 373
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ارز_معمر_باللحمة_17092025140738273.jpg"
+          },
+          "item_name": {
+            "en": "ارز معمر باللحمة",
+            "ar": "ارز معمر باللحمة"
+          },
+          "item_description": {
+            "en": "ارز معمر باللحمة",
+            "ar": "ارز معمر باللحمة"
+          }
+        },
+        {
+          "id": "6B747E4E934F477C9C761D59E44E198E",
+          "sku": null,
+          "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 42
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/سمبوسك_17092025162209872.jpg"
+          },
+          "item_name": {
+            "en": "سمبوسك (جبنة - لحمة مفرومة - بازلاء خضراء)",
+            "ar": "سمبوسك (جبنة - لحمة مفرومة - بازلاء خضراء)"
+          },
+          "item_description": {
+            "en": "سمبوسك (جبنة - لحمة مفرومة - بازلاء خضراء)",
+            "ar": "سمبوسك (جبنة - لحمة مفرومة - بازلاء خضراء)"
+          }
+        },
+        {
+          "id": "6c03d084-c502-4c44-a5b1-81873a54e1c6",
+          "sku": null,
+          "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 575
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/فتة_سادة_17092025151441987.jpg"
+          },
+          "item_name": {
+            "en": "فتة سادة",
+            "ar": "فتة سادة"
+          },
+          "item_description": {
+            "en": "فتة سادة",
+            "ar": "فتة سادة"
+          }
+        },
+        {
+          "id": "6f7a361b-7879-4449-a8d3-2b02bf4cc904",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 674
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/كبدة_باللية_16092025175457981.jpg"
+          },
+          "item_name": {
+            "en": "كبدة باللية",
+            "ar": "كبدة باللية"
+          },
+          "item_description": {
+            "en": "كبدة باللية",
+            "ar": "كبدة باللية"
+          }
+        },
+        {
+          "id": "70EBC0110EC74D4F888184504EAF3B27",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 313
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/كبدة_16092025112215150.jpeg"
+          },
+          "item_name": {
+            "en": "كبدة ضاني",
+            "ar": "كبدة ضاني"
+          },
+          "item_description": {
+            "en": "كبدة ضاني",
+            "ar": "كبدة ضاني"
+          }
+        },
+        {
+          "id": "71102800-5e0e-4481-81f9-7e899bbdf735",
+          "sku": null,
+          "categoryId": "CF44B6AEE120414796208411A11D82BD",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "CF44B6AEE120414796208411A11D82BD",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 236
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/شوربة_عدس_27092025193620715.jpg"
+          },
+          "item_name": {
+            "en": "شوربة عدس 2",
+            "ar": "شوربة عدس 2"
+          },
+          "item_description": {
+            "en": "شوربة عدس 2",
+            "ar": "شوربة عدس 2"
+          }
+        },
+        {
+          "id": "788A4608818D457090A5F47338062A66",
+          "sku": null,
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "pricing": {
+            "base": 552
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ثمن_مندي_تيس_15092025185321989.jpg"
+          },
+          "item_name": {
+            "en": "1/8 تيس مندي",
+            "ar": "1/8 تيس مندي"
+          },
+          "item_description": {
+            "en": "1/8 تيس مندي",
+            "ar": "1/8 تيس مندي"
+          }
+        },
+        {
+          "id": "7997963C6C62451196AEA351838CF3EB",
+          "sku": null,
+          "categoryId": "CF44B6AEE120414796208411A11D82BD",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "CF44B6AEE120414796208411A11D82BD",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 628
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/شوربة_كوراع_17092025154918557.jpeg"
+          },
+          "item_name": {
+            "en": "شوربة كوارع",
+            "ar": "شوربة كوارع"
+          },
+          "item_description": {
+            "en": "شوربة كوارع",
+            "ar": "شوربة كوارع"
+          }
+        },
+        {
+          "id": "7A0CC02C7E4849E080D8B6A0B06CB44D",
+          "sku": null,
+          "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "kitchenSectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "kitchen_section_id": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "pricing": {
+            "base": 61
+          },
+          "item_name": {
+            "en": "ريد بول كلاسيك *250 مللى /24 عدد",
+            "ar": "ريد بول كلاسيك *250 مللى /24 عدد"
+          },
+          "item_description": {
+            "en": "ريد بول كلاسيك *250 مللى /24 عدد",
+            "ar": "ريد بول كلاسيك *250 مللى /24 عدد"
+          }
+        },
+        {
+          "id": "7e113265-7545-47f9-9c9e-648a43033a92",
+          "sku": null,
+          "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 75
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/فتة_لحم_17092025151704032.jpg"
+          },
+          "item_name": {
+            "en": "فتة لحم",
+            "ar": "فتة لحم"
+          },
+          "item_description": {
+            "en": "فتة لحم",
+            "ar": "فتة لحم"
+          }
+        },
+        {
+          "id": "7ecdc2b7-c130-4a87-95f6-badf7334bb7e",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 212
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ملوخية_سادة_17092025131408410.jpg"
+          },
+          "item_name": {
+            "en": "ملوخية سادة",
+            "ar": "ملوخية سادة"
+          },
+          "item_description": {
+            "en": "ملوخية سادة",
+            "ar": "ملوخية سادة"
+          }
+        },
+        {
+          "id": "7F398DDAD1A14A1F8A5CC359183BEC2C",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 854
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/بطاطس_باللحمة_17092025131352505.jpg"
+          },
+          "item_name": {
+            "en": "بطاطس باللحمة",
+            "ar": "بطاطس باللحمة"
+          },
+          "item_description": {
+            "en": "بطاطس باللحمة",
+            "ar": "بطاطس باللحمة"
+          }
+        },
+        {
+          "id": "802EB21D758F4D208068387C61D17D5A",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 556
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/سلطة-زبادي-بالخيار_17092025181111150.jpg"
+          },
+          "item_name": {
+            "en": "سلطة زبادي",
+            "ar": "سلطة زبادي"
+          },
+          "item_description": {
+            "en": "سلطة زبادي",
+            "ar": "سلطة زبادي"
+          }
+        },
+        {
+          "id": "8139E5B67DC14D1AA5AB4641C258842E",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 46
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/فراخ_شيش_16092025112220910.jpg"
+          },
+          "item_name": {
+            "en": "فراخ شيش",
+            "ar": "فراخ شيش"
+          },
+          "item_description": {
+            "en": "فراخ شيش",
+            "ar": "فراخ شيش"
+          }
+        },
+        {
+          "id": "821C5F06C3974635ACD61F046501FBE6",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 66
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/سلطة_بطاطس_17092025181213511.jpg"
+          },
+          "item_name": {
+            "en": "سلطة بطاطس",
+            "ar": "سلطة بطاطس"
+          },
+          "item_description": {
+            "en": "سلطة بطاطس",
+            "ar": "سلطة بطاطس"
+          }
+        },
+        {
+          "id": "841F09136E0D4000AE0EE4DA828B44C1",
+          "sku": null,
+          "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 611
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/بطاطس_مقلية_17092025162306877.jpg"
+          },
+          "item_name": {
+            "en": "بطاطس مقلية",
+            "ar": "بطاطس مقلية"
+          },
+          "item_description": {
+            "en": "بطاطس مقلية",
+            "ar": "بطاطس مقلية"
+          }
+        },
+        {
+          "id": "87114fe2-8999-4876-a838-3ef0e97829dc",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 0
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ارز_معمر_بالحمام_17092025140924187.jpg"
+          },
+          "item_name": {
+            "en": "ارز معمر بالحمام",
+            "ar": "ارز معمر بالحمام"
+          },
+          "item_description": {
+            "en": "ارز معمر بالحمام",
+            "ar": "ارز معمر بالحمام"
+          }
+        },
+        {
+          "id": "8809a1c4-6711-4971-9a41-730d34b54d2f",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 28
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ملوخية_بالفراخ_17092025131234065.jpg"
+          },
+          "item_name": {
+            "en": "ملوخية بالفراخ",
+            "ar": "ملوخية بالفراخ"
+          },
+          "item_description": {
+            "en": "ملوخية بالفراخ",
+            "ar": "ملوخية بالفراخ"
+          }
+        },
+        {
+          "id": "8A34ECCF3259496D8A9486877B151C3A",
+          "sku": null,
+          "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 8
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/كبيبة_17092025162402593.jpg"
+          },
+          "item_name": {
+            "en": "كبيبة",
+            "ar": "كبيبة"
+          },
+          "item_description": {
+            "en": "كبيبة",
+            "ar": "كبيبة"
+          }
+        },
+        {
+          "id": "8C8F90DA88FB44EEBDDE06D202DC25F8",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.606Z",
+          "updatedAt": "2025-11-05T20:00:55.606Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 643
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/كفتة_16092025112227894.jpg"
+          },
+          "item_name": {
+            "en": "كفتة عجالي",
+            "ar": "كفتة عجالي"
+          },
+          "item_description": {
+            "en": "كفتة عجالي",
+            "ar": "كفتة عجالي"
+          }
+        },
+        {
+          "id": "8CDB27CDF9864307B031DEE0C1EB54B7",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 410
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/طاجن-ورق-عنب-بالكوارع_16092025172951918.jpg"
+          },
+          "item_name": {
+            "en": "ورق عنب بالكوارع",
+            "ar": "ورق عنب بالكوارع"
+          },
+          "item_description": {
+            "en": "ورق عنب بالكوارع",
+            "ar": "ورق عنب بالكوارع"
+          }
+        },
+        {
+          "id": "8F1ADDDD66524EBDA47B6F0B6BB43385",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 838
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/سلطة_زيتون_17092025181318769.jpg"
+          },
+          "item_name": {
+            "en": "سلطة زيتون",
+            "ar": "سلطة زيتون"
+          },
+          "item_description": {
+            "en": "سلطة زيتون",
+            "ar": "سلطة زيتون"
+          }
+        },
+        {
+          "id": "8F5621FB70864741BA9397B5C0A94049",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 44
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/طرب_ضاني_16092025112314463.jpg"
+          },
+          "item_name": {
+            "en": "طرب ضاني",
+            "ar": "طرب ضاني"
+          },
+          "item_description": {
+            "en": "طرب ضاني",
+            "ar": "طرب ضاني"
+          }
+        },
+        {
+          "id": "9177079f-d774-4f9e-80e8-bd6f09d30dde",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 1
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/صوص_دقوس_17092025163014023.jpg"
+          },
+          "item_name": {
+            "en": "صوص الدقوس الحار",
+            "ar": "صوص الدقوس الحار"
+          },
+          "item_description": {
+            "en": "صوص الدقوس الحار",
+            "ar": "صوص الدقوس الحار"
+          }
+        },
+        {
+          "id": "9714F3F23ADA4BC2A6A48D1D0293576A",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 538
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/نيفا_ضاني_16092025112944963.jpg"
+          },
+          "item_name": {
+            "en": "نيفة ضاني",
+            "ar": "نيفة ضاني"
+          },
+          "item_description": {
+            "en": "نيفة ضاني",
+            "ar": "نيفة ضاني"
+          }
+        },
+        {
+          "id": "97573f85-fa75-4379-a8ae-f342db4f1f0f",
+          "sku": null,
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "pricing": {
+            "base": 12
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/نص_تيس_مندي_15092025185010875.jpg"
+          },
+          "item_name": {
+            "en": "1/2 تيس مندي",
+            "ar": "1/2 تيس مندي"
+          },
+          "item_description": {
+            "en": "1/2 تيس مندي",
+            "ar": "1/2 تيس مندي"
+          }
+        },
+        {
+          "id": "9a0d0056-00b8-437a-992e-92612dae376c",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 671
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/فاصولياء_بيضاء_بالكوارع_17092025132706127.jpg"
+          },
+          "item_name": {
+            "en": "كوارع بالفاصولياء البضاء",
+            "ar": "كوارع بالفاصولياء البضاء"
+          },
+          "item_description": {
+            "en": "كوارع بالفاصولياء البضاء",
+            "ar": "كوارع بالفاصولياء البضاء"
+          }
+        },
+        {
+          "id": "9FFF97AFCA0A4630BA06FA25C071B06E",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 58
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/سجق_ضاني_16092025113053555.jpeg"
+          },
+          "item_name": {
+            "en": "سجق ضاني",
+            "ar": "سجق ضاني"
+          },
+          "item_description": {
+            "en": "سجق ضاني",
+            "ar": "سجق ضاني"
+          }
+        },
+        {
+          "id": "A0C89D2A78DA4F1B9397DF7ED152B69E",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 572
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/عكاوي_بالبصل_16092025173123039.jpeg"
+          },
+          "item_name": {
+            "en": "عكاوي بالبصل",
+            "ar": "عكاوي بالبصل"
+          },
+          "item_description": {
+            "en": "عكاوي بالبصل",
+            "ar": "عكاوي بالبصل"
+          }
+        },
+        {
+          "id": "A665C2A3EE774B4DA918BA8FF80CD5C4",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 666
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/سلطة_خضراء_17092025182044258.jpg"
+          },
+          "item_name": {
+            "en": "سلطة خضراء",
+            "ar": "سلطة خضراء"
+          },
+          "item_description": {
+            "en": "سلطة خضراء",
+            "ar": "سلطة خضراء"
+          }
+        },
+        {
+          "id": "a7064cf3-5f56-42c1-bdd4-cfeb86dc4282",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 374
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ستيك_16092025152005527.jpeg"
+          },
+          "item_name": {
+            "en": "استيك",
+            "ar": "استيك"
+          },
+          "item_description": {
+            "en": "استيك",
+            "ar": "استيك"
+          }
+        },
+        {
+          "id": "AA08A6C676674C61818854FE7BDC8A7D",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 387
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/سلطة_طماطم_17092025181729733.jpg"
+          },
+          "item_name": {
+            "en": "سلطة طماطم",
+            "ar": "سلطة طماطم"
+          },
+          "item_description": {
+            "en": "سلطة طماطم",
+            "ar": "سلطة طماطم"
+          }
+        },
+        {
+          "id": "ABFDE31A6ABA4F648C8C9C71C224EE0B",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 16
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ريش_ضاني_16092025113148930.jpg"
+          },
+          "item_name": {
+            "en": "ريش ضاني",
+            "ar": "ريش ضاني"
+          },
+          "item_description": {
+            "en": "ريش ضاني",
+            "ar": "ريش ضاني"
+          }
+        },
+        {
+          "id": "add49f5a-fc6b-4dfa-a85d-ac80a4528e63",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 636
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/كباب_حلة_16092025174351649.jpg"
+          },
+          "item_name": {
+            "en": "كباب حلة",
+            "ar": "كباب حلة"
+          },
+          "item_description": {
+            "en": "كباب حلة",
+            "ar": "كباب حلة"
+          }
+        },
+        {
+          "id": "b4621617-258d-42fc-8cc9-0931dde744a0",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 521
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/مبكبكة_سادة_17092025150805184.jpg"
+          },
+          "item_name": {
+            "en": "مبكبكة سادة",
+            "ar": "مبكبكة سادة"
+          },
+          "item_description": {
+            "en": "مبكبكة سادة",
+            "ar": "مبكبكة سادة"
+          }
+        },
+        {
+          "id": "b4b6918d-1d41-4967-acff-c80821d20972",
+          "sku": null,
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "pricing": {
+            "base": 276
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/نصدجاج_مندي_15092025190553284.jpg"
+          },
+          "item_name": {
+            "en": "1/2 دجاج مندي",
+            "ar": "1/2 دجاج مندي"
+          },
+          "item_description": {
+            "en": "1/2 دجاج مندي",
+            "ar": "1/2 دجاج مندي"
+          }
+        },
+        {
+          "id": "b7993fad-25c0-4c81-996f-2f349c81ede1",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 7
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ملوخية_بالكوارع_17092025130352024.jpg"
+          },
+          "item_name": {
+            "en": "ملوخية بالكوارع",
+            "ar": "ملوخية بالكوارع"
+          },
+          "item_description": {
+            "en": "ملوخية بالكوارع",
+            "ar": "ملوخية بالكوارع"
+          }
+        },
+        {
+          "id": "B9F8D5325B444F7DA4FE19A153EF5E6A",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 522
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/مشكل_16092025113608684.jpg"
+          },
+          "item_name": {
+            "en": "مشكل",
+            "ar": "مشكل"
+          },
+          "item_description": {
+            "en": "مشكل",
+            "ar": "مشكل"
+          }
+        },
+        {
+          "id": "BA5DC617220B4A2DA3C5F01209ED0D30",
+          "sku": null,
+          "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 45
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ورق_عنب_17092025161838225.jpg"
+          },
+          "item_name": {
+            "en": "ورقعنب",
+            "ar": "ورقعنب"
+          },
+          "item_description": {
+            "en": "ورقعنب",
+            "ar": "ورقعنب"
+          }
+        },
+        {
+          "id": "be49d74d-84cf-4794-aae1-f2b38741c895",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 558
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/سجق_شرقي_16092025175828556.jpg"
+          },
+          "item_name": {
+            "en": "سجق شرقي",
+            "ar": "سجق شرقي"
+          },
+          "item_description": {
+            "en": "سجق شرقي",
+            "ar": "سجق شرقي"
+          }
+        },
+        {
+          "id": "c5d7f04e-4384-4875-909a-cdcd20351330",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 754
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ورق_عنب_بالعكاوي_16092025175209085.jpg"
+          },
+          "item_name": {
+            "en": "ورق عنب بالعكاوي",
+            "ar": "ورق عنب بالعكاوي"
+          },
+          "item_description": {
+            "en": "ورق عنب بالعكاوي",
+            "ar": "ورق عنب بالعكاوي"
+          }
+        },
+        {
+          "id": "C5ED8A044DC34C5EAA76487B8CD7030B",
+          "sku": null,
+          "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 406
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ممبار_17092025161456394.jpeg"
+          },
+          "item_name": {
+            "en": "ممبار",
+            "ar": "ممبار"
+          },
+          "item_description": {
+            "en": "ممبار",
+            "ar": "ممبار"
+          }
+        },
+        {
+          "id": "c80aecee-6e8d-4086-a3cd-ed5cff577164",
+          "sku": null,
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "pricing": {
+            "base": 732
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ربعدجاج_مندي_15092025190516856.jpg"
+          },
+          "item_name": {
+            "en": "1/4 دجاج مندي",
+            "ar": "1/4 دجاج مندي"
+          },
+          "item_description": {
+            "en": "1/4 دجاج مندي",
+            "ar": "1/4 دجاج مندي"
+          }
+        },
+        {
+          "id": "D16D2B5542034E9CBE92AE1319B4FE9D",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 46
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/ورقة_سجق_16092025142517674.jpg"
+          },
+          "item_name": {
+            "en": "ورقة سجق",
+            "ar": "ورقة سجق"
+          },
+          "item_description": {
+            "en": "ورقة سجق",
+            "ar": "ورقة سجق"
+          }
+        },
+        {
+          "id": "d41bb1a6-a7f5-4b8a-8cd3-b6542a60534d",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 385
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/خضار_مشكل_17092025131636471.jpg"
+          },
+          "item_name": {
+            "en": "خضار مشكل",
+            "ar": "خضار مشكل"
+          },
+          "item_description": {
+            "en": "خضار مشكل",
+            "ar": "خضار مشكل"
+          }
+        },
+        {
+          "id": "D5626B317CDC4AFE947ED855978BB483",
+          "sku": null,
+          "categoryId": "CF44B6AEE120414796208411A11D82BD",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "CF44B6AEE120414796208411A11D82BD",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 367
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/شوربة_حمام_17092025155955512.jpg"
+          },
+          "item_name": {
+            "en": "شوربةحمام",
+            "ar": "شوربةحمام"
+          },
+          "item_description": {
+            "en": "شوربةحمام",
+            "ar": "شوربةحمام"
+          }
+        },
+        {
+          "id": "d67ecea2-35e1-4f05-b40c-20c6663dd800",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 270
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ملوخية-باللحمة_17092025130453853.jpg"
+          },
+          "item_name": {
+            "en": "ملوخية باللحمة",
+            "ar": "ملوخية باللحمة"
+          },
+          "item_description": {
+            "en": "ملوخية باللحمة",
+            "ar": "ملوخية باللحمة"
+          }
+        },
+        {
+          "id": "DD5B87EB346749BFBB1302EC90627EDB",
+          "sku": null,
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "pricing": {
+            "base": 440
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/نفر_مندي_لحم_15092025185317525.jpg"
+          },
+          "item_name": {
+            "en": "نفر مندي لحم",
+            "ar": "نفر مندي لحم"
+          },
+          "item_description": {
+            "en": "نفر مندي لحم",
+            "ar": "نفر مندي لحم"
+          }
+        },
+        {
+          "id": "DE4AB3233FE24F4B9F400AAE5A55740B",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 245
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/طاجن_لحمة_بالبصل_16092025163741996.jpg"
+          },
+          "item_name": {
+            "en": "بصل باللحمة الضاني",
+            "ar": "بصل باللحمة الضاني"
+          },
+          "item_description": {
+            "en": "بصل باللحمة الضاني",
+            "ar": "بصل باللحمة الضاني"
+          }
+        },
+        {
+          "id": "E224EA6AF5D24FF6AB9EB2ECBDCAE339",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 160
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/ارز_بالشعرية_17092025135830306.jpg"
+          },
+          "item_name": {
+            "en": "ارز بالشعرية",
+            "ar": "ارز بالشعرية"
+          },
+          "item_description": {
+            "en": "ارز بالشعرية",
+            "ar": "ارز بالشعرية"
+          }
+        },
+        {
+          "id": "ea2e1755-97a5-46e0-896b-483af1b9034b",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 827
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/كرنب_بالاستيك_17092025133057940.jpg"
+          },
+          "item_name": {
+            "en": "كرنب بشرائح ستيك",
+            "ar": "كرنب بشرائح ستيك"
+          },
+          "item_description": {
+            "en": "كرنب بشرائح ستيك",
+            "ar": "كرنب بشرائح ستيك"
+          }
+        },
+        {
+          "id": "ec9503e7-b069-48b6-85cd-b275fb85d9be",
+          "sku": null,
+          "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 20
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/فاصولياء_بيضا_سادة_17092025131858326.jpg"
+          },
+          "item_name": {
+            "en": "فاصوليا بيضاء سادة",
+            "ar": "فاصوليا بيضاء سادة"
+          },
+          "item_description": {
+            "en": "فاصوليا بيضاء سادة",
+            "ar": "فاصوليا بيضاء سادة"
+          }
+        },
+        {
+          "id": "F0098A17F91448178496215D46249434",
+          "sku": null,
+          "categoryId": "CF44B6AEE120414796208411A11D82BD",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "CF44B6AEE120414796208411A11D82BD",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 23
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/شوربة_خضار_17092025160039066.jpg"
+          },
+          "item_name": {
+            "en": "شوربة خضار",
+            "ar": "شوربة خضار"
+          },
+          "item_description": {
+            "en": "شوربة خضار",
+            "ar": "شوربة خضار"
+          }
+        },
+        {
+          "id": "f21ff3c0-480a-446f-a806-6d930d3cf6d7",
+          "sku": null,
+          "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+          "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "pricing": {
+            "base": 818
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/تيس_كامل_مندي_15092025190405284.jpg"
+          },
+          "item_name": {
+            "en": "تيس كامل مندي",
+            "ar": "تيس كامل مندي"
+          },
+          "item_description": {
+            "en": "تيس كامل مندي",
+            "ar": "تيس كامل مندي"
+          }
+        },
+        {
+          "id": "f2b4d007-f3d5-4426-963b-b7a189041177",
+          "sku": null,
+          "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "pricing": {
+            "base": 4
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/user1/user1/بانيه_مشوي_16092025152150611.jpg"
+          },
+          "item_name": {
+            "en": "صدور بانيه مشوية",
+            "ar": "صدور بانيه مشوية"
+          },
+          "item_description": {
+            "en": "صدور بانيه مشوية",
+            "ar": "صدور بانيه مشوية"
+          }
+        },
+        {
+          "id": "F47A6741E3584882ADA1EF90CCB7FA55",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 652
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/خيار_مخلل_17092025181517962.jpg"
+          },
+          "item_name": {
+            "en": "خيار مخلل",
+            "ar": "خيار مخلل"
+          },
+          "item_description": {
+            "en": "خيار مخلل",
+            "ar": "خيار مخلل"
+          }
+        },
+        {
+          "id": "f6f47b3a-b77a-4333-a433-f4187a2ab07a",
+          "sku": null,
+          "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 80
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/فتة_موزة_17092025151946241.jpeg"
+          },
+          "item_name": {
+            "en": "فتة موزة",
+            "ar": "فتة موزة"
+          },
+          "item_description": {
+            "en": "فتة موزة",
+            "ar": "فتة موزة"
+          }
+        },
+        {
+          "id": "FCC1FE285CE34388ADD434E0A61196DD",
+          "sku": null,
+          "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 73
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/طريقة-عمل-بابا-غنوج_17092025181601199.png"
+          },
+          "item_name": {
+            "en": "بابا غنوج",
+            "ar": "بابا غنوج"
+          },
+          "item_description": {
+            "en": "بابا غنوج",
+            "ar": "بابا غنوج"
+          }
+        },
+        {
+          "id": "fe3ec19c-89b1-4b52-bd21-23ee0ebceac2",
+          "sku": null,
+          "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "nameAr": "",
+          "nameEn": "",
+          "descriptionAr": null,
+          "descriptionEn": null,
+          "basePrice": 0,
+          "taxGroupId": null,
+          "isCombo": false,
+          "isActive": true,
+          "favoriteRank": null,
+          "createdAt": "2025-11-05T20:00:55.607Z",
+          "updatedAt": "2025-11-05T20:00:55.607Z",
+          "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+          "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "pricing": {
+            "base": 808
+          },
+          "media": {
+            "image": "https://darwish.mas.com.eg/UploadFiles/moumin_jamal/moumin_jamal/مكرونةباشاميل_17092025141406284.jpg"
+          },
+          "item_name": {
+            "en": "مكرونة باشاميل",
+            "ar": "مكرونة باشاميل"
+          },
+          "item_description": {
+            "en": "مكرونة باشاميل",
+            "ar": "مكرونة باشاميل"
+          }
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "menu_item",
+          "key": "04b2b3c7-be56-4066-940f-2675fb740247",
+          "primaryKey": {
+            "id": "04b2b3c7-be56-4066-940f-2675fb740247"
+          },
+          "id": "04b2b3c7-be56-4066-940f-2675fb740247"
+        },
+        {
+          "table": "menu_item",
+          "key": "05d98de6-7bb6-48dc-930a-642144514159",
+          "primaryKey": {
+            "id": "05d98de6-7bb6-48dc-930a-642144514159"
+          },
+          "id": "05d98de6-7bb6-48dc-930a-642144514159"
+        },
+        {
+          "table": "menu_item",
+          "key": "060E11D89BF042D4A89B76EAFB025D01",
+          "primaryKey": {
+            "id": "060E11D89BF042D4A89B76EAFB025D01"
+          },
+          "id": "060E11D89BF042D4A89B76EAFB025D01"
+        },
+        {
+          "table": "menu_item",
+          "key": "09cc9ae6-402c-4cb3-95e8-0c0b0902bb9a",
+          "primaryKey": {
+            "id": "09cc9ae6-402c-4cb3-95e8-0c0b0902bb9a"
+          },
+          "id": "09cc9ae6-402c-4cb3-95e8-0c0b0902bb9a"
+        },
+        {
+          "table": "menu_item",
+          "key": "0ff8cd4a-005b-4a44-9187-c50eaaa84643",
+          "primaryKey": {
+            "id": "0ff8cd4a-005b-4a44-9187-c50eaaa84643"
+          },
+          "id": "0ff8cd4a-005b-4a44-9187-c50eaaa84643"
+        }
+      ]
+    },
+    {
+      "name": "menu_item_price",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "menu_item_media",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "menu_modifier",
+      "count": 4,
+      "records": [
+        {
+          "id": 101,
+          "isActive": true,
+          "modifierType": "add_on",
+          "nameAr": "",
+          "nameEn": "",
+          "priceChange": 15,
+          "name": {
+            "en": "Extra Mozzarella",
+            "ar": "جبنة موتزاريلا زيادة"
+          },
+          "price_change": 15
+        },
+        {
+          "id": 102,
+          "isActive": true,
+          "modifierType": "add_on",
+          "nameAr": "",
+          "nameEn": "",
+          "priceChange": 8,
+          "name": {
+            "en": "Extra Tahini Sauce",
+            "ar": "صوص طحينة إضافي"
+          },
+          "price_change": 8
+        },
+        {
+          "id": 103,
+          "isActive": true,
+          "modifierType": "add_on",
+          "nameAr": "",
+          "nameEn": "",
+          "priceChange": 12,
+          "name": {
+            "en": "Extra Roumy Cheese",
+            "ar": "جبنة رومي زيادة"
+          },
+          "price_change": 12
+        },
+        {
+          "id": 104,
+          "isActive": true,
+          "modifierType": "add_on",
+          "nameAr": "",
+          "nameEn": "",
+          "priceChange": 25,
+          "name": {
+            "en": "Extra Rice",
+            "ar": "أرز إضافي"
+          },
+          "price_change": 25
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "menu_modifier",
+          "key": "101",
+          "primaryKey": {
+            "id": 101
+          },
+          "id": 101
+        },
+        {
+          "table": "menu_modifier",
+          "key": "102",
+          "primaryKey": {
+            "id": 102
+          },
+          "id": 102
+        },
+        {
+          "table": "menu_modifier",
+          "key": "103",
+          "primaryKey": {
+            "id": 103
+          },
+          "id": 103
+        },
+        {
+          "table": "menu_modifier",
+          "key": "104",
+          "primaryKey": {
+            "id": 104
+          },
+          "id": 104
+        }
+      ]
+    },
+    {
+      "name": "menu_item_modifier",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "itemId"
+      ],
+      "sample": []
+    },
+    {
+      "name": "customer_profile",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "customer_address",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "dining_table",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "table_lock",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "reservation",
+      "count": 3,
+      "records": [
+        {
+          "customerName": "محمد سامي",
+          "holdUntil": "2024-02-18T19:20:00Z",
+          "id": "res-001",
+          "note": "عيد ميلاد",
+          "partySize": 4,
+          "phone": "01000200300",
+          "scheduledAt": "2024-02-18T19:00:00Z",
+          "status": "booked",
+          "tableIds": [
+            "T7"
+          ]
+        },
+        {
+          "customerName": "Sarah Ahmed",
+          "holdUntil": "2024-02-18T20:50:00Z",
+          "id": "res-002",
+          "note": "جلسة هادئة",
+          "partySize": 2,
+          "phone": "01133344455",
+          "scheduledAt": "2024-02-18T20:30:00Z",
+          "status": "booked",
+          "tableIds": [
+            "T5",
+            "T6"
+          ]
+        },
+        {
+          "customerName": "شركة بريميوم",
+          "holdUntil": "2024-02-19T13:15:00Z",
+          "id": "res-003",
+          "note": "اجتماع عمل",
+          "partySize": 10,
+          "phone": "01266677788",
+          "scheduledAt": "2024-02-19T13:00:00Z",
+          "status": "seated",
+          "tableIds": [
+            "T16"
+          ]
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "reservation",
+          "key": "res-001",
+          "primaryKey": {
+            "id": "res-001"
+          },
+          "id": "res-001"
+        },
+        {
+          "table": "reservation",
+          "key": "res-002",
+          "primaryKey": {
+            "id": "res-002"
+          },
+          "id": "res-002"
+        },
+        {
+          "table": "reservation",
+          "key": "res-003",
+          "primaryKey": {
+            "id": "res-003"
+          },
+          "id": "res-003"
+        }
+      ]
+    },
+    {
+      "name": "reservation_table",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "reservationId"
+      ],
+      "sample": []
+    },
+    {
+      "name": "delivery_driver",
+      "count": 3,
+      "records": [
+        {
+          "id": 1,
+          "isActive": true,
+          "name": "محمود عبد العزيز",
+          "phone": "01012345678",
+          "vehicleId": "موتوسيكل - أ ب ج 123",
+          "vehicle_id": "موتوسيكل - أ ب ج 123"
+        },
+        {
+          "id": 2,
+          "isActive": true,
+          "name": "كريم السيد",
+          "phone": "01198765432",
+          "vehicleId": "موتوسيكل - س ص ع 456",
+          "vehicle_id": "موتوسيكل - س ص ع 456"
+        },
+        {
+          "id": 3,
+          "isActive": true,
+          "name": "علي حسن",
+          "phone": "01234567890",
+          "vehicleId": "سيارة - ف ق ل 789",
+          "vehicle_id": "سيارة - ف ق ل 789"
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "delivery_driver",
+          "key": "1",
+          "primaryKey": {
+            "id": 1
+          },
+          "id": 1
+        },
+        {
+          "table": "delivery_driver",
+          "key": "2",
+          "primaryKey": {
+            "id": 2
+          },
+          "id": 2
+        },
+        {
+          "table": "delivery_driver",
+          "key": "3",
+          "primaryKey": {
+            "id": 3
+          },
+          "id": 3
+        }
+      ]
+    },
+    {
+      "name": "order_header",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_line",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_status_log",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_line_status_log",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_line_modifier",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_payment",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_refund",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_delivery",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "orderId"
+      ],
+      "sample": []
+    },
+    {
+      "name": "audit_event",
+      "count": 1,
+      "records": [
+        {
+          "action": "table.state",
+          "id": "audit-001",
+          "meta": {
+            "state": "disactive"
+          },
+          "occurredAt": "2025-11-05T20:00:55.608Z",
+          "refId": "T19",
+          "refType": "table",
+          "userId": "a1b2c3d4",
+          "at": "2024-02-15T10:00:00Z"
+        }
+      ],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": [
+        {
+          "table": "audit_event",
+          "key": "audit-001",
+          "primaryKey": {
+            "id": "audit-001"
+          },
+          "id": "audit-001"
+        }
+      ]
+    }
+  ],
+  "summary": [
+    {
+      "name": "pos_database",
+      "count": 1,
+      "sample": [
+        {
+          "table": "pos_database",
+          "key": "id-7cb58d02-497e-4c7f-831d-52ddfc72d146",
+          "primaryKey": {
+            "id": "id-7cb58d02-497e-4c7f-831d-52ddfc72d146"
+          },
+          "id": "id-7cb58d02-497e-4c7f-831d-52ddfc72d146"
+        }
+      ]
+    },
+    {
+      "name": "pos_terminal",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "employee",
+      "count": 5,
+      "sample": [
+        {
+          "table": "employee",
+          "key": "e7a8f0b4",
+          "primaryKey": {
+            "id": "e7a8f0b4"
+          },
+          "id": "e7a8f0b4"
+        },
+        {
+          "table": "employee",
+          "key": "f3c9d8e1",
+          "primaryKey": {
+            "id": "f3c9d8e1"
+          },
+          "id": "f3c9d8e1"
+        },
+        {
+          "table": "employee",
+          "key": "a1b2c3d4",
+          "primaryKey": {
+            "id": "a1b2c3d4"
+          },
+          "id": "a1b2c3d4"
+        },
+        {
+          "table": "employee",
+          "key": "b5c6d7e8",
+          "primaryKey": {
+            "id": "b5c6d7e8"
+          },
+          "id": "b5c6d7e8"
+        },
+        {
+          "table": "employee",
+          "key": "c9d0e1f2",
+          "primaryKey": {
+            "id": "c9d0e1f2"
+          },
+          "id": "c9d0e1f2"
+        }
+      ]
+    },
+    {
+      "name": "pos_shift",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "shift_cash_audit",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "shift_payment_summary",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_type",
+      "count": 3,
+      "sample": [
+        {
+          "table": "order_type",
+          "key": "dine_in",
+          "primaryKey": {
+            "id": "dine_in"
+          },
+          "id": "dine_in"
+        },
+        {
+          "table": "order_type",
+          "key": "delivery",
+          "primaryKey": {
+            "id": "delivery"
+          },
+          "id": "delivery"
+        },
+        {
+          "table": "order_type",
+          "key": "takeaway",
+          "primaryKey": {
+            "id": "takeaway"
+          },
+          "id": "takeaway"
+        }
+      ]
+    },
+    {
+      "name": "order_status",
+      "count": 4,
+      "sample": [
+        {
+          "table": "order_status",
+          "key": "open",
+          "primaryKey": {
+            "id": "open"
+          },
+          "id": "open"
+        },
+        {
+          "table": "order_status",
+          "key": "held",
+          "primaryKey": {
+            "id": "held"
+          },
+          "id": "held"
+        },
+        {
+          "table": "order_status",
+          "key": "finalized",
+          "primaryKey": {
+            "id": "finalized"
+          },
+          "id": "finalized"
+        },
+        {
+          "table": "order_status",
+          "key": "closed",
+          "primaryKey": {
+            "id": "closed"
+          },
+          "id": "closed"
+        }
+      ]
+    },
+    {
+      "name": "order_stage",
+      "count": 7,
+      "sample": [
+        {
+          "table": "order_stage",
+          "key": "new",
+          "primaryKey": {
+            "id": "new"
+          },
+          "id": "new"
+        },
+        {
+          "table": "order_stage",
+          "key": "preparing",
+          "primaryKey": {
+            "id": "preparing"
+          },
+          "id": "preparing"
+        },
+        {
+          "table": "order_stage",
+          "key": "prepared",
+          "primaryKey": {
+            "id": "prepared"
+          },
+          "id": "prepared"
+        },
+        {
+          "table": "order_stage",
+          "key": "delivering",
+          "primaryKey": {
+            "id": "delivering"
+          },
+          "id": "delivering"
+        },
+        {
+          "table": "order_stage",
+          "key": "delivered",
+          "primaryKey": {
+            "id": "delivered"
+          },
+          "id": "delivered"
+        }
+      ]
+    },
+    {
+      "name": "order_payment_state",
+      "count": 3,
+      "sample": [
+        {
+          "table": "order_payment_state",
+          "key": "unpaid",
+          "primaryKey": {
+            "id": "unpaid"
+          },
+          "id": "unpaid"
+        },
+        {
+          "table": "order_payment_state",
+          "key": "partial",
+          "primaryKey": {
+            "id": "partial"
+          },
+          "id": "partial"
+        },
+        {
+          "table": "order_payment_state",
+          "key": "paid",
+          "primaryKey": {
+            "id": "paid"
+          },
+          "id": "paid"
+        }
+      ]
+    },
+    {
+      "name": "order_line_status",
+      "count": 5,
+      "sample": [
+        {
+          "table": "order_line_status",
+          "key": "draft",
+          "primaryKey": {
+            "id": "draft"
+          },
+          "id": "draft"
+        },
+        {
+          "table": "order_line_status",
+          "key": "queued",
+          "primaryKey": {
+            "id": "queued"
+          },
+          "id": "queued"
+        },
+        {
+          "table": "order_line_status",
+          "key": "preparing",
+          "primaryKey": {
+            "id": "preparing"
+          },
+          "id": "preparing"
+        },
+        {
+          "table": "order_line_status",
+          "key": "ready",
+          "primaryKey": {
+            "id": "ready"
+          },
+          "id": "ready"
+        },
+        {
+          "table": "order_line_status",
+          "key": "served",
+          "primaryKey": {
+            "id": "served"
+          },
+          "id": "served"
+        }
+      ]
+    },
+    {
+      "name": "payment_method",
+      "count": 4,
+      "sample": [
+        {
+          "table": "payment_method",
+          "key": "1a5b8418-88aa-47b2-a106-f2318e68dd9a",
+          "primaryKey": {
+            "id": "1a5b8418-88aa-47b2-a106-f2318e68dd9a"
+          },
+          "id": "1a5b8418-88aa-47b2-a106-f2318e68dd9a"
+        },
+        {
+          "table": "payment_method",
+          "key": "4d3c1d65-4620-4421-8782-c008f2a3e857",
+          "primaryKey": {
+            "id": "4d3c1d65-4620-4421-8782-c008f2a3e857"
+          },
+          "id": "4d3c1d65-4620-4421-8782-c008f2a3e857"
+        },
+        {
+          "table": "payment_method",
+          "key": "608b58a4-8f49-4d65-9f01-889d79f27350",
+          "primaryKey": {
+            "id": "608b58a4-8f49-4d65-9f01-889d79f27350"
+          },
+          "id": "608b58a4-8f49-4d65-9f01-889d79f27350"
+        },
+        {
+          "table": "payment_method",
+          "key": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59",
+          "primaryKey": {
+            "id": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59"
+          },
+          "id": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59"
+        }
+      ]
+    },
+    {
+      "name": "kitchen_section",
+      "count": 4,
+      "sample": [
+        {
+          "table": "kitchen_section",
+          "key": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+          "primaryKey": {
+            "id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+          },
+          "id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        },
+        {
+          "table": "kitchen_section",
+          "key": "34476cab-abec-47fc-ac37-34faa4ab4092",
+          "primaryKey": {
+            "id": "34476cab-abec-47fc-ac37-34faa4ab4092"
+          },
+          "id": "34476cab-abec-47fc-ac37-34faa4ab4092"
+        },
+        {
+          "table": "kitchen_section",
+          "key": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+          "primaryKey": {
+            "id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
+          },
+          "id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
+        },
+        {
+          "table": "kitchen_section",
+          "key": "c61d5bc4-1429-42b6-b250-f9254a176848",
+          "primaryKey": {
+            "id": "c61d5bc4-1429-42b6-b250-f9254a176848"
+          },
+          "id": "c61d5bc4-1429-42b6-b250-f9254a176848"
+        }
+      ]
+    },
+    {
+      "name": "menu_category",
+      "count": 9,
+      "sample": [
+        {
+          "table": "menu_category",
+          "key": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "primaryKey": {
+            "id": "0CDCD17AE3A741D089FA17B8F1EEB57F"
+          },
+          "id": "0CDCD17AE3A741D089FA17B8F1EEB57F"
+        },
+        {
+          "table": "menu_category",
+          "key": "17E1117979A94AEC93B71C80ADDF1561",
+          "primaryKey": {
+            "id": "17E1117979A94AEC93B71C80ADDF1561"
+          },
+          "id": "17E1117979A94AEC93B71C80ADDF1561"
+        },
+        {
+          "table": "menu_category",
+          "key": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "primaryKey": {
+            "id": "4AA74FE9AF23457E874FBF53F15DAFD3"
+          },
+          "id": "4AA74FE9AF23457E874FBF53F15DAFD3"
+        },
+        {
+          "table": "menu_category",
+          "key": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "primaryKey": {
+            "id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254"
+          },
+          "id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254"
+        },
+        {
+          "table": "menu_category",
+          "key": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "primaryKey": {
+            "id": "80AAC2AC551B4BFCA39607CE4F0A8CF2"
+          },
+          "id": "80AAC2AC551B4BFCA39607CE4F0A8CF2"
+        }
+      ]
+    },
+    {
+      "name": "category_section",
+      "count": 9,
+      "sample": [
+        {
+          "table": "category_section",
+          "key": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+          "primaryKey": {
+            "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F"
+          }
+        },
+        {
+          "table": "category_section",
+          "key": "17E1117979A94AEC93B71C80ADDF1561",
+          "primaryKey": {
+            "categoryId": "17E1117979A94AEC93B71C80ADDF1561"
+          }
+        },
+        {
+          "table": "category_section",
+          "key": "4AA74FE9AF23457E874FBF53F15DAFD3",
+          "primaryKey": {
+            "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3"
+          }
+        },
+        {
+          "table": "category_section",
+          "key": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+          "primaryKey": {
+            "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254"
+          }
+        },
+        {
+          "table": "category_section",
+          "key": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+          "primaryKey": {
+            "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "menu_item",
+      "count": 94,
+      "sample": [
+        {
+          "table": "menu_item",
+          "key": "04b2b3c7-be56-4066-940f-2675fb740247",
+          "primaryKey": {
+            "id": "04b2b3c7-be56-4066-940f-2675fb740247"
+          },
+          "id": "04b2b3c7-be56-4066-940f-2675fb740247"
+        },
+        {
+          "table": "menu_item",
+          "key": "05d98de6-7bb6-48dc-930a-642144514159",
+          "primaryKey": {
+            "id": "05d98de6-7bb6-48dc-930a-642144514159"
+          },
+          "id": "05d98de6-7bb6-48dc-930a-642144514159"
+        },
+        {
+          "table": "menu_item",
+          "key": "060E11D89BF042D4A89B76EAFB025D01",
+          "primaryKey": {
+            "id": "060E11D89BF042D4A89B76EAFB025D01"
+          },
+          "id": "060E11D89BF042D4A89B76EAFB025D01"
+        },
+        {
+          "table": "menu_item",
+          "key": "09cc9ae6-402c-4cb3-95e8-0c0b0902bb9a",
+          "primaryKey": {
+            "id": "09cc9ae6-402c-4cb3-95e8-0c0b0902bb9a"
+          },
+          "id": "09cc9ae6-402c-4cb3-95e8-0c0b0902bb9a"
+        },
+        {
+          "table": "menu_item",
+          "key": "0ff8cd4a-005b-4a44-9187-c50eaaa84643",
+          "primaryKey": {
+            "id": "0ff8cd4a-005b-4a44-9187-c50eaaa84643"
+          },
+          "id": "0ff8cd4a-005b-4a44-9187-c50eaaa84643"
+        }
+      ]
+    },
+    {
+      "name": "menu_item_price",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "menu_item_media",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "menu_modifier",
+      "count": 4,
+      "sample": [
+        {
+          "table": "menu_modifier",
+          "key": "101",
+          "primaryKey": {
+            "id": 101
+          },
+          "id": 101
+        },
+        {
+          "table": "menu_modifier",
+          "key": "102",
+          "primaryKey": {
+            "id": 102
+          },
+          "id": 102
+        },
+        {
+          "table": "menu_modifier",
+          "key": "103",
+          "primaryKey": {
+            "id": 103
+          },
+          "id": 103
+        },
+        {
+          "table": "menu_modifier",
+          "key": "104",
+          "primaryKey": {
+            "id": 104
+          },
+          "id": 104
+        }
+      ]
+    },
+    {
+      "name": "menu_item_modifier",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "customer_profile",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "customer_address",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "dining_table",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "table_lock",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "reservation",
+      "count": 3,
+      "sample": [
+        {
+          "table": "reservation",
+          "key": "res-001",
+          "primaryKey": {
+            "id": "res-001"
+          },
+          "id": "res-001"
+        },
+        {
+          "table": "reservation",
+          "key": "res-002",
+          "primaryKey": {
+            "id": "res-002"
+          },
+          "id": "res-002"
+        },
+        {
+          "table": "reservation",
+          "key": "res-003",
+          "primaryKey": {
+            "id": "res-003"
+          },
+          "id": "res-003"
+        }
+      ]
+    },
+    {
+      "name": "reservation_table",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "delivery_driver",
+      "count": 3,
+      "sample": [
+        {
+          "table": "delivery_driver",
+          "key": "1",
+          "primaryKey": {
+            "id": 1
+          },
+          "id": 1
+        },
+        {
+          "table": "delivery_driver",
+          "key": "2",
+          "primaryKey": {
+            "id": 2
+          },
+          "id": 2
+        },
+        {
+          "table": "delivery_driver",
+          "key": "3",
+          "primaryKey": {
+            "id": 3
+          },
+          "id": 3
+        }
+      ]
+    },
+    {
+      "name": "order_header",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_line",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_status_log",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_line_status_log",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_line_modifier",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_payment",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_refund",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_delivery",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "audit_event",
+      "count": 1,
+      "sample": [
+        {
+          "table": "audit_event",
+          "key": "audit-001",
+          "primaryKey": {
+            "id": "audit-001"
+          },
+          "id": "audit-001"
+        }
+      ]
+    }
+  ]
+}

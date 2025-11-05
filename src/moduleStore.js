@@ -650,9 +650,24 @@ export default class ModuleStore {
       if (target.length) continue;
 
       rows.forEach((row) => {
-        const record = this.schemaEngine.createRecord(tableName, row, { branchId: this.branchId, ...context });
-        this.initializeRecordVersion(tableName, record);
-        target.push(record);
+        // IMPORTANT: Merge original seed data with schema-created record
+        // This preserves nested structures like pricing.base, media.image, item_name
+        const schemaRecord = this.schemaEngine.createRecord(tableName, row, { branchId: this.branchId, ...context });
+        this.initializeRecordVersion(tableName, schemaRecord);
+
+        // Merge: schema fields + original seed fields
+        // Original seed data takes precedence for nested objects
+        const mergedRecord = {
+          ...schemaRecord,
+          ...row,  // Keep original nested structures
+          // But preserve schema-generated fields
+          id: schemaRecord.id || row.id,
+          branchId: schemaRecord.branchId,
+          createdAt: schemaRecord.createdAt,
+          updatedAt: schemaRecord.updatedAt
+        };
+
+        target.push(mergedRecord);
         this.meta.counter = (this.meta.counter || 0) + 1;
         this.meta.labCounter = this.meta.counter;
       });
