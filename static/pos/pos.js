@@ -5852,6 +5852,20 @@
     async function persistOrderFlow(ctx, rawMode, options={}){
       const state = ctx.getState();
       const t = getTexts(state);
+      const retryCount = options.retryCount || 0;
+      const MAX_RETRIES = 3;
+
+      // Prevent infinite retry loop
+      if(retryCount >= MAX_RETRIES){
+        console.error('[Mishkah][POS] persistOrderFlow: Max retries exceeded', { retryCount, maxRetries: MAX_RETRIES });
+        UI.pushToast(ctx, {
+          title: t.toast.order_save_failed || 'فشل حفظ الطلب',
+          message: t.toast.max_retries_exceeded || 'تم تجاوز الحد الأقصى لعدد المحاولات',
+          icon:'❌'
+        });
+        return { status:'error', reason:'max-retries-exceeded' };
+      }
+
       if(!posDB.available){
         UI.pushToast(ctx, { title:t.toast.indexeddb_missing, icon:'⚠️' });
         return { status:'error', reason:'indexeddb' };
@@ -5871,7 +5885,8 @@
         isPersisted: order.isPersisted,
         dirty: order.dirty,
         linesCount: order.lines?.length || 0,
-        mode: rawMode
+        mode: rawMode,
+        retryCount
       });
       const previousOrderId = order.id;
       const orderType = order.type || 'dine_in';
@@ -6105,13 +6120,23 @@
           isPersisted: order.isPersisted,
           previousOrderId,
           isDraftId,
+          retryCount,
           reason: isDraftId ? 'draft ID needs real invoice ID' : (!order.isPersisted ? 'order not persisted' : 'no valid previous ID')
         });
         try {
           finalOrderId = await allocateInvoiceId();
-          console.log('[Mishkah][POS] ✅ New invoice ID allocated:', finalOrderId);
+          console.log('[Mishkah][POS] ✅ New invoice ID allocated:', {
+            allocatedId: finalOrderId,
+            previousId: previousOrderId,
+            retryAttempt: retryCount,
+            timestamp: new Date().toISOString()
+          });
         } catch(allocError){
-          console.error('[Mishkah][POS] ❌ Invoice allocation failed during save', allocError);
+          console.error('[Mishkah][POS] ❌ Invoice allocation failed during save', {
+            error: allocError,
+            retryCount,
+            previousOrderId
+          });
           UI.pushToast(ctx, { title:t.toast.indexeddb_error, message:String(allocError), icon:'🛑' });
           return { status:'error', reason:'invoice' };
         }
@@ -6239,8 +6264,27 @@
               isDraftId,
               previousOrderId,
               finalOrderId,
+              idChanged,
               willRefresh: !isDraftId && !idChanged
             });
+
+            // CRITICAL FIX: If converting draft to real order and got conflict,
+            // the allocated ID already exists in backend - retry with new ID
+            if(isDraftId && idChanged){
+              console.error('[Mishkah][POS] Draft conversion failed: Invoice ID already exists', {
+                allocatedId: finalOrderId,
+                draftId: previousOrderId,
+                suggestion: 'Retrying with new invoice ID'
+              });
+              UI.pushToast(ctx, {
+                title: t.toast.order_id_conflict || 'رقم الفاتورة مستخدم بالفعل',
+                message: t.toast.retrying_save || 'جاري إعادة المحاولة برقم جديد...',
+                icon:'🔄'
+              });
+              // Retry the entire save flow - it will allocate a new ID
+              return await persistOrderFlow(ctx, rawMode, { ...options, retryCount: (options.retryCount || 0) + 1 });
+            }
+
             // Only try to refresh from remote if this was a real order update (not a draft conversion)
             if(!isDraftId && !idChanged){
               await refreshFromRemote(error.order || null, 'order_conflict_refreshed');
