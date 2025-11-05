@@ -4598,7 +4598,7 @@ async function handleBranchesApi(req, res, url) {
     return;
   }
   if (tail.length === 1 && tail[0] === 'reset') {
-    if (req.method !== 'POST') {
+    if (req.method !== 'POST' && req.method !== 'GET') {
       jsonResponse(res, 405, { error: 'method-not-allowed' });
       return;
     }
