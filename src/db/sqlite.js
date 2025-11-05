@@ -75,6 +75,7 @@ function createTables(db) {
       module_id TEXT NOT NULL,
       id TEXT NOT NULL,
       order_id TEXT NOT NULL,
+      item_id TEXT,
       status TEXT,
       stage TEXT,
       created_at TEXT,
@@ -84,7 +85,17 @@ function createTables(db) {
       PRIMARY KEY (branch_id, module_id, id)
     );
   `);
+
+  // Add item_id column if it doesn't exist (migration)
+  try {
+    db.exec('ALTER TABLE order_line ADD COLUMN item_id TEXT');
+    console.log('✅ Added item_id column to order_line table');
+  } catch (err) {
+    // Column already exists, ignore
+  }
+
   db.exec('CREATE INDEX IF NOT EXISTS order_line_order_idx ON order_line (branch_id, module_id, order_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS order_line_item_idx ON order_line (branch_id, module_id, item_id)');
   db.exec('CREATE INDEX IF NOT EXISTS order_line_updated_idx ON order_line (branch_id, module_id, updated_at DESC)');
 
   db.exec(`
@@ -284,6 +295,21 @@ function buildLineRow(record = {}, context = {}) {
     itemId = itemId.id || JSON.stringify(itemId);
   }
 
+  // 🔍 DEBUG & VALIDATION: item_id must not be null
+  if (!itemId) {
+    console.error('[SQLite][buildLineRow] ❌ item_id is NULL! This line will NOT be saved.', {
+      recordId: record.id,
+      orderId,
+      recordKeys: Object.keys(record),
+      itemId_field: record.itemId,
+      item_id_field: record.item_id,
+      fullRecord: JSON.stringify(record, null, 2)
+    });
+
+    // 🛑 CRITICAL: Don't allow saving order_line without item_id
+    throw new Error(`order_line record requires item_id. Record ID: ${record.id}, Order ID: ${orderId}`);
+  }
+
   return {
     branch_id: normalizedContext.branchId,
     module_id: normalizedContext.moduleId,
@@ -438,7 +464,7 @@ function getStatements(tableName) {
           VALUES (@branch_id, @module_id, @id, @order_id, @item_id, @status, @stage, @created_at, @updated_at, @version, @payload)
           ON CONFLICT(branch_id, module_id, id) DO UPDATE SET
             order_id = excluded.order_id,
-            item_id = excluded.item_id,
+            item_id = COALESCE(excluded.item_id, order_line.item_id),
             status = excluded.status,
             stage = excluded.stage,
             created_at = excluded.created_at,
