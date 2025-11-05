@@ -4958,6 +4958,15 @@
         return null;
       }
       const itemId = String(rawItemId);
+
+      // 🔍 DEBUG: Log itemId extraction
+      console.log('[POS][normalizeOrderLine] itemId extracted:', {
+        rawItemId,
+        itemId,
+        rawItemIdType: typeof rawItemId,
+        itemIdType: typeof itemId
+      });
+
       const menuItem = menuIndex?.get(String(itemId));
       const qty = Math.max(1, Number(raw.qty) || 1);
       const basePrice = raw.base_price != null ? Number(raw.base_price)
