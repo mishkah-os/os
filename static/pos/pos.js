@@ -2985,17 +2985,9 @@
         ? String(finalRawItemId).trim()
         : null;
 
-      let itemId = null;
-      if (rawItemIdString) {
-        const parsedId = parseInt(rawItemIdString, 10);
-        if (!isNaN(parsedId)) {
-          itemId = parsedId;
-        } else {
-          console.warn('[Mishkah][POS] Could not parse itemId to integer:', { rawItemIdString });
-        }
-      }
+      // ✅ FIX: Don't parse to int - item_id can be UUID string!
+      const itemId = rawItemIdString;
 
-      normalized.itemId = itemId;
       if(!itemId){
         console.warn('[Mishkah][POS] Dropping realtime order line - missing itemId', {
           id,
