@@ -142,6 +142,12 @@ export default class SchemaEngine {
 
   coerceValue(field, value) {
     const type = normalizeType(field.type);
+
+    // Debug logging for any field containing "item"
+    if (field.name.toLowerCase().includes("item")) {
+      console.log('[SchemaEngine][coerceValue] Field:', field.name, 'Type:', type, 'Value:', value);
+    }
+
     if (value === null || value === undefined) return value;
     switch (type) {
       case 'integer':
