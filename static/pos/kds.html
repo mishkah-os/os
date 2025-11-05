@@ -92,6 +92,7 @@
   <script src="../lib/mishkah-schema.js"></script>
   <script src="../lib/mishkah.store.js"></script>
   <script src="../lib/mishkah.simple-store.js"></script>
+  <script src="./pos-simple-loader.js"></script>
   <script src="./pos-mini-db.js"></script>
 
 </head>
@@ -138,29 +139,48 @@
           window.__POS_DB__ = db;
           window.__POS_MODULE_ENTRY__ = moduleEntry;
 
-          // Function to update window.database from latest record
-          const updateWindowDatabase = () => {
+          // Function to update window.database - load directly from REST API
+          const updateWindowDatabase = async () => {
+            console.log('[KDS] Loading data from REST API (original seed structure)');
+
+            try {
+              // Load data using simple loader (preserves original structure)
+              const tables = await window.loadPosData(BRANCH_ID, 'pos');
+
+              // Use data as-is from API (already in correct format from seeds)
+              window.database = tables;
+              status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
+              status.keys = Object.keys(tables);
+
+              const tablesWithData = Object.keys(tables).filter(k => Array.isArray(tables[k]) && tables[k].length > 0);
+              console.log('[KDS] window.database ready:', {
+                totalTables: tablesWithData.length,
+                tables: tablesWithData.map(k => ({ name: k, count: tables[k].length })),
+                status: status.status
+              });
+
+              return;
+
+            } catch (error) {
+              console.error('[KDS] Failed to load from REST API, falling back to WebSocket store:', error);
+            }
+
+            // Fallback: use WebSocket store
+            console.log('[KDS] Using fallback WebSocket store');
             const records = db.list('pos_database');
             const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
 
-            // Support both old and new data structures:
-            // OLD: pos_database[0].payload contains all data
-            // NEW: data is directly in tables
             let payload = {};
 
-            // Check if OLD structure with non-empty payload exists
             if (latest && latest.payload && typeof latest.payload === 'object' && Object.keys(latest.payload).length > 0) {
-              // OLD structure: data inside pos_database[0].payload
               payload = latest.payload;
               console.log('[KDS] Using OLD structure (pos_database.payload)');
             } else {
-              // NEW structure: data directly in tables
               console.log('[KDS] Using NEW structure (direct table access)');
               if (typeof db.snapshot === 'function') {
                 const snapshot = db.snapshot();
                 payload = snapshot.tables || {};
               } else {
-                // Fallback: build from registered objects
                 const registeredObjects = db.config?.objects || {};
                 Object.keys(registeredObjects).forEach(name => {
                   try {
@@ -173,21 +193,14 @@
               }
             }
 
-            const previousKeys = Object.keys(window.database || {}).sort().join(',');
-            const newKeys = Object.keys(payload || {}).sort().join(',');
-
             window.database = payload;
-            status.status = (latest || Object.keys(payload).length) ? 'ready' : 'idle';
+            status.status = Object.keys(payload).length > 0 ? 'ready' : 'idle';
             status.keys = Object.keys(payload || {});
 
-            // Log update if keys changed
-            if (previousKeys !== newKeys) {
-              console.log('[KDS] window.database updated with new data', {
-                previousKeyCount: previousKeys.split(',').filter(Boolean).length,
-                newKeyCount: newKeys.split(',').filter(Boolean).length,
-                timestamp: new Date().toISOString()
-              });
-            }
+            console.log('[KDS] window.database ready (fallback):', {
+              totalTables: Object.keys(payload).length,
+              status: status.status
+            });
           };
 
           db.ready().then(() => {
