@@ -7,7 +7,7 @@ import {
   loadTableRecords as loadSqlTable,
   replaceTableRecords as replaceSqlTable,
   isManagedTable
-} from './db/sqlite.js';
+} from './db/dynamic-sqlite.js';
 
 const DEFAULT_CACHE_TTL_MS = Math.max(250, Number(process.env.HYBRID_CACHE_TTL_MS) || 1500);
 
