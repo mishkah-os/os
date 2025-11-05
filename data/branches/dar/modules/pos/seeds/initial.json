@@ -54,7 +54,7 @@
 		  ,
         "kitchen_sections": [
             {
-                "id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "id": "hot_linee",
                 "section_name": {
                     "en": "Hot Line",
                     "ar": "شاشة السخن"
@@ -101,15 +101,15 @@
         "category_sections": [
             {
                 "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
@@ -121,15 +121,15 @@
             },
             {
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "category_id": "CF44B6AEE120414796208411A11D82BD",
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
@@ -144,7 +144,7 @@
                     "en": "Appetizers",
                     "ar": "المقبلات"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "17E1117979A94AEC93B71C80ADDF1561",
@@ -152,7 +152,7 @@
                     "en": "Salad",
                     "ar": "السلطات"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "4AA74FE9AF23457E874FBF53F15DAFD3",
@@ -160,7 +160,7 @@
                     "en": "Casserole",
                     "ar": "الطواجن"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
@@ -184,7 +184,7 @@
                     "en": "Rice and Pasta",
                     "ar": "الأرز والمكرونة"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "CF44B6AEE120414796208411A11D82BD",
@@ -192,7 +192,7 @@
                     "en": "Soup",
                     "ar": "الشورب"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
@@ -200,7 +200,7 @@
                     "en": "Fattah",
                     "ar": "الفتة"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "F9785744F0004F6AB1C108C0E3DE87D4",
@@ -216,7 +216,7 @@
             {
                 "id": "04b2b3c7-be56-4066-940f-2675fb740247",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 501
                 },
@@ -254,7 +254,7 @@
             {
                 "id": "060E11D89BF042D4A89B76EAFB025D01",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 152
                 },
@@ -292,7 +292,7 @@
             {
                 "id": "0ff8cd4a-005b-4a44-9187-c50eaaa84643",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 580
                 },
@@ -349,7 +349,7 @@
             {
                 "id": "1ce2e699-9e55-4d4f-86b8-e90a446f385b",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 12
                 },
@@ -368,7 +368,7 @@
             {
                 "id": "22330C99983E483EA748660133546BB5",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 720
                 },
@@ -387,7 +387,7 @@
             {
                 "id": "23a3f9df-d213-4215-9e38-30e6b0d350b5",
                 "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 28
                 },
@@ -422,7 +422,7 @@
             {
                 "id": "246299ec-debe-4e9d-9fb9-eb113b6026bc",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 87
                 },
@@ -441,7 +441,7 @@
             {
                 "id": "253dcaa6-ddc5-4eea-bdeb-d81e36e25a1b",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 574
                 },
@@ -460,7 +460,7 @@
             {
                 "id": "2B51504E5F52442599137563447D56B8",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 866
                 },
@@ -498,7 +498,7 @@
             {
                 "id": "31A7A1D70788433B87D47CE9BE09BAD0",
                 "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 813
                 },
@@ -536,7 +536,7 @@
             {
                 "id": "348393a1-0e12-41a7-9c33-9bd3de2cded4",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 337
                 },
@@ -555,7 +555,7 @@
             {
                 "id": "36521D1FCD2248EA95994E2464CEAC3A",
                 "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 84
                 },
@@ -590,7 +590,7 @@
             {
                 "id": "4191dee2-2392-4c0a-88e7-9c96a1682df0",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 5
                 },
@@ -609,7 +609,7 @@
             {
                 "id": "44600bcc-b0a2-4f45-b934-6f882d444b96",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 340
                 },
@@ -647,7 +647,7 @@
             {
                 "id": "48A3DDD886DD4D81A7862CC9E0187836",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 731
                 },
@@ -666,7 +666,7 @@
             {
                 "id": "4B727BCBF0DA472FA156AD7FEB64E084",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 26
                 },
@@ -685,7 +685,7 @@
             {
                 "id": "4fc5ffe7-bf87-4c4d-9270-5ad431ffefa2",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 36
                 },
@@ -742,7 +742,7 @@
             {
                 "id": "5BBF99B4D9F94B2C8155C3E82E3354A8",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 567
                 },
@@ -761,7 +761,7 @@
             {
                 "id": "5E5E982385C1483686493059DFEB265D",
                 "category_id": "CF44B6AEE120414796208411A11D82BD",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 158
                 },
@@ -799,7 +799,7 @@
             {
                 "id": "6094B864B09B4F90912C84A800F886C9",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 747
                 },
@@ -853,7 +853,7 @@
             {
                 "id": "6795dca3-e8a7-4848-bbb5-5fca71ba8135",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 204
                 },
@@ -872,7 +872,7 @@
             {
                 "id": "6991e6f7-6c32-40ee-b390-2135f4962945",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 373
                 },
@@ -891,7 +891,7 @@
             {
                 "id": "6B747E4E934F477C9C761D59E44E198E",
                 "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 42
                 },
@@ -910,7 +910,7 @@
             {
                 "id": "6c03d084-c502-4c44-a5b1-81873a54e1c6",
                 "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 575
                 },
@@ -929,7 +929,7 @@
             {
                 "id": "6f7a361b-7879-4449-a8d3-2b02bf4cc904",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 674
                 },
@@ -967,7 +967,7 @@
             {
                 "id": "71102800-5e0e-4481-81f9-7e899bbdf735",
                 "category_id": "CF44B6AEE120414796208411A11D82BD",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 236
                 },
@@ -1005,7 +1005,7 @@
             {
                 "id": "7997963C6C62451196AEA351838CF3EB",
                 "category_id": "CF44B6AEE120414796208411A11D82BD",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 628
                 },
@@ -1040,7 +1040,7 @@
             {
                 "id": "7e113265-7545-47f9-9c9e-648a43033a92",
                 "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 75
                 },
@@ -1059,7 +1059,7 @@
             {
                 "id": "7ecdc2b7-c130-4a87-95f6-badf7334bb7e",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 212
                 },
@@ -1078,7 +1078,7 @@
             {
                 "id": "7F398DDAD1A14A1F8A5CC359183BEC2C",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 854
                 },
@@ -1097,7 +1097,7 @@
             {
                 "id": "802EB21D758F4D208068387C61D17D5A",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 556
                 },
@@ -1135,7 +1135,7 @@
             {
                 "id": "821C5F06C3974635ACD61F046501FBE6",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 66
                 },
@@ -1154,7 +1154,7 @@
             {
                 "id": "841F09136E0D4000AE0EE4DA828B44C1",
                 "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 611
                 },
@@ -1173,7 +1173,7 @@
             {
                 "id": "87114fe2-8999-4876-a838-3ef0e97829dc",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 0
                 },
@@ -1192,7 +1192,7 @@
             {
                 "id": "8809a1c4-6711-4971-9a41-730d34b54d2f",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 28
                 },
@@ -1211,7 +1211,7 @@
             {
                 "id": "8A34ECCF3259496D8A9486877B151C3A",
                 "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 8
                 },
@@ -1249,7 +1249,7 @@
             {
                 "id": "8CDB27CDF9864307B031DEE0C1EB54B7",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 410
                 },
@@ -1268,7 +1268,7 @@
             {
                 "id": "8F1ADDDD66524EBDA47B6F0B6BB43385",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 838
                 },
@@ -1306,7 +1306,7 @@
             {
                 "id": "9177079f-d774-4f9e-80e8-bd6f09d30dde",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 1
                 },
@@ -1363,7 +1363,7 @@
             {
                 "id": "9a0d0056-00b8-437a-992e-92612dae376c",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 671
                 },
@@ -1401,7 +1401,7 @@
             {
                 "id": "A0C89D2A78DA4F1B9397DF7ED152B69E",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 572
                 },
@@ -1420,7 +1420,7 @@
             {
                 "id": "A665C2A3EE774B4DA918BA8FF80CD5C4",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 666
                 },
@@ -1458,7 +1458,7 @@
             {
                 "id": "AA08A6C676674C61818854FE7BDC8A7D",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 387
                 },
@@ -1496,7 +1496,7 @@
             {
                 "id": "add49f5a-fc6b-4dfa-a85d-ac80a4528e63",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 636
                 },
@@ -1515,7 +1515,7 @@
             {
                 "id": "b4621617-258d-42fc-8cc9-0931dde744a0",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 521
                 },
@@ -1553,7 +1553,7 @@
             {
                 "id": "b7993fad-25c0-4c81-996f-2f349c81ede1",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 7
                 },
@@ -1591,7 +1591,7 @@
             {
                 "id": "BA5DC617220B4A2DA3C5F01209ED0D30",
                 "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 45
                 },
@@ -1610,7 +1610,7 @@
             {
                 "id": "be49d74d-84cf-4794-aae1-f2b38741c895",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 558
                 },
@@ -1629,7 +1629,7 @@
             {
                 "id": "c5d7f04e-4384-4875-909a-cdcd20351330",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 754
                 },
@@ -1648,7 +1648,7 @@
             {
                 "id": "C5ED8A044DC34C5EAA76487B8CD7030B",
                 "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 406
                 },
@@ -1705,7 +1705,7 @@
             {
                 "id": "d41bb1a6-a7f5-4b8a-8cd3-b6542a60534d",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 385
                 },
@@ -1724,7 +1724,7 @@
             {
                 "id": "D5626B317CDC4AFE947ED855978BB483",
                 "category_id": "CF44B6AEE120414796208411A11D82BD",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 367
                 },
@@ -1743,7 +1743,7 @@
             {
                 "id": "d67ecea2-35e1-4f05-b40c-20c6663dd800",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 270
                 },
@@ -1781,7 +1781,7 @@
             {
                 "id": "DE4AB3233FE24F4B9F400AAE5A55740B",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 245
                 },
@@ -1800,7 +1800,7 @@
             {
                 "id": "E224EA6AF5D24FF6AB9EB2ECBDCAE339",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 160
                 },
@@ -1819,7 +1819,7 @@
             {
                 "id": "ea2e1755-97a5-46e0-896b-483af1b9034b",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 827
                 },
@@ -1838,7 +1838,7 @@
             {
                 "id": "ec9503e7-b069-48b6-85cd-b275fb85d9be",
                 "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 20
                 },
@@ -1857,7 +1857,7 @@
             {
                 "id": "F0098A17F91448178496215D46249434",
                 "category_id": "CF44B6AEE120414796208411A11D82BD",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 23
                 },
@@ -1914,7 +1914,7 @@
             {
                 "id": "F47A6741E3584882ADA1EF90CCB7FA55",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 652
                 },
@@ -1933,7 +1933,7 @@
             {
                 "id": "f6f47b3a-b77a-4333-a433-f4187a2ab07a",
                 "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 80
                 },
@@ -1952,7 +1952,7 @@
             {
                 "id": "FCC1FE285CE34388ADD434E0A61196DD",
                 "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 73
                 },
@@ -1971,7 +1971,7 @@
             {
                 "id": "fe3ec19c-89b1-4b52-bd21-23ee0ebceac2",
                 "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-                "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+                "kitchen_section_id": "hot_linee",
                 "pricing": {
                     "base": 808
                 },
@@ -2384,7 +2384,7 @@
                     "en": "Appetizers",
                     "ar": "المقبلات"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "17E1117979A94AEC93B71C80ADDF1561",
@@ -2392,7 +2392,7 @@
                     "en": "Salad",
                     "ar": "السلطات"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "4AA74FE9AF23457E874FBF53F15DAFD3",
@@ -2400,7 +2400,7 @@
                     "en": "Casserole",
                     "ar": "الطواجن"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
@@ -2424,7 +2424,7 @@
                     "en": "Rice and Pasta",
                     "ar": "الأرز والمكرونة"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "CF44B6AEE120414796208411A11D82BD",
@@ -2432,7 +2432,7 @@
                     "en": "Soup",
                     "ar": "الشورب"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
@@ -2440,7 +2440,7 @@
                     "en": "Fattah",
                     "ar": "الفتة"
                 },
-                "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+                "section_id": "hot_linee"
             },
             {
                 "id": "F9785744F0004F6AB1C108C0E3DE87D4",
