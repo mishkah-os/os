@@ -1,0 +1,2241 @@
+[2025-11-05T04:48:58.553Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS audit_event (
+  action TEXT NOT NULL,
+  event_id TEXT PRIMARY KEY,
+  meta TEXT NOT NULL DEFAULT [object Object],
+  occurred_at TEXT NOT NULL,
+  ref_id TEXT,
+  ref_type TEXT NOT NULL,
+  user_id TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS audit_event (\n  action TEXT NOT NULL,\n  event_id TEXT PRIMARY KEY,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  occurred_at TEXT NOT NULL,\n  ref_id TEXT,\n  ref_type TEXT NOT NULL,\n  user_id TEXT NOT NULL\n)",
+  "tableName": "audit_event",
+  "columnCount": 7
+}
+
+================================================================================
+[2025-11-05T04:48:58.555Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS category_section (
+  category_id TEXT PRIMARY KEY,
+  section_id TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS category_section (\n  category_id TEXT PRIMARY KEY,\n  section_id TEXT NOT NULL\n)",
+  "tableName": "category_section",
+  "columnCount": 2
+}
+
+================================================================================
+[2025-11-05T04:48:58.555Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS customer_address (
+  apartment TEXT,
+  area_id TEXT,
+  building TEXT,
+  customer_id TEXT NOT NULL,
+  floor TEXT,
+  address_id TEXT PRIMARY KEY,
+  is_primary INTEGER NOT NULL DEFAULT false,
+  label TEXT,
+  notes TEXT,
+  street TEXT
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS customer_address (\n  apartment TEXT,\n  area_id TEXT,\n  building TEXT,\n  customer_id TEXT NOT NULL,\n  floor TEXT,\n  address_id TEXT PRIMARY KEY,\n  is_primary INTEGER NOT NULL DEFAULT false,\n  label TEXT,\n  notes TEXT,\n  street TEXT\n)",
+  "tableName": "customer_address",
+  "columnCount": 10
+}
+
+================================================================================
+[2025-11-05T04:48:58.557Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS customer_profile (
+  created_at TEXT NOT NULL,
+  email TEXT,
+  customer_id TEXT PRIMARY KEY,
+  customer_name TEXT NOT NULL,
+  notes TEXT,
+  phone TEXT,
+  preferred_language TEXT,
+  updated_at TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS customer_profile (\n  created_at TEXT NOT NULL,\n  email TEXT,\n  customer_id TEXT PRIMARY KEY,\n  customer_name TEXT NOT NULL,\n  notes TEXT,\n  phone TEXT,\n  preferred_language TEXT,\n  updated_at TEXT NOT NULL\n)",
+  "tableName": "customer_profile",
+  "columnCount": 8
+}
+
+================================================================================
+[2025-11-05T04:48:58.558Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS delivery_driver (
+  driver_id INTEGER PRIMARY KEY,
+  is_active INTEGER NOT NULL DEFAULT true,
+  driver_name TEXT NOT NULL,
+  phone TEXT,
+  vehicle_id TEXT
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS delivery_driver (\n  driver_id INTEGER PRIMARY KEY,\n  is_active INTEGER NOT NULL DEFAULT true,\n  driver_name TEXT NOT NULL,\n  phone TEXT,\n  vehicle_id TEXT\n)",
+  "tableName": "delivery_driver",
+  "columnCount": 5
+}
+
+================================================================================
+[2025-11-05T04:48:58.558Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS dining_table (
+  display_order INTEGER NOT NULL DEFAULT 0,
+  table_id TEXT PRIMARY KEY,
+  table_name TEXT NOT NULL,
+  note TEXT,
+  seats INTEGER NOT NULL DEFAULT 2,
+  state TEXT NOT NULL DEFAULT 'active',
+  zone TEXT
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS dining_table (\n  display_order INTEGER NOT NULL DEFAULT 0,\n  table_id TEXT PRIMARY KEY,\n  table_name TEXT NOT NULL,\n  note TEXT,\n  seats INTEGER NOT NULL DEFAULT 2,\n  state TEXT NOT NULL DEFAULT 'active',\n  zone TEXT\n)",
+  "tableName": "dining_table",
+  "columnCount": 7
+}
+
+================================================================================
+[2025-11-05T04:48:58.559Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS employee (
+  allowed_discount_rate TEXT NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  email TEXT,
+  full_name TEXT NOT NULL,
+  hired_at TEXT,
+  employee_id TEXT PRIMARY KEY,
+  phone TEXT,
+  pin_code TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'staff',
+  status TEXT NOT NULL DEFAULT 'active',
+  updated_at TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS employee (\n  allowed_discount_rate TEXT NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL,\n  email TEXT,\n  full_name TEXT NOT NULL,\n  hired_at TEXT,\n  employee_id TEXT PRIMARY KEY,\n  phone TEXT,\n  pin_code TEXT NOT NULL,\n  role TEXT NOT NULL DEFAULT 'staff',\n  status TEXT NOT NULL DEFAULT 'active',\n  updated_at TEXT NOT NULL\n)",
+  "tableName": "employee",
+  "columnCount": 11
+}
+
+================================================================================
+[2025-11-05T04:48:58.560Z] [ERROR] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE expo_pass_ticket
+Status: failed
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "failed",
+  "sql": "CREATE TABLE expo_pass_ticket",
+  "tableName": "expo_pass_ticket",
+  "error": "near \",\": syntax error"
+}
+
+================================================================================
+[2025-11-05T04:48:58.561Z] [ERROR] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE job_order_detail
+Status: failed
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "failed",
+  "sql": "CREATE TABLE job_order_detail",
+  "tableName": "job_order_detail",
+  "error": "near \",\": syntax error"
+}
+
+================================================================================
+[2025-11-05T04:48:58.562Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS job_order_detail_modifier (
+  created_at TEXT NOT NULL,
+  detail_id TEXT NOT NULL,
+  modifier_id TEXT PRIMARY KEY,
+  is_required INTEGER NOT NULL DEFAULT false,
+  meta TEXT NOT NULL DEFAULT [object Object],
+  modifier_type TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  notes TEXT,
+  quantity TEXT NOT NULL DEFAULT 1
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS job_order_detail_modifier (\n  created_at TEXT NOT NULL,\n  detail_id TEXT NOT NULL,\n  modifier_id TEXT PRIMARY KEY,\n  is_required INTEGER NOT NULL DEFAULT false,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  modifier_type TEXT NOT NULL,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  notes TEXT,\n  quantity TEXT NOT NULL DEFAULT 1\n)",
+  "tableName": "job_order_detail_modifier",
+  "columnCount": 10
+}
+
+================================================================================
+[2025-11-05T04:48:58.563Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS job_order_header (
+  job_order_id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL,
+  order_number TEXT NOT NULL,
+  pos_revision TEXT NOT NULL,
+  order_type_id TEXT NOT NULL,
+  service_mode TEXT NOT NULL,
+  station_id TEXT NOT NULL,
+  station_code TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  progress_state TEXT NOT NULL DEFAULT 'awaiting',
+  total_items INTEGER NOT NULL DEFAULT 0,
+  completed_items INTEGER NOT NULL DEFAULT 0,
+  remaining_items INTEGER NOT NULL DEFAULT 0,
+  has_alerts INTEGER NOT NULL DEFAULT false,
+  is_expedite INTEGER NOT NULL DEFAULT false,
+  table_label TEXT,
+  customer_name TEXT,
+  due_at TEXT,
+  accepted_at TEXT,
+  started_at TEXT,
+  ready_at TEXT,
+  completed_at TEXT,
+  expo_at TEXT,
+  sync_checksum TEXT,
+  notes TEXT,
+  meta TEXT NOT NULL DEFAULT [object Object],
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS job_order_header (\n  job_order_id TEXT PRIMARY KEY,\n  order_id TEXT NOT NULL,\n  order_number TEXT NOT NULL,\n  pos_revision TEXT NOT NULL,\n  order_type_id TEXT NOT NULL,\n  service_mode TEXT NOT NULL,\n  station_id TEXT NOT NULL,\n  station_code TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'queued',\n  progress_state TEXT NOT NULL DEFAULT 'awaiting',\n  total_items INTEGER NOT NULL DEFAULT 0,\n  completed_items INTEGER NOT NULL DEFAULT 0,\n  remaining_items INTEGER NOT NULL DEFAULT 0,\n  has_alerts INTEGER NOT NULL DEFAULT false,\n  is_expedite INTEGER NOT NULL DEFAULT false,\n  table_label TEXT,\n  customer_name TEXT,\n  due_at TEXT,\n  accepted_at TEXT,\n  started_at TEXT,\n  ready_at TEXT,\n  completed_at TEXT,\n  expo_at TEXT,\n  sync_checksum TEXT,\n  notes TEXT,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL\n)",
+  "tableName": "job_order_header",
+  "columnCount": 28
+}
+
+================================================================================
+[2025-11-05T04:48:58.565Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS job_order_status_history (
+  actor_id TEXT,
+  actor_name TEXT,
+  actor_role TEXT,
+  changed_at TEXT NOT NULL,
+  history_id TEXT PRIMARY KEY,
+  job_order_id TEXT NOT NULL,
+  meta TEXT NOT NULL DEFAULT [object Object],
+  reason TEXT,
+  status TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS job_order_status_history (\n  actor_id TEXT,\n  actor_name TEXT,\n  actor_role TEXT,\n  changed_at TEXT NOT NULL,\n  history_id TEXT PRIMARY KEY,\n  job_order_id TEXT NOT NULL,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  reason TEXT,\n  status TEXT NOT NULL\n)",
+  "tableName": "job_order_status_history",
+  "columnCount": 9
+}
+
+================================================================================
+[2025-11-05T04:48:58.566Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS kitchen_section (
+  description_ar TEXT,
+  description_en TEXT,
+  section_id TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS kitchen_section (\n  description_ar TEXT,\n  description_en TEXT,\n  section_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sort_order INTEGER NOT NULL DEFAULT 0\n)",
+  "tableName": "kitchen_section",
+  "columnCount": 6
+}
+
+================================================================================
+[2025-11-05T04:48:58.566Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS menu_category (
+  category_id TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  section_id TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT true
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_category (\n  category_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  section_id TEXT,\n  sort_order INTEGER NOT NULL DEFAULT 0,\n  is_active INTEGER NOT NULL DEFAULT true\n)",
+  "tableName": "menu_category",
+  "columnCount": 6
+}
+
+================================================================================
+[2025-11-05T04:48:58.567Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS menu_item (
+  item_id TEXT PRIMARY KEY,
+  sku TEXT,
+  category_id TEXT NOT NULL,
+  kitchen_section_id TEXT NOT NULL,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  description_ar TEXT,
+  description_en TEXT,
+  base_price TEXT NOT NULL,
+  tax_group_id TEXT,
+  is_combo INTEGER NOT NULL DEFAULT false,
+  is_active INTEGER NOT NULL DEFAULT true,
+  favorite_rank INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_item (\n  item_id TEXT PRIMARY KEY,\n  sku TEXT,\n  category_id TEXT NOT NULL,\n  kitchen_section_id TEXT NOT NULL,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  description_ar TEXT,\n  description_en TEXT,\n  base_price TEXT NOT NULL,\n  tax_group_id TEXT,\n  is_combo INTEGER NOT NULL DEFAULT false,\n  is_active INTEGER NOT NULL DEFAULT true,\n  favorite_rank INTEGER,\n  created_at TEXT NOT NULL,\n  updated_at TEXT NOT NULL\n)",
+  "tableName": "menu_item",
+  "columnCount": 15
+}
+
+================================================================================
+[2025-11-05T04:48:58.568Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS menu_item_media (
+  media_id TEXT PRIMARY KEY,
+  item_id TEXT NOT NULL,
+  media_type TEXT NOT NULL DEFAULT 'image',
+  url TEXT NOT NULL,
+  is_primary INTEGER NOT NULL DEFAULT false,
+  created_at TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_item_media (\n  media_id TEXT PRIMARY KEY,\n  item_id TEXT NOT NULL,\n  media_type TEXT NOT NULL DEFAULT 'image',\n  url TEXT NOT NULL,\n  is_primary INTEGER NOT NULL DEFAULT false,\n  created_at TEXT NOT NULL\n)",
+  "tableName": "menu_item_media",
+  "columnCount": 6
+}
+
+================================================================================
+[2025-11-05T04:48:58.570Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS menu_item_modifier (
+  item_id TEXT PRIMARY KEY,
+  modifier_id INTEGER NOT NULL,
+  is_default INTEGER NOT NULL DEFAULT false,
+  max_quantity INTEGER
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_item_modifier (\n  item_id TEXT PRIMARY KEY,\n  modifier_id INTEGER NOT NULL,\n  is_default INTEGER NOT NULL DEFAULT false,\n  max_quantity INTEGER\n)",
+  "tableName": "menu_item_modifier",
+  "columnCount": 4
+}
+
+================================================================================
+[2025-11-05T04:48:58.572Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS menu_item_price (
+  price_id TEXT PRIMARY KEY,
+  item_id TEXT NOT NULL,
+  price_type TEXT NOT NULL DEFAULT 'base',
+  label TEXT,
+  amount TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'EGP',
+  is_default INTEGER NOT NULL DEFAULT false
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_item_price (\n  price_id TEXT PRIMARY KEY,\n  item_id TEXT NOT NULL,\n  price_type TEXT NOT NULL DEFAULT 'base',\n  label TEXT,\n  amount TEXT NOT NULL,\n  currency TEXT NOT NULL DEFAULT 'EGP',\n  is_default INTEGER NOT NULL DEFAULT false\n)",
+  "tableName": "menu_item_price",
+  "columnCount": 7
+}
+
+================================================================================
+[2025-11-05T04:48:58.573Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS menu_modifier (
+  modifier_id INTEGER PRIMARY KEY,
+  is_active INTEGER NOT NULL DEFAULT true,
+  modifier_type TEXT NOT NULL DEFAULT 'add_on',
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  price_change TEXT NOT NULL DEFAULT 0
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS menu_modifier (\n  modifier_id INTEGER PRIMARY KEY,\n  is_active INTEGER NOT NULL DEFAULT true,\n  modifier_type TEXT NOT NULL DEFAULT 'add_on',\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  price_change TEXT NOT NULL DEFAULT 0\n)",
+  "tableName": "menu_modifier",
+  "columnCount": 6
+}
+
+================================================================================
+[2025-11-05T04:48:58.574Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_delivery (
+  delivered_at TEXT,
+  dispatched_at TEXT,
+  driver_id INTEGER,
+  notes TEXT,
+  order_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'pending'
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_delivery (\n  delivered_at TEXT,\n  dispatched_at TEXT,\n  driver_id INTEGER,\n  notes TEXT,\n  order_id TEXT PRIMARY KEY,\n  status TEXT NOT NULL DEFAULT 'pending'\n)",
+  "tableName": "order_delivery",
+  "columnCount": 6
+}
+
+================================================================================
+[2025-11-05T04:48:58.576Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN order_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN order_id TEXT DEFAULT ''",
+  "tableName": "order_header",
+  "columnName": "order_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.577Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN pos_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN pos_id TEXT DEFAULT ''",
+  "tableName": "order_header",
+  "columnName": "pos_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.578Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN pos_number INTEGER DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN pos_number INTEGER DEFAULT 0",
+  "tableName": "order_header",
+  "columnName": "pos_number",
+  "columnType": "INTEGER"
+}
+
+================================================================================
+[2025-11-05T04:48:58.580Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN order_type_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN order_type_id TEXT DEFAULT ''",
+  "tableName": "order_header",
+  "columnName": "order_type_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.581Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN status_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN status_id TEXT DEFAULT ''",
+  "tableName": "order_header",
+  "columnName": "status_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.583Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN stage_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN stage_id TEXT DEFAULT ''",
+  "tableName": "order_header",
+  "columnName": "stage_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.585Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN payment_state_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN payment_state_id TEXT DEFAULT ''",
+  "tableName": "order_header",
+  "columnName": "payment_state_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.586Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN table_id TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN table_id TEXT",
+  "tableName": "order_header",
+  "columnName": "table_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.588Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN customer_id TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN customer_id TEXT",
+  "tableName": "order_header",
+  "columnName": "customer_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.590Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN customer_address_id TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN customer_address_id TEXT",
+  "tableName": "order_header",
+  "columnName": "customer_address_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.593Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN driver_id INTEGER
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN driver_id INTEGER",
+  "tableName": "order_header",
+  "columnName": "driver_id",
+  "columnType": "INTEGER"
+}
+
+================================================================================
+[2025-11-05T04:48:58.596Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN opened_by TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN opened_by TEXT DEFAULT ''",
+  "tableName": "order_header",
+  "columnName": "opened_by",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.599Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN closed_by TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN closed_by TEXT",
+  "tableName": "order_header",
+  "columnName": "closed_by",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.601Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN opened_at TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN opened_at TEXT DEFAULT ''",
+  "tableName": "order_header",
+  "columnName": "opened_at",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.603Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN closed_at TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN closed_at TEXT",
+  "tableName": "order_header",
+  "columnName": "closed_at",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.606Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN guests INTEGER NOT NULL DEFAULT 1
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN guests INTEGER NOT NULL DEFAULT 1",
+  "tableName": "order_header",
+  "columnName": "guests",
+  "columnType": "INTEGER"
+}
+
+================================================================================
+[2025-11-05T04:48:58.607Z] [ERROR] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN notes
+Status: failed
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "failed",
+  "sql": "ALTER TABLE order_header ADD COLUMN notes",
+  "tableName": "order_header",
+  "columnName": "notes",
+  "error": "incomplete input"
+}
+
+================================================================================
+[2025-11-05T04:48:58.609Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN subtotal TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN subtotal TEXT NOT NULL DEFAULT 0",
+  "tableName": "order_header",
+  "columnName": "subtotal",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.611Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN discount_amount TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN discount_amount TEXT NOT NULL DEFAULT 0",
+  "tableName": "order_header",
+  "columnName": "discount_amount",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.613Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN service_amount TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN service_amount TEXT NOT NULL DEFAULT 0",
+  "tableName": "order_header",
+  "columnName": "service_amount",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.614Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN tax_amount TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN tax_amount TEXT NOT NULL DEFAULT 0",
+  "tableName": "order_header",
+  "columnName": "tax_amount",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.615Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN delivery_fee TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN delivery_fee TEXT NOT NULL DEFAULT 0",
+  "tableName": "order_header",
+  "columnName": "delivery_fee",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.617Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN total_due TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN total_due TEXT NOT NULL DEFAULT 0",
+  "tableName": "order_header",
+  "columnName": "total_due",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.618Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN total_paid TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN total_paid TEXT NOT NULL DEFAULT 0",
+  "tableName": "order_header",
+  "columnName": "total_paid",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.619Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_header ADD COLUMN metadata TEXT NOT NULL DEFAULT [object Object]
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_header ADD COLUMN metadata TEXT NOT NULL DEFAULT [object Object]",
+  "tableName": "order_header",
+  "columnName": "metadata",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.620Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN line_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN line_id TEXT DEFAULT ''",
+  "tableName": "order_line",
+  "columnName": "line_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.621Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN item_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN item_id TEXT DEFAULT ''",
+  "tableName": "order_line",
+  "columnName": "item_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.624Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN kitchen_section_id TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN kitchen_section_id TEXT",
+  "tableName": "order_line",
+  "columnName": "kitchen_section_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.626Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN metadata TEXT NOT NULL DEFAULT [object Object]
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN metadata TEXT NOT NULL DEFAULT [object Object]",
+  "tableName": "order_line",
+  "columnName": "metadata",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.627Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN notes TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN notes TEXT",
+  "tableName": "order_line",
+  "columnName": "notes",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.629Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN parent_line_id TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN parent_line_id TEXT",
+  "tableName": "order_line",
+  "columnName": "parent_line_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.630Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN quantity TEXT NOT NULL DEFAULT 1
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN quantity TEXT NOT NULL DEFAULT 1",
+  "tableName": "order_line",
+  "columnName": "quantity",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.631Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN status_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN status_id TEXT DEFAULT ''",
+  "tableName": "order_line",
+  "columnName": "status_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.633Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN total TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN total TEXT DEFAULT ''",
+  "tableName": "order_line",
+  "columnName": "total",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.635Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_line ADD COLUMN unit_price TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_line ADD COLUMN unit_price TEXT DEFAULT ''",
+  "tableName": "order_line",
+  "columnName": "unit_price",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.637Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_line_modifier (
+  line_modifier_id TEXT PRIMARY KEY,
+  line_id TEXT NOT NULL,
+  modifier_id INTEGER NOT NULL,
+  modifier_type TEXT NOT NULL DEFAULT 'add_on',
+  price_change TEXT NOT NULL DEFAULT 0
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_line_modifier (\n  line_modifier_id TEXT PRIMARY KEY,\n  line_id TEXT NOT NULL,\n  modifier_id INTEGER NOT NULL,\n  modifier_type TEXT NOT NULL DEFAULT 'add_on',\n  price_change TEXT NOT NULL DEFAULT 0\n)",
+  "tableName": "order_line_modifier",
+  "columnCount": 5
+}
+
+================================================================================
+[2025-11-05T04:48:58.638Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_line_status (
+  line_status_id TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  sequence INTEGER NOT NULL DEFAULT 0
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_line_status (\n  line_status_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sequence INTEGER NOT NULL DEFAULT 0\n)",
+  "tableName": "order_line_status",
+  "columnCount": 4
+}
+
+================================================================================
+[2025-11-05T04:48:58.640Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_line_status_log (
+  actor_id TEXT,
+  changed_at TEXT NOT NULL,
+  line_status_log_id TEXT PRIMARY KEY,
+  metadata TEXT NOT NULL DEFAULT [object Object],
+  order_id TEXT NOT NULL,
+  order_line_id TEXT NOT NULL,
+  source TEXT,
+  station_id TEXT,
+  status_id TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_line_status_log (\n  actor_id TEXT,\n  changed_at TEXT NOT NULL,\n  line_status_log_id TEXT PRIMARY KEY,\n  metadata TEXT NOT NULL DEFAULT [object Object],\n  order_id TEXT NOT NULL,\n  order_line_id TEXT NOT NULL,\n  source TEXT,\n  station_id TEXT,\n  status_id TEXT NOT NULL\n)",
+  "tableName": "order_line_status_log",
+  "columnCount": 9
+}
+
+================================================================================
+[2025-11-05T04:48:58.643Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_payment ADD COLUMN payment_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_payment ADD COLUMN payment_id TEXT DEFAULT ''",
+  "tableName": "order_payment",
+  "columnName": "payment_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.644Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_payment ADD COLUMN payment_method_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_payment ADD COLUMN payment_method_id TEXT DEFAULT ''",
+  "tableName": "order_payment",
+  "columnName": "payment_method_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.645Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_payment ADD COLUMN reference TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_payment ADD COLUMN reference TEXT",
+  "tableName": "order_payment",
+  "columnName": "reference",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.646Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE order_payment ADD COLUMN shift_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE order_payment ADD COLUMN shift_id TEXT DEFAULT ''",
+  "tableName": "order_payment",
+  "columnName": "shift_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.650Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_payment_state (
+  payment_state_id TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_payment_state (\n  payment_state_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL\n)",
+  "tableName": "order_payment_state",
+  "columnCount": 3
+}
+
+================================================================================
+[2025-11-05T04:48:58.652Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_refund (
+  amount TEXT NOT NULL DEFAULT 0,
+  refund_id TEXT PRIMARY KEY,
+  payment_id TEXT NOT NULL,
+  reason TEXT,
+  refunded_at TEXT NOT NULL,
+  shift_id TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_refund (\n  amount TEXT NOT NULL DEFAULT 0,\n  refund_id TEXT PRIMARY KEY,\n  payment_id TEXT NOT NULL,\n  reason TEXT,\n  refunded_at TEXT NOT NULL,\n  shift_id TEXT NOT NULL\n)",
+  "tableName": "order_refund",
+  "columnCount": 6
+}
+
+================================================================================
+[2025-11-05T04:48:58.653Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_return_header (
+  branch_sequence INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  return_id TEXT PRIMARY KEY,
+  meta TEXT NOT NULL DEFAULT [object Object],
+  return_number TEXT NOT NULL,
+  order_id TEXT NOT NULL,
+  order_sequence INTEGER NOT NULL DEFAULT 0,
+  pos_id TEXT NOT NULL,
+  shift_id TEXT NOT NULL,
+  total TEXT NOT NULL,
+  total_amount TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_return_header (\n  branch_sequence INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL,\n  created_by TEXT NOT NULL,\n  return_id TEXT PRIMARY KEY,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  return_number TEXT NOT NULL,\n  order_id TEXT NOT NULL,\n  order_sequence INTEGER NOT NULL DEFAULT 0,\n  pos_id TEXT NOT NULL,\n  shift_id TEXT NOT NULL,\n  total TEXT NOT NULL,\n  total_amount TEXT NOT NULL\n)",
+  "tableName": "order_return_header",
+  "columnCount": 12
+}
+
+================================================================================
+[2025-11-05T04:48:58.654Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_return_line (
+  created_at TEXT NOT NULL,
+  return_line_id TEXT PRIMARY KEY,
+  meta TEXT NOT NULL DEFAULT [object Object],
+  order_line_id TEXT NOT NULL,
+  quantity TEXT NOT NULL,
+  return_id TEXT NOT NULL,
+  unit_price TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_return_line (\n  created_at TEXT NOT NULL,\n  return_line_id TEXT PRIMARY KEY,\n  meta TEXT NOT NULL DEFAULT [object Object],\n  order_line_id TEXT NOT NULL,\n  quantity TEXT NOT NULL,\n  return_id TEXT NOT NULL,\n  unit_price TEXT NOT NULL\n)",
+  "tableName": "order_return_line",
+  "columnCount": 7
+}
+
+================================================================================
+[2025-11-05T04:48:58.656Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_stage (
+  description_ar TEXT,
+  description_en TEXT,
+  stage_id TEXT PRIMARY KEY,
+  lock_line_edits INTEGER NOT NULL DEFAULT false,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  sequence INTEGER NOT NULL DEFAULT 0
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_stage (\n  description_ar TEXT,\n  description_en TEXT,\n  stage_id TEXT PRIMARY KEY,\n  lock_line_edits INTEGER NOT NULL DEFAULT false,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sequence INTEGER NOT NULL DEFAULT 0\n)",
+  "tableName": "order_stage",
+  "columnCount": 7
+}
+
+================================================================================
+[2025-11-05T04:48:58.657Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_status (
+  status_id TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  sequence INTEGER NOT NULL DEFAULT 0
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_status (\n  status_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sequence INTEGER NOT NULL DEFAULT 0\n)",
+  "tableName": "order_status",
+  "columnCount": 4
+}
+
+================================================================================
+[2025-11-05T04:48:58.659Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_status_log (
+  actor_id TEXT,
+  changed_at TEXT NOT NULL,
+  status_log_id TEXT PRIMARY KEY,
+  metadata TEXT NOT NULL DEFAULT [object Object],
+  order_id TEXT NOT NULL,
+  payment_state_id TEXT,
+  reason TEXT,
+  source TEXT,
+  stage_id TEXT,
+  status_id TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_status_log (\n  actor_id TEXT,\n  changed_at TEXT NOT NULL,\n  status_log_id TEXT PRIMARY KEY,\n  metadata TEXT NOT NULL DEFAULT [object Object],\n  order_id TEXT NOT NULL,\n  payment_state_id TEXT,\n  reason TEXT,\n  source TEXT,\n  stage_id TEXT,\n  status_id TEXT NOT NULL\n)",
+  "tableName": "order_status_log",
+  "columnCount": 10
+}
+
+================================================================================
+[2025-11-05T04:48:58.660Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS order_type (
+  allows_finalize_later INTEGER NOT NULL DEFAULT false,
+  allows_line_additions INTEGER NOT NULL DEFAULT false,
+  allows_returns INTEGER NOT NULL DEFAULT false,
+  allows_save INTEGER NOT NULL DEFAULT true,
+  order_type_id TEXT PRIMARY KEY,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  sequence INTEGER NOT NULL DEFAULT 0,
+  workflow TEXT NOT NULL DEFAULT 'single-step'
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS order_type (\n  allows_finalize_later INTEGER NOT NULL DEFAULT false,\n  allows_line_additions INTEGER NOT NULL DEFAULT false,\n  allows_returns INTEGER NOT NULL DEFAULT false,\n  allows_save INTEGER NOT NULL DEFAULT true,\n  order_type_id TEXT PRIMARY KEY,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  sequence INTEGER NOT NULL DEFAULT 0,\n  workflow TEXT NOT NULL DEFAULT 'single-step'\n)",
+  "tableName": "order_type",
+  "columnCount": 9
+}
+
+================================================================================
+[2025-11-05T04:48:58.666Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS payment_method (
+  icon TEXT,
+  payment_method_id TEXT PRIMARY KEY,
+  is_active INTEGER NOT NULL DEFAULT true,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  requires_reference INTEGER NOT NULL DEFAULT false,
+  method_type TEXT NOT NULL DEFAULT 'cash'
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS payment_method (\n  icon TEXT,\n  payment_method_id TEXT PRIMARY KEY,\n  is_active INTEGER NOT NULL DEFAULT true,\n  name_ar TEXT NOT NULL,\n  name_en TEXT NOT NULL,\n  requires_reference INTEGER NOT NULL DEFAULT false,\n  method_type TEXT NOT NULL DEFAULT 'cash'\n)",
+  "tableName": "payment_method",
+  "columnCount": 7
+}
+
+================================================================================
+[2025-11-05T04:48:58.667Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS pos_database (
+  branch_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  id TEXT PRIMARY KEY,
+  payload TEXT NOT NULL DEFAULT [object Object],
+  updated_at TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS pos_database (\n  branch_id TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  id TEXT PRIMARY KEY,\n  payload TEXT NOT NULL DEFAULT [object Object],\n  updated_at TEXT NOT NULL\n)",
+  "tableName": "pos_database",
+  "columnCount": 5
+}
+
+================================================================================
+[2025-11-05T04:48:58.669Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN cashier_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN cashier_id TEXT DEFAULT ''",
+  "tableName": "pos_shift",
+  "columnName": "cashier_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.671Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN cashier_name TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN cashier_name TEXT DEFAULT ''",
+  "tableName": "pos_shift",
+  "columnName": "cashier_name",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.672Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN cashier_role TEXT NOT NULL DEFAULT 'cashier'
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN cashier_role TEXT NOT NULL DEFAULT 'cashier'",
+  "tableName": "pos_shift",
+  "columnName": "cashier_role",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.674Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN closing_cash TEXT
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN closing_cash TEXT",
+  "tableName": "pos_shift",
+  "columnName": "closing_cash",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.676Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN counts_by_type TEXT NOT NULL DEFAULT [object Object]
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN counts_by_type TEXT NOT NULL DEFAULT [object Object]",
+  "tableName": "pos_shift",
+  "columnName": "counts_by_type",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.677Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN created_at TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN created_at TEXT DEFAULT ''",
+  "tableName": "pos_shift",
+  "columnName": "created_at",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.679Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN employee_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN employee_id TEXT DEFAULT ''",
+  "tableName": "pos_shift",
+  "columnName": "employee_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.681Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN shift_id TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN shift_id TEXT DEFAULT ''",
+  "tableName": "pos_shift",
+  "columnName": "shift_id",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.683Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN opening_float TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN opening_float TEXT NOT NULL DEFAULT 0",
+  "tableName": "pos_shift",
+  "columnName": "opening_float",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.683Z] [ERROR] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN orders_payload
+Status: failed
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "failed",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN orders_payload",
+  "tableName": "pos_shift",
+  "columnName": "orders_payload",
+  "error": "incomplete input"
+}
+
+================================================================================
+[2025-11-05T04:48:58.687Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN orders_count INTEGER NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN orders_count INTEGER NOT NULL DEFAULT 0",
+  "tableName": "pos_shift",
+  "columnName": "orders_count",
+  "columnType": "INTEGER"
+}
+
+================================================================================
+[2025-11-05T04:48:58.689Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN payments_by_method TEXT NOT NULL DEFAULT [object Object]
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN payments_by_method TEXT NOT NULL DEFAULT [object Object]",
+  "tableName": "pos_shift",
+  "columnName": "payments_by_method",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.692Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN pos_label TEXT DEFAULT ''
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN pos_label TEXT DEFAULT ''",
+  "tableName": "pos_shift",
+  "columnName": "pos_label",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.694Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN pos_number INTEGER DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN pos_number INTEGER DEFAULT 0",
+  "tableName": "pos_shift",
+  "columnName": "pos_number",
+  "columnType": "INTEGER"
+}
+
+================================================================================
+[2025-11-05T04:48:58.696Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN total_sales TEXT NOT NULL DEFAULT 0
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN total_sales TEXT NOT NULL DEFAULT 0",
+  "tableName": "pos_shift",
+  "columnName": "total_sales",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.700Z] [INFO] [DDL]
+DDL Operation: ADD_COLUMN
+SQL: ALTER TABLE pos_shift ADD COLUMN totals_by_type TEXT NOT NULL DEFAULT [object Object]
+Status: success
+Metadata: {
+  "operation": "ADD_COLUMN",
+  "status": "success",
+  "sql": "ALTER TABLE pos_shift ADD COLUMN totals_by_type TEXT NOT NULL DEFAULT [object Object]",
+  "tableName": "pos_shift",
+  "columnName": "totals_by_type",
+  "columnType": "TEXT"
+}
+
+================================================================================
+[2025-11-05T04:48:58.704Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS pos_terminal (
+  terminal_code TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  terminal_id TEXT PRIMARY KEY,
+  terminal_label TEXT NOT NULL,
+  last_online_at TEXT,
+  location_id TEXT,
+  terminal_number INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  timezone TEXT,
+  updated_at TEXT NOT NULL,
+  zone TEXT
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS pos_terminal (\n  terminal_code TEXT NOT NULL UNIQUE,\n  created_at TEXT NOT NULL,\n  terminal_id TEXT PRIMARY KEY,\n  terminal_label TEXT NOT NULL,\n  last_online_at TEXT,\n  location_id TEXT,\n  terminal_number INTEGER NOT NULL,\n  status TEXT NOT NULL DEFAULT 'active',\n  timezone TEXT,\n  updated_at TEXT NOT NULL,\n  zone TEXT\n)",
+  "tableName": "pos_terminal",
+  "columnCount": 11
+}
+
+================================================================================
+[2025-11-05T04:48:58.706Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS reservation (
+  customer_name TEXT NOT NULL,
+  hold_until TEXT,
+  reservation_id TEXT PRIMARY KEY,
+  note TEXT,
+  party_size INTEGER NOT NULL,
+  phone TEXT NOT NULL,
+  scheduled_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'booked'
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS reservation (\n  customer_name TEXT NOT NULL,\n  hold_until TEXT,\n  reservation_id TEXT PRIMARY KEY,\n  note TEXT,\n  party_size INTEGER NOT NULL,\n  phone TEXT NOT NULL,\n  scheduled_at TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'booked'\n)",
+  "tableName": "reservation",
+  "columnCount": 8
+}
+
+================================================================================
+[2025-11-05T04:48:58.708Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS reservation_table (
+  reservation_id TEXT PRIMARY KEY,
+  table_id TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS reservation_table (\n  reservation_id TEXT PRIMARY KEY,\n  table_id TEXT NOT NULL\n)",
+  "tableName": "reservation_table",
+  "columnCount": 2
+}
+
+================================================================================
+[2025-11-05T04:48:58.710Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS shift_cash_audit (
+  amount TEXT NOT NULL,
+  captured_at TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  denomination TEXT NOT NULL,
+  audit_id TEXT PRIMARY KEY,
+  shift_id TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS shift_cash_audit (\n  amount TEXT NOT NULL,\n  captured_at TEXT NOT NULL,\n  count INTEGER NOT NULL DEFAULT 0,\n  denomination TEXT NOT NULL,\n  audit_id TEXT PRIMARY KEY,\n  shift_id TEXT NOT NULL\n)",
+  "tableName": "shift_cash_audit",
+  "columnCount": 6
+}
+
+================================================================================
+[2025-11-05T04:48:58.711Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS shift_payment_summary (
+  summary_id TEXT PRIMARY KEY,
+  payment_method_id TEXT NOT NULL,
+  payments_count INTEGER NOT NULL DEFAULT 0,
+  shift_id TEXT NOT NULL,
+  total_amount TEXT NOT NULL DEFAULT 0
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS shift_payment_summary (\n  summary_id TEXT PRIMARY KEY,\n  payment_method_id TEXT NOT NULL,\n  payments_count INTEGER NOT NULL DEFAULT 0,\n  shift_id TEXT NOT NULL,\n  total_amount TEXT NOT NULL DEFAULT 0\n)",
+  "tableName": "shift_payment_summary",
+  "columnCount": 5
+}
+
+================================================================================
+[2025-11-05T04:48:58.713Z] [INFO] [DDL]
+DDL Operation: CREATE_TABLE
+SQL: CREATE TABLE IF NOT EXISTS table_lock (
+  expires_at TEXT,
+  lock_id TEXT PRIMARY KEY,
+  locked_at TEXT NOT NULL,
+  locked_by TEXT,
+  reason TEXT,
+  table_id TEXT NOT NULL
+)
+Status: success
+Metadata: {
+  "operation": "CREATE_TABLE",
+  "status": "success",
+  "sql": "CREATE TABLE IF NOT EXISTS table_lock (\n  expires_at TEXT,\n  lock_id TEXT PRIMARY KEY,\n  locked_at TEXT NOT NULL,\n  locked_by TEXT,\n  reason TEXT,\n  table_id TEXT NOT NULL\n)",
+  "tableName": "table_lock",
+  "columnCount": 6
+}
+
+================================================================================
+[2025-11-05T04:48:58.714Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE UNIQUE INDEX IF NOT EXISTS idx_category_section_unique ON category_section (category_id, section_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE UNIQUE INDEX IF NOT EXISTS idx_category_section_unique ON category_section (category_id, section_id)",
+  "tableName": "category_section",
+  "indexName": "idx_category_section_unique",
+  "columns": [
+    "category_id",
+    "section_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.715Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_customer_address_customer ON customer_address (customer_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_customer_address_customer ON customer_address (customer_id)",
+  "tableName": "customer_address",
+  "indexName": "idx_customer_address_customer",
+  "columns": [
+    "customer_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.716Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_customer_phone ON customer_profile (phone)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_customer_phone ON customer_profile (phone)",
+  "tableName": "customer_profile",
+  "indexName": "idx_customer_phone",
+  "columns": [
+    "phone"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.717Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_dining_table_zone ON dining_table (zone)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_dining_table_zone ON dining_table (zone)",
+  "tableName": "dining_table",
+  "indexName": "idx_dining_table_zone",
+  "columns": [
+    "zone"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.718Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_employee_role ON employee (role)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_employee_role ON employee (role)",
+  "tableName": "employee",
+  "indexName": "idx_employee_role",
+  "columns": [
+    "role"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.719Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_employee_status ON employee (status)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_employee_status ON employee (status)",
+  "tableName": "employee",
+  "indexName": "idx_employee_status",
+  "columns": [
+    "status"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.719Z] [ERROR] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE INDEX on expo_pass_ticket
+Status: failed
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "failed",
+  "sql": "CREATE INDEX on expo_pass_ticket",
+  "tableName": "expo_pass_ticket",
+  "indexName": "idx_expo_pass_ticket_status",
+  "error": "no such table: main.expo_pass_ticket"
+}
+
+================================================================================
+[2025-11-05T04:48:58.719Z] [ERROR] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE INDEX on job_order_detail
+Status: failed
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "failed",
+  "sql": "CREATE INDEX on job_order_detail",
+  "tableName": "job_order_detail",
+  "indexName": "idx_job_order_detail_job",
+  "error": "no such table: main.job_order_detail"
+}
+
+================================================================================
+[2025-11-05T04:48:58.719Z] [ERROR] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE INDEX on job_order_detail
+Status: failed
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "failed",
+  "sql": "CREATE INDEX on job_order_detail",
+  "tableName": "job_order_detail",
+  "indexName": "idx_job_order_detail_item",
+  "error": "no such table: main.job_order_detail"
+}
+
+================================================================================
+[2025-11-05T04:48:58.721Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_job_order_detail_modifier_detail ON job_order_detail_modifier (detail_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_job_order_detail_modifier_detail ON job_order_detail_modifier (detail_id)",
+  "tableName": "job_order_detail_modifier",
+  "indexName": "idx_job_order_detail_modifier_detail",
+  "columns": [
+    "detail_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.723Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_job_order_header_station_status ON job_order_header (station_id, status, created_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_job_order_header_station_status ON job_order_header (station_id, status, created_at)",
+  "tableName": "job_order_header",
+  "indexName": "idx_job_order_header_station_status",
+  "columns": [
+    "station_id",
+    "status",
+    "created_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.724Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_job_order_header_order ON job_order_header (order_id, station_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_job_order_header_order ON job_order_header (order_id, station_id)",
+  "tableName": "job_order_header",
+  "indexName": "idx_job_order_header_order",
+  "columns": [
+    "order_id",
+    "station_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.725Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_job_order_status_history_job ON job_order_status_history (job_order_id, changed_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_job_order_status_history_job ON job_order_status_history (job_order_id, changed_at)",
+  "tableName": "job_order_status_history",
+  "indexName": "idx_job_order_status_history_job",
+  "columns": [
+    "job_order_id",
+    "changed_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.727Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_menu_item_category ON menu_item (category_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_menu_item_category ON menu_item (category_id)",
+  "tableName": "menu_item",
+  "indexName": "idx_menu_item_category",
+  "columns": [
+    "category_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.727Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_menu_item_active ON menu_item (is_active)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_menu_item_active ON menu_item (is_active)",
+  "tableName": "menu_item",
+  "indexName": "idx_menu_item_active",
+  "columns": [
+    "is_active"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.728Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_menu_item_media_item ON menu_item_media (item_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_menu_item_media_item ON menu_item_media (item_id)",
+  "tableName": "menu_item_media",
+  "indexName": "idx_menu_item_media_item",
+  "columns": [
+    "item_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.729Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE UNIQUE INDEX IF NOT EXISTS idx_menu_item_modifier_unique ON menu_item_modifier (item_id, modifier_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE UNIQUE INDEX IF NOT EXISTS idx_menu_item_modifier_unique ON menu_item_modifier (item_id, modifier_id)",
+  "tableName": "menu_item_modifier",
+  "indexName": "idx_menu_item_modifier_unique",
+  "columns": [
+    "item_id",
+    "modifier_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.731Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_menu_item_price_item ON menu_item_price (item_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_menu_item_price_item ON menu_item_price (item_id)",
+  "tableName": "menu_item_price",
+  "indexName": "idx_menu_item_price_item",
+  "columns": [
+    "item_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.733Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_header_shift ON order_header (shift_id, opened_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_header_shift ON order_header (shift_id, opened_at)",
+  "tableName": "order_header",
+  "indexName": "idx_order_header_shift",
+  "columns": [
+    "shift_id",
+    "opened_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.734Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_header_customer ON order_header (customer_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_header_customer ON order_header (customer_id)",
+  "tableName": "order_header",
+  "indexName": "idx_order_header_customer",
+  "columns": [
+    "customer_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.735Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_line_order ON order_line (order_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_line_order ON order_line (order_id)",
+  "tableName": "order_line",
+  "indexName": "idx_order_line_order",
+  "columns": [
+    "order_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.736Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_line_modifier_line ON order_line_modifier (line_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_line_modifier_line ON order_line_modifier (line_id)",
+  "tableName": "order_line_modifier",
+  "indexName": "idx_order_line_modifier_line",
+  "columns": [
+    "line_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.737Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_line_status_log_line ON order_line_status_log (order_line_id, changed_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_line_status_log_line ON order_line_status_log (order_line_id, changed_at)",
+  "tableName": "order_line_status_log",
+  "indexName": "idx_order_line_status_log_line",
+  "columns": [
+    "order_line_id",
+    "changed_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.738Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_line_status_log_order ON order_line_status_log (order_id, changed_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_line_status_log_order ON order_line_status_log (order_id, changed_at)",
+  "tableName": "order_line_status_log",
+  "indexName": "idx_order_line_status_log_order",
+  "columns": [
+    "order_id",
+    "changed_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.740Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_payment_order ON order_payment (order_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_payment_order ON order_payment (order_id)",
+  "tableName": "order_payment",
+  "indexName": "idx_order_payment_order",
+  "columns": [
+    "order_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.741Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_payment_shift ON order_payment (shift_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_payment_shift ON order_payment (shift_id)",
+  "tableName": "order_payment",
+  "indexName": "idx_order_payment_shift",
+  "columns": [
+    "shift_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.742Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_refund_payment ON order_refund (payment_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_refund_payment ON order_refund (payment_id)",
+  "tableName": "order_refund",
+  "indexName": "idx_order_refund_payment",
+  "columns": [
+    "payment_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.743Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_stage_sequence ON order_stage (sequence)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_stage_sequence ON order_stage (sequence)",
+  "tableName": "order_stage",
+  "indexName": "idx_order_stage_sequence",
+  "columns": [
+    "sequence"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.744Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_status_log_order ON order_status_log (order_id, changed_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_status_log_order ON order_status_log (order_id, changed_at)",
+  "tableName": "order_status_log",
+  "indexName": "idx_order_status_log_order",
+  "columns": [
+    "order_id",
+    "changed_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.745Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_status_log_actor ON order_status_log (actor_id, changed_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_status_log_actor ON order_status_log (actor_id, changed_at)",
+  "tableName": "order_status_log",
+  "indexName": "idx_order_status_log_actor",
+  "columns": [
+    "actor_id",
+    "changed_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.746Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_order_type_sequence ON order_type (sequence)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_order_type_sequence ON order_type (sequence)",
+  "tableName": "order_type",
+  "indexName": "idx_order_type_sequence",
+  "columns": [
+    "sequence"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.747Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_pos_database_branch ON pos_database (branch_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_pos_database_branch ON pos_database (branch_id)",
+  "tableName": "pos_database",
+  "indexName": "idx_pos_database_branch",
+  "columns": [
+    "branch_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.748Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_pos_shift_pos_status ON pos_shift (pos_id, is_closed, opened_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_pos_shift_pos_status ON pos_shift (pos_id, is_closed, opened_at)",
+  "tableName": "pos_shift",
+  "indexName": "idx_pos_shift_pos_status",
+  "columns": [
+    "pos_id",
+    "is_closed",
+    "opened_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.749Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_pos_shift_opened_at ON pos_shift (opened_at)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_pos_shift_opened_at ON pos_shift (opened_at)",
+  "tableName": "pos_shift",
+  "indexName": "idx_pos_shift_opened_at",
+  "columns": [
+    "opened_at"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.752Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_terminal_code ON pos_terminal (terminal_code)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_terminal_code ON pos_terminal (terminal_code)",
+  "tableName": "pos_terminal",
+  "indexName": "idx_pos_terminal_code",
+  "columns": [
+    "terminal_code"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.754Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_pos_terminal_status ON pos_terminal (status)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_pos_terminal_status ON pos_terminal (status)",
+  "tableName": "pos_terminal",
+  "indexName": "idx_pos_terminal_status",
+  "columns": [
+    "status"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.756Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE UNIQUE INDEX IF NOT EXISTS idx_reservation_table_unique ON reservation_table (reservation_id, table_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE UNIQUE INDEX IF NOT EXISTS idx_reservation_table_unique ON reservation_table (reservation_id, table_id)",
+  "tableName": "reservation_table",
+  "indexName": "idx_reservation_table_unique",
+  "columns": [
+    "reservation_id",
+    "table_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.760Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_shift_cash_audit_shift ON shift_cash_audit (shift_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_shift_cash_audit_shift ON shift_cash_audit (shift_id)",
+  "tableName": "shift_cash_audit",
+  "indexName": "idx_shift_cash_audit_shift",
+  "columns": [
+    "shift_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.762Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_shift_payment_summary_shift ON shift_payment_summary (shift_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_shift_payment_summary_shift ON shift_payment_summary (shift_id)",
+  "tableName": "shift_payment_summary",
+  "indexName": "idx_shift_payment_summary_shift",
+  "columns": [
+    "shift_id"
+  ]
+}
+
+================================================================================
+[2025-11-05T04:48:58.764Z] [INFO] [DDL]
+DDL Operation: CREATE_INDEX
+SQL: CREATE  INDEX IF NOT EXISTS idx_table_lock_table ON table_lock (table_id)
+Status: success
+Metadata: {
+  "operation": "CREATE_INDEX",
+  "status": "success",
+  "sql": "CREATE  INDEX IF NOT EXISTS idx_table_lock_table ON table_lock (table_id)",
+  "tableName": "table_lock",
+  "indexName": "idx_table_lock_table",
+  "columns": [
+    "table_id"
+  ]
+}
+
+================================================================================
