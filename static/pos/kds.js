@@ -3977,36 +3977,31 @@
       );
       const categoryId =
         rawCategoryId || metadataCategoryId || canonicalId(item?.categoryId);
-      let sectionId =
-        canonicalId(
-          line?.kitchenSectionId ||
-            line?.kitchen_section_id ||
-            line?.sectionId ||
-            line?.stationId
-        ) ||
-        canonicalId(
-          metadata?.kitchenSectionId ||
-            metadata?.kitchen_section_id ||
-            metadata?.sectionId ||
-            metadata?.stationId
-        ) ||
-        canonicalId(item?.sectionId) ||
-        null;
+
+      // ✅ SIMPLE: استخدم kitchenSectionId من الـ line مباشرة فقط!
+      let sectionId = canonicalId(
+        line?.kitchenSectionId ||
+        line?.kitchen_section_id
+      );
 
       // 🔍 DEBUG: Log section ID resolution
-      const sectionIdSource = sectionId ? 'line/metadata/item' : null;
+      console.log('[KDS][buildWatcherPayload] Line sectionId:', {
+        orderLineId: line?.id,
+        kitchenSectionId: line?.kitchenSectionId,
+        kitchen_section_id: line?.kitchen_section_id,
+        resolvedSectionId: sectionId,
+        inStationMap: sectionId ? !!stationMap[sectionId] : false,
+        itemId: line?.itemId,
+        itemCode: line?.itemCode
+      });
 
       if (!sectionId) {
-        sectionId = resolveStationForCategory(categoryId) || 'general';
-        if(sectionId && sectionId !== 'general'){
-          console.log('[KDS][buildWatcherPayload] Resolved sectionId from category:', {
-            categoryId,
-            sectionId,
-            itemId: jobItemId,
-            itemCode: resolvedItemCode || rawItemCode,
-            inStationMap: !!stationMap[sectionId]
-          });
-        }
+        console.warn('[KDS][buildWatcherPayload] ❌ No kitchenSectionId in line - skipping!', {
+          orderLineId: line?.id,
+          orderId: line?.orderId,
+          itemId: line?.itemId
+        });
+        return; // تخطى هذا الـ line
       }
       const jobItemId = resolvedItemId || derivedItemId;
       const jobOrderRef = order.jobOrderId || jobOrderId;
