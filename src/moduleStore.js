@@ -272,16 +272,19 @@ export default class ModuleStore {
     const index = this.findRecordIndex(tableName, key);
 
     // CRITICAL FIX: Support UPSERT for versioned tables
-    // If record exists but request has version=1, treat as UPSERT (replace)
-    // This handles case where Frontend allocated new ID but Backend already has it
+    // If record exists but incoming request has version=1, treat as UPSERT (replace)
+    // This handles case where Frontend allocated invoice ID that already exists in DB
     if (index >= 0 && this.isVersionedTable(tableName)) {
       const incomingVersion = this.normalizeVersionInput(record?.version);
       const currentRecord = this.data[tableName][index];
       const currentVersion = this.normalizeVersionInput(currentRecord?.version) || 1;
 
-      // If incoming version=1 and current version=1, allow REPLACE
-      // This handles retries and race conditions with invoice ID allocation
-      if (incomingVersion === 1 && currentVersion === 1) {
+      // CRITICAL: If incoming version=1 (new order), allow REPLACE regardless of current version
+      // This handles:
+      // 1. Retry after conflict (currentVersion=1, incomingVersion=1)
+      // 2. Invoice ID collision (currentVersion>1, incomingVersion=1)
+      // 3. Sequence counter out of sync
+      if (incomingVersion === 1) {
         // UPSERT: Replace the entire record (not just update)
         const enrichedContext = { branchId: this.branchId, ...context };
         const replaced = this.schemaEngine.createRecord(tableName, record, enrichedContext);
@@ -289,6 +292,7 @@ export default class ModuleStore {
         this.data[tableName][index] = replaced;
         this.version += 1;
         this.touchMeta();
+        console.log(`[ModuleStore] UPSERT: Replaced ${tableName} record (key=${key}, oldVersion=${currentVersion}, newVersion=1)`);
         return { record: deepClone(replaced), created: false, replaced: true };
       }
     }
