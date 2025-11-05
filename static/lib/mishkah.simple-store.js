@@ -132,7 +132,10 @@ function createContext(store, config) {
     autoReconnect: options.autoReconnect !== false,
     logger: config.logger,
     wsUrl: options.wsUrl,
-    wsPath: options.wsPath
+    wsPath: options.wsPath,
+    // ✨ IndexedDB support (pass through)
+    useIndexedDB: options.useIndexedDB !== false,
+    dbVersion: options.dbVersion || 1
   });
 
   const baseCtx = createContext(store, config);
