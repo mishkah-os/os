@@ -234,7 +234,11 @@ function canonicalizeTableName(name, registry) {
 
 async function fetchJson(url, { cache = 'no-store', skipBasedomain = false } = {}) {
   let finalUrl = url;
-  if (typeof window !== 'undefined' && !skipBasedomain) {
+
+  // Auto-detect: never use basedomain for /data/ paths (local static files)
+  const isLocalDataFile = url && (url.startsWith('/data/') || url.includes('/data/branches/'));
+
+  if (typeof window !== 'undefined' && !skipBasedomain && !isLocalDataFile) {
     const base = window.basedomain;
     if (base && typeof base === 'string' && url && url.startsWith('/')) {
       const origin = base.replace(/\/+$/, '');
@@ -264,8 +268,7 @@ async function fetchModuleSchemaRemote(branchId, moduleId) {
 async function fetchModuleSchemaLocal(branchId, moduleId) {
   const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
   const schemaUrl = `${basePath}/schema/definition.json`;
-  // Use skipBasedomain to fetch from local filesystem, not production server
-  const schema = await fetchJson(schemaUrl, { skipBasedomain: true });
+  const schema = await fetchJson(schemaUrl);
   const moduleEntry = {
     id: moduleId,
     moduleId,
@@ -280,25 +283,19 @@ async function fetchModuleDataset(branchId, moduleId) {
   const isLocal = typeof window !== 'undefined' && window.location &&
                   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-  // Try API endpoint first (works for both local and production)
-  try {
-    const params = new URLSearchParams({ branch: branchId, module: moduleId });
-    return await fetchJson(`/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}/snapshot?${params.toString()}`);
-  } catch (_err) {
-    // API not available, try local files only if running locally
+  // Only try to fetch dataset files on localhost (production doesn't have these endpoints)
+  if (!isLocal) {
+    return null; // Production relies on WebSocket - no static file fallback
   }
 
-  // Fallback to local static files (only for localhost development)
-  if (isLocal) {
-    const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
-    const candidates = [`${basePath}/live/data.json`, `${basePath}/seeds/initial.json`];
-    for (const url of candidates) {
-      try {
-        // Use skipBasedomain to fetch from local filesystem, not production server
-        return await fetchJson(url, { skipBasedomain: true });
-      } catch (_err) {
-        // try next candidate
-      }
+  // Local development: try static files
+  const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
+  const candidates = [`${basePath}/live/data.json`, `${basePath}/seeds/initial.json`];
+  for (const url of candidates) {
+    try {
+      return await fetchJson(url);
+    } catch (_err) {
+      // try next candidate
     }
   }
 
