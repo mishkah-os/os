@@ -1591,18 +1591,21 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
   statusLogs.sort((a, b) => (a.changedAt || 0) - (b.changedAt || 0));
   const latest = statusLogs[statusLogs.length - 1] || {};
   const resolvedStatus = latest.status || baseStatus;
+  const itemId =
+    line.itemId ||
+    line.item_id ||
+    line.menuItemId ||
+    line.menu_item_id ||
+    line.productId ||
+    line.product_id ||
+    null;
+
   const record = {
     uid,
     id,
     orderId,
-    itemId:
-      line.itemId ||
-      line.item_id ||
-      line.menuItemId ||
-      line.menu_item_id ||
-      line.productId ||
-      line.product_id ||
-      null,
+    itemId,
+    item_id: itemId,  // ✅ Also send snake_case for backend compatibility
     name:
       line.name ||
       line.itemName ||
