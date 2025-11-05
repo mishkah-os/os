@@ -1501,17 +1501,9 @@
     });
   };
 
-  // Section ID aliases: map alternative IDs to their canonical form
-  const SECTION_ID_ALIASES = {
-    'hot_line': '1e7a48ec-425a-4268-81db-c8f3fd4d432e',
-    'e7a48ec-425a-4268-81db-c8f3fd4d432e': '1e7a48ec-425a-4268-81db-c8f3fd4d432e',
-    '1e7a48ec-425a-4268-81db-c8f3fd4d432e': '1e7a48ec-425a-4268-81db-c8f3fd4d432e'
-  };
-
+  // Normalize section ID - now a pass-through for dynamic section handling
   const normalizeSectionId = (id)=> {
-    if(id == null) return id;
-    const normalized = SECTION_ID_ALIASES[id];
-    return normalized !== undefined ? normalized : id;
+    return id;
   };
 
   const toStationMap = (list)=> {
@@ -3855,6 +3847,8 @@
       if (!sectionId) {
         sectionId = resolveStationForCategory(categoryId) || 'general';
       }
+      // Normalize sectionId to prevent duplicate jobs for the same section
+      sectionId = normalizeSectionId(sectionId) || sectionId;
       const jobItemId = resolvedItemId || derivedItemId;
       const jobOrderRef = order.jobOrderId || jobOrderId;
       let jobId = jobOrderRef;
