@@ -6,12 +6,14 @@
  * and maintains a local projection of module tables for quick reads.
  *
  * Usage:
- *   import { createStore } from './sdk/mishkah.store.js';
+ *   let   createStore =window.createStore;
  *   const store = createStore({ branchId: 'lab:test-pad', moduleId: 'scratchpad' });
  *   await store.connect();
  *   await store.insert('scratchpad_entry', { content: 'Hello' });
  *   const snapshot = store.snapshot();
  */
+(function (window){
+window.basedomain='https://ws.mas.com.eg';
 
 const DEFAULT_WS_PATH = '/ws';
 const DEFAULT_ROLE = 'pos-sdk';
@@ -42,14 +44,26 @@ function clone(value) {
 
 function resolveWsUrl(options = {}) {
   if (options.wsUrl) return options.wsUrl;
+  const path = options.wsPath || DEFAULT_WS_PATH;
+  const base = (typeof window !== 'undefined' && window.basedomain) || null;
+  if (base) {
+    const origin = String(base).trim().replace(/\/+$/, '');
+    const hasWsProto = /^wss?:\/\//i.test(origin);
+    const hasHttpProto = /^https?:\/\//i.test(origin);
+    if (hasWsProto) return `${origin}${path}`;
+    if (hasHttpProto) {
+      const secure = /^https:\/\//i.test(origin);
+      const host = origin.replace(/^https?:\/\//i, '');
+      return `${secure ? 'wss://' : 'ws://'}${host}${path}`;
+    }
+    return `wss://${origin}${path}`;
+  }
   if (typeof window !== 'undefined' && window.location) {
     const { location } = window;
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = location.host;
-    const path = options.wsPath || DEFAULT_WS_PATH;
     return `${protocol}//${host}${path}`;
   }
-  const path = options.wsPath || DEFAULT_WS_PATH;
   return `ws://127.0.0.1:3200${path}`;
 }
 
@@ -373,7 +387,11 @@ class MishkahRealtimeStore extends EventEmitter {
         hydratedRecord.key = recordRef.key;
       }
       if (index >= 0) {
-        tableData[index] = hydratedRecord;
+        if (action === 'module:merge') {
+          tableData[index] = { ...tableData[index], ...hydratedRecord };
+        } else {
+          tableData[index] = hydratedRecord;
+        }
       } else {
         tableData.push(hydratedRecord);
       }
@@ -456,8 +474,10 @@ class MishkahRealtimeStore extends EventEmitter {
   }
 }
 
-export function createStore(options) {
+ function createStore(options) {
   return new MishkahRealtimeStore(options);
 }
+window.MishkahRealtimeStore = MishkahRealtimeStore;
+window.createStore = createStore;
 
-export { MishkahRealtimeStore };
+  })(window);

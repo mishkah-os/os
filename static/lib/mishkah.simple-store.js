@@ -3,7 +3,7 @@
  *
  * Tiny layer on top of mishkah.store.js for ultra-minimal usage.
  * Example:
- *   import { createDB } from './mishkah.simple-store.js';
+* let createDB = window.createDB;
  *   const db = createDB({
  *     branchId: 'lab:test-pad',
  *     moduleId: 'scratchpad',
@@ -38,8 +38,9 @@
  *   db.watch('notes', (list) => console.log(list));
  */
 
-import { createStore } from './mishkah.store.js';
+(function (window){
 
+  let createStore = window.createStore;
 const noop = () => {};
 const nowIso = () => new Date().toISOString();
 const enqueueMicrotask =
@@ -113,7 +114,7 @@ function createContext(store, config) {
   };
 }
 
-export function createDB(options = {}) {
+ function createDB(options = {}) {
   const config = {
     branchId: options.branchId || 'lab:test-pad',
     moduleId: options.moduleId || 'pos',
@@ -361,7 +362,7 @@ function normalizeAutoEntry(entry) {
   return null;
 }
 
-export function createDBAuto(schema, entries = [], options = {}) {
+ function createDBAuto(schema, entries = [], options = {}) {
   const tables = normalizeSchemaTables(schema);
   const index = buildTableIndex(tables);
   const selection =
@@ -391,5 +392,7 @@ export function createDBAuto(schema, entries = [], options = {}) {
   };
   return createDB(config);
 }
+window.createDBAuto = createDBAuto;
+window.createDB = createDB;
+  })(window);
 
-export default { createDB, createDBAuto };
