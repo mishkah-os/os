@@ -1501,9 +1501,24 @@
     });
   };
 
-  // Normalize section ID - now a pass-through for dynamic section handling
+  // Section ID aliases: map old/alternative IDs to current canonical form
+  // This handles cached data and backend inconsistencies
+  const SECTION_ID_ALIASES = {
+    // Old hot line ID → new hot line ID
+    '1e7a48ec-425a-4268-81db-c8f3fd4d432e': 'hot_linee',
+    '1E7A48EC-425A-4268-81DB-C8F3FD4D432E': 'hot_linee',
+    // Partial old ID → new hot line ID
+    'e7a48ec-425a-4268-81db-c8f3fd4d432e': 'hot_linee',
+    // Alternative spellings
+    'hot_line': 'hot_linee',
+    // Identity mapping for the correct ID
+    'hot_linee': 'hot_linee'
+  };
+
   const normalizeSectionId = (id)=> {
-    return id;
+    if(id == null) return id;
+    const normalized = SECTION_ID_ALIASES[id];
+    return normalized !== undefined ? normalized : id;
   };
 
   const toStationMap = (list)=> {
@@ -1512,8 +1527,16 @@
     return list.reduce((acc, station)=>{
       if(station && station.id != null){
         const normalizedId = normalizeSectionId(station.id);
+
         // Add entry with normalized ID
         acc[normalizedId] = station;
+
+        // Also add entries for all aliases that point to this normalized ID
+        Object.keys(SECTION_ID_ALIASES).forEach(aliasId => {
+          if(SECTION_ID_ALIASES[aliasId] === normalizedId){
+            acc[aliasId] = station;
+          }
+        });
       }
       return acc;
     }, {});
