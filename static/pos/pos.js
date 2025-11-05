@@ -3311,10 +3311,15 @@
       if(!finalName && (itemNameAr || itemNameEn)){
         finalName = { ar: itemNameAr || itemNameEn || '', en: itemNameEn || itemNameAr || '' };
       }
+      // Extract item_id, handling objects properly
+      let resolvedItemId = raw.itemId ?? raw.item_id ?? metadata.itemId;
+      if(resolvedItemId && typeof resolvedItemId === 'object' && !Array.isArray(resolvedItemId)){
+        resolvedItemId = resolvedItemId.id || resolvedItemId.item_id || null;
+      }
       const base = {
         id: raw.id,
         order_id: raw.orderId || raw.order_id || header.id,
-        item_id: raw.itemId ?? raw.item_id ?? metadata.itemId,
+        item_id: resolvedItemId,
         qty: raw.quantity ?? raw.qty ?? metadata.qty ?? 1,
         price: raw.unitPrice ?? raw.unit_price ?? metadata.unitPrice,
         total: raw.total ?? metadata.total,
