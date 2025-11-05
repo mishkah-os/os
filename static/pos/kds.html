@@ -137,14 +137,43 @@
         createPosDb({ branchId: BRANCH_ID, role: 'kds-shell' }).then(({ db, moduleEntry }) => {
           window.__POS_DB__ = db;
           window.__POS_MODULE_ENTRY__ = moduleEntry;
-          db.ready().then(() => {
+
+          // Function to update window.database from latest record
+          const updateWindowDatabase = () => {
             const records = db.list('pos_database');
             const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
             const payload = latest && latest.payload ? latest.payload : {};
+            const previousKeys = Object.keys(window.database || {}).sort().join(',');
+            const newKeys = Object.keys(payload || {}).sort().join(',');
+
             window.database = payload;
             status.status = latest ? 'ready' : 'idle';
             status.keys = Object.keys(payload || {});
+
+            // Log update if keys changed
+            if (previousKeys !== newKeys) {
+              console.log('[KDS] window.database updated with new data', {
+                previousKeyCount: previousKeys.split(',').filter(Boolean).length,
+                newKeyCount: newKeys.split(',').filter(Boolean).length,
+                timestamp: new Date().toISOString()
+              });
+            }
+          };
+
+          db.ready().then(() => {
+            // Initial load
+            updateWindowDatabase();
             status.finishedAt = Date.now();
+
+            // Watch for changes to pos_database
+            db.watch('pos_database', (records) => {
+              console.log('[KDS] pos_database changed, updating window.database...', {
+                recordCount: records.length,
+                timestamp: new Date().toISOString()
+              });
+              updateWindowDatabase();
+            });
+
           }).catch(error => {
             console.error('[KDS] Failed to ready database', error);
             window.database = {};
