@@ -14,9 +14,10 @@
   const state = {
     connected: false,
     activeTab: 'prep', // Default to prep view
-    sections: [],
-    orders: [],
-    lines: [],
+    sections: [],      // kitchen_section table
+    menuItems: [],     // menu_item table (for item names)
+    orders: [],        // order_header table
+    lines: [],         // order_line table
     jobs: new Map(),
     handoff: {},  // For tracking assembled/served orders
     deliveries: { assignments: {}, settlements: {} },
@@ -64,7 +65,7 @@
   if (posSchema && typeof createDBAuto === 'function') {
     // Use createDBAuto for automatic table registration
     console.log('[KDS v2] Using createDBAuto with schema');
-    db = createDBAuto(posSchema, ['kitchen_section', 'order_header', 'order_line'], {
+    db = createDBAuto(posSchema, ['kitchen_section', 'menu_item', 'order_header', 'order_line'], {
       branchId: CONFIG.branchId,
       moduleId: CONFIG.moduleId,
       role: CONFIG.role,
@@ -84,6 +85,7 @@
       useIndexedDB: true,
       objects: {
         kitchen_section: { table: 'kitchen_section' },
+        menu_item: { table: 'menu_item' },
         order_header: { table: 'order_header' },
         order_line: { table: 'order_line' }
       }
@@ -94,22 +96,29 @@
 
   // Watch kitchen sections
   db.watch('kitchen_section', (sections) => {
-    console.log('[KDS v2] kitchen_section updated:', sections.length);
+    console.log('[KDS v2] kitchen_section updated:', sections ? sections.length : 0);
     state.sections = sections || [];
     renderTabs();
     renderOrders();
   });
 
+  // Watch menu items (for item names)
+  db.watch('menu_item', (items) => {
+    console.log('[KDS v2] menu_item updated:', items ? items.length : 0);
+    state.menuItems = items || [];
+    processOrders();
+  });
+
   // Watch order headers
   db.watch('order_header', (headers) => {
-    console.log('[KDS v2] order_header updated:', headers.length);
+    console.log('[KDS v2] order_header updated:', headers ? headers.length : 0);
     state.orders = headers || [];
     processOrders();
   });
 
   // Watch order lines
   db.watch('order_line', (lines) => {
-    console.log('[KDS v2] order_line updated:', lines.length);
+    console.log('[KDS v2] order_line updated:', lines ? lines.length : 0);
     state.lines = lines || [];
     processOrders();
   });
@@ -128,16 +137,30 @@
     // Clear jobs
     state.jobs.clear();
 
+    // Create index for menu items for fast lookup
+    const itemsIndex = {};
+    (state.menuItems || []).forEach(item => {
+      itemsIndex[item.id] = item;
+    });
+
     // Group lines by orderId and kitchenSectionId
     state.lines.forEach(line => {
-      const orderId = line.orderId;
-      const sectionId = line.kitchenSectionId;
+      const orderId = line.orderId || line.order_id;
+      const sectionId = line.kitchenSectionId || line.kitchen_section_id;
 
       if (!orderId || !sectionId) return;
 
       // Find order header
       const order = state.orders.find(o => o.id === orderId);
       if (!order) return;
+
+      // Get item details from menu_item table
+      const itemId = line.itemId || line.item_id;
+      const menuItem = itemId ? itemsIndex[itemId] : null;
+
+      // Use names from menu_item if available, fallback to line data
+      const nameAr = menuItem?.nameAr || menuItem?.name_ar || line.itemNameAr || line.item_name_ar || itemId;
+      const nameEn = menuItem?.nameEn || menuItem?.name_en || line.itemNameEn || line.item_name_en || itemId;
 
       // Create job ID: orderId:sectionId
       const jobId = `${orderId}:${sectionId}`;
@@ -147,13 +170,13 @@
         state.jobs.set(jobId, {
           id: jobId,
           orderId: orderId,
-          orderNumber: order.orderNumber || orderId,
+          orderNumber: order.orderNumber || order.order_number || orderId,
           sectionId: sectionId,
-          serviceMode: order.serviceMode || 'dine_in',
-          tableLabel: order.tableLabel || '',
-          customerName: order.customerName || '',
+          serviceMode: order.serviceMode || order.service_mode || 'dine_in',
+          tableLabel: order.tableLabel || order.table_label || '',
+          customerName: order.customerName || order.customer_name || '',
           status: 'queued',
-          createdAt: order.createdAt,
+          createdAt: order.createdAt || order.created_at,
           items: [],
           totalItems: 0,
           completedItems: 0
@@ -165,16 +188,17 @@
       // Add item to job
       job.items.push({
         id: line.id,
-        itemId: line.itemId,
-        nameAr: line.itemNameAr || line.itemName || line.itemId,
-        nameEn: line.itemNameEn || line.itemName || line.itemId,
+        itemId: itemId,
+        nameAr: nameAr,
+        nameEn: nameEn,
         quantity: line.quantity || 1,
         notes: line.notes || '',
-        status: line.statusId || 'queued'
+        status: line.statusId || line.status_id || 'queued'
       });
 
       job.totalItems += (line.quantity || 1);
-      if (line.statusId === 'ready' || line.statusId === 'completed') {
+      const itemStatus = line.statusId || line.status_id || 'queued';
+      if (itemStatus === 'ready' || itemStatus === 'completed') {
         job.completedItems += (line.quantity || 1);
       }
     });
@@ -209,23 +233,29 @@
   }
 
   function getJobsForSection(sectionId) {
-    return Array.from(state.jobs.values()).filter(job =>
-      job.sectionId === sectionId &&
-      job.status !== 'completed' &&
-      !state.handoff[job.orderId]
-    );
+    return Array.from(state.jobs.values()).filter(job => {
+      const jobSectionId = job.sectionId || job.section_id;
+      const jobOrderId = job.orderId || job.order_id;
+      return jobSectionId === sectionId &&
+        job.status !== 'completed' &&
+        !state.handoff[jobOrderId];
+    });
   }
 
   function getExpoOrders() {
     // Orders where all kitchen sections are ready
     const orderStatuses = {};
     state.lines.forEach(line => {
-      const orderId = line.orderId;
+      const orderId = line.orderId || line.order_id;
+      const statusId = line.statusId || line.status_id || 'queued';
+
+      if (!orderId) return;
+
       if (!orderStatuses[orderId]) {
         orderStatuses[orderId] = { total: 0, ready: 0 };
       }
       orderStatuses[orderId].total++;
-      if (line.statusId === 'ready') {
+      if (statusId === 'ready') {
         orderStatuses[orderId].ready++;
       }
     });
@@ -234,10 +264,10 @@
       orderId => orderStatuses[orderId].ready >= orderStatuses[orderId].total && orderStatuses[orderId].total > 0
     );
 
-    return state.orders.filter(order =>
-      readyOrderIds.includes(order.id) &&
-      !state.handoff[order.id]
-    );
+    return state.orders.filter(order => {
+      const orderId = order.id || order.order_id;
+      return readyOrderIds.includes(orderId) && !state.handoff[orderId];
+    });
   }
 
   function getHandoffOrders() {
@@ -247,7 +277,7 @@
         const record = state.handoff[orderId];
         return record && record.status === 'assembled';
       })
-      .map(orderId => state.orders.find(o => o.id === orderId))
+      .map(orderId => state.orders.find(o => (o.id || o.order_id) === orderId))
       .filter(Boolean);
   }
 
@@ -255,14 +285,14 @@
     // Orders in delivery with assigned driver
     return Object.keys(state.deliveries.assignments)
       .filter(orderId => !state.deliveries.settlements[orderId])
-      .map(orderId => state.orders.find(o => o.id === orderId))
+      .map(orderId => state.orders.find(o => (o.id || o.order_id) === orderId))
       .filter(Boolean);
   }
 
   function getPendingDeliveryOrders() {
     // Orders awaiting settlement
     return Object.keys(state.deliveries.settlements)
-      .map(orderId => state.orders.find(o => o.id === orderId))
+      .map(orderId => state.orders.find(o => (o.id || o.order_id) === orderId))
       .filter(Boolean);
   }
 
@@ -501,19 +531,33 @@
     `;
   }
 
+  function getItemName(line, lang = 'ar') {
+    // Create items index if not cached
+    const itemId = line.itemId || line.item_id;
+    const menuItem = state.menuItems.find(item => item.id === itemId);
+
+    if (lang === 'ar') {
+      return menuItem?.nameAr || menuItem?.name_ar || line.itemNameAr || line.item_name_ar || itemId || 'صنف';
+    } else {
+      return menuItem?.nameEn || menuItem?.name_en || line.itemNameEn || line.item_name_en || itemId || 'Item';
+    }
+  }
+
   function renderExpoCard(order) {
-    const lines = state.lines.filter(line => line.orderId === order.id);
-    const timeSince = getTimeSinceCreated(order.createdAt);
+    const orderId = order.id || order.order_id;
+    const lines = state.lines.filter(line => (line.orderId || line.order_id) === orderId);
+    const timeSince = getTimeSinceCreated(order.createdAt || order.created_at);
     const timeClass = getTimeClass(timeSince);
-    const isDelivery = order.serviceMode === 'delivery';
+    const serviceMode = order.serviceMode || order.service_mode || '';
+    const isDelivery = serviceMode === 'delivery';
 
     return `
       <div class="order-card">
         <div class="order-header">
           <div>
-            <div class="order-number">${order.orderNumber || order.id}</div>
+            <div class="order-number">${order.orderNumber || order.order_number || orderId}</div>
             <div style="font-size: 0.875rem; color: #94a3b8; margin-top: 0.25rem;">
-              ${isDelivery ? '🚗 دليفري' : (order.tableLabel || order.serviceMode || '')}
+              ${isDelivery ? '🚗 دليفري' : (order.tableLabel || order.table_label || serviceMode || '')}
             </div>
           </div>
           <div class="order-time ${timeClass}">
@@ -526,7 +570,7 @@
             <div class="order-item">
               <div class="item-header">
                 <div class="item-name">
-                  ${line.itemNameAr || line.itemName || line.itemId}
+                  ${getItemName(line, state.lang)}
                 </div>
                 <div class="item-quantity">× ${line.quantity || 1}</div>
               </div>
@@ -536,11 +580,11 @@
 
         <div class="order-actions">
           ${isDelivery ? `
-            <button class="btn btn-start" onclick="window.assignDriver('${order.id}')">
+            <button class="btn btn-start" onclick="window.assignDriver('${orderId}')">
               🚗 تعيين سائق
             </button>
           ` : `
-            <button class="btn btn-ready" onclick="window.assembleOrder('${order.id}')">
+            <button class="btn btn-ready" onclick="window.assembleOrder('${orderId}')">
               ✅ تم التجميع
             </button>
           `}
@@ -550,15 +594,16 @@
   }
 
   function renderHandoffCard(order) {
-    const lines = state.lines.filter(line => line.orderId === order.id);
+    const orderId = order.id || order.order_id;
+    const lines = state.lines.filter(line => (line.orderId || line.order_id) === orderId);
 
     return `
       <div class="order-card">
         <div class="order-header">
           <div>
-            <div class="order-number">${order.orderNumber || order.id}</div>
+            <div class="order-number">${order.orderNumber || order.order_number || orderId}</div>
             <div style="font-size: 0.875rem; color: #94a3b8; margin-top: 0.25rem;">
-              ${order.tableLabel || order.serviceMode || ''}
+              ${order.tableLabel || order.table_label || order.serviceMode || order.service_mode || ''}
             </div>
           </div>
         </div>
@@ -568,7 +613,7 @@
             <div class="order-item">
               <div class="item-header">
                 <div class="item-name">
-                  ${line.itemNameAr || line.itemName || line.itemId}
+                  ${getItemName(line, state.lang)}
                 </div>
                 <div class="item-quantity">× ${line.quantity || 1}</div>
               </div>
@@ -577,7 +622,7 @@
         </div>
 
         <div class="order-actions">
-          <button class="btn btn-bump" onclick="window.serveOrder('${order.id}')">
+          <button class="btn btn-bump" onclick="window.serveOrder('${orderId}')">
             📦 تم التسليم
           </button>
         </div>
@@ -586,14 +631,15 @@
   }
 
   function renderDeliveryCard(order) {
-    const lines = state.lines.filter(line => line.orderId === order.id);
-    const driverName = state.deliveries.assignments[order.id] || 'سائق';
+    const orderId = order.id || order.order_id;
+    const lines = state.lines.filter(line => (line.orderId || line.order_id) === orderId);
+    const driverName = state.deliveries.assignments[orderId] || 'سائق';
 
     return `
       <div class="order-card">
         <div class="order-header">
           <div>
-            <div class="order-number">${order.orderNumber || order.id}</div>
+            <div class="order-number">${order.orderNumber || order.order_number || orderId}</div>
             <div style="font-size: 0.875rem; color: #94a3b8; margin-top: 0.25rem;">
               🚗 السائق: ${driverName}
             </div>
@@ -605,7 +651,7 @@
             <div class="order-item">
               <div class="item-header">
                 <div class="item-name">
-                  ${line.itemNameAr || line.itemName || line.itemId}
+                  ${getItemName(line, state.lang)}
                 </div>
                 <div class="item-quantity">× ${line.quantity || 1}</div>
               </div>
@@ -614,7 +660,7 @@
         </div>
 
         <div class="order-actions">
-          <button class="btn btn-bump" onclick="window.deliveredOrder('${order.id}')">
+          <button class="btn btn-bump" onclick="window.deliveredOrder('${orderId}')">
             ✅ تم التسليم
           </button>
         </div>
@@ -623,13 +669,14 @@
   }
 
   function renderPendingDeliveryCard(order) {
-    const lines = state.lines.filter(line => line.orderId === order.id);
+    const orderId = order.id || order.order_id;
+    const lines = state.lines.filter(line => (line.orderId || line.order_id) === orderId);
 
     return `
       <div class="order-card">
         <div class="order-header">
           <div>
-            <div class="order-number">${order.orderNumber || order.id}</div>
+            <div class="order-number">${order.orderNumber || order.order_number || orderId}</div>
             <div style="font-size: 0.875rem; color: #94a3b8; margin-top: 0.25rem;">
               💰 في انتظار التسوية
             </div>
@@ -641,7 +688,7 @@
             <div class="order-item">
               <div class="item-header">
                 <div class="item-name">
-                  ${line.itemNameAr || line.itemName || line.itemId}
+                  ${getItemName(line, state.lang)}
                 </div>
                 <div class="item-quantity">× ${line.quantity || 1}</div>
               </div>
@@ -650,7 +697,7 @@
         </div>
 
         <div class="order-actions">
-          <button class="btn btn-start" onclick="window.settleDelivery('${order.id}')">
+          <button class="btn btn-start" onclick="window.settleDelivery('${orderId}')">
             💰 تسوية
           </button>
         </div>
