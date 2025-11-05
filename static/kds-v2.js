@@ -74,8 +74,10 @@
   let db;
   if (posSchema && typeof createDBAuto === 'function') {
     // Use createDBAuto for automatic table registration
+    // NOTE: Only watch live tables (order_header, order_line)
+    // Reference data (menu_item, kitchen_section) loaded from window.database
     console.log('[KDS v2] Using createDBAuto with schema');
-    db = createDBAuto(posSchema, ['kitchen_section', 'menu_item', 'order_header', 'order_line'], {
+    db = createDBAuto(posSchema, ['order_header', 'order_line'], {
       branchId: CONFIG.branchId,
       moduleId: CONFIG.moduleId,
       role: CONFIG.role,
@@ -94,8 +96,6 @@
       autoConnect: true,
       useIndexedDB: true,
       objects: {
-        kitchen_section: { table: 'kitchen_section' },
-        menu_item: { table: 'menu_item' },
         order_header: { table: 'order_header' },
         order_line: { table: 'order_line' }
       }
@@ -104,36 +104,55 @@
 
   // ==================== Data Watchers ====================
 
-  // Watch kitchen sections
-  db.watch('kitchen_section', (sections) => {
+  // Load reference data from window.database (loaded by pos-mini-db)
+  function loadReferenceData() {
     console.log('═══════════════════════════════════════════════════');
-    console.log('🔍 [DEBUG] kitchen_section updated:', sections ? sections.length : 0);
-    if (sections && sections.length > 0) {
+    console.log('🔍 [DEBUG] Loading reference data from window.database');
+
+    const database = window.database || {};
+    console.log('🔍 [DEBUG] window.database keys:', Object.keys(database));
+
+    // Load kitchen sections
+    const sections = database.kitchen_section || database.kitchenSections || database.kitchen_sections || [];
+    console.log('🔍 [DEBUG] kitchen_section loaded:', sections.length);
+    if (sections.length > 0) {
       console.log('🔍 [DEBUG] First kitchen_section record:', sections[0]);
       console.log('🔍 [DEBUG] kitchen_section fields:', Object.keys(sections[0]));
-      console.log('🔍 [DEBUG] All kitchen_sections:', sections);
     }
-    console.log('═══════════════════════════════════════════════════');
 
-    state.sections = sections || [];
-    renderTabs();
-    renderOrders();
-  });
+    state.sections = sections;
 
-  // Watch menu items (for item names)
-  db.watch('menu_item', (items) => {
-    console.log('═══════════════════════════════════════════════════');
-    console.log('🔍 [DEBUG] menu_item updated:', items ? items.length : 0);
-    if (items && items.length > 0) {
+    // Load menu items
+    const items = database.menu_item || database.menuItems || database.menu_items || [];
+    console.log('🔍 [DEBUG] menu_item loaded:', items.length);
+    if (items.length > 0) {
       console.log('🔍 [DEBUG] First menu_item record:', items[0]);
       console.log('🔍 [DEBUG] menu_item fields:', Object.keys(items[0]));
       console.log('🔍 [DEBUG] First 5 menu_items:', items.slice(0, 5));
     }
+
+    state.menuItems = items;
+
     console.log('═══════════════════════════════════════════════════');
 
-    state.menuItems = items || [];
+    renderTabs();
     processOrders();
-  });
+  }
+
+  // Watch for window.database to be loaded
+  if (window.database && Object.keys(window.database).length > 0) {
+    console.log('[KDS v2] window.database already loaded, loading reference data...');
+    loadReferenceData();
+  } else {
+    console.log('[KDS v2] Waiting for window.database to be loaded...');
+    const checkInterval = setInterval(() => {
+      if (window.database && Object.keys(window.database).length > 0) {
+        console.log('[KDS v2] window.database loaded, loading reference data...');
+        clearInterval(checkInterval);
+        loadReferenceData();
+      }
+    }, 100);
+  }
 
   // Watch order headers
   db.watch('order_header', (headers) => {
@@ -957,16 +976,19 @@
 
   try {
     await db.connect();
-    console.log('✅ [KDS v2] Connected to database successfully');
+    console.log('✅ [KDS v2] Connected to WebSocket successfully');
 
     // Wait a bit for initial data load
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     console.log('🔍 [DEBUG] After 2 seconds wait:');
+    console.log('🔍 [DEBUG] Reference Data (from window.database):');
     console.log('🔍 [DEBUG] - Sections loaded:', state.sections.length);
     console.log('🔍 [DEBUG] - Menu items loaded:', state.menuItems.length);
+    console.log('🔍 [DEBUG] Live Data (from WebSocket):');
     console.log('🔍 [DEBUG] - Orders loaded:', state.orders.length);
     console.log('🔍 [DEBUG] - Lines loaded:', state.lines.length);
+    console.log('🔍 [DEBUG] Processing:');
     console.log('🔍 [DEBUG] - Jobs created:', state.jobs.size);
   } catch (err) {
     console.error('❌ [KDS v2] Connection failed:', err);

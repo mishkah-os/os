@@ -4,9 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>مشكاة | شاشة المطبخ</title>
-  <script src="./lib/mishkah.core.js"></script>
-  <script src="./lib/mishkah.store.js"></script>
-  <script src="./lib/mishkah.simple-store.js"></script>
+  <script src="../lib/mishkah-utils.js"></script>
+  <script src="../lib/mishkah.core.js"></script>
+  <script src="../lib/mishkah-ui.js"></script>
+  <script src="../lib/mishkah-schema.js"></script>
+  <script src="../lib/mishkah.store.js"></script>
+  <script src="../lib/mishkah.simple-store.js"></script>
+  <script src="./pos-mini-db.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -347,6 +351,61 @@
       </div>
     </div>
   </div>
+
+  <script>
+    // Initialize database from pos-mini-db
+    let createPosDb = window.createPosDb;
+
+    const params = new URLSearchParams(window.location.search || '');
+    const BRANCH_ID = (params.get('brname') || 'dar').trim();
+
+    const status = {
+      status: 'loading',
+      startedAt: Date.now(),
+      finishedAt: null,
+      error: null,
+      keys: [],
+      branchId: BRANCH_ID
+    };
+
+    window.__POS_DATA_STATUS__ = status;
+
+    try {
+      createPosDb({ branchId: BRANCH_ID, role: 'kds-v2' }).then(({ db, moduleEntry }) => {
+        window.__POS_DB__ = db;
+        window.__POS_MODULE_ENTRY__ = moduleEntry;
+        db.ready().then(() => {
+          const records = db.list('pos_database');
+          const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
+          const payload = latest && latest.payload ? latest.payload : {};
+          window.database = payload;
+          status.status = latest ? 'ready' : 'idle';
+          status.keys = Object.keys(payload || {});
+          status.finishedAt = Date.now();
+
+          console.log('[KDS v2 HTML] Database loaded:', Object.keys(payload));
+        }).catch(error => {
+          console.error('[KDS v2 HTML] Failed to ready database', error);
+          window.database = {};
+          status.status = 'error';
+          status.error = error;
+          status.finishedAt = Date.now();
+        });
+      }).catch(error => {
+        console.error('[KDS v2 HTML] Failed to create database', error);
+        window.database = {};
+        status.status = 'error';
+        status.error = error;
+        status.finishedAt = Date.now();
+      });
+    } catch (error) {
+      console.error('[KDS v2 HTML] Failed to initialize', error);
+      window.database = {};
+      status.status = 'error';
+      status.error = error;
+      status.finishedAt = Date.now();
+    }
+  </script>
 
   <script src="./kds-v2.js"></script>
 </body>
