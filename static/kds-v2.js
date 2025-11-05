@@ -269,9 +269,11 @@
   function processOrders() {
     if (!state.orders || !state.lines) return;
 
-    // Try to load reference data if not loaded yet
+    // Reference data will be loaded by the interval in tryLoadReferenceData()
+    // Don't call it here to avoid infinite loop
     if (state.menuItems.length === 0 || state.sections.length === 0) {
-      tryLoadReferenceData();
+      console.log('[KDS v2] Waiting for reference data to load...');
+      return;
     }
 
     console.log('═══════════════════════════════════════════════════');
