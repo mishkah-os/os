@@ -179,12 +179,30 @@
   let referenceDataLoaded = false;
 
   function tryLoadReferenceData() {
-    if (referenceDataLoaded) return;
-    if (window.database && Object.keys(window.database).length > 0) {
-      console.log('[KDS v2] window.database found, loading reference data...');
+    if (referenceDataLoaded) return false;
+
+    // Check if pos-mini-db has finished loading
+    const status = window.__POS_DATA_STATUS__;
+
+    if (!status) {
+      console.log('[KDS v2] Waiting for __POS_DATA_STATUS__...');
+      return false;
+    }
+
+    console.log('[KDS v2] __POS_DATA_STATUS__.status:', status.status);
+
+    if (status.status === 'ready' && window.database && Object.keys(window.database).length > 0) {
+      console.log('[KDS v2] window.database is ready, loading reference data...');
+      console.log('[KDS v2] window.database keys:', Object.keys(window.database));
       loadReferenceData();
       referenceDataLoaded = true;
+      return true;
+    } else if (status.status === 'error') {
+      console.error('[KDS v2] Failed to load database:', status.error);
+      return false;
     }
+
+    return false;
   }
 
   // Try immediately
@@ -192,14 +210,23 @@
 
   // If not loaded, keep trying
   if (!referenceDataLoaded) {
-    console.log('[KDS v2] Waiting for window.database to be loaded...');
+    console.log('[KDS v2] Starting interval to wait for database...');
     const checkInterval = setInterval(() => {
-      tryLoadReferenceData();
-      if (referenceDataLoaded) {
+      if (tryLoadReferenceData()) {
         clearInterval(checkInterval);
-        console.log('[KDS v2] Reference data loaded successfully!');
+        console.log('[KDS v2] ✅ Reference data loaded successfully!');
       }
     }, 100);
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      if (!referenceDataLoaded) {
+        clearInterval(checkInterval);
+        console.error('[KDS v2] ❌ Timeout waiting for database to load');
+        console.error('[KDS v2] __POS_DATA_STATUS__:', window.__POS_DATA_STATUS__);
+        console.error('[KDS v2] window.database:', window.database);
+      }
+    }, 10000);
   }
 
   // Watch order headers
