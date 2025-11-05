@@ -551,9 +551,81 @@ export default class ModuleStore {
     };
     const dataset = this.schemaEngine.createModuleDataset(this.tables);
     this.data = dataset;
-    if (this.seedData) {
-      this.applySeed(this.seedData, { reason: 'reset-seed' });
+    // NOTE: Seed application is now handled by the caller (e.g., resetModule())
+    // This allows the caller to use fresh seed data instead of constructor seed
+  }
+
+  /**
+   * Helper function to find seed data for a table by trying multiple name variations
+   * @param {Object} seedTables - The tables object from seed data
+   * @param {string} schemaTableName - The canonical table name from schema
+   * @returns {*} The seed value if found, undefined otherwise
+   */
+  findSeedDataForTable(seedTables, schemaTableName) {
+    // Try exact match first
+    if (seedTables.hasOwnProperty(schemaTableName)) {
+      return seedTables[schemaTableName];
     }
+
+    // Generate possible variations
+    const variations = new Set();
+
+    // Add plural form (e.g., menu_item -> menu_items)
+    variations.add(schemaTableName + 's');
+
+    // Add camelCase variants
+    const parts = schemaTableName.split('_');
+    if (parts.length > 1) {
+      // camelCase singular (e.g., menu_item -> menuItem)
+      const camelSingular = parts[0] + parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+      variations.add(camelSingular);
+      // camelCase plural (e.g., menu_item -> menuItems)
+      variations.add(camelSingular + 's');
+      // PascalCase variants
+      const pascalSingular = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+      variations.add(pascalSingular);
+      variations.add(pascalSingular + 's');
+    }
+
+    // Known alias mappings (seed name -> schema name)
+    const aliasMap = {
+      'items': 'menu_item',
+      'drivers': 'delivery_driver',
+      'employees': 'employee',
+      'categories': 'menu_category',
+      'add_ons': 'menu_modifier',
+      'removals': 'menu_modifier',
+      'stores': 'pos_database',
+      'auditEvents': 'audit_event',
+      'tableLocks': 'table_lock',
+      'reservations': 'reservation',
+      'payment_methods': 'payment_method',
+      'kitchen_sections': 'kitchen_section',
+      'menu_categories': 'menu_category',
+      'menu_items': 'menu_item',
+      'category_sections': 'category_section',
+      'order_types': 'order_type',
+      'order_statuses': 'order_status',
+      'order_payment_states': 'order_payment_state',
+      'order_stages': 'order_stage',
+      'order_line_statuses': 'order_line_status'
+    };
+
+    // Find reverse mappings (if current table is a target, check for its aliases)
+    for (const [alias, target] of Object.entries(aliasMap)) {
+      if (target === schemaTableName && seedTables.hasOwnProperty(alias)) {
+        return seedTables[alias];
+      }
+    }
+
+    // Try each variation
+    for (const variant of variations) {
+      if (seedTables.hasOwnProperty(variant)) {
+        return seedTables[variant];
+      }
+    }
+
+    return undefined;
   }
 
   applySeed(seed, context = {}) {
@@ -561,7 +633,8 @@ export default class ModuleStore {
     const tables = seed.tables || {};
     let applied = false;
     for (const tableName of this.tables) {
-      const seedValue = tables[tableName];
+      // Try to find seed data using multiple name variations
+      const seedValue = this.findSeedDataForTable(tables, tableName);
 
       // Support both array format and object format
       let rows = [];
