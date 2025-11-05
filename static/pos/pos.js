@@ -3011,9 +3011,7 @@
       }
       normalized.itemId = itemId;
       normalized.item_id = itemId;
-      if(!normalized.metadata) normalized.metadata = {};
-      normalized.metadata.itemId = itemId;
-      normalized.metadata.item_id = itemId;
+      // ✅ No longer store item_id in metadata - send directly as field
       const quantity = row.quantity != null ? Number(row.quantity) : (row.qty != null ? Number(row.qty) : 1);
       const unitPrice = row.unitPrice != null ? Number(row.unitPrice) : (row.unit_price != null ? Number(row.unit_price) : (row.price != null ? Number(row.price) : 0));
       const total = row.total != null ? Number(row.total) : round(quantity * unitPrice);
@@ -3028,7 +3026,7 @@
       const kitchenSection = sectionSource != null && sectionSource !== '' ? String(sectionSource) : 'expo';
       normalized.kitchenSectionId = kitchenSection;
       normalized.kitchen_section_id = kitchenSection;
-      normalized.metadata.kitchenSectionId = kitchenSection;
+      // ✅ No longer store kitchenSectionId in metadata - send directly as field
       return normalized;
     }
 

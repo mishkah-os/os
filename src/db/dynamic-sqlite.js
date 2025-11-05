@@ -175,6 +175,11 @@ function buildRow(tableName, record = {}, context = {}) {
 
     // Convert to appropriate type
     if (value !== undefined && value !== null && value !== '') {
+      // ✅ Safety: If value is an object, convert to JSON string (prevents [object Object])
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        value = JSON.stringify(value);
+      }
+
       if (field.sqlType === 'INTEGER') {
         value = Number.isFinite(Number(value)) ? Math.trunc(Number(value)) : null;
       } else if (field.sqlType === 'REAL') {
