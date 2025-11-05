@@ -101,9 +101,24 @@
               payload = latest.payload;
             } else {
               // NEW structure: data directly in tables
-              // Build payload from all tables
-              const snapshot = db.snapshot();
-              payload = snapshot.tables || {};
+              // Build payload from all registered tables using db.list()
+              // Check if db has snapshot method (offline store)
+              if (typeof db.snapshot === 'function') {
+                const snapshot = db.snapshot();
+                payload = snapshot.tables || {};
+              } else {
+                // Fallback: build from known tables (WebSocket store)
+                // Get registered object names from db.config
+                const registeredObjects = db.config?.objects || {};
+                Object.keys(registeredObjects).forEach(name => {
+                  try {
+                    const tableName = registeredObjects[name].table || name;
+                    payload[tableName] = db.list(name) || [];
+                  } catch (err) {
+                    console.warn(`[POS] Failed to list table ${name}:`, err);
+                  }
+                });
+              }
             }
 
             const previousKeys = Object.keys(window.database || {}).sort().join(',');
