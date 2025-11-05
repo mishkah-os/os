@@ -305,8 +305,24 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
   const tableData = new Map();
   const rawTables = tables && typeof tables === 'object' ? tables : {};
 
+  // OFFLINE MODE: Use lenient canonicalization that accepts aliases
+  const canonicalizeTableNameLenient = (name) => {
+    if (name == null) return null;
+    const text = String(name).trim();
+    if (!text) return null;
+    const lower = text.toLowerCase();
+
+    // Try to find canonical name from registry (allows aliases)
+    if (aliasRegistry.has(lower)) {
+      return aliasRegistry.get(lower);
+    }
+
+    // If not in registry, return as-is (lenient mode for offline data)
+    return text;
+  };
+
   const pushTable = (key, rows) => {
-    const canonical = canonicalizeTableName(key, aliasRegistry) || key;
+    const canonical = canonicalizeTableNameLenient(key) || key;
     tableData.set(canonical, ensureArray(rows).map(cloneValue));
   };
 
@@ -349,7 +365,8 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
 
   const resolveTableName = (name, hint) => {
     const preferred = hint || name;
-    const canonical = canonicalizeTableName(preferred, aliasRegistry);
+    // Use lenient canonicalization in offline mode
+    const canonical = canonicalizeTableNameLenient(preferred);
     if (canonical && tableData.has(canonical)) return canonical;
     if (canonical && !tableData.has(canonical)) {
       tableData.set(canonical, []);

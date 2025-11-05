@@ -178,7 +178,7 @@
             let lastChecksum = null;
             const checkForUpdates = async () => {
               try {
-                const response = await fetch(`/data/branches/${BRANCH_ID}/modules/pos/live/data.json`, {
+                const response = await fetch(`/api/branches/${BRANCH_ID}/modules/pos`, {
                   cache: 'no-store',
                   headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
                 });
@@ -194,7 +194,7 @@
                 }
 
                 if (newChecksum !== lastChecksum) {
-                  console.log('[KDS] live/data.json changed! Reloading page...');
+                  console.log('[KDS] Data changed via REST API! Reloading page...');
                   lastChecksum = newChecksum;
 
                   // Force page reload to get fresh data
