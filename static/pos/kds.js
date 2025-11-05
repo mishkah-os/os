@@ -2437,24 +2437,17 @@
         const id = String(item[key]);
         const existing = map.get(id);
 
-        // 🔧 IMPORTANT: Preserve stationId from existing job if it's being overwritten
-        // Only update stationId if the new one is different AND not null/undefined
-        let merged;
-        if(key === 'id' && existing && existing.stationId){
-          // If both have stationId and they differ, log the change
-          if(item.stationId && existing.stationId !== item.stationId){
-            console.warn('[KDS][mergeJobOrders] stationId conflict:', {
-              jobId: id,
-              existingStationId: existing.stationId,
-              incomingStationId: item.stationId,
-              action: 'preserving existing'
-            });
-          }
-          // Preserve the existing stationId unless incoming explicitly changes it
-          merged = Object.assign({}, existing || {}, item);
-          merged.stationId = existing.stationId; // Keep the original stationId
-        } else {
-          merged = Object.assign({}, existing || {}, item);
+        // ✅ Simple merge: let incoming data override existing data
+        // Backend knows the correct stationId - trust it!
+        const merged = Object.assign({}, existing || {}, item);
+
+        // 🔍 DEBUG: Log stationId changes for diagnostics only
+        if(key === 'id' && existing && existing.stationId && item.stationId && existing.stationId !== item.stationId){
+          console.log('[KDS][mergeJobOrders] stationId updated:', {
+            jobId: id,
+            oldStationId: existing.stationId,
+            newStationId: item.stationId
+          });
         }
 
         map.set(id, merged);
@@ -3841,6 +3834,18 @@
           header?.ticketNumber,
         displayOrderId || jobOrderId
       );
+
+      // 🔍 DEBUG: Log header processing - check for stationId
+      if(header?.stationId || header?.station_id || header?.kitchenSectionId || header?.kitchen_section_id){
+        console.log('[KDS][buildWatcherPayload] order_header contains stationId:', {
+          jobOrderId,
+          stationId: header?.stationId,
+          station_id: header?.station_id,
+          kitchenSectionId: header?.kitchenSectionId,
+          kitchen_section_id: header?.kitchen_section_id
+        });
+      }
+
       orders.set(jobOrderId, {
         jobOrderId,
         orderId: displayOrderId || jobOrderId,
@@ -4014,6 +4019,17 @@
       }
       if (!order.jobs.has(jobId)) {
         const station = stationMap[sectionId] || {};
+
+        // 🔍 DEBUG: Log job creation with stationId
+        console.log('[KDS][buildWatcherPayload] Creating new job:', {
+          jobId,
+          orderId: order.orderId,
+          sectionId,
+          stationCode: station?.code,
+          stationInMap: !!station?.id,
+          stationName: station?.nameAr || station?.nameEn
+        });
+
         order.jobs.set(jobId, {
           id: jobId,
           jobOrderId: jobOrderRef || jobId,
@@ -4120,9 +4136,11 @@
             : 'queued';
         const progressState =
           status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting';
+        // ✅ IMPORTANT: Use job.id (includes sectionId) as the unique identifier
+        // This prevents stationId conflicts when merging jobs
         jobHeaders.push({
-          id: job.jobOrderId || job.id,
-          jobOrderId: job.jobOrderId || job.id,
+          id: job.id,  // "DAR-001057:67ba4d64..." - includes sectionId for uniqueness
+          jobOrderId: job.jobOrderId || job.id,  // "DAR-001057" - base order ID
           orderId: job.orderId,
           orderNumber: job.orderNumber,
           stationId: job.stationId,
