@@ -447,7 +447,7 @@ function getStatements(tableName) {
           'DELETE FROM order_line WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
         ),
         load: db.prepare(
-          'SELECT payload FROM order_line WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY updated_at DESC'
+          'SELECT item_id, payload FROM order_line WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY updated_at DESC'
         )
       };
       break;
@@ -610,6 +610,11 @@ export function loadTableRecords(tableName, context = {}) {
     try {
       const parsed = JSON.parse(row.payload);
       if (parsed && typeof parsed === 'object') {
+        // For order_line, merge item_id from column into the record
+        if (tableName === 'order_line' && row.item_id != null && row.item_id !== '') {
+          parsed.itemId = row.item_id;
+          parsed.item_id = row.item_id;
+        }
         records.push(parsed);
       }
     } catch (error) {
