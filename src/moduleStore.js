@@ -561,10 +561,21 @@ export default class ModuleStore {
     const tables = seed.tables || {};
     let applied = false;
     for (const tableName of this.tables) {
-      const rows = Array.isArray(tables[tableName]) ? tables[tableName] : [];
+      const seedValue = tables[tableName];
+
+      // Support both array format and object format
+      let rows = [];
+      if (Array.isArray(seedValue)) {
+        rows = seedValue;
+      } else if (seedValue && typeof seedValue === 'object') {
+        // Single object (e.g., settings)
+        rows = [seedValue];
+      }
+
       if (!rows.length) continue;
       const target = this.data[tableName];
       if (target.length) continue;
+
       rows.forEach((row) => {
         const record = this.schemaEngine.createRecord(tableName, row, { branchId: this.branchId, ...context });
         this.initializeRecordVersion(tableName, record);
