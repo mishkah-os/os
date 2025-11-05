@@ -172,6 +172,12 @@ function createContext(store, config) {
     const rows = Array.isArray(tables?.[def.table]) ? tables[def.table] : [];
     const plain = rows.map((row) => def.fromRecord(row, baseCtx));
     cache.set(name, plain);
+
+    // DEBUG: Log emit details
+    if (config.logger?.log) {
+      config.logger.log(`[MishkahSimpleDB][emit] ${name}: ${rows.length} rows (table: ${def.table})`);
+    }
+
     const subs = watchers.get(name);
     if (!subs || !subs.size) return;
     for (const handler of Array.from(subs)) {

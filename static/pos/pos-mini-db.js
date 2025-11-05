@@ -38,7 +38,7 @@ const TABLE_ALIAS_GROUPS = {
 };
 
 const DEFAULT_TABLES = [
-  'pos_database',
+  // 'pos_database', // REMOVED: Deprecated - data is now directly in tables
   'pos_shift',
   'order_header',
   'order_line',
