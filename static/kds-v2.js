@@ -234,7 +234,10 @@
     console.log('═══════════════════════════════════════════════════');
     console.log('🔍 [DEBUG] order_header updated:', headers ? headers.length : 0);
     if (headers && headers.length > 0) {
-      console.log('🔍 [DEBUG] First order_header record:', headers[0]);
+      console.log('🔍 [DEBUG] First 3 order_header records:');
+      headers.slice(0, 3).forEach((h, i) => {
+        console.log(`Order ${i}:`, JSON.stringify(h, null, 2));
+      });
       console.log('🔍 [DEBUG] order_header fields:', Object.keys(headers[0]));
     }
     console.log('═══════════════════════════════════════════════════');
@@ -296,19 +299,30 @@
 
     // Group lines by orderId and kitchenSectionId
     let firstLineProcessed = false;
+    let linesWithoutOrderId = 0;
+    let linesWithoutSectionId = 0;
+    let linesProcessed = 0;
+
     state.lines.forEach((line, index) => {
       const orderId = line.orderId || line.order_id;
       const sectionId = line.kitchenSectionId || line.kitchen_section_id;
 
-      // Debug first line only
-      if (!firstLineProcessed && index === 0) {
-        console.log('🔍 [DEBUG] Processing first line:', line);
-        console.log('🔍 [DEBUG] orderId:', orderId);
-        console.log('🔍 [DEBUG] sectionId:', sectionId);
-        firstLineProcessed = true;
+      // Debug first 3 lines
+      if (index < 3) {
+        console.log(`🔍 [DEBUG] Line ${index}:`, JSON.stringify(line, null, 2));
+        console.log(`🔍 [DEBUG] Line ${index} - orderId:`, orderId, 'sectionId:', sectionId);
       }
 
-      if (!orderId || !sectionId) return;
+      if (!orderId) {
+        linesWithoutOrderId++;
+        return;
+      }
+      if (!sectionId) {
+        linesWithoutSectionId++;
+        return;
+      }
+
+      linesProcessed++;
 
       // Find order header
       const order = state.orders.find(o => o.id === orderId);
@@ -325,8 +339,13 @@
       }
 
       // Use names from menu_item if available, fallback to line data
-      const nameAr = menuItem?.nameAr || menuItem?.name_ar || line.itemNameAr || line.item_name_ar || itemId;
-      const nameEn = menuItem?.nameEn || menuItem?.name_en || line.itemNameEn || line.item_name_en || itemId;
+      // Support multiple data structures: item_name.ar, nameAr, name_ar
+      const nameAr = menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar ||
+                     line.item_name?.ar || line.itemNameAr || line.item_name_ar ||
+                     menuItem?.item_name?.en || menuItem?.nameEn || menuItem?.name_en || itemId;
+      const nameEn = menuItem?.item_name?.en || menuItem?.nameEn || menuItem?.name_en ||
+                     line.item_name?.en || line.itemNameEn || line.item_name_en ||
+                     menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar || itemId;
 
       if (index === 0) {
         console.log('🔍 [DEBUG] Resolved nameAr:', nameAr);
@@ -385,6 +404,11 @@
       }
     });
 
+    console.log('🔍 [DEBUG] Lines processing summary:');
+    console.log('🔍 [DEBUG] - Total lines:', state.lines.length);
+    console.log('🔍 [DEBUG] - Lines processed:', linesProcessed);
+    console.log('🔍 [DEBUG] - Lines without orderId:', linesWithoutOrderId);
+    console.log('🔍 [DEBUG] - Lines without sectionId:', linesWithoutSectionId);
     console.log('🔍 [DEBUG] Total jobs created:', state.jobs.size);
     if (state.jobs.size > 0) {
       const firstJob = Array.from(state.jobs.values())[0];
@@ -505,8 +529,11 @@
     sortedSections.forEach(section => {
       const count = getJobsForSection(section.id).length;
 
-      const nameAr = section.nameAr || section.name_ar || section.nameEn || section.name_en || section.id;
-      const nameEn = section.nameEn || section.name_en || section.nameAr || section.name_ar || section.id;
+      // Support multiple data structures for section names
+      const nameAr = section.section_name?.ar || section.nameAr || section.name_ar ||
+                     section.section_name?.en || section.nameEn || section.name_en || section.id;
+      const nameEn = section.section_name?.en || section.nameEn || section.name_en ||
+                     section.section_name?.ar || section.nameAr || section.name_ar || section.id;
 
       console.log('🔍 [DEBUG] Section:', section.id, '→ nameAr:', nameAr, ', nameEn:', nameEn);
 
@@ -569,6 +596,9 @@
     const container = document.getElementById('orders-container');
     if (!container) return;
 
+    console.log('🔍 [DEBUG] renderOrders() - activeTab:', state.activeTab);
+    console.log('🔍 [DEBUG] renderOrders() - total jobs:', state.jobs.size);
+
     // Handle different views based on active tab
     if (state.activeTab === 'expo') {
       return renderExpoView(container);
@@ -588,20 +618,26 @@
 
     // Prep or section view: show jobs
     let filteredJobs = Array.from(state.jobs.values());
+    console.log('🔍 [DEBUG] Before filtering:', filteredJobs.length, 'jobs');
 
     if (state.activeTab === 'prep') {
       // Show all jobs not handed off
       filteredJobs = filteredJobs.filter(job => !state.handoff[job.orderId]);
+      console.log('🔍 [DEBUG] After prep filter:', filteredJobs.length, 'jobs');
     } else {
       // Show jobs for specific section
+      const beforeSectionFilter = filteredJobs.length;
       filteredJobs = filteredJobs.filter(job =>
         job.sectionId === state.activeTab &&
         !state.handoff[job.orderId]
       );
+      console.log(`🔍 [DEBUG] Section filter (${state.activeTab}): ${beforeSectionFilter} → ${filteredJobs.length} jobs`);
     }
 
     // Filter out completed jobs
+    const beforeCompletedFilter = filteredJobs.length;
     filteredJobs = filteredJobs.filter(job => job.status !== 'completed');
+    console.log(`🔍 [DEBUG] After completed filter: ${beforeCompletedFilter} → ${filteredJobs.length} jobs`);
 
     // Sort by created time
     filteredJobs.sort((a, b) => {
@@ -611,6 +647,7 @@
     });
 
     if (filteredJobs.length === 0) {
+      console.log('🔍 [DEBUG] No jobs to display - showing empty state');
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-state-icon">🍽️</div>
@@ -620,6 +657,7 @@
       return;
     }
 
+    console.log('🔍 [DEBUG] Rendering', filteredJobs.length, 'jobs');
     container.innerHTML = filteredJobs.map(job => renderOrderCard(job)).join('');
   }
 
@@ -687,7 +725,10 @@
     const timeSince = getTimeSinceCreated(job.createdAt);
     const timeClass = getTimeClass(timeSince);
     const section = state.sections.find(s => s.id === job.sectionId);
-    const sectionName = section ? (section.nameAr || section.name_ar || section.nameEn || section.name_en) : job.sectionId;
+    const sectionName = section ? (
+      section.section_name?.ar || section.nameAr || section.name_ar ||
+      section.section_name?.en || section.nameEn || section.name_en || section.id
+    ) : job.sectionId;
 
     return `
       <div class="order-card ${timeSince > 20 * 60 * 1000 ? 'urgent' : ''}">
@@ -730,9 +771,13 @@
     const menuItem = state.menuItems.find(item => item.id === itemId);
 
     if (lang === 'ar') {
-      return menuItem?.nameAr || menuItem?.name_ar || line.itemNameAr || line.item_name_ar || itemId || 'صنف';
+      return menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar ||
+             line.item_name?.ar || line.itemNameAr || line.item_name_ar ||
+             menuItem?.item_name?.en || menuItem?.nameEn || menuItem?.name_en || itemId || 'صنف';
     } else {
-      return menuItem?.nameEn || menuItem?.name_en || line.itemNameEn || line.item_name_en || itemId || 'Item';
+      return menuItem?.item_name?.en || menuItem?.nameEn || menuItem?.name_en ||
+             line.item_name?.en || line.itemNameEn || line.item_name_en ||
+             menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar || itemId || 'Item';
     }
   }
 
