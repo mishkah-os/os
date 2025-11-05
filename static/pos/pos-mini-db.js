@@ -232,9 +232,9 @@ function canonicalizeTableName(name, registry) {
   throw new Error(`INVALID_TABLE_NAME: '${text}' is not a valid table name according to the official schema.`);
 }
 
-async function fetchJson(url, { cache = 'no-store' } = {}) {
+async function fetchJson(url, { cache = 'no-store', skipBasedomain = false } = {}) {
   let finalUrl = url;
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && !skipBasedomain) {
     const base = window.basedomain;
     if (base && typeof base === 'string' && url && url.startsWith('/')) {
       const origin = base.replace(/\/+$/, '');
@@ -264,7 +264,8 @@ async function fetchModuleSchemaRemote(branchId, moduleId) {
 async function fetchModuleSchemaLocal(branchId, moduleId) {
   const basePath = `/data/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
   const schemaUrl = `${basePath}/schema/definition.json`;
-  const schema = await fetchJson(schemaUrl);
+  // Use skipBasedomain to fetch from local filesystem, not production server
+  const schema = await fetchJson(schemaUrl, { skipBasedomain: true });
   const moduleEntry = {
     id: moduleId,
     moduleId,
@@ -293,7 +294,8 @@ async function fetchModuleDataset(branchId, moduleId) {
     const candidates = [`${basePath}/live/data.json`, `${basePath}/seeds/initial.json`];
     for (const url of candidates) {
       try {
-        return await fetchJson(url);
+        // Use skipBasedomain to fetch from local filesystem, not production server
+        return await fetchJson(url, { skipBasedomain: true });
       } catch (_err) {
         // try next candidate
       }
