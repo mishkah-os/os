@@ -1512,16 +1512,8 @@
     return list.reduce((acc, station)=>{
       if(station && station.id != null){
         const normalizedId = normalizeSectionId(station.id);
-
         // Add entry with normalized ID
         acc[normalizedId] = station;
-
-        // Also add entries for all aliases that point to this normalized ID
-        Object.keys(SECTION_ID_ALIASES).forEach(aliasId => {
-          if(SECTION_ID_ALIASES[aliasId] === normalizedId){
-            acc[aliasId] = station;
-          }
-        });
       }
       return acc;
     }, {});
