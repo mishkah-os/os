@@ -142,74 +142,20 @@
         populate = true     // Auto-populate FKs
       } = options;
 
-      // Use Mishkah Store if available
+      // Use listTable() directly if store is connected
       if (this.store && this.store.connected) {
-        return await this._getDataFromStore(tableName, options);
+        return await this._getDataFromListTable(tableName, options);
       }
 
-      // Otherwise use query endpoint
-      return await this._getDataFromQuery(tableName, options);
+      throw new Error('Store not connected. Use connect() first.');
     }
 
     /**
-     * Get data via client:query (new dynamic endpoint)
+     * Get data via listTable() - Direct snapshot access
      */
-    async _getDataFromStore(tableName, options) {
-      const store = this.store;
-
-      // Send query request
-      const requestId = generateId('query');
-      const promise = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Query timeout'));
-        }, 30000);
-
-        const handler = (event) => {
-          const msg = typeof event === 'object' ? event : JSON.parse(event.data || event);
-
-          if (msg.type === 'server:query:result' && msg.requestId === requestId) {
-            clearTimeout(timeout);
-
-            // Build columns from schema
-            const columns = this._buildColumnsFromSchema(tableName, msg.result);
-
-            resolve({
-              name: tableName,
-              columns,
-              data: msg.result || [],
-              count: Array.isArray(msg.result) ? msg.result.length : 0,
-              page: options.page || 1,
-              top: options.top || 100
-            });
-          } else if (msg.type === 'server:query:error' && msg.requestId === requestId) {
-            clearTimeout(timeout);
-            reject(new Error(msg.error || 'Query failed'));
-          }
-        };
-
-        store.ws.addEventListener('message', handler);
-      });
-
-      // Send query
-      store.ws.send(JSON.stringify({
-        type: 'client:query',
-        moduleId: this.moduleId,
-        table: tableName,
-        queryType: 'list',
-        populate: options.populate !== false,
-        filter: options.filter,
-        requestId
-      }));
-
-      return promise;
-    }
-
-    /**
-     * Get data via traditional listTable
-     */
-    async _getDataFromQuery(tableName, options) {
+    async _getDataFromListTable(tableName, options) {
       if (!this.store) {
-        throw new Error('Store not connected. Use connect() first or provide API endpoint.');
+        throw new Error('Store not connected. Use connect() first.');
       }
 
       const records = this.store.listTable(tableName);
@@ -220,8 +166,8 @@
         columns,
         data: records,
         count: records.length,
-        page: 1,
-        top: records.length
+        page: options.page || 1,
+        top: options.top || records.length
       };
     }
 
