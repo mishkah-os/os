@@ -6,6 +6,242 @@
     "name": "mishkah_pos",
     "version": 1,
     "tables": [
+  {
+        "name": "pos_database",
+        "label": "POS Dataset",
+        "comment": "Snapshot container for the branch dataset including configuration, menu and cached stores.",
+        "sqlName": "pos_database",
+        "layout": {
+          "x": 0,
+          "y": 0
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": true,
+            "unique": true,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "branchId",
+            "columnName": "branch_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "payload",
+            "columnName": "payload",
+            "type": "json",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "defaultValue": {},
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "createdAt",
+            "columnName": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "updatedAt",
+            "columnName": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_pos_database_branch",
+            "columns": [
+              "branch_id"
+            ],
+            "unique": false
+          }
+        ]
+      },
+      {
+        "name": "pos_terminal",
+        "label": "POS Terminal",
+        "comment": "Registered POS terminals with physical location metadata.",
+        "sqlName": "pos_terminal",
+        "layout": {
+          "x": 80,
+          "y": 40
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "terminal_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "code",
+            "columnName": "terminal_code",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": true,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "label",
+            "columnName": "terminal_label",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 96,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "number",
+            "columnName": "terminal_number",
+            "type": "integer",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "locationId",
+            "columnName": "location_id",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "zone",
+            "columnName": "zone",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "status",
+            "columnName": "status",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "active",
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "timezone",
+            "columnName": "timezone",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "lastOnlineAt",
+            "columnName": "last_online_at",
+            "type": "timestamp",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "createdAt",
+            "columnName": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "updatedAt",
+            "columnName": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_pos_terminal_code",
+            "columns": [
+              "terminal_code"
+            ],
+            "unique": true
+          },
+          {
+            "name": "idx_pos_terminal_status",
+            "columns": [
+              "status"
+            ]
+          }
+        ]
+      },
       {
         "name": "audit_events",
         "label": "Audit Event",
