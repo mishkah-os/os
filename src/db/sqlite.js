@@ -274,11 +274,16 @@ function buildLineRow(record = {}, context = {}) {
   const createdAt = record.createdAt || record.created_at || null;
   const updatedAt = record.updatedAt || record.updated_at || createdAt;
   const version = Number.isFinite(Number(record.version)) ? Math.trunc(Number(record.version)) : 1;
+
+  // Extract item_id from both camelCase and snake_case variants
+  const itemId = record.itemId || record.item_id || null;
+
   return {
     branch_id: normalizedContext.branchId,
     module_id: normalizedContext.moduleId,
     id: String(record.id),
     order_id: String(orderId),
+    item_id: itemId ? String(itemId) : null,
     status: status ? String(status) : null,
     stage: stage ? String(stage) : null,
     created_at: createdAt || null,
@@ -423,10 +428,11 @@ function getStatements(tableName) {
     case 'order_line':
       statements = {
         upsert: db.prepare(`
-          INSERT INTO order_line (branch_id, module_id, id, order_id, status, stage, created_at, updated_at, version, payload)
-          VALUES (@branch_id, @module_id, @id, @order_id, @status, @stage, @created_at, @updated_at, @version, @payload)
+          INSERT INTO order_line (branch_id, module_id, id, order_id, item_id, status, stage, created_at, updated_at, version, payload)
+          VALUES (@branch_id, @module_id, @id, @order_id, @item_id, @status, @stage, @created_at, @updated_at, @version, @payload)
           ON CONFLICT(branch_id, module_id, id) DO UPDATE SET
             order_id = excluded.order_id,
+            item_id = excluded.item_id,
             status = excluded.status,
             stage = excluded.stage,
             created_at = excluded.created_at,
