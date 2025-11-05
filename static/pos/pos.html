@@ -87,262 +87,41 @@
         .then(() => {
           const db = window.__POS_DB__;
 
-          // Function to update window.database - load directly from REST API
-          const updateWindowDatabase = async () => {
-            console.log('[POS] Loading data from REST API (original seed structure)');
-
+          // Load data from REST API (preserves original structure)
+          const loadFromRestApi = async () => {
             try {
-              // Load data using simple loader (preserves original structure)
               const tables = await window.loadPosData(BRANCH_ID, 'pos');
-
-              // Use data as-is from API (already in correct format from seeds)
               window.database = tables;
               status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
               status.keys = Object.keys(tables);
-
-              const tablesWithData = Object.keys(tables).filter(k => Array.isArray(tables[k]) && tables[k].length > 0);
-              console.log('[POS] window.database ready:', {
-                totalTables: tablesWithData.length,
-                tables: tablesWithData.map(k => ({ name: k, count: tables[k].length })),
-                status: status.status
-              });
-
-              return;
-
             } catch (error) {
-              console.error('[POS] Failed to load from REST API, falling back to WebSocket store');
+              window.database = {};
+              status.status = 'error';
             }
-
-            // Fallback: use WebSocket store
-            let payload = {};
-
-            // Check if db has snapshot method (offline store)
-            if (typeof db.snapshot === 'function') {
-              console.log('[POS] Using db.snapshot() (offline mode)');
-              const snapshot = db.snapshot();
-              payload = snapshot.tables || {};
-              console.log('[POS] Snapshot tables:', Object.keys(payload).length, 'tables');
-            } else {
-              // WebSocket store: build from registered objects using db.list()
-              console.log('[POS] Using db.list() for each table (WebSocket mode)');
-
-              // Get registered names from the store (not from config!)
-              const registeredNames = typeof db.getRegisteredNames === 'function'
-                ? db.getRegisteredNames()
-                : Object.keys(db.config?.objects || {});
-
-              console.log('[POS] Registered names:', registeredNames);
-
-              registeredNames.forEach(name => {
-                try {
-                  // Skip pos_database - we don't need it anymore
-                  if (name === 'pos_database') {
-                    console.log('[POS] Skipping pos_database (deprecated)');
-                    return;
-                  }
-
-                  // Get definition to find table name
-                  const def = typeof db.getDefinition === 'function' ? db.getDefinition(name) : null;
-                  const tableName = def?.table || name;
-
-                  const data = db.list(name);
-                  payload[tableName] = data || [];
-
-                  if (data && data.length > 0) {
-                    console.log(`[POS] ✓ ${name} (table: ${tableName}): ${data.length} records`);
-                  }
-                } catch (err) {
-                  console.warn(`[POS] ✗ Failed to list ${name}:`, err);
-                }
-              });
-
-              console.log('[POS] Final payload:', Object.keys(payload).length, 'tables with data');
-            }
-
-            // COMPATIBILITY LAYER: Map schema names to legacy frontend names
-            // pos.js expects: menu_items (plural), category_id (snake_case), price, etc.
-            // But schema provides: menu_item (singular), categoryId (camelCase), basePrice, etc.
-            const compatPayload = { ...payload };
-
-            // Map menu_item → menu_items (plural)
-            if (compatPayload.menu_item) {
-              compatPayload.menu_items = compatPayload.menu_item.map(item => ({
-                id: item.id,
-                category_id: item.categoryId,
-                kitchen_section_id: item.kitchenSectionId,
-                price: item.basePrice || 0,
-                item_name: { ar: item.nameAr || '', en: item.nameEn || '' },
-                name: { ar: item.nameAr || '', en: item.nameEn || '' },
-                item_description: { ar: item.descriptionAr || '', en: item.descriptionEn || '' },
-                description: { ar: item.descriptionAr || '', en: item.descriptionEn || '' },
-                is_active: item.isActive,
-                is_combo: item.isCombo,
-                sku: item.sku,
-                // Keep original schema fields too for compatibility
-                ...item
-              }));
-              console.log('[POS] Mapped menu_item → menu_items (plural):', compatPayload.menu_items.length);
-            }
-
-            // Map menu_category → menu_categories with field mappings
-            if (compatPayload.menu_category) {
-              compatPayload.menu_categories = compatPayload.menu_category.map(cat => ({
-                id: cat.id,
-                category_name: { ar: cat.nameAr || '', en: cat.nameEn || '' },
-                name: { ar: cat.nameAr || '', en: cat.nameEn || '' },
-                section_id: cat.sectionId,
-                sort_order: cat.sortOrder || 0,
-                is_active: cat.isActive,
-                ...cat
-              }));
-              console.log('[POS] Mapped menu_category → menu_categories:', compatPayload.menu_categories.length);
-            }
-
-            // Map kitchen_section → kitchen_sections
-            if (compatPayload.kitchen_section) {
-              compatPayload.kitchen_sections = compatPayload.kitchen_section.map(sec => ({
-                id: sec.id,
-                section_name: { ar: sec.nameAr || '', en: sec.nameEn || '' },
-                name: { ar: sec.nameAr || '', en: sec.nameEn || '' },
-                sort_order: sec.sortOrder || 0,
-                ...sec
-              }));
-              console.log('[POS] Mapped kitchen_section → kitchen_sections:', compatPayload.kitchen_sections.length);
-            }
-
-            // Map menu_modifier → modifiers object with add_ons and removals
-            if (compatPayload.menu_modifier && Array.isArray(compatPayload.menu_modifier)) {
-              const add_ons = [];
-              const removals = [];
-
-              compatPayload.menu_modifier.forEach(mod => {
-                const mappedMod = {
-                  id: mod.id,
-                  name: { ar: mod.nameAr || '', en: mod.nameEn || '' },
-                  label: { ar: mod.nameAr || '', en: mod.nameEn || '' },
-                  price_change: mod.priceChange || 0,
-                  priceChange: mod.priceChange || 0,
-                  is_active: mod.isActive,
-                  ...mod
-                };
-
-                if (mod.modifierType === 'add_on' || mod.modifierType === 'addon') {
-                  add_ons.push(mappedMod);
-                } else if (mod.modifierType === 'removal' || mod.modifierType === 'remove') {
-                  removals.push(mappedMod);
-                }
-              });
-
-              compatPayload.modifiers = { add_ons, removals };
-              console.log('[POS] Mapped menu_modifier → modifiers:', { add_ons: add_ons.length, removals: removals.length });
-            }
-
-            // Map other singular → plural table names (simple copy)
-            const simplePluralMappings = {
-              'category_section': 'category_sections',
-              'payment_method': 'payment_methods',
-              'order_type': 'order_types',
-              'order_status': 'order_statuses',
-              'order_stage': 'order_stages',
-              'order_payment_state': 'order_payment_states',
-              'order_line_status': 'order_line_statuses',
-              'employee': 'employees',
-              'delivery_driver': 'delivery_drivers',
-              'audit_event': 'audit_events'
-            };
-
-            Object.entries(simplePluralMappings).forEach(([singular, plural]) => {
-              if (compatPayload[singular]) {
-                compatPayload[plural] = compatPayload[singular];
-                console.log(`[POS] Mapped ${singular} → ${plural}:`, compatPayload[plural].length);
-              }
-            });
-
-            payload = compatPayload;
-
-            const previousKeys = Object.keys(window.database || {}).sort().join(',');
-            const newKeys = Object.keys(payload || {}).sort().join(',');
-
-            window.database = payload;
-            status.status = Object.keys(payload).length > 0 ? 'ready' : 'idle';
-            status.keys = Object.keys(payload || {});
-
-            // Log update if keys changed
-            if (previousKeys !== newKeys) {
-              console.log('[POS] window.database updated with new data', {
-                previousKeyCount: previousKeys.split(',').filter(Boolean).length,
-                newKeyCount: newKeys.split(',').filter(Boolean).length,
-                keys: Object.keys(payload),
-                timestamp: new Date().toISOString()
-              });
-            }
-
-            // Always log final state for debugging
-            const tablesWithData = Object.keys(window.database).filter(k => window.database[k]?.length > 0);
-            console.log('[POS] window.database ready:', {
-              totalTables: tablesWithData.length,
-              tables: tablesWithData.map(k => ({ name: k, count: window.database[k]?.length || 0 })),
-              status: status.status
-            });
           };
 
-          // Initial load
-          updateWindowDatabase();
-          status.finishedAt = Date.now();
+          // Initial load from REST API
+          loadFromRestApi().then(() => {
+            status.finishedAt = Date.now();
 
-          // Watch for changes in ALL registered tables (not just pos_database)
-          const registeredNames = typeof db.getRegisteredNames === 'function'
-            ? db.getRegisteredNames()
-            : Object.keys(db.config?.objects || {});
+            // Watch for changes and reload from REST API to maintain structure consistency
+            const registeredNames = typeof db.getRegisteredNames === 'function'
+              ? db.getRegisteredNames()
+              : Object.keys(db.config?.objects || {});
 
-          registeredNames.forEach(name => {
-            if (name === 'pos_database') return; // Skip deprecated table
-
-            db.watch(name, (records) => {
-              console.log(`[POS] ${name} changed (${records.length} records), updating window.database...`);
-              updateWindowDatabase();
+            registeredNames.forEach(name => {
+              if (name === 'pos_database') return;
+              db.watch(name, () => {
+                loadFromRestApi(); // Reload from REST API on any change
+              });
             });
           });
-
-          // POLLING: Check REST API for updates every 30 seconds
-          let lastChecksum = null;
-          const checkForUpdates = async () => {
-            try {
-              const response = await fetch(`/api/branches/${BRANCH_ID}/modules/pos`, {
-                cache: 'no-store',
-                headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' }
-              });
-
-              if (!response.ok) return;
-
-              const data = await response.json();
-              const newChecksum = JSON.stringify(data).substring(0, 200);
-
-              if (lastChecksum === null) {
-                lastChecksum = newChecksum;
-                return;
-              }
-
-              if (newChecksum !== lastChecksum) {
-                console.log('[POS] Data changed via REST API! Reloading page...');
-                lastChecksum = newChecksum;
-                window.location.reload();
-              }
-            } catch (error) {
-              console.warn('[POS] Polling check failed:', error);
-            }
-          };
-
-          // Check immediately and then every 30 seconds
-          checkForUpdates();
-          setInterval(checkForUpdates, 30000);
 
           const script = document.createElement('script');
           script.src = './pos.js';
           document.head.appendChild(script);
         })
         .catch((error) => {
-          console.error('[POS] Failed to hydrate dataset from /api/schema', error);
           window.database = {};
           status.status = 'error';
           status.error = error;
