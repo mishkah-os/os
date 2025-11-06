@@ -2085,10 +2085,12 @@
 
   const renderPrepPanel = (db, t, lang, now)=>{
     // ✅ Use order_header + order_line for static "prep/all" tab
-    // Hide orders that moved to expo (ready) or beyond (assembled/served)
+    // Show ALL orders except those assembled/served/delivered
     const orders = buildOrdersFromHeaders(db).filter(order=> {
       const status = order.handoffStatus;
-      return status !== 'ready' && status !== 'assembled' && status !== 'served' && status !== 'delivered';
+      // ✅ Show: pending (preparing), ready (waiting for assembly)
+      // ❌ Hide: assembled, served, delivered (moved to handoff/done)
+      return status !== 'assembled' && status !== 'served' && status !== 'delivered';
     });
     if(!orders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
@@ -2108,14 +2110,32 @@
   };
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
-    const servedOrderIds = new Set(
-      computeOrdersSnapshot(db)
-        .filter(order=> order.handoffStatus === 'served')
+    // ✅ Get orders that are assembled/served/delivered from order_header
+    const completedOrderIds = new Set(
+      buildOrdersFromHeaders(db)
+        .filter(order=> {
+          const status = order.handoffStatus;
+          return status === 'assembled' || status === 'served' || status === 'delivered';
+        })
         .map(order=> order.orderId || order.id)
     );
-    const allJobsForStation = db.data.jobs.byStation[stationId] || [];    const jobs = allJobsForStation
+
+    if (completedOrderIds.size > 0) {
+      console.log('[KDS][StationPanel] Hiding jobs for completed orders:', {
+        stationId,
+        completedOrderIds: Array.from(completedOrderIds),
+        completedCount: completedOrderIds.size
+      });
+    }
+
+    const allJobsForStation = db.data.jobs.byStation[stationId] || [];
+    const jobs = allJobsForStation
+      // Hide jobs that are already ready/completed
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
-      .filter(job=> !servedOrderIds.has(job.orderId));    const station = db.data.stationMap?.[stationId];
+      // Hide jobs whose order is assembled/served/delivered
+      .filter(job=> !completedOrderIds.has(job.orderId));
+
+    const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, jobs.map(job=> renderJobCard(job, station, t, lang, now)));
   };
