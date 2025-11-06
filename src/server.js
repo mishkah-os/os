@@ -339,43 +339,32 @@ function mergeSchemaDefinitions(primary, fallback) {
 }
 
 async function loadModuleSchemaSnapshot(branchId, moduleId) {
-  const primaryPath = getModuleSchemaPath(branchId, moduleId);
-  let schema = await readJsonSafe(primaryPath, null);
-  let source = schema ? 'branch' : null;
-  let fallbackSchema = null;
-  if (!schema) {
-    const fallbackPath = getModuleSchemaFallbackPath(moduleId);
-    if (fallbackPath) {
-      schema = await readJsonSafe(fallbackPath, null);
-      if (schema) source = 'fallback';
-    }
-    return { schema, source };
-  }
+  // ALWAYS use central schema, skip branch-specific schema
+  // This ensures consistent schema across all branches
   const fallbackPath = getModuleSchemaFallbackPath(moduleId);
+  let schema = null;
+  let source = null;
+
   if (fallbackPath) {
-    fallbackSchema = await readJsonSafe(fallbackPath, null);
+    schema = await readJsonSafe(fallbackPath, null);
+    if (schema) source = 'central';
   }
-  if (fallbackSchema) {
-    const merged = mergeSchemaDefinitions(schema, fallbackSchema);
-    schema = merged;
-    if (source === 'branch') {
-      source = 'branch+fallback';
-    }
-  }
+
   return { schema, source };
 }
 
 async function loadModuleSeedSnapshot(branchId, moduleId) {
-  const primaryPath = getModuleSeedPath(branchId, moduleId);
-  let seed = await readJsonSafe(primaryPath, null);
-  let source = seed ? 'branch' : null;
-  if (!seed) {
-    const fallbackPath = getModuleSeedFallbackPath(moduleId);
-    if (fallbackPath) {
-      seed = await readJsonSafe(fallbackPath, null);
-      if (seed) source = 'fallback';
-    }
+  // ALWAYS use central seed, skip branch-specific seed
+  // This ensures consistent seed data across all branches
+  const fallbackPath = getModuleSeedFallbackPath(moduleId);
+  let seed = null;
+  let source = null;
+
+  if (fallbackPath) {
+    seed = await readJsonSafe(fallbackPath, null);
+    if (seed) source = 'central';
   }
+
   return { seed, source };
 }
 
@@ -3451,8 +3440,6 @@ function getModuleConfig(moduleId) {
 
 async function ensureModuleSchema(branchId, moduleId) {
   const cacheKey = `${branchId}::${moduleId}`;
-  const schemaPath = getModuleSchemaPath(branchId, moduleId);
-  const branchDescriptor = await describeFile(schemaPath);
   const cached = moduleSchemaCache.get(cacheKey);
 
   const loadSchema = async (filePath, source, mtimeMs) => {
@@ -3473,31 +3460,23 @@ async function ensureModuleSchema(branchId, moduleId) {
     moduleSchemaCache.set(cacheKey, { source, mtimeMs, validated: true });
   };
 
-  if (branchDescriptor.exists) {
-    if (cached?.source === 'branch' && cached?.validated && cached?.mtimeMs === branchDescriptor.mtimeMs) {
-      return;
-    }
-    await loadSchema(schemaPath, 'branch', branchDescriptor.mtimeMs);
-    return;
-  }
-
+  // ALWAYS use central schema, skip branch-specific schema
+  // This ensures consistent schema across all branches
   const fallbackPath = getModuleSchemaFallbackPath(moduleId);
   const fallbackDescriptor = await describeFile(fallbackPath);
   if (fallbackDescriptor.exists) {
-    if (cached?.source === 'fallback' && cached?.validated && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
+    if (cached?.source === 'central' && cached?.validated && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
       return;
     }
-    await loadSchema(fallbackPath, 'fallback', fallbackDescriptor.mtimeMs);
+    await loadSchema(fallbackPath, 'central', fallbackDescriptor.mtimeMs);
     return;
   }
 
-  throw new Error(`Schema for module "${moduleId}" not found for branch "${branchId}"`);
+  throw new Error(`Central schema for module "${moduleId}" not found`);
 }
 
 async function ensureModuleSeed(branchId, moduleId) {
   const cacheKey = `${branchId}::${moduleId}`;
-  const seedPath = getModuleSeedPath(branchId, moduleId);
-  const branchDescriptor = await describeFile(seedPath);
   const cached = moduleSeedCache.get(cacheKey);
 
   const readSeed = async (filePath, source, mtimeMs) => {
@@ -3507,20 +3486,23 @@ async function ensureModuleSeed(branchId, moduleId) {
     return normalized;
   };
 
+  // Try branch-specific seed first, then fallback to central seed
+  const branchPath = getModuleSeedPath(branchId, moduleId);
+  const branchDescriptor = await describeFile(branchPath);
   if (branchDescriptor.exists) {
     if (cached?.source === 'branch' && cached?.mtimeMs === branchDescriptor.mtimeMs) {
       return cached.seed ?? null;
     }
-    return readSeed(seedPath, 'branch', branchDescriptor.mtimeMs);
+    return readSeed(branchPath, 'branch', branchDescriptor.mtimeMs);
   }
 
   const fallbackPath = getModuleSeedFallbackPath(moduleId);
   const fallbackDescriptor = await describeFile(fallbackPath);
   if (fallbackDescriptor.exists) {
-    if (cached?.source === 'fallback' && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
+    if (cached?.source === 'central' && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
       return cached.seed ?? null;
     }
-    return readSeed(fallbackPath, 'fallback', fallbackDescriptor.mtimeMs);
+    return readSeed(fallbackPath, 'central', fallbackDescriptor.mtimeMs);
   }
 
   moduleSeedCache.set(cacheKey, { source: 'missing', mtimeMs: null, seed: null });
