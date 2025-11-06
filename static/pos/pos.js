@@ -2457,6 +2457,14 @@
       const jobDetails = [];
       const jobModifiers = [];
       const historyEntries = [];
+
+      // ✅ BATCH IDENTIFIER: Each save creates separate job_orders
+      // This ensures adding new items doesn't overwrite existing job_orders
+      const batchTimestamp = order.updatedAt || order.savedAt || Date.now();
+      const batchId = typeof batchTimestamp === 'number'
+        ? batchTimestamp
+        : new Date(batchTimestamp).getTime();
+
       lines.forEach((line, index)=>{
         const lineIndex = index + 1;
         // ✅ Check all variants of kitchenSection field
@@ -2477,7 +2485,9 @@
           });
         }
 
-        const jobId = `${order.id}-${stationId}`;
+        // ✅ UNIQUE JOB ID per batch: orderId-stationId-timestamp
+        // This ensures each save creates NEW job_orders, not overwrite existing ones
+        const jobId = `${order.id}-${stationId}-${batchId}`;
         const section = sectionMap.get(stationId) || {};
         const stationCode = section.code || (stationId ? String(stationId).toUpperCase() : 'KDS');
         const existing = jobsMap.get(jobId) || {
