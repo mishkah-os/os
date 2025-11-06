@@ -3917,12 +3917,26 @@
 
   const buildWatcherPayload = () => {
     const posPayload = watcherState.posPayload || {};
+    console.log('[KDS][buildWatcherPayload] watcherState snapshot:', {
+      hasHeaders: !!watcherState.headers,
+      headersCount: ensureArray(watcherState.headers).length,
+      hasLines: !!watcherState.lines,
+      linesCount: ensureArray(watcherState.lines).length,
+      hasOrderHeaders: !!watcherState.orderHeaders,
+      orderHeadersCount: ensureArray(watcherState.orderHeaders).length,
+      hasOrderLines: !!watcherState.orderLines,
+      orderLinesCount: ensureArray(watcherState.orderLines).length,
+      hasPosPayload: !!posPayload && Object.keys(posPayload).length > 0,
+      posPayloadKeys: Object.keys(posPayload).slice(0, 10)
+    });
     console.log('[KDS][buildWatcherPayload] posPayload kitchen data:', {
       hasKitchenSections: !!posPayload?.kitchen_sections,
       kitchenSectionsCount: posPayload?.kitchen_sections?.length || 0,
       hasKdsStations: !!posPayload?.kds?.stations,
       hasMasterStations: !!posPayload?.master?.stations,
-      hasMasterKitchenSections: !!posPayload?.master?.kitchenSections
+      hasMasterKitchenSections: !!posPayload?.master?.kitchenSections,
+      hasMenuItems: !!posPayload?.menu_items,
+      menuItemsCount: posPayload?.menu_items?.length || 0
     });
     const stations = buildStations(
       posPayload,
@@ -4629,27 +4643,48 @@
         })
       );
 
+      console.log('[KDS] Setting up watcher for pos_database...');
       watcherUnsubscribers.push(
         store.watch('pos_database', (rows) => {
           const latest =
             Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
           watcherState.posPayload =
             (latest && latest.payload) || {};
-          console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
+          console.log('[KDS][WATCH][pos_database]', {
+            count:(rows||[]).length,
+            hasPayload:!!(latest&&latest.payload),
+            keys: latest && latest.payload ? Object.keys(latest.payload).slice(0, 15) : [],
+            hasKitchenSections: !!(latest?.payload?.kitchen_sections),
+            kitchenSectionsCount: latest?.payload?.kitchen_sections?.length || 0,
+            hasMenuItems: !!(latest?.payload?.menu_items),
+            menuItemsCount: latest?.payload?.menu_items?.length || 0
+          });
           updateFromWatchers();
         })
       );
 
+      console.log('[KDS] Setting up watcher for job_order_header...');
       watcherUnsubscribers.push(
         store.watch('job_order_header', (rows) => {
+          console.log('[KDS][WATCH][job_order_header] CALLBACK FIRED', {
+            rowsType: typeof rows,
+            isArray: Array.isArray(rows),
+            rawCount: (rows||[]).length
+          });
           watcherState.headers = ensureArray(rows);
           console.log('[KDS][WATCH][job_order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
           updateFromWatchers();
         })
       );
 
+      console.log('[KDS] Setting up watcher for job_order_detail...');
       watcherUnsubscribers.push(
         store.watch('job_order_detail', (rows) => {
+          console.log('[KDS][WATCH][job_order_detail] CALLBACK FIRED', {
+            rowsType: typeof rows,
+            isArray: Array.isArray(rows),
+            rawCount: (rows||[]).length
+          });
           watcherState.lines = ensureArray(rows);
           console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
           updateFromWatchers();
@@ -4734,25 +4769,46 @@
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for pos_database...');
           watcherUnsubscribers.push(
             store.watch('pos_database', (rows) => {
               const latest =
                 Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
               watcherState.posPayload =
                 (latest && latest.payload) || {};
-              console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
+              console.log('[KDS][WATCH][pos_database]', {
+                count:(rows||[]).length,
+                hasPayload:!!(latest&&latest.payload),
+                keys: latest && latest.payload ? Object.keys(latest.payload).slice(0, 15) : [],
+                hasKitchenSections: !!(latest?.payload?.kitchen_sections),
+                kitchenSectionsCount: latest?.payload?.kitchen_sections?.length || 0,
+                hasMenuItems: !!(latest?.payload?.menu_items),
+                menuItemsCount: latest?.payload?.menu_items?.length || 0
+              });
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for job_order_header...');
           watcherUnsubscribers.push(
             store.watch('job_order_header', (rows) => {
+              console.log('[KDS][WATCH][job_order_header] CALLBACK FIRED (delayed)', {
+                rowsType: typeof rows,
+                isArray: Array.isArray(rows),
+                rawCount: (rows||[]).length
+              });
               watcherState.headers = ensureArray(rows);
               console.log('[KDS][WATCH][job_order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for job_order_detail...');
           watcherUnsubscribers.push(
             store.watch('job_order_detail', (rows) => {
+              console.log('[KDS][WATCH][job_order_detail] CALLBACK FIRED (delayed)', {
+                rowsType: typeof rows,
+                isArray: Array.isArray(rows),
+                rawCount: (rows||[]).length
+              });
               watcherState.lines = ensureArray(rows);
               console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
               updateFromWatchers();
