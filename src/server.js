@@ -4153,13 +4153,10 @@ async function handleBranchesApi(req, res, url) {
       jsonResponse(res, 400, { error: 'missing-table-or-field' });
       return;
     }
-    if (!store.tables.includes(tableName)) {
-      jsonResponse(res, 404, { error: 'table-not-found', table: tableName });
-      return;
-    }
     try {
       const allocation = await sequenceManager.nextValue(branchId, moduleId, tableName, fieldName, {
-        record: body.record || null
+        record: body.record || null,
+        autoCreate: true
       });
       if (!allocation) {
         jsonResponse(res, 404, { error: 'sequence-not-configured', table: tableName, field: fieldName });

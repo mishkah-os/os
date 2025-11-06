@@ -166,10 +166,19 @@ export default class SequenceManager {
 
   async nextValue(branchId, moduleId, tableName, fieldName, context = {}) {
     const rules = await this.getRulesForTable(branchId, moduleId, tableName);
-    if (!rules) {
-      return null;
+    let rule = rules?.[fieldName];
+
+    // Auto-create default sequence if requested and rule doesn't exist
+    if (!rule && context.autoCreate === true) {
+      rule = {
+        start: 1,
+        prefix: '',
+        suffix: '',
+        delimiter: '',
+        padding: 0
+      };
     }
-    const rule = rules[fieldName];
+
     if (!rule) {
       return null;
     }
