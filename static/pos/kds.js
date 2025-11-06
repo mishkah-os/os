@@ -72,8 +72,7 @@
     console.log('[KDS] Processing data...', {
       jobHeaders: state.jobOrderHeaders.length,
       jobDetails: state.jobOrderDetails.length,
-      sections: state.kitchenSections.length,
-      menuItems: state.menuItems.length
+      sections: state.kitchenSections.length
     });
 
     // إنشاء maps للوصول السريع
