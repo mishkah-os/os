@@ -44,7 +44,10 @@ export default class ModuleStore {
     const seedTables = seed.tables || {};
     this.data = schemaEngine.createModuleDataset(this.tables);
     for (const tableName of this.tables) {
-      const records = Array.isArray(seedTables[tableName]) ? seedTables[tableName].map((entry) => deepClone(entry)) : [];
+      // CRITICAL FIX: Use findSeedDataForTable to handle plural/singular and alias mappings
+      // This ensures seeds with 'kitchen_sections' are correctly loaded into 'kitchen_section' table
+      const seedValue = this.findSeedDataForTable(seedTables, tableName);
+      const records = Array.isArray(seedValue) ? seedValue.map((entry) => deepClone(entry)) : [];
       this.data[tableName] = records;
       for (const record of this.data[tableName]) {
         this.initializeRecordVersion(tableName, record);
