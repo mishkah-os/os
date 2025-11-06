@@ -2242,7 +2242,10 @@
         D.Text.Span(null, [`${t.labels.driverPhone}: ${driverPhone}`]),
         assignment?.vehicleId ? D.Text.Span(null, [`🚗 ${assignment.vehicleId}`]) : null
       ].filter(Boolean)),
-      D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, order.jobs.map(job=> createBadge(`${job.stationCode || job.stationId}: ${t.labels.jobStatus[job.status] || job.status}`, STATUS_CLASS[job.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`))),
+      // ✅ order.jobs might be undefined if using buildOrdersFromHeaders
+      (order.jobs && order.jobs.length > 0)
+        ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, order.jobs.map(job=> createBadge(`${job.stationCode || job.stationId}: ${t.labels.jobStatus[job.status] || job.status}`, STATUS_CLASS[job.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)))
+        : null,
       D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2 pt-2` }}, [
         D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:assign', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-sky-400/60 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/20` }}, [t.actions.assignDriver]),
         statusKey !== 'delivered' && statusKey !== 'settled'
@@ -3476,7 +3479,8 @@
   };
 
   const watcherUnsubscribers = [];
-  let store = typeof window !== 'undefined' && window.__POS_DB__ ? window.__POS_DB__ : null;
+  // ✅ KDS doesn't need pos-db store - we use REST API directly
+  // This avoids memory-only storage and ensures backend persistence
 
   const watcherState = {
     status: 'idle',
@@ -3485,7 +3489,84 @@
     lines: [],             // job_order_detail
     orderHeaders: [],      // ✅ order_header for static tabs
     orderLines: [],        // ✅ order_line for static tabs
-    deliveries: []
+    deliveries: [],
+    kitchenSections: [],   // Master data
+    menuItems: [],         // Master data
+    categorySections: []   // Master data
+  };
+
+  // ✅ Simple REST API polling for KDS (replaces store.watch)
+  let pollingInterval = null;
+  const POLL_INTERVAL_MS = 3000;  // Poll every 3 seconds
+
+  const fetchFromBackend = async (endpoint) => {
+    try {
+      const response = await fetch(`/api/v1/${endpoint}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error(`[KDS][Polling] Failed to fetch ${endpoint}:`, error);
+      return null;
+    }
+  };
+
+  const pollBackendData = async () => {
+    try {
+      // Fetch all required tables in parallel
+      const [
+        jobHeaders,
+        jobDetails,
+        orderHeaders,
+        orderLines,
+        deliveries,
+        kitchenSections,
+        menuItems,
+        categorySections
+      ] = await Promise.all([
+        fetchFromBackend('job_order_header'),
+        fetchFromBackend('job_order_detail'),
+        fetchFromBackend('order_header'),
+        fetchFromBackend('order_line'),
+        fetchFromBackend('order_delivery'),
+        fetchFromBackend('kitchen_sections'),
+        fetchFromBackend('menu_items'),
+        fetchFromBackend('category_sections')
+      ]);
+
+      // Update watcherState with fetched data
+      if (jobHeaders) watcherState.headers = ensureArray(jobHeaders);
+      if (jobDetails) watcherState.lines = ensureArray(jobDetails);
+      if (orderHeaders) watcherState.orderHeaders = ensureArray(orderHeaders);
+      if (orderLines) watcherState.orderLines = ensureArray(orderLines);
+      if (deliveries) watcherState.deliveries = ensureArray(deliveries);
+      if (kitchenSections) watcherState.kitchenSections = ensureArray(kitchenSections);
+      if (menuItems) watcherState.menuItems = ensureArray(menuItems);
+      if (categorySections) watcherState.categorySections = ensureArray(categorySections);
+
+      watcherState.status = 'active';
+      updateFromWatchers();
+    } catch (error) {
+      console.error('[KDS][Polling] Error:', error);
+      watcherState.status = 'error';
+    }
+  };
+
+  const startPolling = () => {
+    console.log('[KDS][Polling] Starting REST API polling...');
+    // Initial fetch
+    pollBackendData();
+    // Then poll every POLL_INTERVAL_MS
+    pollingInterval = setInterval(pollBackendData, POLL_INTERVAL_MS);
+  };
+
+  const stopPolling = () => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      pollingInterval = null;
+      console.log('[KDS][Polling] Stopped');
+    }
   };
 
   // ✅ Helper function to persist job order status changes to server
@@ -3752,16 +3833,17 @@
     }
   };
 
-  // ✅ Helper function to persist order_header status changes to server
+  // ✅ Helper function to persist order_header status changes to backend
+  // KDS uses REST API directly (no pos-db store needed)
   const persistOrderHeaderStatus = async (orderId, status, timestamp) => {
-    console.log('[KDS][persistOrderHeaderStatus] 🔄 Persisting order_header status:', {
+    console.log('[KDS][persistOrderHeaderStatus] 🔄 Persisting to backend:', {
       orderId,
       status,
       timestamp
     });
 
-    // ✅ Update watcherState FIRST (before any async operations)
-    // This ensures the UI doesn't flicker even if database update fails
+    // ✅ Update watcherState FIRST (optimistic update)
+    // This ensures the UI updates immediately before backend confirms
     const orderHeaders = watcherState.orderHeaders || [];
     const matchingHeader = orderHeaders.find(header =>
       String(header.id || header.orderId) === orderId
@@ -3775,58 +3857,43 @@
         }
         return header;
       });
-      console.log('[KDS][persistOrderHeaderStatus] ✅ Updated watcherState.orderHeaders (optimistic)');
+      console.log('[KDS][persistOrderHeaderStatus] ✅ Optimistic update applied');
     } else {
-      console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in watcherState:', orderId);
+      console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found:', orderId);
     }
 
-    // ✅ Then persist to database (REST API or store)
-    if (!store || typeof store.update !== 'function') {
-      console.warn('[KDS][persistOrderHeaderStatus] Using REST API fallback (store not available)');
-
-      // ✅ Fallback: Use REST API directly
-      try {
-        const response = await fetch(`/api/v1/order_header/${orderId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: status,
-            statusId: status,
-            updatedAt: timestamp || new Date().toISOString()
-          })
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-
-        console.log('[KDS][persistOrderHeaderStatus] ✅ Successfully persisted via REST API');
-        return;
-      } catch (apiError) {
-        console.error('[KDS][persistOrderHeaderStatus] ❌ REST API fallback failed:', apiError);
-        return;
-      }
-    }
-
-    // ✅ Use store.update if available
+    // ✅ Persist to backend via REST API
     try {
-      if (!matchingHeader) {
-        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ Cannot persist - order_header not found');
-        return;
+      const response = await fetch(`/api/v1/order_header/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: status,
+          statusId: status,
+          updatedAt: timestamp || new Date().toISOString()
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
-      const headerUpdate = {
-        id: matchingHeader.id,
-        status: status,
-        statusId: status,
-        updatedAt: timestamp || new Date().toISOString()
-      };
+      console.log('[KDS][persistOrderHeaderStatus] ✅ Backend updated successfully');
+    } catch (apiError) {
+      console.error('[KDS][persistOrderHeaderStatus] ❌ Backend update failed:', apiError);
 
-      await store.update('order_header', headerUpdate);
-      console.log('[KDS][persistOrderHeaderStatus] ✅ Successfully persisted via store.update:', headerUpdate);
-    } catch (error) {
-      console.error('[KDS][persistOrderHeaderStatus] ❌ Failed to persist via store.update:', error);
+      // ⚠️ Rollback optimistic update on error
+      if (matchingHeader) {
+        watcherState.orderHeaders = orderHeaders.map(header => {
+          const headerId = String(header.id || header.orderId);
+          if (headerId === orderId) {
+            return matchingHeader;  // Restore original
+          }
+          return header;
+        });
+        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ Rolled back optimistic update');
+      }
     }
   };
 
@@ -4891,9 +4958,21 @@
     }
   };
 
-  if (store && typeof store.watch === 'function') {
-    // تسجيل الجداول المطلوبة للـ KDS في الـ store
-    // هذا ضروري قبل القراءة منها أو عمل watch
+  // ✅ KDS now uses simple REST API polling instead of pos-db store
+  // This ensures backend persistence and avoids memory-only storage
+  console.log('[KDS] Using REST API polling (no pos-db dependency)');
+
+  // Start polling backend data
+  startPolling();
+
+  // Cleanup on page unload
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', stopPolling);
+  }
+
+  // OLD CODE BELOW - kept for reference but not executed
+  if (false && store && typeof store.watch === 'function') {
+    // This code is now disabled - KDS uses REST API polling instead
     const registeredObjects = (store.config && typeof store.config.objects === 'object')
       ? Object.keys(store.config.objects)
       : [];
@@ -5109,17 +5188,8 @@
     setTimeout(checkStoreReady, 100);
   }
 
-  if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', () => {
-      watcherUnsubscribers.splice(0).forEach((unsub) => {
-        try {
-          if (typeof unsub === 'function') unsub();
-        } catch (_err) {
-          /* ignore */
-        }
-      });
-    });
-  }
+  // ✅ Cleanup handled above in stopPolling() on beforeunload
+  // Old store unsubscribe code no longer needed
 
   updateFromWatchers();
 
