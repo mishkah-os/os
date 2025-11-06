@@ -3473,13 +3473,24 @@
         });
         console.log('[KDS][persistJobOrderStatusChange] Updated job_order_header via REST API');
 
-        // Update order_line
+        // Update order_line (only for items in this job)
         const baseOrderId = extractBaseOrderId(jobId);
         if (baseOrderId && statusPayload.status) {
-          const orderLines = watcherState.orderLines || [];
-          const matchingLines = orderLines.filter(line =>
-            String(line.orderId || line.order_id) === baseOrderId
+          // Get itemIds from job_order_detail
+          const allJobDetails = watcherState.lines || [];
+          const jobDetails = allJobDetails.filter(detail =>
+            String(detail.jobOrderId || detail.job_order_id) === jobId
           );
+          const jobItemIds = jobDetails.map(detail =>
+            String(detail.itemId || detail.item_id || '')
+          ).filter(id => id);
+
+          const orderLines = watcherState.orderLines || [];
+          const matchingLines = orderLines.filter(line => {
+            const lineOrderId = String(line.orderId || line.order_id || '');
+            const lineItemId = String(line.itemId || line.item_id || '');
+            return lineOrderId === baseOrderId && jobItemIds.includes(lineItemId);
+          });
 
           for (const line of matchingLines) {
             await fetch(`${baseUrl}/order_line/${line.id}`, {
@@ -3492,6 +3503,28 @@
               })
             });
             console.log('[KDS][persistJobOrderStatusChange] Updated order_line via REST API:', line.id);
+          }
+
+          // ✅ Check if ALL order_lines ready, then update order_header
+          const orderAllLines = orderLines.filter(line =>
+            String(line.orderId || line.order_id) === baseOrderId
+          );
+          const allLinesReady = orderAllLines.every(line => {
+            const lineStatus = String(line.status || line.statusId || '');
+            return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
+          });
+
+          if (allLinesReady && orderAllLines.length > 0) {
+            await fetch(`${baseUrl}/order_header/${baseOrderId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                status: 'ready',
+                statusId: 'ready',
+                updatedAt: statusPayload.updatedAt || new Date().toISOString()
+              })
+            });
+            console.log('[KDS][persistJobOrderStatusChange] ✅ All lines ready, updated order_header via REST API');
           }
         }
 
@@ -3540,7 +3573,7 @@
       }
       console.log('[KDS][persistJobOrderStatusChange] Updated job_order_detail count:', jobDetails.length);
 
-      // 3. ✅ Update order_line status using orderId from job
+      // 3. ✅ Update order_line status using orderId from job + itemId matching
       const baseOrderId = extractBaseOrderId(jobId);
       console.log('[KDS][persistJobOrderStatusChange] Extracted baseOrderId:', {
         jobId,
@@ -3549,18 +3582,42 @@
       });
 
       if (baseOrderId && statusPayload.status) {
+        // ✅ Get itemIds from job_order_detail for this specific job
+        const allJobDetails = watcherState.lines || [];
+        const jobDetails = allJobDetails.filter(detail =>
+          String(detail.jobOrderId || detail.job_order_id) === jobId
+        );
+
+        const jobItemIds = jobDetails.map(detail =>
+          String(detail.itemId || detail.item_id || '')
+        ).filter(id => id);
+
+        console.log('[KDS][persistJobOrderStatusChange] Job items:', {
+          jobId,
+          jobDetailsCount: jobDetails.length,
+          jobItemIds
+        });
+
         const orderLines = watcherState.orderLines || [];
 
-        // Try multiple matching strategies
+        // ✅ Match order_line by: orderId = baseOrderId AND itemId in jobItemIds
         const matchingLines = orderLines.filter(line => {
           const lineOrderId = String(line.orderId || line.order_id || '');
-          const matches = lineOrderId === baseOrderId;
+          const lineItemId = String(line.itemId || line.item_id || '');
+
+          const orderMatches = lineOrderId === baseOrderId;
+          const itemMatches = jobItemIds.includes(lineItemId);
+          const matches = orderMatches && itemMatches;
 
           if (!matches && orderLines.length < 10) {
             console.log('[KDS][persistJobOrderStatusChange] Line comparison:', {
               lineId: line.id,
               lineOrderId,
+              lineItemId,
               baseOrderId,
+              jobItemIds,
+              orderMatches,
+              itemMatches,
               matches
             });
           }
@@ -3600,8 +3657,8 @@
           newStatus: statusPayload.status
         });
 
-        // 3b. ✅ Also update order_header status
-        if (matchingLines.length > 0) {
+        // 3b. ✅ Smart order_header update: Only update when ALL order_lines are ready
+        if (matchingLines.length > 0 && baseOrderId) {
           try {
             const orderHeaders = watcherState.orderHeaders || [];
             const matchingHeader = orderHeaders.find(header =>
@@ -3609,17 +3666,51 @@
             );
 
             if (matchingHeader) {
-              const headerUpdatePayload = {
-                id: matchingHeader.id,
-                status: statusPayload.status,
-                statusId: statusPayload.status,
-                updatedAt: statusPayload.updatedAt || new Date().toISOString()
-              };
+              // ✅ Check if ALL order_lines for this order are ready
+              const allOrderLines = watcherState.orderLines || [];
+              const orderAllLines = allOrderLines.filter(line =>
+                String(line.orderId || line.order_id) === baseOrderId
+              );
 
-              console.log('[KDS][persistJobOrderStatusChange] Updating order_header with payload:', headerUpdatePayload);
+              const allLinesReady = orderAllLines.every(line => {
+                const lineStatus = String(line.status || line.statusId || '');
+                return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
+              });
 
-              await store.update('order_header', headerUpdatePayload);
-              console.log('[KDS][persistJobOrderStatusChange] ✅ Updated order_header:', matchingHeader.id, 'status:', statusPayload.status);
+              const readyCount = orderAllLines.filter(line => {
+                const lineStatus = String(line.status || line.statusId || '');
+                return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
+              }).length;
+
+              console.log('[KDS][persistJobOrderStatusChange] 🧮 Checking if all order_lines ready:', {
+                orderId: baseOrderId,
+                totalLines: orderAllLines.length,
+                readyLines: readyCount,
+                allReady: allLinesReady,
+                lineStatuses: orderAllLines.map(l => ({ id: l.id, status: l.status || l.statusId }))
+              });
+
+              // ✅ Only update order_header if ALL lines are ready
+              if (allLinesReady && orderAllLines.length > 0) {
+                const headerUpdatePayload = {
+                  id: matchingHeader.id,
+                  status: 'ready',  // Always 'ready' when all lines are ready
+                  statusId: 'ready',
+                  updatedAt: statusPayload.updatedAt || new Date().toISOString()
+                };
+
+                console.log('[KDS][persistJobOrderStatusChange] ✅ All order_lines ready! Updating order_header to ready:', headerUpdatePayload);
+
+                await store.update('order_header', headerUpdatePayload);
+                console.log('[KDS][persistJobOrderStatusChange] ✅ Updated order_header:', matchingHeader.id, 'status: ready (all lines ready)');
+              } else {
+                console.log('[KDS][persistJobOrderStatusChange] ⏳ Not all order_lines ready yet, keeping order_header unchanged:', {
+                  orderId: baseOrderId,
+                  currentHeaderStatus: matchingHeader.status || matchingHeader.statusId,
+                  readyCount,
+                  totalCount: orderAllLines.length
+                });
+              }
             } else {
               console.warn('[KDS][persistJobOrderStatusChange] ⚠️ order_header not found for orderId:', baseOrderId);
             }
