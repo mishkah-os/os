@@ -51,15 +51,13 @@
     activeTab: 'prep',
     activeSection: null,
 
-    // البيانات الأساسية من WebSocket
-    jobOrderHeaders: [],
-    jobOrderDetails: [],
-    kitchenSections: [],
-    menuItems: [],
-    menuCategories: [],
+    // البيانات من WebSocket - أسماء من pos_schema.json فقط
+    jobOrderHeaders: [],  // job_order_header table
+    jobOrderDetails: [],  // job_order_detail table
+    kitchenSections: [],  // kitchen_sections table
 
-    // البيانات المعالجة
-    jobOrders: [], // كل job_order حسب القسم
+    // البيانات المعالجة للعرض
+    jobOrders: [], // قائمة مبسطة من job_order_header + details
 
     // حالة الاتصال
     isOnline: false
@@ -68,143 +66,115 @@
   // ==================== معالجة البيانات ====================
 
   /**
-   * معالجة order_header و order_line وتجميعها حسب القسم المطبخي
+   * معالجة job_order_header و job_order_detail - الجداول الصحيحة من pos_schema.json
    */
   const processData = () => {
     console.log('[KDS] Processing data...', {
-      orderHeaders: state.jobOrderHeaders.length,
-      orderLines: state.jobOrderDetails.length,
+      jobHeaders: state.jobOrderHeaders.length,
+      jobDetails: state.jobOrderDetails.length,
       sections: state.kitchenSections.length,
-      menuItems: state.menuItems.length,
-      menuCategories: state.menuCategories.length
+      menuItems: state.menuItems.length
     });
 
     // إنشاء maps للوصول السريع
-    const menuItemMap = {};
-    state.menuItems.forEach(item => {
-      menuItemMap[item.id] = item;
-    });
-
-    const menuCategoryMap = {};
-    state.menuCategories.forEach(cat => {
-      menuCategoryMap[cat.id] = cat;
-    });
-
     const sectionMap = {};
     state.kitchenSections.forEach(section => {
       sectionMap[section.id] = section;
     });
 
-    const headerMap = {};
-    state.jobOrderHeaders.forEach(header => {
-      const headerId = header.id || header.order_id;
-      headerMap[headerId] = header;
-    });
+    // تجميع job_order_detail حسب job_order_id
+    const detailsByJobId = {};
+    state.jobOrderDetails.forEach(detail => {
+      // استخدام الأسماء من pos_schema.json فقط - لا fallbacks
+      // job_order_detail fields:
+      // - id -> detail_id
+      // - jobOrderId -> job_order_id (FK to job_order_header)
+      // - itemId -> item_id
+      // - itemNameAr -> item_name_ar
+      // - itemNameEn -> item_name_en
+      // - quantity -> quantity
+      // - status -> status
+      // - prepNotes -> prep_notes
 
-    // تجميع order_lines حسب order_id وقسم المطبخ
-    // { section_id: { order_id: { header, lines: [] } } }
-    const jobsBySection = {};
+      const jobOrderId = detail.jobOrderId;
+      if (!jobOrderId) return;
 
-    state.jobOrderDetails.forEach(line => {
-      // دعم أسماء مختلفة للحقول
-      const lineOrderId = line.order_id || line.orderId || line.order_header_id;
-      const lineItemId = line.item_id || line.itemId || line.menu_item_id;
-      const lineStatus = line.status || line.status_id;
-
-      const header = headerMap[lineOrderId];
-      if (!header) {
-        console.warn('[KDS] Line without header:', line.id, lineOrderId);
-        return;
+      if (!detailsByJobId[jobOrderId]) {
+        detailsByJobId[jobOrderId] = [];
       }
 
-      // تحديد القسم المطبخي
-      let sectionId = null;
-
-      // 1. من الصنف مباشرة
-      const menuItem = menuItemMap[lineItemId];
-      if (menuItem?.kitchen_section_id) {
-        sectionId = menuItem.kitchen_section_id;
-      }
-      // 2. من التصنيف
-      else if (menuItem?.category_id) {
-        const category = menuCategoryMap[menuItem.category_id];
-        if (category?.section_id) {
-          sectionId = category.section_id;
-        }
-      }
-      // 3. قسم افتراضي
-      if (!sectionId) {
-        sectionId = 'general';
-      }
-
-      // إنشاء الهيكل
-      if (!jobsBySection[sectionId]) {
-        jobsBySection[sectionId] = {};
-      }
-
-      const headerId = header.id || header.order_id;
-      if (!jobsBySection[sectionId][headerId]) {
-        jobsBySection[sectionId][headerId] = {
-          header: header,
-          lines: []
-        };
-      }
-
-      // إضافة الصنف مع بياناته الكاملة
-      jobsBySection[sectionId][headerId].lines.push({
-        id: line.id,
-        itemId: lineItemId,
-        itemName: menuItem?.item_name || line.item_name || { ar: lineItemId || 'Unknown', en: lineItemId || 'Unknown' },
-        quantity: line.quantity || 1,
-        status: lineStatus || 'pending',
-        notes: line.notes || line.prep_notes || ''
+      detailsByJobId[jobOrderId].push({
+        id: detail.id,
+        itemId: detail.itemId,
+        itemNameAr: detail.itemNameAr || detail.itemId,
+        itemNameEn: detail.itemNameEn || detail.itemId,
+        quantity: detail.quantity || 1,
+        status: detail.status,
+        notes: detail.prepNotes || ''
       });
     });
 
-    // تحويل إلى قائمة مسطحة للعرض
-    const jobOrders = [];
-    Object.keys(jobsBySection).forEach(sectionId => {
-      const section = sectionMap[sectionId] || {
-        id: sectionId,
-        section_name: { ar: sectionId, en: sectionId }
+    // معالجة job_order_header
+    const jobOrders = state.jobOrderHeaders.map(header => {
+      // استخدام الأسماء من pos_schema.json فقط - لا fallbacks
+      // job_order_header fields:
+      // - id -> job_order_id
+      // - orderId -> order_id
+      // - orderNumber -> order_number
+      // - serviceMode -> service_mode
+      // - stationId -> station_id
+      // - stationCode -> station_code
+      // - status -> status
+      // - totalItems -> total_items
+      // - completedItems -> completed_items
+      // - remainingItems -> remaining_items
+      // - tableLabel -> table_label
+      // - customerName -> customer_name
+      // - acceptedAt -> accepted_at
+      // - createdAt -> created_at
+
+      const jobOrderId = header.id;
+      const orderId = header.orderId;
+      const orderNumber = header.orderNumber;
+      const serviceMode = header.serviceMode;
+      const stationId = header.stationId;
+      const stationCode = header.stationCode;
+      const status = header.status;
+      const totalItems = header.totalItems;
+      const completedItems = header.completedItems;
+      const tableLabel = header.tableLabel;
+      const customerName = header.customerName;
+      const acceptedAt = header.acceptedAt;
+      const createdAt = header.createdAt;
+
+      const details = detailsByJobId[jobOrderId] || [];
+
+      const section = sectionMap[stationId] || {
+        id: stationId || 'general',
+        section_name: { ar: stationCode || 'عام', en: stationCode || 'General' }
       };
 
-      Object.keys(jobsBySection[sectionId]).forEach(orderId => {
-        const job = jobsBySection[sectionId][orderId];
-        const header = job.header;
-        const lines = job.lines;
-
-        // دعم أسماء مختلفة للحقول في header
-        const headerOrderNumber = header.order_number || header.orderNumber;
-        const headerTableLabel = header.table_label || header.tableLabel || header.table_name || header.tableName;
-        const headerCustomerName = header.customer_name || header.customerName || header.guest_name || header.guestName;
-        const headerServiceMode = header.service_mode || header.serviceMode || header.order_type || header.orderType;
-        const headerCreatedAt = header.created_at || header.createdAt;
-        const headerStatus = header.status || header.status_id;
-
-        // حساب الحالة العامة
-        const allReady = lines.every(l => l.status === 'ready' || l.status === 'completed');
-        const status = allReady && lines.length > 0 ? 'ready' : (headerStatus || 'pending');
-
-        jobOrders.push({
-          jobOrderId: `${orderId}:${sectionId}`,
-          orderId: orderId,
-          orderNumber: headerOrderNumber || orderId,
-          tableLabel: headerTableLabel || '',
-          customerName: headerCustomerName || '',
-          serviceMode: headerServiceMode || 'dine_in',
-          createdAt: headerCreatedAt,
-          status: status,
-          sectionId: sectionId,
-          sectionName: section.section_name,
-          sectionDescription: section.description || { ar: '', en: '' },
-          lines: lines
-        });
-      });
+      return {
+        jobOrderId: jobOrderId,
+        orderId: orderId,
+        orderNumber: orderNumber || orderId,
+        tableLabel: tableLabel || '',
+        customerName: customerName || '',
+        serviceMode: serviceMode || 'dine_in',
+        createdAt: createdAt || acceptedAt,
+        status: status || 'pending',
+        totalItems: totalItems || 0,
+        completedItems: completedItems || 0,
+        sectionId: stationId,
+        sectionCode: stationCode,
+        sectionName: section.section_name,
+        sectionDescription: section.description || { ar: '', en: '' },
+        lines: details
+      };
     });
 
     state.jobOrders = jobOrders;
-    console.log('[KDS] Processed job orders:', jobOrders.length, 'from', state.jobOrderHeaders.length, 'headers');
+    console.log('[KDS] Processed job orders:', jobOrders.length);
   };
 
   // ==================== UI ====================
@@ -403,7 +373,7 @@
             ]),
             D('div', {}, [
               D('p', { class: tw`text-slate-200 font-medium` }, [
-                line.itemName?.[state.lang] || line.itemName?.ar || line.itemId
+                state.lang === 'ar' ? line.itemNameAr : line.itemNameEn
               ]),
               line.notes && D('p', { class: tw`text-xs text-slate-400 mt-1` }, [
                 line.notes
@@ -555,30 +525,26 @@
     // تحميل البيانات الثابتة من window.database
     if (window.database) {
       state.kitchenSections = window.database.kitchen_sections || [];
-      state.menuItems = window.database.menu_items || [];
-      state.menuCategories = window.database.menu_categories || [];
 
       console.log('[KDS] Loaded static data:', {
-        kitchenSections: state.kitchenSections.length,
-        menuItems: state.menuItems.length,
-        menuCategories: state.menuCategories.length
+        kitchenSections: state.kitchenSections.length
       });
     }
 
-    // Watch على order_header
-    db.watch('order_header', (rows) => {
+    // Watch على job_order_header - الجدول الصحيح للـ KDS
+    db.watch('job_order_header', (rows) => {
       state.jobOrderHeaders = rows || [];
       state.isOnline = true;
-      console.log('[KDS][WATCH] order_header:', state.jobOrderHeaders.length);
+      console.log('[KDS][WATCH] job_order_header:', state.jobOrderHeaders.length);
       processData();
       render();
     });
 
-    // Watch على order_line
-    db.watch('order_line', (rows) => {
+    // Watch على job_order_detail - الجدول الصحيح للـ KDS
+    db.watch('job_order_detail', (rows) => {
       state.jobOrderDetails = rows || [];
       state.isOnline = true;
-      console.log('[KDS][WATCH] order_line:', state.jobOrderDetails.length);
+      console.log('[KDS][WATCH] job_order_detail:', state.jobOrderDetails.length);
       processData();
       render();
     });
