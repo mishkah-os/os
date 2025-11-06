@@ -164,9 +164,52 @@ export default class SequenceManager {
     return `${mod}:${table}:${field}`;
   }
 
+  async persistAutoCreatedRule(branchId, moduleId, tableName, fieldName, rule) {
+    if (!this.rulesPath) return;
+
+    try {
+      const rules = await this.loadRules();
+      const normalizedModule = normalizeModuleId(moduleId);
+      const normalizedTable = normalizeTableName(tableName);
+      const normalizedField = normalizeFieldName(fieldName);
+
+      if (!normalizedTable || !normalizedField) return;
+
+      // Initialize structure if needed
+      if (!rules.defaults) rules.defaults = {};
+      if (!rules.defaults[normalizedModule]) rules.defaults[normalizedModule] = {};
+      if (!rules.defaults[normalizedModule][normalizedTable]) {
+        rules.defaults[normalizedModule][normalizedTable] = {};
+      }
+
+      // Add the rule if it doesn't exist
+      if (!rules.defaults[normalizedModule][normalizedTable][normalizedField]) {
+        rules.defaults[normalizedModule][normalizedTable][normalizedField] = rule;
+
+        // Write to file
+        await writeFile(this.rulesPath, JSON.stringify(rules, null, 2), 'utf8');
+
+        // Clear cache to force reload
+        this.tableRuleCache.clear();
+        this.rules = null;
+
+        this.logger.info?.(
+          { branchId, moduleId: normalizedModule, table: normalizedTable, field: normalizedField },
+          'Auto-created sequence rule persisted to file'
+        );
+      }
+    } catch (error) {
+      this.logger.warn?.(
+        { err: error, branchId, moduleId, table: tableName, field: fieldName },
+        'Failed to persist auto-created sequence rule'
+      );
+    }
+  }
+
   async nextValue(branchId, moduleId, tableName, fieldName, context = {}) {
     const rules = await this.getRulesForTable(branchId, moduleId, tableName);
     let rule = rules?.[fieldName];
+    let wasAutoCreated = false;
 
     // Auto-create default sequence if requested and rule doesn't exist
     if (!rule && context.autoCreate === true) {
@@ -177,6 +220,7 @@ export default class SequenceManager {
         delimiter: '',
         padding: 0
       };
+      wasAutoCreated = true;
     }
 
     if (!rule) {
@@ -199,6 +243,12 @@ export default class SequenceManager {
     state.values.set(seqKey, record);
     await this.persistBranchState(branchId, state);
     const formatted = formatSequence(rule, nextNumeric);
+
+    // Persist auto-created rule to file
+    if (wasAutoCreated) {
+      await this.persistAutoCreatedRule(branchId, moduleId, tableName, fieldName, rule);
+    }
+
     return { value: nextNumeric, formatted, rule, context };
   }
 
