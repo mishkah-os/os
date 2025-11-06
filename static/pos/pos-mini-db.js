@@ -3,7 +3,7 @@
 let createDBAuto = window.createDBAuto ;
   
 const TABLE_ALIAS_GROUPS = {
-  pos_database: ['pos_dataset', 'pos_data', 'dataset', 'pos_snapshot'],
+  // pos_database REMOVED - tables are now direct in window.database
   pos_shift: ['pos_shifts', 'shift_header', 'shiftHeaders', 'shifts'],
   order_header: ['orders', 'order_headers', 'orderHeader', 'order_header_live', 'pos_order_header'],
   order_line: ['order_lines', 'order_line_items', 'orderDetails', 'order_items', 'orderLines'],
@@ -209,7 +209,7 @@ function canonicalizeTableName(name, registry) {
     'order_line_status', 'order_line_status_log', 'order_payment',
     'order_payment_state', 'order_refund', 'order_return_header',
     'order_return_line', 'order_stage', 'order_status', 'order_status_log',
-    'order_type', 'payment_method', 'pos_database', 'pos_shift', 'pos_terminal',
+    'order_type', 'payment_method', 'pos_shift', 'pos_terminal',
     'reservation', 'reservation_table', 'shift_cash_audit',
     'shift_payment_summary', 'table_lock'
   ]);

@@ -1480,24 +1480,29 @@
       ? kdsSource.stations.map(station=> ({ ...station }))
       : [];
     if(explicitStations.length) {
-      console.log('[KDS][buildStations] Using explicit kdsSource stations:', explicitStations.length);
+      console.log('[KDS][buildStations] Using explicit stations:', explicitStations.length);
       return explicitStations;
     }
+
     const masterStations = Array.isArray(masterSource?.stations) && masterSource.stations.length
       ? masterSource.stations.map(station=> ({ ...station }))
       : [];
     if(masterStations.length) {
-      console.log('[KDS][buildStations] Using masterSource stations:', masterStations.length);
+      console.log('[KDS][buildStations] Using master stations:', masterStations.length);
       return masterStations;
     }
+
     const sectionSource = (Array.isArray(database?.kitchen_sections) && database.kitchen_sections.length)
       ? database.kitchen_sections
       : (Array.isArray(masterSource?.kitchenSections) ? masterSource.kitchenSections : []);
-    console.log('[KDS][buildStations] Building from kitchen sections:', {
-      count: sectionSource.length,
+
+    console.log('[KDS][buildStations] Using kitchen_sections:', {
+      source: database?.kitchen_sections ? 'database.kitchen_sections' : 'masterSource.kitchenSections',
+      length: sectionSource.length,
       firstSection: sectionSource[0]
     });
-    const result = sectionSource.map((section, idx)=>{
+
+    return sectionSource.map((section, idx)=>{
       const id = section.id || section.section_id || section.sectionId;
       const nameAr = section.section_name?.ar || section.name?.ar || section.nameAr || id;
       const nameEn = section.section_name?.en || section.name?.en || section.nameEn || id;
