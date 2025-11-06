@@ -448,6 +448,18 @@
         "ar": "حدد السائق المسؤول عن الطلب، وسيتم إعلام نقطة البيع فورًا.",
         "en": "Choose who will handle the delivery. POS will be notified instantly."
       },
+      "paymentTitle": {
+        "ar": "تسوية التحصيل",
+        "en": "Payment Settlement"
+      },
+      "paymentDescription": {
+        "ar": "اختر وسيلة الدفع لتسجيل التحصيل",
+        "en": "Select payment method to record settlement"
+      },
+      "paymentConfirm": {
+        "ar": "تأكيد التسوية",
+        "en": "Confirm Settlement"
+      },
       "close": {
         "ar": "إغلاق",
         "en": "Close"
@@ -1474,11 +1486,11 @@
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        // ✅ Show in expo: ALL orders (pending + ready) EXCEPT assembled/served/delivered
+        // ✅ Show in expo: ALL orders (pending + ready) EXCEPT assembled/served/delivered/settled
         // Orders appear here immediately when created
         // Orders stay until "تم التجميع" is pressed → 'assembled'
         // This shows ALL active orders being prepared across all sections
-        return status !== 'assembled' && status !== 'served' && status !== 'delivered';
+        return status !== 'assembled' && status !== 'served' && status !== 'delivered' && status !== 'settled';
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
@@ -2365,15 +2377,18 @@
     const assignment = db.ui?.deliveryAssignment || {};
     const orderId = assignment.orderId;
     const drivers = Array.isArray(db.data.drivers) ? db.data.drivers : [];
+
+    // 🔍 Debug: Log drivers
+    console.log('[KDS][DriverModal] Drivers:', {
+      count: drivers.length,
+      drivers: drivers.map(d => ({ id: d.id, name: d.name }))
+    });
+
     const order = (db.data.jobs.orders || []).find(o=> o.orderId === orderId);
     const subtitle = order ? `${t.labels.order} ${order.orderNumber}` : '';
-    return UI.Modal({
-      open,
-      title: t.modal.driverTitle,
-      description: subtitle || t.modal.driverDescription,
-      content: D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-3` }}, [
-        D.Text.P({ attrs:{ class: tw`text-sm text-slate-300` }}, [t.modal.driverDescription]),
-        D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, drivers.map(driver=> D.Forms.Button({ attrs:{
+
+    const driversList = drivers.length > 0
+      ? drivers.map(driver=> D.Forms.Button({ attrs:{
           type:'button',
           gkey:'kds:delivery:select-driver',
           'data-order-id': orderId,
@@ -2386,7 +2401,100 @@
           ].filter(Boolean)),
           D.Text.Span({ attrs:{ class: tw`text-base` }}, ['🚚'])
         ])))
+      : [D.Text.P({ attrs:{ class: tw`text-center text-sm text-slate-400 py-8` }}, [
+          lang === 'ar' ? 'لا يوجد سائقين متاحين' : 'No drivers available'
+        ])];
+
+    return UI.Modal({
+      open,
+      title: t.modal.driverTitle,
+      description: subtitle || t.modal.driverDescription,
+      content: D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-3` }}, [
+        D.Text.P({ attrs:{ class: tw`text-sm text-slate-300` }}, [t.modal.driverDescription]),
+        D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, driversList),
+        // ✅ زر لإضافة سائق جديد
+        D.Forms.Button({ attrs:{
+          type:'button',
+          gkey:'kds:driver:manage',
+          class: tw`mt-2 flex items-center justify-center gap-2 rounded-xl border border-emerald-600/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20`
+        }}, [
+          D.Text.Span({ attrs:{ class: tw`text-base` }}, ['➕']),
+          D.Text.Span(null, [lang === 'ar' ? 'إدارة السائقين' : 'Manage Drivers'])
+        ])
       ]),
+      actions:[
+        {
+          label: t.modal.close,
+          gkey:'ui:modal:close',
+          variant:'secondary'
+        }
+      ]
+    });
+  };
+
+  const PaymentModal = (db, t, lang)=>{
+    const open = db.ui?.modals?.payment || false;
+    if(!open) return null;
+
+    const settlement = db.ui?.paymentSettlement || {};
+    const orderId = settlement.orderId;
+    const orderAmount = settlement.amount || 0;
+
+    // ✅ قراءة وسائل الدفع من posPayload
+    const paymentMethods = Array.isArray(db.data.paymentMethods) ? db.data.paymentMethods : [];
+
+    // 🔍 Debug
+    console.log('[KDS][PaymentModal] Payment Methods:', {
+      count: paymentMethods.length,
+      methods: paymentMethods.map(m => ({ id: m.id, name: m.name || m.nameAr }))
+    });
+
+    const order = buildOrdersFromHeaders(db).find(o => o.orderId === orderId || o.id === orderId);
+    const subtitle = order ? `${t.labels.order} ${order.orderNumber || orderId}` : '';
+
+    const methodsList = paymentMethods.filter(m => m.isActive !== false).length > 0
+      ? paymentMethods
+          .filter(m => m.isActive !== false)
+          .map(method=> {
+            const icon = method.icon || '💵';
+            const nameAr = method.name?.ar || method.nameAr || method.id;
+            const nameEn = method.name?.en || method.nameEn || method.id;
+            const displayName = lang === 'ar' ? nameAr : nameEn;
+
+            return D.Forms.Button({ attrs:{
+              type:'button',
+              gkey:'kds:payment:select',
+              'data-order-id': orderId,
+              'data-payment-method-id': String(method.id),
+              'data-payment-type': method.type || 'cash',
+              class: tw`flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/70 px-4 py-3 text-start text-sm text-slate-100 hover:border-emerald-400/60 hover:bg-emerald-500/10`
+            }}, [
+              D.Containers.Div({ attrs:{ class: tw`flex items-center gap-3` }}, [
+                D.Text.Span({ attrs:{ class: tw`text-2xl` }}, [icon]),
+                D.Containers.Div({ attrs:{ class: tw`flex flex-col` }}, [
+                  D.Text.Strong({ attrs:{ class: tw`text-sm` }}, [displayName]),
+                  method.type ? D.Text.Span({ attrs:{ class: tw`text-xs text-slate-300` }}, [method.type]) : null
+                ].filter(Boolean))
+              ]),
+              D.Text.Span({ attrs:{ class: tw`text-emerald-400` }}, ['✓'])
+            ]);
+          })
+      : [D.Text.P({ attrs:{ class: tw`text-center text-sm text-slate-400 py-8` }}, [
+          lang === 'ar' ? 'لا توجد وسائل دفع متاحة' : 'No payment methods available'
+        ])];
+
+    return UI.Modal({
+      open,
+      title: t.modal.paymentTitle,
+      description: subtitle || t.modal.paymentDescription,
+      content: D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-3` }}, [
+        D.Text.P({ attrs:{ class: tw`text-sm text-slate-300` }}, [t.modal.paymentDescription]),
+        orderAmount > 0 ? D.Containers.Div({ attrs:{ class: tw`rounded-xl border border-slate-700/60 bg-slate-900/70 px-4 py-3` }}, [
+          D.Text.P({ attrs:{ class: tw`text-xs text-slate-400` }}, [lang === 'ar' ? 'المبلغ المستحق' : 'Amount Due']),
+          D.Text.Strong({ attrs:{ class: tw`text-lg text-emerald-400` }}, [`${orderAmount.toFixed(2)} ${lang === 'ar' ? 'ج.م' : 'EGP'}`])
+        ]) : null,
+        D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, methodsList)
+      ].filter(Boolean)),
       actions:[
         {
           label: t.modal.close,
@@ -2429,7 +2537,7 @@
           renderActivePanel(db, t, lang, now)
         ].filter(Boolean))
       ]),
-      overlays:[ DriverModal(db, t, lang) ].filter(Boolean)
+      overlays:[ DriverModal(db, t, lang), PaymentModal(db, t, lang) ].filter(Boolean)
     });
   };
 
@@ -3024,6 +3132,7 @@
           expoTickets: expoTicketsNext,
           deliveries: deliveriesNext,
           drivers: driversNext,
+          paymentMethods: paymentMethods,  // ✅ Add payment methods
           handoff: handoffNext,
           stations: stationsNext,
           stationMap: stationMapNext,
@@ -3525,27 +3634,129 @@
         if(!btn) return;
         const orderId = btn.getAttribute('data-order-id');
         if(!orderId) return;
+
+        // ✅ Open payment modal instead of settling immediately
+        // Get order amount for display
+        const order = (ctx.getState().data.orderHeaders || []).find(h =>
+          String(h.id || h.orderId) === orderId
+        );
+        const orderAmount = order?.totalAmount || order?.amount || 0;
+
+        ctx.setState(state=>({
+          ...state,
+          ui:{
+            ...(state.ui || {}),
+            modalOpen: true,
+            modals: { ...(state.ui?.modals || {}), payment: true },
+            paymentSettlement: { orderId, amount: orderAmount }
+          }
+        }));
+      }
+    },
+    'kds.payment.select':{
+      on:['click'],
+      gkeys:['kds:payment:select'],
+      handler:(event, ctx)=>{
+        const btn = event?.target && event.target.closest('[data-payment-method-id]');
+        if(!btn) return;
+        const orderId = btn.getAttribute('data-order-id');
+        const paymentMethodId = btn.getAttribute('data-payment-method-id');
+        const paymentType = btn.getAttribute('data-payment-type') || 'cash';
+        if(!orderId || !paymentMethodId) return;
+
         const nowIso = new Date().toISOString();
+
+        // ✅ Get order amount
+        const order = (ctx.getState().data.orderHeaders || []).find(h =>
+          String(h.id || h.orderId) === orderId
+        );
+        const orderAmount = order?.totalAmount || order?.amount || 0;
+
+        // ✅ 1. Create order_payment record
+        const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const paymentRecord = {
+          id: paymentId,
+          orderId: orderId,
+          paymentMethodId: paymentMethodId,
+          amount: orderAmount,
+          capturedAt: nowIso,
+          shiftId: order?.shiftId || 'current-shift',  // TODO: Get actual shift ID
+          reference: null
+        };
+
+        // ✅ 2. Update settlement status
         let settlementPayload = null;
         ctx.setState(state=>{
           const deliveries = state.data.deliveries || { assignments:{}, settlements:{} };
           const settlements = { ...(deliveries.settlements || {}) };
-          settlements[orderId] = { ...(settlements[orderId] || {}), status:'settled', settledAt: nowIso };
+          settlements[orderId] = {
+            ...(settlements[orderId] || {}),
+            status:'settled',
+            settledAt: nowIso,
+            paymentMethodId: paymentMethodId,
+            paymentType: paymentType
+          };
           settlementPayload = settlements[orderId];
+
           emitSync({ type:'delivery:update', orderId, payload:{ settlement: settlements[orderId] } });
+
           return {
             ...state,
             data:{
               ...state.data,
               deliveries:{ assignments: { ...(deliveries.assignments || {}) }, settlements }
+            },
+            ui:{
+              ...(state.ui || {}),
+              modalOpen: false,
+              modals: { ...(state.ui?.modals || {}), payment: false },
+              paymentSettlement: null
             }
           };
         });
+
+        // ✅ 3. Publish to sync
         if(syncClient && settlementPayload){
           syncClient.publishDeliveryUpdate({ orderId, payload:{ settlement: settlementPayload } });
         }
-        // ✅ Update order_header status to 'settled' (completed - will hide from all panels)
+
+        // ✅ 4. Persist payment record to database
+        if(store && typeof store.insert === 'function'){
+          store.insert('order_payment', paymentRecord).catch(err => {
+            console.error('[KDS][payment] Failed to insert payment:', err);
+          });
+        }
+
+        // ✅ 5. Update order_header status to 'settled'
         persistOrderHeaderStatus(orderId, 'settled', nowIso);
+
+        console.log('[KDS][payment] Settlement recorded:', {
+          orderId,
+          paymentMethodId,
+          amount: orderAmount,
+          paymentId
+        });
+      }
+    },
+    'kds.driver.manage':{
+      on:['click'],
+      gkeys:['kds:driver:manage'],
+      handler:(event, ctx)=>{
+        event?.preventDefault();
+        // TODO: Open CRUD modal for delivery_driver table
+        // For now, show alert
+        alert('إدارة السائقين - قريبا!\n\nسيتم إضافة واجهة CRUD كاملة لإدارة السائقين.');
+        console.log('[KDS][drivers] CRUD management requested');
+        // Close driver selection modal
+        ctx.setState(state=>({
+          ...state,
+          ui:{
+            ...(state.ui || {}),
+            modalOpen: false,
+            modals: { ...(state.ui?.modals || {}), driver: false },
+            deliveryAssignment: null
+          }
+        }));
       }
     },
     'ui.modal.close':{
@@ -4580,6 +4791,13 @@
     const statusLookup = buildStatusLookup(posPayload);
     const drivers = deriveDrivers(posPayload);
     const driverIndex = new Map(drivers.map((driver) => [driver.id, driver]));
+
+    // ✅ Read payment methods from posPayload
+    const paymentMethods = Array.isArray(posPayload?.payment_methods)
+      ? posPayload.payment_methods
+      : Array.isArray(posPayload?.settings?.payment_methods)
+        ? posPayload.settings.payment_methods
+        : [];
 
     // ✅ Create a map from jobOrderId to stationId from job_order_header
     const jobOrderStationMap = new Map();
