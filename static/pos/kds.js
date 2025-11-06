@@ -3667,18 +3667,27 @@
 
             if (matchingHeader) {
               // ✅ Check if ALL order_lines for this order are ready
+              // IMPORTANT: Build updated state by applying our changes to watcherState
               const allOrderLines = watcherState.orderLines || [];
               const orderAllLines = allOrderLines.filter(line =>
                 String(line.orderId || line.order_id) === baseOrderId
               );
 
+              // Create updated line IDs set for quick lookup
+              const updatedLineIds = new Set(matchingLines.map(l => l.id));
+
               const allLinesReady = orderAllLines.every(line => {
-                const lineStatus = String(line.status || line.statusId || '');
+                // If we just updated this line, use the new status
+                const lineStatus = updatedLineIds.has(line.id)
+                  ? statusPayload.status
+                  : String(line.status || line.statusId || '');
                 return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
               });
 
               const readyCount = orderAllLines.filter(line => {
-                const lineStatus = String(line.status || line.statusId || '');
+                const lineStatus = updatedLineIds.has(line.id)
+                  ? statusPayload.status
+                  : String(line.status || line.statusId || '');
                 return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
               }).length;
 
