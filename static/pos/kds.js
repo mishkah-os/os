@@ -2156,14 +2156,34 @@
         return status === 'assembled' || status === 'served' || status === 'delivered';
       });
 
-    const completedOrderIds = new Set(completedOrders.map(order=> order.orderId || order.id));
+    // ✅ Normalize order IDs to handle format mismatches
+    // Create a Set with multiple normalized versions of each order ID
+    const completedOrderIds = new Set();
+    const completedOrderIdMap = new Map();  // For debugging
+
+    completedOrders.forEach(order => {
+      const rawId = order.orderId || order.id;
+      if (!rawId) return;
+
+      // Add raw ID
+      const normalizedId = normalizeOrderKey(rawId);
+      if (normalizedId) {
+        completedOrderIds.add(normalizedId);
+        completedOrderIdMap.set(normalizedId, { orderId: rawId, status: order.handoffStatus });
+      }
+
+      // Also add the original without normalization (in case normalizeOrderKey changes it)
+      const stringId = String(rawId);
+      completedOrderIds.add(stringId);
+      completedOrderIdMap.set(stringId, { orderId: rawId, status: order.handoffStatus });
+    });
 
     // 🔍 Debug: Log completed orders
     if (completedOrderIds.size > 0) {
       console.log('[KDS][renderStationPanel] 🔍 Completed orders:', {
         stationId,
         completedOrderIds: Array.from(completedOrderIds),
-        completedOrders: completedOrders.map(o => ({ orderId: o.orderId, status: o.handoffStatus }))
+        completedOrders: Array.from(completedOrderIdMap.values())
       });
     }
 
@@ -2184,11 +2204,19 @@
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
       // Hide jobs whose order is assembled/served/delivered
       .filter(job=> {
-        const shouldHide = completedOrderIds.has(job.orderId);
+        // Try both raw and normalized order IDs
+        const rawJobOrderId = job.orderId;
+        const normalizedJobOrderId = normalizeOrderKey(rawJobOrderId);
+        const stringJobOrderId = String(rawJobOrderId);
+
+        const shouldHide = completedOrderIds.has(normalizedJobOrderId) ||
+                          completedOrderIds.has(stringJobOrderId);
+
         if (completedOrderIds.size > 0 && !shouldHide) {
           console.log('[KDS][renderStationPanel] ⚠️ Job NOT filtered:', {
             jobId: job.id,
-            jobOrderId: job.orderId,
+            jobOrderIdRaw: rawJobOrderId,
+            jobOrderIdNormalized: normalizedJobOrderId,
             completedIds: Array.from(completedOrderIds),
             hasMatch: shouldHide
           });
