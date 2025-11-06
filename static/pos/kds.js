@@ -1161,7 +1161,6 @@
 
       const orderKey = normalizeOrderKey(orderId);
       let record = (orderKey && (handoff[orderKey] || handoff[orderId])) || {};
-      const recordStatus = record.status ? String(record.status).toLowerCase() : '';
 
       // Build detail rows from order_line
       const detailRows = lines.map(line => {
@@ -1211,14 +1210,16 @@
       }).reduce((sum, line) => sum + (Number(line.qty) || 1), 0);
       const pendingItems = totalItems - readyItems;
 
-      let status = record.status;
-      if (status === 'assembled' || status === 'served') {
-        if (pendingItems > 0) {
-          status = 'pending';
-        } else if (readyItems < totalItems) {
-          status = 'pending';
-        }
+      // ✅ Calculate handoff status based on derived item statuses
+      // Priority: record status (if manually set) > calculated from items
+      let status;
+      const recordStatus = record.status ? String(record.status).toLowerCase() : null;
+
+      // If already moved to next stage, keep that status
+      if (recordStatus === 'assembled' || recordStatus === 'served' || recordStatus === 'delivered') {
+        status = recordStatus;
       } else {
+        // Calculate from items: all ready = 'ready', else 'pending'
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
 
@@ -1461,8 +1462,10 @@
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        // ✅ Hide served orders from expo
-        return status !== 'assembled' && status !== 'served';
+        // ✅ Show in expo: 'pending' and 'ready'
+        // ✅ Hide from expo: 'assembled', 'served', 'delivered'
+        // Orders stay in expo until "تم التجميع" is pressed
+        return status !== 'assembled' && status !== 'served' && status !== 'delivered';
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
@@ -2082,7 +2085,11 @@
 
   const renderPrepPanel = (db, t, lang, now)=>{
     // ✅ Use order_header + order_line for static "prep/all" tab
-    const orders = buildOrdersFromHeaders(db).filter(order=> order.handoffStatus !== 'served');
+    // Hide orders that moved to expo (ready) or beyond (assembled/served)
+    const orders = buildOrdersFromHeaders(db).filter(order=> {
+      const status = order.handoffStatus;
+      return status !== 'ready' && status !== 'assembled' && status !== 'served' && status !== 'delivered';
+    });
     if(!orders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
