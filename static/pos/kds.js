@@ -1084,13 +1084,17 @@
         console.groupCollapsed(label);
         if(details && typeof details === 'object'){
           Object.keys(details).forEach(key=>{
+            console.log(`${key}:`, details[key]);
           });
         } else {
+          console.log(details);
         }
         console.groupEnd();
       } else {
+        console.log(label, details);
       }
     } catch(_err){
+      try{ console.log(label, details); } catch(__err){ /* ignore */ }
     }
   };
 
@@ -1130,6 +1134,14 @@
         const stationLabelAr = station.nameAr || line.kitchenSectionId || 'غير محدد';
         const stationLabelEn = station.nameEn || line.kitchenSectionId || 'Unassigned';
         const menuItem = line.itemId ? menuIndex[String(line.itemId)] : null;
+        console.log('[KDS][buildOrdersFromHeaders] Processing order_line:', {
+          lineId: line.id,
+          itemId: line.itemId,
+          foundMenuItem: !!menuItem,
+          menuItemNameAr: menuItem?.nameAr,
+          menuItemNameEn: menuItem?.nameEn,
+          menuIndexKeysCount: Object.keys(menuIndex).length
+        });
 
         return {
           detail: {
@@ -1502,6 +1514,10 @@
 
   const indexJobs = (jobsList)=>{
     const list = Array.isArray(jobsList) ? jobsList.slice() : [];
+    console.log('[KDS][indexJobs] Starting with jobs:', {
+      count: list.length,
+      sampleJobs: list.slice(0, 3).map(j => ({ id: j.id, stationId: j.stationId, status: j.status }))
+    });
     list.sort((a, b)=>{
       const aKey = a.acceptedMs ?? a.createdMs ?? 0;
       const bKey = b.acceptedMs ?? b.createdMs ?? 0;
@@ -1551,6 +1567,10 @@
     });
     orders.sort((a, b)=> (a.createdMs || 0) - (b.createdMs || 0));
 
+    console.log('[KDS][indexJobs] Result byStation:', {
+      stationIds: Object.keys(byStation),
+      counts: Object.fromEntries(Object.entries(byStation).map(([k, v]) => [k, v.length]))
+    });
 
     return { list, byStation, byService, orders, stats };
   };
@@ -1569,10 +1589,18 @@
   };
 
   const buildStations = (database, kdsSource, masterSource={})=>{
+    console.log('[KDS][buildStations] Called with:', {
+      hasKdsStations: !!(kdsSource?.stations?.length),
+      hasMasterStations: !!(masterSource?.stations?.length),
+      hasDatabaseKitchenSections: !!(database?.kitchen_sections?.length),
+      databaseKitchenSectionsCount: database?.kitchen_sections?.length || 0,
+      hasMasterKitchenSections: !!(masterSource?.kitchenSections?.length)
+    });
     const explicitStations = Array.isArray(kdsSource?.stations) && kdsSource.stations.length
       ? kdsSource.stations.map(station=> ({ ...station }))
       : [];
     if(explicitStations.length) {
+      console.log('[KDS][buildStations] Using explicit stations:', explicitStations.length);
       return explicitStations;
     }
 
@@ -1580,6 +1608,7 @@
       ? masterSource.stations.map(station=> ({ ...station }))
       : [];
     if(masterStations.length) {
+      console.log('[KDS][buildStations] Using master stations:', masterStations.length);
       return masterStations;
     }
 
@@ -1587,6 +1616,11 @@
       ? database.kitchen_sections
       : (Array.isArray(masterSource?.kitchenSections) ? masterSource.kitchenSections : []);
 
+    console.log('[KDS][buildStations] Using kitchen_sections:', {
+      source: database?.kitchen_sections ? 'database.kitchen_sections' : 'masterSource.kitchenSections',
+      length: sectionSource.length,
+      firstSection: sectionSource[0]
+    });
 
     return sectionSource.map((section, idx)=>{
       const id = section.id || section.section_id || section.sectionId;
@@ -1607,9 +1641,11 @@
         updatedAt: null
       };
       if(idx === 0){
+        console.log('[KDS][buildStations] First built station:', station);
       }
       return station;
     });
+    console.log('[KDS][buildStations] Result count:', result.length);
     return result;
   };
 
@@ -2057,9 +2093,21 @@
         .map(order=> order.orderId || order.id)
     );
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
+    console.log('[KDS][renderStationPanel] Rendering station:', {
+      stationId,
+      allStationIds: Object.keys(db.data.jobs.byStation || {}),
+      allJobsCount: allJobsForStation.length,
+      sampleJob: allJobsForStation[0]
+    });
     const jobs = allJobsForStation
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
       .filter(job=> !servedOrderIds.has(job.orderId));
+    console.log('[KDS][renderStationPanel] After filtering:', {
+      stationId,
+      filteredJobsCount: jobs.length,
+      removedByStatus: allJobsForStation.length - allJobsForStation.filter(job=> job.status !== 'ready' && job.status !== 'completed').length,
+      removedByServed: allJobsForStation.filter(job=> job.status !== 'ready' && job.status !== 'completed').length - jobs.length
+    });
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, jobs.map(job=> renderJobCard(job, station, t, lang, now)));
@@ -2309,6 +2357,11 @@
     window.MishkahKdsChannel = BRANCH_CHANNEL;
   }
   const stations = buildStations(database, kdsSource, masterSource);
+  console.log('[KDS][Initial] Built stations:', {
+    count: stations.length,
+    firstStation: stations[0],
+    databaseKitchenSections: database?.kitchen_sections?.length || 0
+  });
   const stationMap = toStationMap(stations);
   const initialStationRoutes = Array.isArray(kdsSource.stationCategoryRoutes)
     ? kdsSource.stationCategoryRoutes.map(route=> ({ ...route }))
@@ -2442,6 +2495,7 @@
     try{
       localSyncChannel.postMessage({ origin:'kds', source: syncInstanceId, ...message, meta });
     } catch(err){
+      console.warn('[Mishkah][KDS] Failed to broadcast sync message.', err);
     }
   };
 
@@ -2618,9 +2672,27 @@
     const hasOrderData = incomingOrderHeaders.length > 0 || incomingOrderLines.length > 0;
     if(!hasJobOrders && !hasOrderData) return;
 
+    console.log('[KDS][applyRemoteOrder] Received payload:', {
+      hasStations: !!payload.master?.stations,
+      stationsCount: payload.master?.stations?.length || 0,
+      hasKitchenSections: !!payload.master?.kitchenSections,
+      kitchenSectionsCount: payload.master?.kitchenSections?.length || 0,
+      sampleKitchenSection: payload.master?.kitchenSections?.[0],
+      jobOrderHeaderCount: incomingJobOrders.job_order_header.length,
+      jobOrderDetailCount: incomingJobOrders.job_order_detail.length
+    });
     appInstance.setState(state=>{
+      console.log('[KDS][applyRemoteOrder] Current state stations:', state.data.stations?.length || 0);
       const mergedOrders = mergeJobOrders(state.data.jobOrders || {}, incomingJobOrders);
+      console.log('[KDS][applyRemoteOrder] After mergeJobOrders:', {
+        headersCount: mergedOrders.job_order_header?.length || 0,
+        detailsCount: mergedOrders.job_order_detail?.length || 0
+      });
       const jobRecordsNext = buildJobRecords(mergedOrders);
+      console.log('[KDS][applyRemoteOrder] After buildJobRecords:', {
+        jobRecordsCount: jobRecordsNext.length,
+        sampleJobRecord: jobRecordsNext[0] ? { id: jobRecordsNext[0].id, stationId: jobRecordsNext[0].stationId, detailsCount: jobRecordsNext[0].details?.length || 0 } : null
+      });
       const jobsIndexedNext = indexJobs(jobRecordsNext);
       const expoSourcePatch = Array.isArray(payload.expo_pass_ticket) ? payload.expo_pass_ticket
                             : Array.isArray(payload.expoPassTickets) ? payload.expoPassTickets
@@ -2735,6 +2807,11 @@
         kitchenSectionsNext = payload.master.kitchenSections.map(section=> ({ ...section }));
       }
       if(!stationsExplicitlyProvided && kitchenSectionsNext.length){
+        console.log('[KDS][applyRemoteOrder] Rebuilding stations from kitchenSections:', {
+          kitchenSectionsCount: kitchenSectionsNext.length,
+          sampleSection: kitchenSectionsNext[0],
+          currentStationsCount: stationsNext.length
+        });
         stationsNext = kitchenSectionsNext.map((section, idx)=>{
           const id = section.id || section.section_id || section.sectionId;
           const nameAr = section.section_name?.ar || section.name?.ar || section.nameAr || id;
@@ -2754,9 +2831,11 @@
             updatedAt: section.updatedAt || null
           };
           if(idx === 0){
+            console.log('[KDS][applyRemoteOrder] First rebuilt station:', result);
           }
           return result;
         });
+        console.log('[KDS][applyRemoteOrder] Rebuilt stations count:', stationsNext.length);
       }
       const stationMapNext = toStationMap(stationsNext);
       let categorySectionsNext = Array.isArray(state.data.categorySections)
@@ -2933,8 +3012,10 @@
       if(typeof console.groupCollapsed === 'function'){
         console.groupCollapsed(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`);
         if(typeof console.table === 'function') console.table(snapshot);
+        else console.log(snapshot);
         console.groupEnd();
       } else {
+        console.log(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`, snapshot);
       }
     }
     return snapshot;
@@ -2953,8 +3034,10 @@
     if(typeof console !== 'undefined'){
       if(typeof console.groupCollapsed === 'function'){
         console.groupCollapsed(`[Mishkah][KDS] Orders registry snapshot (${snapshot.length})`);
+        snapshot.forEach(entry=> console.log(entry));
         console.groupEnd();
       } else {
+        console.log(`[Mishkah][KDS] Orders registry snapshot (${snapshot.length})`, snapshot);
       }
     }
     return snapshot;
@@ -3343,10 +3426,36 @@
 
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
+    console.log('[KDS][persistJobOrderStatusChange] 🔄 Called with:', {
+      jobId,
+      statusPayload,
+      actorInfo,
+      timestamp: new Date().toISOString()
+    });
 
+    console.log('[KDS][persistJobOrderStatusChange] watcherState snapshot:', {
+      hasHeaders: !!watcherState.headers,
+      headersCount: (watcherState.headers || []).length,
+      hasLines: !!watcherState.lines,
+      linesCount: (watcherState.lines || []).length,
+      hasOrderHeaders: !!watcherState.orderHeaders,
+      orderHeadersCount: (watcherState.orderHeaders || []).length,
+      hasOrderLines: !!watcherState.orderLines,
+      orderLinesCount: (watcherState.orderLines || []).length
+    });
 
+    console.log('[KDS][persistJobOrderStatusChange] Checking store availability:', {
+      storeExists: !!store,
+      hasUpdate: store && typeof store.update === 'function',
+      hasInsert: store && typeof store.insert === 'function',
+      storeType: store ? typeof store : 'undefined',
+      storeMethods: store ? Object.keys(store).filter(k => typeof store[k] === 'function') : [],
+      windowPosDB: typeof window !== 'undefined' ? !!window.__POS_DB__ : false
+    });
 
     if (!store || typeof store.update !== 'function' || typeof store.insert !== 'function') {
+      console.warn('[KDS][persistJobOrderStatusChange] Store not available, changes will not be persisted');
+      console.warn('[KDS][persistJobOrderStatusChange] Will try to use REST API directly instead');
 
       // ✅ Fallback: Use REST API directly if store is not available
       try {
@@ -3362,6 +3471,7 @@
             updatedAt: statusPayload.updatedAt || new Date().toISOString()
           })
         });
+        console.log('[KDS][persistJobOrderStatusChange] Updated job_order_header via REST API');
 
         // Update order_line (only for items in this job)
         const baseOrderId = extractBaseOrderId(jobId);
@@ -3392,6 +3502,7 @@
                 updatedAt: statusPayload.updatedAt || new Date().toISOString()
               })
             });
+            console.log('[KDS][persistJobOrderStatusChange] Updated order_line via REST API:', line.id);
           }
 
           // ✅ Check if ALL order_lines ready, then update order_header
@@ -3413,16 +3524,20 @@
                 updatedAt: statusPayload.updatedAt || new Date().toISOString()
               })
             });
+            console.log('[KDS][persistJobOrderStatusChange] ✅ All lines ready, updated order_header via REST API');
           }
         }
 
+        console.log('[KDS][persistJobOrderStatusChange] ✅ Persisted via REST API fallback');
         return;
       } catch (apiError) {
+        console.error('[KDS][persistJobOrderStatusChange] ❌ REST API fallback also failed:', apiError);
         return;
       }
     }
 
     try {
+      console.log('[KDS][persistJobOrderStatusChange] Starting:', { jobId, status: statusPayload.status });
 
       // 1. Update job_order_header with new status
       const headerUpdate = {
@@ -3432,12 +3547,18 @@
       };
 
       await store.update('job_order_header', headerUpdate);
+      console.log('[KDS][persistJobOrderStatusChange] Updated job_order_header');
 
       // 2. ✅ Update all job_order_detail for this job
       const allJobDetails = watcherState.lines || [];
       const jobDetails = allJobDetails.filter(detail =>
         String(detail.jobOrderId || detail.job_order_id) === jobId
       );
+      console.log('[KDS][persistJobOrderStatusChange] Found job_order_detail:', {
+        totalDetails: allJobDetails.length,
+        matchingDetails: jobDetails.length,
+        jobId
+      });
 
       for (const detail of jobDetails) {
         try {
@@ -3447,11 +3568,18 @@
             updatedAt: statusPayload.updatedAt || new Date().toISOString()
           });
         } catch (detailError) {
+          console.warn('[KDS][persistJobOrderStatusChange] Failed to update job_order_detail:', detail.id, detailError);
         }
       }
+      console.log('[KDS][persistJobOrderStatusChange] Updated job_order_detail count:', jobDetails.length);
 
       // 3. ✅ Update order_line status using orderId from job + itemId matching
       const baseOrderId = extractBaseOrderId(jobId);
+      console.log('[KDS][persistJobOrderStatusChange] Extracted baseOrderId:', {
+        jobId,
+        baseOrderId,
+        extractionMethod: 'extractBaseOrderId'
+      });
 
       if (baseOrderId && statusPayload.status) {
         // ✅ Get itemIds from job_order_detail for this specific job
@@ -3464,6 +3592,11 @@
           String(detail.itemId || detail.item_id || '')
         ).filter(id => id);
 
+        console.log('[KDS][persistJobOrderStatusChange] Job items:', {
+          jobId,
+          jobDetailsCount: jobDetails.length,
+          jobItemIds
+        });
 
         const orderLines = watcherState.orderLines || [];
 
@@ -3477,11 +3610,28 @@
           const matches = orderMatches && itemMatches;
 
           if (!matches && orderLines.length < 10) {
+            console.log('[KDS][persistJobOrderStatusChange] Line comparison:', {
+              lineId: line.id,
+              lineOrderId,
+              lineItemId,
+              baseOrderId,
+              jobItemIds,
+              orderMatches,
+              itemMatches,
+              matches
+            });
           }
 
           return matches;
         });
 
+        console.log('[KDS][persistJobOrderStatusChange] Found order_lines:', {
+          baseOrderId,
+          totalLines: orderLines.length,
+          matchingLines: matchingLines.length,
+          sampleLine: matchingLines[0],
+          allOrderIds: orderLines.slice(0, 5).map(l => l.orderId || l.order_id)
+        });
 
         for (const line of matchingLines) {
           try {
@@ -3492,12 +3642,20 @@
               updatedAt: statusPayload.updatedAt || new Date().toISOString()
             };
 
+            console.log('[KDS][persistJobOrderStatusChange] Updating order_line with payload:', updatePayload);
 
             await store.update('order_line', updatePayload);
+            console.log('[KDS][persistJobOrderStatusChange] ✅ Updated order_line:', line.id, 'status:', statusPayload.status);
           } catch (lineError) {
+            console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update order_line:', line.id, lineError);
           }
         }
 
+        console.log('[KDS][persistJobOrderStatusChange] Synced order_line status:', {
+          orderId: baseOrderId,
+          linesUpdated: matchingLines.length,
+          newStatus: statusPayload.status
+        });
 
         // 3b. ✅ Smart order_header update: Only update when ALL order_lines are ready
         if (matchingLines.length > 0 && baseOrderId) {
@@ -3509,21 +3667,37 @@
 
             if (matchingHeader) {
               // ✅ Check if ALL order_lines for this order are ready
+              // IMPORTANT: Build updated state by applying our changes to watcherState
               const allOrderLines = watcherState.orderLines || [];
               const orderAllLines = allOrderLines.filter(line =>
                 String(line.orderId || line.order_id) === baseOrderId
               );
 
+              // Create updated line IDs set for quick lookup
+              const updatedLineIds = new Set(matchingLines.map(l => l.id));
+
               const allLinesReady = orderAllLines.every(line => {
-                const lineStatus = String(line.status || line.statusId || '');
+                // If we just updated this line, use the new status
+                const lineStatus = updatedLineIds.has(line.id)
+                  ? statusPayload.status
+                  : String(line.status || line.statusId || '');
                 return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
               });
 
               const readyCount = orderAllLines.filter(line => {
-                const lineStatus = String(line.status || line.statusId || '');
+                const lineStatus = updatedLineIds.has(line.id)
+                  ? statusPayload.status
+                  : String(line.status || line.statusId || '');
                 return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
               }).length;
 
+              console.log('[KDS][persistJobOrderStatusChange] 🧮 Checking if all order_lines ready:', {
+                orderId: baseOrderId,
+                totalLines: orderAllLines.length,
+                readyLines: readyCount,
+                allReady: allLinesReady,
+                lineStatuses: orderAllLines.map(l => ({ id: l.id, status: l.status || l.statusId }))
+              });
 
               // ✅ Only update order_header if ALL lines are ready
               if (allLinesReady && orderAllLines.length > 0) {
@@ -3534,16 +3708,31 @@
                   updatedAt: statusPayload.updatedAt || new Date().toISOString()
                 };
 
+                console.log('[KDS][persistJobOrderStatusChange] ✅ All order_lines ready! Updating order_header to ready:', headerUpdatePayload);
 
                 await store.update('order_header', headerUpdatePayload);
+                console.log('[KDS][persistJobOrderStatusChange] ✅ Updated order_header:', matchingHeader.id, 'status: ready (all lines ready)');
               } else {
+                console.log('[KDS][persistJobOrderStatusChange] ⏳ Not all order_lines ready yet, keeping order_header unchanged:', {
+                  orderId: baseOrderId,
+                  currentHeaderStatus: matchingHeader.status || matchingHeader.statusId,
+                  readyCount,
+                  totalCount: orderAllLines.length
+                });
               }
             } else {
+              console.warn('[KDS][persistJobOrderStatusChange] ⚠️ order_header not found for orderId:', baseOrderId);
             }
           } catch (headerError) {
+            console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update order_header:', headerError);
           }
         }
       } else {
+        console.warn('[KDS][persistJobOrderStatusChange] ⚠️ Skipping order_line update:', {
+          baseOrderId,
+          hasStatus: !!statusPayload.status,
+          reason: !baseOrderId ? 'No baseOrderId' : 'No status'
+        });
       }
 
       // 4. Insert status history entry
@@ -3565,7 +3754,14 @@
 
       await store.insert('job_order_status_history', historyEntry);
 
+      console.log('[KDS][persistJobOrderStatusChange] ✅ Complete! Persisted status change:', {
+        jobId,
+        status: statusPayload.status,
+        baseOrderId: extractBaseOrderId(jobId),
+        updatedTables: ['job_order_header', 'job_order_detail', 'order_line', 'order_header', 'job_order_status_history']
+      });
     } catch (error) {
+      console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to persist status change:', error);
     }
   };
 
@@ -4022,11 +4218,39 @@
 
   const buildWatcherPayload = () => {
     const posPayload = watcherState.posPayload || {};
+    console.log('[KDS][buildWatcherPayload] watcherState snapshot:', {
+      hasHeaders: !!watcherState.headers,
+      headersCount: ensureArray(watcherState.headers).length,
+      hasLines: !!watcherState.lines,
+      linesCount: ensureArray(watcherState.lines).length,
+      hasOrderHeaders: !!watcherState.orderHeaders,
+      orderHeadersCount: ensureArray(watcherState.orderHeaders).length,
+      hasOrderLines: !!watcherState.orderLines,
+      orderLinesCount: ensureArray(watcherState.orderLines).length,
+      hasPosPayload: !!posPayload && Object.keys(posPayload).length > 0,
+      posPayloadKeys: Object.keys(posPayload).slice(0, 10)
+    });
+    console.log('[KDS][buildWatcherPayload] posPayload kitchen data:', {
+      hasKitchenSections: !!posPayload?.kitchen_sections,
+      kitchenSectionsCount: posPayload?.kitchen_sections?.length || 0,
+      hasKdsStations: !!posPayload?.kds?.stations,
+      hasMasterStations: !!posPayload?.master?.stations,
+      hasMasterKitchenSections: !!posPayload?.master?.kitchenSections,
+      hasMenuItems: !!posPayload?.menu_items,
+      menuItemsCount: posPayload?.menu_items?.length || 0
+    });
     // ✅ Read master data from watcherState instead of posPayload
     const kitchenSectionsFromWatcher = ensureArray(watcherState.kitchenSections);
     const menuItemsFromWatcher = ensureArray(watcherState.menuItems);
     const categorySectionsFromWatcher = ensureArray(watcherState.categorySections);
 
+    console.log('[KDS][buildWatcherPayload] Master data from watchers:', {
+      kitchenSectionsCount: kitchenSectionsFromWatcher.length,
+      menuItemsCount: menuItemsFromWatcher.length,
+      categorySectionsCount: categorySectionsFromWatcher.length,
+      sampleKitchenSection: kitchenSectionsFromWatcher[0],
+      sampleMenuItem: menuItemsFromWatcher[0]
+    });
 
     const stations = kitchenSectionsFromWatcher.length > 0
       ? kitchenSectionsFromWatcher.map(section => ({
@@ -4046,6 +4270,12 @@
       ? kitchenSectionsFromWatcher
       : normalizeKitchenSections(posPayload?.kitchen_sections);
 
+    console.log('[KDS][buildWatcherPayload] Built data:', {
+      stationsCount: stations.length,
+      kitchenSectionsCount: kitchenSections.length,
+      firstStation: stations[0],
+      firstKitchenSection: kitchenSections[0]
+    });
 
     const stationCategoryRoutes = categorySectionsFromWatcher.length > 0
       ? categorySectionsFromWatcher.map(route => ({
@@ -4083,6 +4313,12 @@
           meta: { media: item.media || {} }
         }))
       : deriveMenuItems(posPayload);
+    console.log('[KDS][buildWatcherPayload] Menu items derived:', {
+      itemsCount: items.length,
+      sampleItems: items.slice(0, 3).map(i => ({ id: i.id, nameAr: i.nameAr, nameEn: i.nameEn })),
+      hasPosPayloadMenuItems: !!posPayload?.menu_items,
+      posPayloadMenuItemsCount: posPayload?.menu_items?.length || 0
+    });
     const itemById = new Map();
     const itemByCode = new Map();
     items.forEach((item) => {
@@ -4095,6 +4331,11 @@
       if (codeKey && !itemByCode.has(codeKey)) {
         itemByCode.set(codeKey, item);
       }
+    });
+    console.log('[KDS][buildWatcherPayload] Item maps built:', {
+      itemByIdCount: itemById.size,
+      itemByCodeCount: itemByCode.size,
+      sampleItemIds: Array.from(itemById.keys()).slice(0, 5)
     });
     const getItemById = (value) => {
       const key = canonicalId(value);
@@ -4159,6 +4400,10 @@
         jobOrderStationMap.set(jobOrderId, stationId);
       }
     });
+    console.log('[KDS][buildWatcherPayload] Job order station map:', {
+      mapSize: jobOrderStationMap.size,
+      sampleMappings: Array.from(jobOrderStationMap.entries()).slice(0, 3)
+    });
 
     const orders = new Map();
     ensureArray(watcherState.headers).forEach((header) => {
@@ -4199,6 +4444,11 @@
     const jobDetails = [];
     const jobHeaders = [];
 
+    console.log('[KDS][buildWatcherPayload] Processing job_order_detail:', {
+      linesCount: ensureArray(watcherState.lines).length,
+      firstLine: ensureArray(watcherState.lines)[0],
+      ordersCount: orders.size
+    });
 
     ensureArray(watcherState.lines).forEach((line) => {
       const jobOrderId = canonicalId(
@@ -4207,6 +4457,12 @@
           line?.orderId ||
           line?.order_id
       );
+      console.log('[KDS][buildWatcherPayload] Processing line:', {
+        lineId: line?.id,
+        jobOrderId,
+        hasOrder: orders.has(jobOrderId),
+        ordersKeys: Array.from(orders.keys())
+      });
       if (!jobOrderId) return;
       if (!orders.has(jobOrderId)) {
         const fallbackDisplayId =
@@ -4291,6 +4547,13 @@
         getItemByCode(rawItemCode) ||
         getItemByCode(metadataItemCode) ||
         {};
+      console.log('[KDS][buildWatcherPayload] Item lookup for line:', {
+        lineId: line?.id,
+        rawItemId,
+        foundItem: !!item?.id,
+        itemNameAr: item?.nameAr,
+        itemNameEn: item?.nameEn
+      });
       const resolvedItemId =
         rawItemId ||
         metadataItemId ||
@@ -4331,6 +4594,14 @@
         ) ||
         canonicalId(item?.sectionId) ||
         null;
+      console.log('[KDS][buildWatcherPayload] Section ID resolution:', {
+        lineId: line?.id,
+        jobOrderId,
+        fromHeader: jobOrderStationMap.get(jobOrderId),
+        fromLine: line?.kitchenSectionId || line?.kitchen_section_id,
+        fromItem: item?.sectionId,
+        finalSectionId: sectionId
+      });
       if (!sectionId) {
         sectionId = resolveStationForCategory(categoryId) || 'general';
       }
@@ -4345,6 +4616,13 @@
       }
       if (!order.jobs.has(jobId)) {
         const station = stationMap[sectionId] || {};
+        console.log('[KDS][buildWatcherPayload] Creating new job:', {
+          jobId,
+          stationId: sectionId,
+          stationCode: station?.code || sectionId,
+          orderId: order.orderId,
+          stationFound: !!station?.code
+        });
         order.jobs.set(jobId, {
           id: jobId,
           jobOrderId: jobOrderRef || jobId,
@@ -4415,6 +4693,14 @@
           item?.item_name?.en ||
           station?.nameEn ||
           job.stationCode;
+      console.log('[KDS][buildWatcherPayload] Creating detail:', {
+        detailId,
+        jobId,
+        itemId: jobItemId,
+        finalItemNameAr,
+        finalItemNameEn,
+        sourceUsed: metadata?.itemNameAr ? 'metadata' : line?.item_name?.ar ? 'line.item_name' : item?.nameAr ? 'item.nameAr' : 'fallback'
+      });
       job.details.push({
         id: detailId,
         jobOrderId: job.jobOrderId || jobId,
@@ -4442,6 +4728,10 @@
       });
     });
 
+    console.log('[KDS][buildWatcherPayload] After processing lines:', {
+      jobDetailsCount: jobDetails.length,
+      ordersCount: orders.size
+    });
 
     orders.forEach((order) => {
       order.jobs.forEach((job) => {
@@ -4495,6 +4785,12 @@
       });
     });
 
+    console.log('[KDS][buildWatcherPayload] Final job counts:', {
+      jobHeadersCount: jobHeaders.length,
+      jobDetailsCount: jobDetails.length,
+      sampleJobHeader: jobHeaders[0],
+      allJobHeaders: jobHeaders.map(h => ({ id: h.id, stationId: h.stationId, status: h.status }))
+    });
 
     const handoff = {};
     const handoffBuckets = new Map();
@@ -4652,6 +4948,7 @@
   if (store && typeof store.watch === 'function') {
     // تسجيل الجداول المطلوبة للـ KDS في الـ store
     // هذا ضروري قبل القراءة منها أو عمل watch
+    console.log('[KDS] Registering required tables...');
     const registeredObjects = (store.config && typeof store.config.objects === 'object')
       ? Object.keys(store.config.objects)
       : [];
@@ -4673,10 +4970,13 @@
       tablesToRegister.forEach(({ name, table }) => {
         if (!registeredObjects.includes(name)) {
           try {
+            console.log('[KDS] Registering table:', name);
             store.register(name, { table });
           } catch (err) {
+            console.warn('[KDS] Failed to register table', name, err);
           }
         } else {
+          console.log('[KDS] Table already registered:', name);
         }
       });
     }
@@ -4685,6 +4985,7 @@
     // لما الـ cache يكون فاضي عند أول watch() call
     // مش محتاجين نعمل fetch يدوي بعد كده! 🎉
     const setupWatchers = () => {
+      console.log('[KDS] Setting up watchers for live updates...');
 
       watcherUnsubscribers.push(
         store.status((status) => {
@@ -4694,26 +4995,50 @@
         })
       );
 
+      console.log('[KDS] Setting up watcher for pos_database...');
       watcherUnsubscribers.push(
         store.watch('pos_database', (rows) => {
           const latest =
             Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
           watcherState.posPayload =
             (latest && latest.payload) || {};
+          console.log('[KDS][WATCH][pos_database]', {
+            count:(rows||[]).length,
+            hasPayload:!!(latest&&latest.payload),
+            keys: latest && latest.payload ? Object.keys(latest.payload).slice(0, 15) : [],
+            hasKitchenSections: !!(latest?.payload?.kitchen_sections),
+            kitchenSectionsCount: latest?.payload?.kitchen_sections?.length || 0,
+            hasMenuItems: !!(latest?.payload?.menu_items),
+            menuItemsCount: latest?.payload?.menu_items?.length || 0
+          });
           updateFromWatchers();
         })
       );
 
+      console.log('[KDS] Setting up watcher for job_order_header...');
       watcherUnsubscribers.push(
         store.watch('job_order_header', (rows) => {
+          console.log('[KDS][WATCH][job_order_header] CALLBACK FIRED', {
+            rowsType: typeof rows,
+            isArray: Array.isArray(rows),
+            rawCount: (rows||[]).length
+          });
           watcherState.headers = ensureArray(rows);
+          console.log('[KDS][WATCH][job_order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
           updateFromWatchers();
         })
       );
 
+      console.log('[KDS] Setting up watcher for job_order_detail...');
       watcherUnsubscribers.push(
         store.watch('job_order_detail', (rows) => {
+          console.log('[KDS][WATCH][job_order_detail] CALLBACK FIRED', {
+            rowsType: typeof rows,
+            isArray: Array.isArray(rows),
+            rawCount: (rows||[]).length
+          });
           watcherState.lines = ensureArray(rows);
+          console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
           updateFromWatchers();
         })
       );
@@ -4722,6 +5047,7 @@
       watcherUnsubscribers.push(
         store.watch('order_header', (rows) => {
           watcherState.orderHeaders = ensureArray(rows);
+          console.log('[KDS][WATCH][order_header]', { count: watcherState.orderHeaders.length, sample: watcherState.orderHeaders[0] || null });
           updateFromWatchers();
         })
       );
@@ -4730,6 +5056,7 @@
       watcherUnsubscribers.push(
         store.watch('order_line', (rows) => {
           watcherState.orderLines = ensureArray(rows);
+          console.log('[KDS][WATCH][order_line]', { count: watcherState.orderLines.length, sample: watcherState.orderLines[0] || null });
           updateFromWatchers();
         })
       );
@@ -4737,42 +5064,54 @@
       watcherUnsubscribers.push(
         store.watch('order_delivery', (rows) => {
           watcherState.deliveries = ensureArray(rows);
+          console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
           updateFromWatchers();
         })
       );
 
       // ✅ Watch master data tables directly
+      console.log('[KDS] Setting up watcher for kitchen_sections...');
       watcherUnsubscribers.push(
         store.watch('kitchen_sections', (rows) => {
           watcherState.kitchenSections = ensureArray(rows);
+          console.log('[KDS][WATCH][kitchen_sections]', { count: watcherState.kitchenSections.length, sample: watcherState.kitchenSections[0] || null });
           updateFromWatchers();
         })
       );
 
+      console.log('[KDS] Setting up watcher for menu_items...');
       watcherUnsubscribers.push(
         store.watch('menu_items', (rows) => {
           watcherState.menuItems = ensureArray(rows);
+          console.log('[KDS][WATCH][menu_items]', { count: watcherState.menuItems.length, sample: watcherState.menuItems[0] || null });
           updateFromWatchers();
         })
       );
 
+      console.log('[KDS] Setting up watcher for category_sections...');
       watcherUnsubscribers.push(
         store.watch('category_sections', (rows) => {
           watcherState.categorySections = ensureArray(rows);
+          console.log('[KDS][WATCH][category_sections]', { count: watcherState.categorySections.length, sample: watcherState.categorySections[0] || null });
           updateFromWatchers();
         })
       );
     };
 
     // إعداد الـ watchers - الـ Smart Store هيجيب البيانات تلقائياً!
+    console.log('[KDS] Setting up watchers - Smart Store will auto-fetch data if cache is empty');
     setupWatchers();
   } else if (!store || typeof store.watch !== 'function') {
+    console.warn(
+      '[Mishkah][KDS] POS dataset store unavailable. Live updates are disabled.'
+    );
     
     const checkStoreReady = () => {
       if (window.__POS_DB__) {
         store = window.__POS_DB__;
         if (store && typeof store.watch === 'function') {
           // تسجيل الجداول المطلوبة للـ KDS في الـ store (delayed)
+          console.log('[KDS] Registering required tables (delayed)...');
           const registeredObjects = (store.config && Array.isArray(store.config.objects))
             ? Object.keys(store.config.objects)
             : [];
@@ -4794,16 +5133,20 @@
             tablesToRegister.forEach(({ name, table }) => {
               if (!registeredObjects.includes(name)) {
                 try {
+                  console.log('[KDS] Registering table (delayed):', name);
                   store.register(name, { table });
                 } catch (err) {
+                  console.warn('[KDS] Failed to register table (delayed)', name, err);
                 }
               } else {
+                console.log('[KDS] Table already registered (delayed):', name);
               }
             });
           }
 
           // SMART STORE: الـ store بقى ذكي ويجيب البيانات تلقائياً عند أول watch()!
           // مش محتاجين نعمل fetch يدوي بعد كده 🎉
+          console.log('[KDS] Smart Store will auto-fetch data if cache is empty (delayed)');
 
           watcherUnsubscribers.push(
             store.status((status) => {
@@ -4812,24 +5155,48 @@
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for pos_database...');
           watcherUnsubscribers.push(
             store.watch('pos_database', (rows) => {
               const latest =
                 Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
               watcherState.posPayload =
                 (latest && latest.payload) || {};
+              console.log('[KDS][WATCH][pos_database]', {
+                count:(rows||[]).length,
+                hasPayload:!!(latest&&latest.payload),
+                keys: latest && latest.payload ? Object.keys(latest.payload).slice(0, 15) : [],
+                hasKitchenSections: !!(latest?.payload?.kitchen_sections),
+                kitchenSectionsCount: latest?.payload?.kitchen_sections?.length || 0,
+                hasMenuItems: !!(latest?.payload?.menu_items),
+                menuItemsCount: latest?.payload?.menu_items?.length || 0
+              });
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for job_order_header...');
           watcherUnsubscribers.push(
             store.watch('job_order_header', (rows) => {
+              console.log('[KDS][WATCH][job_order_header] CALLBACK FIRED (delayed)', {
+                rowsType: typeof rows,
+                isArray: Array.isArray(rows),
+                rawCount: (rows||[]).length
+              });
               watcherState.headers = ensureArray(rows);
+              console.log('[KDS][WATCH][job_order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for job_order_detail...');
           watcherUnsubscribers.push(
             store.watch('job_order_detail', (rows) => {
+              console.log('[KDS][WATCH][job_order_detail] CALLBACK FIRED (delayed)', {
+                rowsType: typeof rows,
+                isArray: Array.isArray(rows),
+                rawCount: (rows||[]).length
+              });
               watcherState.lines = ensureArray(rows);
+              console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
               updateFromWatchers();
             })
           );
@@ -4837,6 +5204,7 @@
           watcherUnsubscribers.push(
             store.watch('order_header', (rows) => {
               watcherState.orderHeaders = ensureArray(rows);
+              console.log('[KDS][WATCH][order_header]', { count: watcherState.orderHeaders.length, sample: watcherState.orderHeaders[0] || null });
               updateFromWatchers();
             })
           );
@@ -4844,37 +5212,46 @@
           watcherUnsubscribers.push(
             store.watch('order_line', (rows) => {
               watcherState.orderLines = ensureArray(rows);
+              console.log('[KDS][WATCH][order_line]', { count: watcherState.orderLines.length, sample: watcherState.orderLines[0] || null });
               updateFromWatchers();
             })
           );
           watcherUnsubscribers.push(
             store.watch('order_delivery', (rows) => {
               watcherState.deliveries = ensureArray(rows);
+              console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
               updateFromWatchers();
             })
           );
 
           // ✅ Watch master data tables directly (delayed)
+          console.log('[KDS] (Delayed) Setting up watcher for kitchen_sections...');
           watcherUnsubscribers.push(
             store.watch('kitchen_sections', (rows) => {
               watcherState.kitchenSections = ensureArray(rows);
+              console.log('[KDS][WATCH][kitchen_sections]', { count: watcherState.kitchenSections.length, sample: watcherState.kitchenSections[0] || null });
               updateFromWatchers();
             })
           );
 
+          console.log('[KDS] (Delayed) Setting up watcher for menu_items...');
           watcherUnsubscribers.push(
             store.watch('menu_items', (rows) => {
               watcherState.menuItems = ensureArray(rows);
+              console.log('[KDS][WATCH][menu_items]', { count: watcherState.menuItems.length, sample: watcherState.menuItems[0] || null });
               updateFromWatchers();
             })
           );
 
+          console.log('[KDS] (Delayed) Setting up watcher for category_sections...');
           watcherUnsubscribers.push(
             store.watch('category_sections', (rows) => {
               watcherState.categorySections = ensureArray(rows);
+              console.log('[KDS][WATCH][category_sections]', { count: watcherState.categorySections.length, sample: watcherState.categorySections[0] || null });
               updateFromWatchers();
             })
           );
+          console.log('[Mishkah][KDS] POS dataset store now available. Live updates enabled.');
         }
       } else {
         setTimeout(checkStoreReady, 100);
