@@ -2400,7 +2400,7 @@
             driver.phone ? D.Text.Span({ attrs:{ class: tw`text-xs text-slate-300` }}, [driver.phone]) : null
           ].filter(Boolean)),
           D.Text.Span({ attrs:{ class: tw`text-base` }}, ['🚚'])
-        ])))
+        ]))
       : [D.Text.P({ attrs:{ class: tw`text-center text-sm text-slate-400 py-8` }}, [
           lang === 'ar' ? 'لا يوجد سائقين متاحين' : 'No drivers available'
         ])];
