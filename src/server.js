@@ -354,15 +354,18 @@ async function loadModuleSchemaSnapshot(branchId, moduleId) {
 }
 
 async function loadModuleSeedSnapshot(branchId, moduleId) {
-  // ALWAYS use central seed, skip branch-specific seed
-  // This ensures consistent seed data across all branches
-  const fallbackPath = getModuleSeedFallbackPath(moduleId);
-  let seed = null;
-  let source = null;
+  // Try branch-specific seed first
+  const primaryPath = getModuleSeedPath(branchId, moduleId);
+  let seed = await readJsonSafe(primaryPath, null);
+  let source = seed ? 'branch' : null;
 
-  if (fallbackPath) {
-    seed = await readJsonSafe(fallbackPath, null);
-    if (seed) source = 'central';
+  // Fallback to central seed if branch seed doesn't exist
+  if (!seed) {
+    const fallbackPath = getModuleSeedFallbackPath(moduleId);
+    if (fallbackPath) {
+      seed = await readJsonSafe(fallbackPath, null);
+      if (seed) source = 'fallback';
+    }
   }
 
   return { seed, source };
@@ -3175,6 +3178,8 @@ async function ensureModuleSchema(branchId, moduleId) {
 
 async function ensureModuleSeed(branchId, moduleId) {
   const cacheKey = `${branchId}::${moduleId}`;
+  const seedPath = getModuleSeedPath(branchId, moduleId);
+  const branchDescriptor = await describeFile(seedPath);
   const cached = moduleSeedCache.get(cacheKey);
 
   const readSeed = async (filePath, source, mtimeMs) => {
@@ -3197,10 +3202,10 @@ async function ensureModuleSeed(branchId, moduleId) {
   const fallbackPath = getModuleSeedFallbackPath(moduleId);
   const fallbackDescriptor = await describeFile(fallbackPath);
   if (fallbackDescriptor.exists) {
-    if (cached?.source === 'central' && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
+    if (cached?.source === 'fallback' && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
       return cached.seed ?? null;
     }
-    return readSeed(fallbackPath, 'central', fallbackDescriptor.mtimeMs);
+    return readSeed(fallbackPath, 'fallback', fallbackDescriptor.mtimeMs);
   }
 
   moduleSeedCache.set(cacheKey, { source: 'missing', mtimeMs: null, seed: null });
