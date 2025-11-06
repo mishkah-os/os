@@ -1643,10 +1643,6 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
   };
   if (Number.isFinite(versionValue) && versionValue > 0) {
     record.version = Math.trunc(versionValue);
-  } else {
-    // ✅ FIX: Always set version=1 for new lines or lines without version
-    // This prevents version conflicts when adding new items to existing orders
-    record.version = 1;
   }
   return record;
 }
@@ -3189,16 +3185,15 @@ async function ensureModuleSeed(branchId, moduleId) {
     return normalized;
   };
 
-  // Try branch-specific seed first, then fallback to central seed
-  const branchPath = getModuleSeedPath(branchId, moduleId);
-  const branchDescriptor = await describeFile(branchPath);
+  // Try branch-specific seed first
   if (branchDescriptor.exists) {
     if (cached?.source === 'branch' && cached?.mtimeMs === branchDescriptor.mtimeMs) {
       return cached.seed ?? null;
     }
-    return readSeed(branchPath, 'branch', branchDescriptor.mtimeMs);
+    return readSeed(seedPath, 'branch', branchDescriptor.mtimeMs);
   }
 
+  // Fallback to central seed if branch seed doesn't exist
   const fallbackPath = getModuleSeedFallbackPath(moduleId);
   const fallbackDescriptor = await describeFile(fallbackPath);
   if (fallbackDescriptor.exists) {
