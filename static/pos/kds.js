@@ -4212,6 +4212,35 @@
   };
 
   if (store && typeof store.watch === 'function') {
+    // تسجيل الجداول المطلوبة للـ KDS في الـ store
+    // هذا ضروري قبل القراءة منها أو عمل watch
+    console.log('[KDS] Registering required tables...');
+    const registeredObjects = (store.config && Array.isArray(store.config.objects))
+      ? Object.keys(store.config.objects)
+      : [];
+
+    const tablesToRegister = [
+      { name: 'job_order_header', table: 'job_order_header' },
+      { name: 'job_order_detail', table: 'job_order_detail' },
+      { name: 'order_delivery', table: 'order_delivery' },
+      { name: 'pos_database', table: 'pos_database' }
+    ];
+
+    if (typeof store.register === 'function') {
+      tablesToRegister.forEach(({ name, table }) => {
+        if (!registeredObjects.includes(name)) {
+          try {
+            console.log('[KDS] Registering table:', name);
+            store.register(name, { table });
+          } catch (err) {
+            console.warn('[KDS] Failed to register table', name, err);
+          }
+        } else {
+          console.log('[KDS] Table already registered:', name);
+        }
+      });
+    }
+
     // تحميل البيانات الموجودة مسبقاً (Initial Load) من الـ store cache
     // هذا ضروري لأن الـ watchers قد لا ترسل البيانات الموجودة فوراً
     const loadInitialData = () => {
@@ -4222,14 +4251,14 @@
         if (typeof store.list === 'function') {
           const headers = store.list('job_order_header');
           watcherState.headers = ensureArray(headers);
-          console.log('[KDS][INITIAL] job_order_header:', watcherState.headers.length);
+          console.log('[KDS][INITIAL] job_order_header:', watcherState.headers.length, headers);
         }
 
         // تحميل job_order_detail
         if (typeof store.list === 'function') {
           const details = store.list('job_order_detail');
           watcherState.lines = ensureArray(details);
-          console.log('[KDS][INITIAL] job_order_detail:', watcherState.lines.length);
+          console.log('[KDS][INITIAL] job_order_detail:', watcherState.lines.length, details);
         }
 
         // تحميل order_delivery
@@ -4306,6 +4335,34 @@
       if (window.__POS_DB__) {
         store = window.__POS_DB__;
         if (store && typeof store.watch === 'function') {
+          // تسجيل الجداول المطلوبة للـ KDS في الـ store (delayed)
+          console.log('[KDS] Registering required tables (delayed)...');
+          const registeredObjects = (store.config && Array.isArray(store.config.objects))
+            ? Object.keys(store.config.objects)
+            : [];
+
+          const tablesToRegister = [
+            { name: 'job_order_header', table: 'job_order_header' },
+            { name: 'job_order_detail', table: 'job_order_detail' },
+            { name: 'order_delivery', table: 'order_delivery' },
+            { name: 'pos_database', table: 'pos_database' }
+          ];
+
+          if (typeof store.register === 'function') {
+            tablesToRegister.forEach(({ name, table }) => {
+              if (!registeredObjects.includes(name)) {
+                try {
+                  console.log('[KDS] Registering table (delayed):', name);
+                  store.register(name, { table });
+                } catch (err) {
+                  console.warn('[KDS] Failed to register table (delayed)', name, err);
+                }
+              } else {
+                console.log('[KDS] Table already registered (delayed):', name);
+              }
+            });
+          }
+
           // تحميل البيانات الموجودة مسبقاً (Initial Load) - عند توفر store متأخراً
           const loadInitialDataDelayed = () => {
             try {
@@ -4315,14 +4372,14 @@
               if (typeof store.list === 'function') {
                 const headers = store.list('job_order_header');
                 watcherState.headers = ensureArray(headers);
-                console.log('[KDS][INITIAL] job_order_header:', watcherState.headers.length);
+                console.log('[KDS][INITIAL] job_order_header:', watcherState.headers.length, headers);
               }
 
               // تحميل job_order_detail
               if (typeof store.list === 'function') {
                 const details = store.list('job_order_detail');
                 watcherState.lines = ensureArray(details);
-                console.log('[KDS][INITIAL] job_order_detail:', watcherState.lines.length);
+                console.log('[KDS][INITIAL] job_order_detail:', watcherState.lines.length, details);
               }
 
               // تحميل order_delivery
