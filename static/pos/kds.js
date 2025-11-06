@@ -2993,6 +2993,13 @@
         if(syncClient){
           syncClient.publishJobUpdate({ jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
         }
+        // ✅ Persist status change to server
+        persistJobOrderStatusChange(jobId, { status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso }, {
+          actorId: 'kds',
+          actorName: 'KDS',
+          actorRole: 'kds',
+          reason: 'job-started'
+        });
       }
     },
     'kds.job.finish':{
@@ -3010,6 +3017,13 @@
         if(syncClient){
           syncClient.publishJobUpdate({ jobId, payload:{ status:'ready', progressState:'completed',status:'finish', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
         }
+        // ✅ Persist status change to server
+        persistJobOrderStatusChange(jobId, { status:'ready', progressState:'completed', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso }, {
+          actorId: 'kds',
+          actorName: 'KDS',
+          actorRole: 'kds',
+          reason: 'job-completed'
+        });
       }
     },
     'kds.handoff.assembled':{
@@ -3243,6 +3257,60 @@
     headers: [],
     lines: [],
     deliveries: []
+  };
+
+  // ✅ Helper function to persist job order status changes to server
+  const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
+    if (!store || typeof store.save !== 'function' || typeof store.insert !== 'function') {
+      console.warn('[KDS][persistJobOrderStatusChange] Store not available, changes will not be persisted');
+      return;
+    }
+
+    try {
+      // 1. Update job_order_header with new status
+      const headerUpdate = {
+        id: jobId,
+        ...statusPayload,
+        updatedAt: statusPayload.updatedAt || new Date().toISOString()
+      };
+
+      await store.save('job_order_header', headerUpdate, {
+        source: 'kds-status-update',
+        actorId: actorInfo.actorId || 'kds',
+        reason: actorInfo.reason || 'status-change'
+      });
+
+      // 2. Insert status history entry
+      const historyEntry = {
+        id: `HIS-${jobId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        jobOrderId: jobId,
+        status: statusPayload.status || 'unknown',
+        actorId: actorInfo.actorId || 'kds',
+        actorName: actorInfo.actorName || 'KDS',
+        actorRole: actorInfo.actorRole || 'kds',
+        changedAt: statusPayload.updatedAt || new Date().toISOString(),
+        reason: actorInfo.reason || null,
+        meta: {
+          source: 'kds',
+          progressState: statusPayload.progressState || null,
+          ...actorInfo.meta
+        }
+      };
+
+      await store.insert('job_order_status_history', historyEntry, {
+        source: 'kds-status-history',
+        actorId: actorInfo.actorId || 'kds'
+      });
+
+      console.log('[KDS][persistJobOrderStatusChange] Persisted status change:', {
+        jobId,
+        status: statusPayload.status,
+        headerUpdate,
+        historyEntry
+      });
+    } catch (error) {
+      console.error('[KDS][persistJobOrderStatusChange] Failed to persist status change:', error);
+    }
   };
 
   const ensureArray = (value) => (Array.isArray(value) ? value : []);
