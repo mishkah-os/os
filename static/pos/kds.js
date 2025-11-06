@@ -3917,31 +3917,77 @@
 
   const buildWatcherPayload = () => {
     const posPayload = watcherState.posPayload || {};
+    console.log('[KDS][buildWatcherPayload] watcherState snapshot:', {
+      hasHeaders: !!watcherState.headers,
+      headersCount: ensureArray(watcherState.headers).length,
+      hasLines: !!watcherState.lines,
+      linesCount: ensureArray(watcherState.lines).length,
+      hasOrderHeaders: !!watcherState.orderHeaders,
+      orderHeadersCount: ensureArray(watcherState.orderHeaders).length,
+      hasOrderLines: !!watcherState.orderLines,
+      orderLinesCount: ensureArray(watcherState.orderLines).length,
+      hasPosPayload: !!posPayload && Object.keys(posPayload).length > 0,
+      posPayloadKeys: Object.keys(posPayload).slice(0, 10)
+    });
     console.log('[KDS][buildWatcherPayload] posPayload kitchen data:', {
       hasKitchenSections: !!posPayload?.kitchen_sections,
       kitchenSectionsCount: posPayload?.kitchen_sections?.length || 0,
       hasKdsStations: !!posPayload?.kds?.stations,
       hasMasterStations: !!posPayload?.master?.stations,
-      hasMasterKitchenSections: !!posPayload?.master?.kitchenSections
+      hasMasterKitchenSections: !!posPayload?.master?.kitchenSections,
+      hasMenuItems: !!posPayload?.menu_items,
+      menuItemsCount: posPayload?.menu_items?.length || 0
     });
-    const stations = buildStations(
-      posPayload,
-      posPayload?.kds || {},
-      posPayload?.master || {}
-    );
+    // ✅ Read master data from watcherState instead of posPayload
+    const kitchenSectionsFromWatcher = ensureArray(watcherState.kitchenSections);
+    const menuItemsFromWatcher = ensureArray(watcherState.menuItems);
+    const categorySectionsFromWatcher = ensureArray(watcherState.categorySections);
+
+    console.log('[KDS][buildWatcherPayload] Master data from watchers:', {
+      kitchenSectionsCount: kitchenSectionsFromWatcher.length,
+      menuItemsCount: menuItemsFromWatcher.length,
+      categorySectionsCount: categorySectionsFromWatcher.length,
+      sampleKitchenSection: kitchenSectionsFromWatcher[0],
+      sampleMenuItem: menuItemsFromWatcher[0]
+    });
+
+    const stations = kitchenSectionsFromWatcher.length > 0
+      ? kitchenSectionsFromWatcher.map(section => ({
+          id: section.id,
+          code: section.code || section.id,
+          nameAr: section.section_name?.ar || section.nameAr || '',
+          nameEn: section.section_name?.en || section.nameEn || '',
+          stationType: section.stationType || 'prep',
+          isExpo: section.isExpo || false,
+          themeColor: section.themeColor || null,
+          sequence: section.sortOrder || 0
+        }))
+      : buildStations(posPayload, posPayload?.kds || {}, posPayload?.master || {});
+
     const stationMap = toStationMap(stations);
-    const kitchenSections = normalizeKitchenSections(
-      posPayload?.kitchen_sections
-    );
+    const kitchenSections = kitchenSectionsFromWatcher.length > 0
+      ? kitchenSectionsFromWatcher
+      : normalizeKitchenSections(posPayload?.kitchen_sections);
+
     console.log('[KDS][buildWatcherPayload] Built data:', {
       stationsCount: stations.length,
       kitchenSectionsCount: kitchenSections.length,
       firstStation: stations[0],
       firstKitchenSection: kitchenSections[0]
     });
-    const stationCategoryRoutes = normalizeCategoryRoutes(
-      posPayload?.category_sections
-    );
+
+    const stationCategoryRoutes = categorySectionsFromWatcher.length > 0
+      ? categorySectionsFromWatcher.map(route => ({
+          id: route.id,
+          categoryId: route.categoryId || route.category_id,
+          stationId: route.sectionId || route.section_id || route.stationId || route.station_id,
+          priority: route.priority || 0,
+          isActive: route.isActive !== false,
+          createdAt: route.createdAt,
+          updatedAt: route.updatedAt
+        }))
+      : normalizeCategoryRoutes(posPayload?.category_sections);
+
     const categorySections = stationCategoryRoutes.map((route) => ({
       id: route.id,
       categoryId: route.categoryId,
@@ -3951,8 +3997,21 @@
       createdAt: route.createdAt,
       updatedAt: route.updatedAt
     }));
+
     const categories = deriveMenuCategories(posPayload);
-    const items = deriveMenuItems(posPayload);
+    const items = menuItemsFromWatcher.length > 0
+      ? menuItemsFromWatcher.map(item => ({
+          id: item.id,
+          itemId: item.id,
+          code: item.sku || item.code,
+          nameAr: item.item_name?.ar || item.nameAr || '',
+          nameEn: item.item_name?.en || item.nameEn || '',
+          categoryId: item.categoryId || item.category_id,
+          sectionId: item.kitchenSectionId || item.kitchen_section_id,
+          price: item.pricing?.base || item.basePrice || 0,
+          meta: { media: item.media || {} }
+        }))
+      : deriveMenuItems(posPayload);
     console.log('[KDS][buildWatcherPayload] Menu items derived:', {
       itemsCount: items.length,
       sampleItems: items.slice(0, 3).map(i => ({ id: i.id, nameAr: i.nameAr, nameEn: i.nameEn })),
@@ -4596,8 +4655,14 @@
     const tablesToRegister = [
       { name: 'job_order_header', table: 'job_order_header' },
       { name: 'job_order_detail', table: 'job_order_detail' },
+      { name: 'order_header', table: 'order_header' },
+      { name: 'order_line', table: 'order_line' },
       { name: 'order_delivery', table: 'order_delivery' },
-      { name: 'pos_database', table: 'pos_database' }
+      { name: 'pos_database', table: 'pos_database' },
+      // ✅ Register master data tables directly from REST API
+      { name: 'kitchen_sections', table: 'kitchen_sections' },
+      { name: 'menu_items', table: 'menu_items' },
+      { name: 'category_sections', table: 'category_sections' }
     ];
 
     if (typeof store.register === 'function') {
@@ -4629,27 +4694,48 @@
         })
       );
 
+      console.log('[KDS] Setting up watcher for pos_database...');
       watcherUnsubscribers.push(
         store.watch('pos_database', (rows) => {
           const latest =
             Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
           watcherState.posPayload =
             (latest && latest.payload) || {};
-          console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
+          console.log('[KDS][WATCH][pos_database]', {
+            count:(rows||[]).length,
+            hasPayload:!!(latest&&latest.payload),
+            keys: latest && latest.payload ? Object.keys(latest.payload).slice(0, 15) : [],
+            hasKitchenSections: !!(latest?.payload?.kitchen_sections),
+            kitchenSectionsCount: latest?.payload?.kitchen_sections?.length || 0,
+            hasMenuItems: !!(latest?.payload?.menu_items),
+            menuItemsCount: latest?.payload?.menu_items?.length || 0
+          });
           updateFromWatchers();
         })
       );
 
+      console.log('[KDS] Setting up watcher for job_order_header...');
       watcherUnsubscribers.push(
         store.watch('job_order_header', (rows) => {
+          console.log('[KDS][WATCH][job_order_header] CALLBACK FIRED', {
+            rowsType: typeof rows,
+            isArray: Array.isArray(rows),
+            rawCount: (rows||[]).length
+          });
           watcherState.headers = ensureArray(rows);
           console.log('[KDS][WATCH][job_order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
           updateFromWatchers();
         })
       );
 
+      console.log('[KDS] Setting up watcher for job_order_detail...');
       watcherUnsubscribers.push(
         store.watch('job_order_detail', (rows) => {
+          console.log('[KDS][WATCH][job_order_detail] CALLBACK FIRED', {
+            rowsType: typeof rows,
+            isArray: Array.isArray(rows),
+            rawCount: (rows||[]).length
+          });
           watcherState.lines = ensureArray(rows);
           console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
           updateFromWatchers();
@@ -4681,6 +4767,34 @@
           updateFromWatchers();
         })
       );
+
+      // ✅ Watch master data tables directly
+      console.log('[KDS] Setting up watcher for kitchen_sections...');
+      watcherUnsubscribers.push(
+        store.watch('kitchen_sections', (rows) => {
+          watcherState.kitchenSections = ensureArray(rows);
+          console.log('[KDS][WATCH][kitchen_sections]', { count: watcherState.kitchenSections.length, sample: watcherState.kitchenSections[0] || null });
+          updateFromWatchers();
+        })
+      );
+
+      console.log('[KDS] Setting up watcher for menu_items...');
+      watcherUnsubscribers.push(
+        store.watch('menu_items', (rows) => {
+          watcherState.menuItems = ensureArray(rows);
+          console.log('[KDS][WATCH][menu_items]', { count: watcherState.menuItems.length, sample: watcherState.menuItems[0] || null });
+          updateFromWatchers();
+        })
+      );
+
+      console.log('[KDS] Setting up watcher for category_sections...');
+      watcherUnsubscribers.push(
+        store.watch('category_sections', (rows) => {
+          watcherState.categorySections = ensureArray(rows);
+          console.log('[KDS][WATCH][category_sections]', { count: watcherState.categorySections.length, sample: watcherState.categorySections[0] || null });
+          updateFromWatchers();
+        })
+      );
     };
 
     // إعداد الـ watchers - الـ Smart Store هيجيب البيانات تلقائياً!
@@ -4704,8 +4818,14 @@
           const tablesToRegister = [
             { name: 'job_order_header', table: 'job_order_header' },
             { name: 'job_order_detail', table: 'job_order_detail' },
+            { name: 'order_header', table: 'order_header' },
+            { name: 'order_line', table: 'order_line' },
             { name: 'order_delivery', table: 'order_delivery' },
-            { name: 'pos_database', table: 'pos_database' }
+            { name: 'pos_database', table: 'pos_database' },
+            // ✅ Register master data tables directly from REST API
+            { name: 'kitchen_sections', table: 'kitchen_sections' },
+            { name: 'menu_items', table: 'menu_items' },
+            { name: 'category_sections', table: 'category_sections' }
           ];
 
           if (typeof store.register === 'function') {
@@ -4734,25 +4854,46 @@
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for pos_database...');
           watcherUnsubscribers.push(
             store.watch('pos_database', (rows) => {
               const latest =
                 Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
               watcherState.posPayload =
                 (latest && latest.payload) || {};
-              console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
+              console.log('[KDS][WATCH][pos_database]', {
+                count:(rows||[]).length,
+                hasPayload:!!(latest&&latest.payload),
+                keys: latest && latest.payload ? Object.keys(latest.payload).slice(0, 15) : [],
+                hasKitchenSections: !!(latest?.payload?.kitchen_sections),
+                kitchenSectionsCount: latest?.payload?.kitchen_sections?.length || 0,
+                hasMenuItems: !!(latest?.payload?.menu_items),
+                menuItemsCount: latest?.payload?.menu_items?.length || 0
+              });
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for job_order_header...');
           watcherUnsubscribers.push(
             store.watch('job_order_header', (rows) => {
+              console.log('[KDS][WATCH][job_order_header] CALLBACK FIRED (delayed)', {
+                rowsType: typeof rows,
+                isArray: Array.isArray(rows),
+                rawCount: (rows||[]).length
+              });
               watcherState.headers = ensureArray(rows);
               console.log('[KDS][WATCH][job_order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
               updateFromWatchers();
             })
           );
+          console.log('[KDS] (Delayed) Setting up watcher for job_order_detail...');
           watcherUnsubscribers.push(
             store.watch('job_order_detail', (rows) => {
+              console.log('[KDS][WATCH][job_order_detail] CALLBACK FIRED (delayed)', {
+                rowsType: typeof rows,
+                isArray: Array.isArray(rows),
+                rawCount: (rows||[]).length
+              });
               watcherState.lines = ensureArray(rows);
               console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
               updateFromWatchers();
@@ -4778,6 +4919,34 @@
             store.watch('order_delivery', (rows) => {
               watcherState.deliveries = ensureArray(rows);
               console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
+              updateFromWatchers();
+            })
+          );
+
+          // ✅ Watch master data tables directly (delayed)
+          console.log('[KDS] (Delayed) Setting up watcher for kitchen_sections...');
+          watcherUnsubscribers.push(
+            store.watch('kitchen_sections', (rows) => {
+              watcherState.kitchenSections = ensureArray(rows);
+              console.log('[KDS][WATCH][kitchen_sections]', { count: watcherState.kitchenSections.length, sample: watcherState.kitchenSections[0] || null });
+              updateFromWatchers();
+            })
+          );
+
+          console.log('[KDS] (Delayed) Setting up watcher for menu_items...');
+          watcherUnsubscribers.push(
+            store.watch('menu_items', (rows) => {
+              watcherState.menuItems = ensureArray(rows);
+              console.log('[KDS][WATCH][menu_items]', { count: watcherState.menuItems.length, sample: watcherState.menuItems[0] || null });
+              updateFromWatchers();
+            })
+          );
+
+          console.log('[KDS] (Delayed) Setting up watcher for category_sections...');
+          watcherUnsubscribers.push(
+            store.watch('category_sections', (rows) => {
+              watcherState.categorySections = ensureArray(rows);
+              console.log('[KDS][WATCH][category_sections]', { count: watcherState.categorySections.length, sample: watcherState.categorySections[0] || null });
               updateFromWatchers();
             })
           );
