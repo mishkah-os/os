@@ -2714,7 +2714,8 @@
             const envelope = buildOrderEnvelope(orderPayload, state);
             if(!envelope) return null;
 
-            // ✅ PERSIST job_orders to store for cross-page persistence (fallback mode)
+            // ⚠️ FALLBACK MODE: No WebSocket - job_orders stored in offline store only
+            // Data will NOT persist to backend - consider implementing HTTP POST fallback
             const jobOrders = envelope.payload?.jobOrders;
             if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
               const store = window.__POS_DB__;
@@ -2723,14 +2724,14 @@
               const modifiers = jobOrders.modifiers || [];
               const statusHistory = jobOrders.statusHistory || [];
 
-              console.log('[POS][KDS][Fallback] Persisting job_orders to store:', {
+              console.warn('[POS][KDS][Fallback] WebSocket unavailable - job_orders will NOT persist! Consider HTTP POST:', {
                 headers: headers.length,
                 details: details.length,
                 modifiers: modifiers.length,
                 statusHistory: statusHistory.length
               });
 
-              // Insert all job_order records
+              // Insert to offline store (NOT persistent - data lost on refresh!)
               headers.forEach(h => { try { store.insert('job_order_header', h, { silent: true }); } catch (e) {} });
               details.forEach(d => { try { store.insert('job_order_detail', d, { silent: true }); } catch (e) {} });
               modifiers.forEach(m => { try { store.insert('job_order_detail_modifier', m, { silent: true }); } catch (e) {} });
@@ -2848,7 +2849,12 @@
             return null;
           }
 
-          // ✅ PERSIST job_orders to store for cross-page persistence
+          // ✅ PERSIST job_orders via WebSocket store - backend persists & broadcasts automatically
+          // Using store.insert() WITHOUT silent - backend will:
+          // 1. Receive WebSocket event (module:insert)
+          // 2. Persist to disk
+          // 3. Broadcast to all connected clients (including KDS)
+          // No need for separate sendEnvelope!
           const jobOrders = envelope.payload?.jobOrders;
           if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
             const store = window.__POS_DB__;
@@ -2857,50 +2863,49 @@
             const modifiers = jobOrders.modifiers || [];
             const statusHistory = jobOrders.statusHistory || [];
 
-            console.log('[POS][KDS] Persisting job_orders to store:', {
+            console.log('[POS][KDS] Persisting job_orders via WebSocket store:', {
               headers: headers.length,
               details: details.length,
               modifiers: modifiers.length,
               statusHistory: statusHistory.length
             });
 
-            // Insert job_order_header
+            // Insert WITHOUT silent - backend will persist AND broadcast
             headers.forEach(header => {
               try {
-                store.insert('job_order_header', header, { silent: true });
+                store.insert('job_order_header', header);
               } catch (err) {
                 console.warn('[POS][KDS] Failed to insert job_order_header:', err);
               }
             });
 
-            // Insert job_order_detail
             details.forEach(detail => {
               try {
-                store.insert('job_order_detail', detail, { silent: true });
+                store.insert('job_order_detail', detail);
               } catch (err) {
                 console.warn('[POS][KDS] Failed to insert job_order_detail:', err);
               }
             });
 
-            // Insert job_order_detail_modifier
             modifiers.forEach(modifier => {
               try {
-                store.insert('job_order_detail_modifier', modifier, { silent: true });
+                store.insert('job_order_detail_modifier', modifier);
               } catch (err) {
                 console.warn('[POS][KDS] Failed to insert job_order_detail_modifier:', err);
               }
             });
 
-            // Insert job_order_status_history
             statusHistory.forEach(history => {
               try {
-                store.insert('job_order_status_history', history, { silent: true });
+                store.insert('job_order_status_history', history);
               } catch (err) {
                 console.warn('[POS][KDS] Failed to insert job_order_status_history:', err);
               }
             });
           }
 
+          // Still send envelope for other data (order, master, deliveries, handoff)
+          // but job_orders are now handled via store.insert() above
           sendEnvelope({ type:'publish', topic: topicOrders, data: envelope.payload });
           pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });
           return envelope.payload;
