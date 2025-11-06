@@ -3825,7 +3825,6 @@
 
       // ✅ Update watcherState.orderHeaders immediately (optimistic update)
       // This ensures buildOrdersFromHeaders uses the updated status before watcher re-fetches
-      const orderHeaders = watcherState.orderHeaders || [];
       watcherState.orderHeaders = orderHeaders.map(header => {
         const headerId = String(header.id || header.orderId);
         if (headerId === orderId) {
