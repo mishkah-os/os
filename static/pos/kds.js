@@ -3426,9 +3426,63 @@
 
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
-    if (!store || typeof store.save !== 'function' || typeof store.insert !== 'function') {
+    console.log('[KDS][persistJobOrderStatusChange] Checking store availability:', {
+      storeExists: !!store,
+      hasUpdate: store && typeof store.update === 'function',
+      hasInsert: store && typeof store.insert === 'function',
+      storeType: store ? typeof store : 'undefined',
+      storeMethods: store ? Object.keys(store).filter(k => typeof store[k] === 'function') : [],
+      windowPosDB: typeof window !== 'undefined' ? !!window.__POS_DB__ : false
+    });
+
+    if (!store || typeof store.update !== 'function' || typeof store.insert !== 'function') {
       console.warn('[KDS][persistJobOrderStatusChange] Store not available, changes will not be persisted');
-      return;
+      console.warn('[KDS][persistJobOrderStatusChange] Will try to use REST API directly instead');
+
+      // ✅ Fallback: Use REST API directly if store is not available
+      try {
+        const baseUrl = '/api/v1';
+
+        // Update job_order_header
+        await fetch(`${baseUrl}/job_order_header/${jobId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: statusPayload.status,
+            progressState: statusPayload.progressState,
+            updatedAt: statusPayload.updatedAt || new Date().toISOString()
+          })
+        });
+        console.log('[KDS][persistJobOrderStatusChange] Updated job_order_header via REST API');
+
+        // Update order_line
+        const baseOrderId = extractBaseOrderId(jobId);
+        if (baseOrderId && statusPayload.status) {
+          const orderLines = watcherState.orderLines || [];
+          const matchingLines = orderLines.filter(line =>
+            String(line.orderId || line.order_id) === baseOrderId
+          );
+
+          for (const line of matchingLines) {
+            await fetch(`${baseUrl}/order_line/${line.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                statusId: statusPayload.status,
+                status: statusPayload.status,
+                updatedAt: statusPayload.updatedAt || new Date().toISOString()
+              })
+            });
+            console.log('[KDS][persistJobOrderStatusChange] Updated order_line via REST API:', line.id);
+          }
+        }
+
+        console.log('[KDS][persistJobOrderStatusChange] ✅ Persisted via REST API fallback');
+        return;
+      } catch (apiError) {
+        console.error('[KDS][persistJobOrderStatusChange] ❌ REST API fallback also failed:', apiError);
+        return;
+      }
     }
 
     try {
@@ -3441,11 +3495,7 @@
         updatedAt: statusPayload.updatedAt || new Date().toISOString()
       };
 
-      await store.save('job_order_header', headerUpdate, {
-        source: 'kds-status-update',
-        actorId: actorInfo.actorId || 'kds',
-        reason: actorInfo.reason || 'status-change'
-      });
+      await store.update('job_order_header', headerUpdate);
       console.log('[KDS][persistJobOrderStatusChange] Updated job_order_header');
 
       // 2. ✅ Update all job_order_detail for this job
@@ -3461,14 +3511,10 @@
 
       for (const detail of jobDetails) {
         try {
-          await store.save('job_order_detail', {
+          await store.update('job_order_detail', {
             id: detail.id,
             status: statusPayload.status,
             updatedAt: statusPayload.updatedAt || new Date().toISOString()
-          }, {
-            source: 'kds-status-sync',
-            actorId: actorInfo.actorId || 'kds',
-            reason: 'sync-from-job-header'
           });
         } catch (detailError) {
           console.warn('[KDS][persistJobOrderStatusChange] Failed to update job_order_detail:', detail.id, detailError);
@@ -3493,15 +3539,11 @@
 
         for (const line of matchingLines) {
           try {
-            await store.save('order_line', {
+            await store.update('order_line', {
               id: line.id,
               statusId: statusPayload.status,
               status: statusPayload.status,
               updatedAt: statusPayload.updatedAt || new Date().toISOString()
-            }, {
-              source: 'kds-status-sync',
-              actorId: actorInfo.actorId || 'kds',
-              reason: 'sync-from-job-order'
             });
             console.log('[KDS][persistJobOrderStatusChange] Updated order_line:', line.id, 'status:', statusPayload.status);
           } catch (lineError) {
@@ -3533,10 +3575,7 @@
         }
       };
 
-      await store.insert('job_order_status_history', historyEntry, {
-        source: 'kds-status-history',
-        actorId: actorInfo.actorId || 'kds'
-      });
+      await store.insert('job_order_status_history', historyEntry);
 
       console.log('[KDS][persistJobOrderStatusChange] ✅ Complete! Persisted status change:', {
         jobId,
