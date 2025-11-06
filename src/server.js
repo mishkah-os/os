@@ -1956,6 +1956,238 @@ async function syncOrderLineStatusLogs(branchId, moduleId, store, orderId, lineR
   }
 }
 
+function generateJobOrderRecords(header, lines) {
+  if (!header || !header.id) return null;
+  if (!Array.isArray(lines) || lines.length === 0) return null;
+
+  const orderId = header.id;
+  const orderNumber = header.metadata?.invoiceSequence || header.id;
+  const serviceMode = header.type || 'dine_in';
+  const createdAt = header.createdAt || Date.now();
+  const updatedAt = header.updatedAt || createdAt;
+
+  // Group lines by kitchen section (stationId)
+  const jobsMap = new Map();
+  const jobDetails = [];
+  const jobModifiers = [];
+  const historyEntries = [];
+
+  lines.forEach((line, index) => {
+    if (!line) return;
+
+    const lineIndex = index + 1;
+    const stationId = line.kitchenSectionId || line.kitchen_section_id || line.kitchenSection || 'expo';
+    const jobId = `${orderId}-${stationId}`;
+
+    // Create or update job header for this station
+    const existing = jobsMap.get(jobId) || {
+      id: jobId,
+      orderId,
+      orderNumber,
+      posRevision: `${orderId}@${updatedAt}`,
+      orderTypeId: serviceMode,
+      serviceMode,
+      stationId,
+      stationCode: String(stationId).toUpperCase(),
+      status: 'queued',
+      progressState: 'awaiting',
+      totalItems: 0,
+      completedItems: 0,
+      remainingItems: 0,
+      hasAlerts: false,
+      isExpedite: false,
+      tableLabel: null,
+      customerName: header.customerName || null,
+      dueAt: header.dueAt || null,
+      acceptedAt: null,
+      startedAt: null,
+      readyAt: null,
+      completedAt: null,
+      expoAt: null,
+      syncChecksum: `${orderId}-${stationId}`,
+      notes: Array.isArray(line.notes) ? line.notes.join('; ') : '',
+      meta: { orderSource: 'pos', kdsTab: stationId },
+      createdAt,
+      updatedAt
+    };
+
+    const quantity = Number(line.qty) || 1;
+    existing.totalItems += quantity;
+    existing.remainingItems += quantity;
+    jobsMap.set(jobId, existing);
+
+    // Create job detail for this line
+    const baseLineId = line.id || `${orderId}-line-${lineIndex}`;
+    const detailId = `${jobId}-detail-${baseLineId}`;
+    const itemId = line.itemId || line.item_id || baseLineId;
+
+    const detail = {
+      id: detailId,
+      jobOrderId: jobId,
+      itemId,
+      itemCode: itemId,
+      quantity,
+      status: 'queued',
+      startAt: null,
+      finishAt: null,
+      createdAt,
+      updatedAt,
+      itemNameAr: line.name || `عنصر ${lineIndex}`,
+      itemNameEn: line.name || `Item ${lineIndex}`,
+      prepNotes: Array.isArray(line.notes) ? line.notes.join('; ') : '',
+      stationId,
+      kitchenSectionId: stationId
+    };
+    jobDetails.push(detail);
+
+    // Create job modifiers if any
+    // Note: modifiers would need to be extracted from line data if available
+    // For now, we'll skip this as the order_line table doesn't typically store modifiers
+
+    // Create status history entry
+    historyEntries.push({
+      id: `HIS-${jobId}-${baseLineId}`,
+      jobOrderId: jobId,
+      status: 'queued',
+      actorId: 'pos',
+      actorName: 'POS',
+      actorRole: 'pos',
+      changedAt: createdAt,
+      meta: { source: 'pos', lineId: line.id || baseLineId }
+    });
+  });
+
+  const headers = Array.from(jobsMap.values());
+
+  return {
+    headers,
+    details: jobDetails,
+    modifiers: jobModifiers,
+    history: historyEntries
+  };
+}
+
+async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, options = {}) {
+  // Generate job order records from order data
+  const jobOrderData = generateJobOrderRecords(header, lines);
+
+  if (!jobOrderData) {
+    logger.debug({ orderId }, 'No job order data to sync (empty order or no lines)');
+    return;
+  }
+
+  // Delete existing job orders for this order
+  const existingHeaders = store
+    .listTable('job_order_header')
+    .filter((entry) => entry && entry.orderId === orderId);
+
+  for (const entry of existingHeaders) {
+    if (!entry || !entry.id) continue;
+    await applyModuleMutation(
+      branchId,
+      moduleId,
+      'job_order_header',
+      'module:delete',
+      { id: entry.id, orderId },
+      options
+    );
+  }
+
+  // Delete existing job order details
+  const existingDetails = store
+    .listTable('job_order_detail')
+    .filter((entry) => entry && Array.isArray(jobOrderData.headers) &&
+             jobOrderData.headers.some(h => h.id === entry.jobOrderId));
+
+  for (const entry of existingDetails) {
+    if (!entry || !entry.id) continue;
+    await applyModuleMutation(
+      branchId,
+      moduleId,
+      'job_order_detail',
+      'module:delete',
+      { id: entry.id },
+      options
+    );
+  }
+
+  // Delete existing job order history
+  const existingHistory = store
+    .listTable('job_order_status_history')
+    .filter((entry) => entry && Array.isArray(jobOrderData.headers) &&
+             jobOrderData.headers.some(h => h.id === entry.jobOrderId));
+
+  for (const entry of existingHistory) {
+    if (!entry || !entry.id) continue;
+    await applyModuleMutation(
+      branchId,
+      moduleId,
+      'job_order_status_history',
+      'module:delete',
+      { id: entry.id },
+      options
+    );
+  }
+
+  // Insert new job order headers
+  for (const jobHeader of jobOrderData.headers) {
+    await applyModuleMutation(
+      branchId,
+      moduleId,
+      'job_order_header',
+      'module:save',
+      jobHeader,
+      options
+    );
+  }
+
+  // Insert new job order details
+  for (const jobDetail of jobOrderData.details) {
+    await applyModuleMutation(
+      branchId,
+      moduleId,
+      'job_order_detail',
+      'module:save',
+      jobDetail,
+      options
+    );
+  }
+
+  // Insert new job order modifiers (if any)
+  for (const jobModifier of jobOrderData.modifiers) {
+    await applyModuleMutation(
+      branchId,
+      moduleId,
+      'job_order_detail_modifier',
+      'module:save',
+      jobModifier,
+      options
+    );
+  }
+
+  // Insert new job order status history
+  for (const historyEntry of jobOrderData.history) {
+    await applyModuleMutation(
+      branchId,
+      moduleId,
+      'job_order_status_history',
+      'module:save',
+      historyEntry,
+      options
+    );
+  }
+
+  logger.info(
+    {
+      orderId,
+      jobHeaders: jobOrderData.headers.length,
+      jobDetails: jobOrderData.details.length,
+      jobHistory: jobOrderData.history.length
+    },
+    'Synced job order records'
+  );
+}
+
 async function savePosOrder(branchId, moduleId, orderPayload, options = {}) {
   if (!orderPayload || typeof orderPayload !== 'object') {
     throw new Error('Order payload is required');
@@ -2015,6 +2247,18 @@ async function savePosOrder(branchId, moduleId, orderPayload, options = {}) {
     lineResults,
     { source: options.source || 'pos-order-api' }
   );
+
+  // ✅ Sync job order tables (job_order_header, job_order_detail, job_order_detail_modifier, job_order_status_history)
+  await syncJobOrders(
+    branchId,
+    moduleId,
+    store,
+    orderId,
+    normalized.header,
+    normalized.lines,
+    { source: options.source || 'pos-order-api' }
+  );
+
   return { orderId, normalized, header: headerResult?.record };
 }
 
