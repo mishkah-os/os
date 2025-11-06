@@ -2560,10 +2560,11 @@
       let stationsNext = Array.isArray(state.data.stations)
         ? state.data.stations.map(station=> ({ ...station }))
         : [];
+      let stationsExplicitlyProvided = false;
       if(Array.isArray(payload.master?.stations) && payload.master.stations.length){
         stationsNext = payload.master.stations.map(station=> ({ ...station }));
+        stationsExplicitlyProvided = true;
       }
-      const stationMapNext = toStationMap(stationsNext);
       let stationRoutesNext = Array.isArray(state.data.stationCategoryRoutes)
         ? state.data.stationCategoryRoutes.map(route=> ({ ...route }))
         : [];
@@ -2576,6 +2577,28 @@
       if(Array.isArray(payload.master?.kitchenSections)){
         kitchenSectionsNext = payload.master.kitchenSections.map(section=> ({ ...section }));
       }
+      if(!stationsExplicitlyProvided && kitchenSectionsNext.length){
+        stationsNext = kitchenSectionsNext.map((section, idx)=>{
+          const id = section.id || section.section_id || section.sectionId;
+          const nameAr = section.section_name?.ar || section.name?.ar || section.nameAr || id;
+          const nameEn = section.section_name?.en || section.name?.en || section.nameEn || id;
+          return {
+            id,
+            code: id && id.toString ? id.toString().toUpperCase() : id,
+            nameAr,
+            nameEn,
+            stationType: id === 'expo' ? 'expo' : 'prep',
+            isExpo: id === 'expo',
+            sequence: section.sequence || (idx + 1),
+            themeColor: section.themeColor || null,
+            displayConfig: section.displayConfig || { layout:'grid', columns:2 },
+            autoRouteRules: section.autoRouteRules || [],
+            createdAt: section.createdAt || null,
+            updatedAt: section.updatedAt || null
+          };
+        });
+      }
+      const stationMapNext = toStationMap(stationsNext);
       let categorySectionsNext = Array.isArray(state.data.categorySections)
         ? state.data.categorySections.map(entry=> ({ ...entry }))
         : [];
