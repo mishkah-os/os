@@ -1219,20 +1219,30 @@
       const pendingItems = totalItems - readyItems;
 
       // ✅ Calculate handoff status based on derived item statuses
-      // Priority: record status (if manually set) > calculated from items
+      // Priority:
+      // 1. order_header.statusId (if set) - from database
+      // 2. handoff record (if manually set) - from UI actions
+      // 3. calculated from items - derived from job_order_detail
       let status;
+      const headerStatusId = header.statusId ? String(header.statusId).toLowerCase() : null;
       const recordStatus = record.status ? String(record.status).toLowerCase() : null;
 
-      // If already moved to next stage, keep that status
-      if (recordStatus === 'assembled' || recordStatus === 'served' || recordStatus === 'delivered') {
+      // First check order_header.statusId (database state)
+      if (headerStatusId && headerStatusId !== '' && headerStatusId !== 'null') {
+        status = headerStatusId;
+      }
+      // Then check handoff record (UI state) - only if moved to final stages
+      else if (recordStatus === 'assembled' || recordStatus === 'served' || recordStatus === 'delivered') {
         status = recordStatus;
-      } else {
-        // Calculate from items: all ready = 'ready', else 'pending'
+      }
+      // Otherwise calculate from items
+      else {
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
 
       console.log('[KDS][buildOrdersFromHeaders] Order status calculation:', {
         orderId,
+        headerStatusId,
         recordStatus,
         totalItems,
         readyItems,
