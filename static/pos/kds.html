@@ -145,7 +145,7 @@
               const tables = await window.loadPosData(BRANCH_ID, 'pos');
               window.database = tables;
 
-              // NOTE: No aliasing needed here anymore - backend now handles plural/singular mapping
+              // Fixed: pos-mini-db now correctly uses kitchen_sections (plural) to match seeds
 
               status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
               status.keys = Object.keys(tables);
@@ -173,7 +173,7 @@
                   if (!window.database) window.database = {};
                   window.database[tableName] = rows;
 
-                  // NOTE: Backend now correctly maps plural seeds to singular table names
+                  // Fixed: No aliasing needed - table name matches what KDS expects
                 });
               });
             });
