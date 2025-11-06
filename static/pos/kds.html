@@ -183,6 +183,15 @@
                   }
                 });
               });
+
+              // CRITICAL FIX: Load kds.js AFTER data is ready
+              // This ensures window.database.kitchen_sections is populated before kds.js runs
+              console.log('[KDS] Data loaded, kitchen_sections count:', window.database?.kitchen_sections?.length || 0);
+              const script = document.createElement('script');
+              script.src = './kds.js';
+              script.onload = () => console.log('[KDS] kds.js loaded successfully');
+              script.onerror = () => console.error('[KDS] Failed to load kds.js');
+              document.body.appendChild(script);
             });
 
           }).catch(error => {
@@ -207,6 +216,6 @@
     }
   </script>
 
-  <script src="./kds.js"> </script>
+  <!-- kds.js is now loaded dynamically after data is ready (see above) -->
 </body>
 </html>
