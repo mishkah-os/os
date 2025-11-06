@@ -2150,21 +2150,51 @@
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
     // ✅ Get orders that are assembled/served/delivered from order_header
-    const completedOrderIds = new Set(
-      buildOrdersFromHeaders(db)
-        .filter(order=> {
-          const status = order.handoffStatus;
-          return status === 'assembled' || status === 'served' || status === 'delivered';
-        })
-        .map(order=> order.orderId || order.id)
-    );
+    const completedOrders = buildOrdersFromHeaders(db)
+      .filter(order=> {
+        const status = order.handoffStatus;
+        return status === 'assembled' || status === 'served' || status === 'delivered';
+      });
+
+    const completedOrderIds = new Set(completedOrders.map(order=> order.orderId || order.id));
+
+    // 🔍 Debug: Log completed orders
+    if (completedOrderIds.size > 0) {
+      console.log('[KDS][renderStationPanel] 🔍 Completed orders:', {
+        stationId,
+        completedOrderIds: Array.from(completedOrderIds),
+        completedOrders: completedOrders.map(o => ({ orderId: o.orderId, status: o.handoffStatus }))
+      });
+    }
 
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
+
+    // 🔍 Debug: Log all jobs for station
+    if (allJobsForStation.length > 0 && completedOrderIds.size > 0) {
+      console.log('[KDS][renderStationPanel] 🔍 All jobs for station:', {
+        stationId,
+        totalJobs: allJobsForStation.length,
+        jobOrderIds: allJobsForStation.map(j => j.orderId),
+        jobStatuses: allJobsForStation.map(j => ({ id: j.id, orderId: j.orderId, status: j.status }))
+      });
+    }
+
     const jobs = allJobsForStation
       // Hide jobs that are already ready/completed
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
       // Hide jobs whose order is assembled/served/delivered
-      .filter(job=> !completedOrderIds.has(job.orderId));
+      .filter(job=> {
+        const shouldHide = completedOrderIds.has(job.orderId);
+        if (completedOrderIds.size > 0 && !shouldHide) {
+          console.log('[KDS][renderStationPanel] ⚠️ Job NOT filtered:', {
+            jobId: job.id,
+            jobOrderId: job.orderId,
+            completedIds: Array.from(completedOrderIds),
+            hasMatch: shouldHide
+          });
+        }
+        return !shouldHide;
+      });
 
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
