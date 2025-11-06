@@ -1089,6 +1089,90 @@
   let lastWatcherSnapshot = null;
   let lastStateSnapshot = null;
 
+  // ✅ Build orders from order_header + order_line (for static tabs: prep, expo, handoff)
+  const buildOrdersFromHeaders = (db)=>{
+    const orderHeaders = Array.isArray(db?.data?.orderHeaders) ? db.data.orderHeaders : [];
+    const orderLines = Array.isArray(db?.data?.orderLines) ? db.data.orderLines : [];
+    const handoff = db?.data?.handoff || {};
+    const stationMap = db?.data?.stationMap || {};
+    const menuIndex = db?.data?.menuIndex || {};
+
+    // Group lines by orderId
+    const linesByOrder = new Map();
+    orderLines.forEach(line => {
+      if (!line || !line.orderId) return;
+      const orderId = String(line.orderId);
+      if (!linesByOrder.has(orderId)) {
+        linesByOrder.set(orderId, []);
+      }
+      linesByOrder.get(orderId).push(line);
+    });
+
+    return orderHeaders.map(header => {
+      const orderId = String(header.id);
+      const lines = linesByOrder.get(orderId) || [];
+
+      const orderKey = normalizeOrderKey(orderId);
+      let record = (orderKey && (handoff[orderKey] || handoff[orderId])) || {};
+      const recordStatus = record.status ? String(record.status).toLowerCase() : '';
+
+      // Build detail rows from order_line
+      const detailRows = lines.map(line => {
+        const station = stationMap[line.kitchenSectionId || line.kitchen_section_id] || {};
+        const stationLabelAr = station.nameAr || line.kitchenSectionId || 'غير محدد';
+        const stationLabelEn = station.nameEn || line.kitchenSectionId || 'Unassigned';
+        const menuItem = line.itemId ? menuIndex[String(line.itemId)] : null;
+
+        return {
+          detail: {
+            id: line.id,
+            itemId: line.itemId,
+            itemNameAr: line.name || menuItem?.nameAr || line.itemId || stationLabelAr,
+            itemNameEn: line.name || menuItem?.nameEn || line.itemId || stationLabelEn,
+            quantity: Number(line.qty) || 1,
+            status: line.status || 'draft',
+            prepNotes: Array.isArray(line.notes) ? line.notes.join('; ') : '',
+            modifiers: []
+          },
+          stationLabelAr,
+          stationLabelEn
+        };
+      });
+
+      const totalItems = lines.reduce((sum, line) => sum + (Number(line.qty) || 1), 0);
+      const readyItems = lines.filter(line => line.status === 'ready' || line.status === 'completed').reduce((sum, line) => sum + (Number(line.qty) || 1), 0);
+      const pendingItems = totalItems - readyItems;
+
+      let status = record.status;
+      if (status === 'assembled' || status === 'served') {
+        if (pendingItems > 0) {
+          status = 'pending';
+        } else if (readyItems < totalItems) {
+          status = 'pending';
+        }
+      } else {
+        status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
+      }
+
+      return {
+        orderId,
+        orderNumber: header.orderNumber || header.id,
+        serviceMode: header.serviceMode || header.type || 'dine_in',
+        tableLabel: header.tableLabel || null,
+        customerName: header.customerName || null,
+        handoffStatus: status,
+        handoffRecord: record,
+        totalItems,
+        readyItems,
+        pendingItems,
+        detailRows,
+        createdAt: header.createdAt,
+        updatedAt: header.updatedAt
+      };
+    });
+  };
+
+  // ✅ Build orders from job_orders (for dynamic kitchen section tabs)
   const computeOrdersSnapshot = (db)=>{
     const orders = Array.isArray(db?.data?.jobs?.orders) ? db.data.jobs.orders : [];
     const handoff = db?.data?.handoff || {};
@@ -1304,13 +1388,12 @@
   };
 
   const getExpoOrders = (db)=>{
-    const snapshot = computeOrdersSnapshot(db)
+    // ✅ Use order_header + order_line for static expo tab
+    const snapshot = buildOrdersFromHeaders(db)
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        // ✅ Exclude both 'assembled' and 'served' orders from expo
-        // 'assembled' = ready for handoff (moved to handoff tab)
-        // 'served' = delivered to customer (order completed)
+        // ✅ Hide served orders from expo
         return status !== 'assembled' && status !== 'served';
       });
     const orderMap = new Map();
@@ -1334,7 +1417,7 @@
     });
   };
 
-  const getHandoffOrders = (db)=> computeOrdersSnapshot(db)
+  const getHandoffOrders = (db)=> buildOrdersFromHeaders(db)
     .filter(order=>{
       if(!order) return false;
       const status = order.handoffStatus;
@@ -1953,7 +2036,8 @@
   };
 
   const renderPrepPanel = (db, t, lang, now)=>{
-    const orders = computeOrdersSnapshot(db).filter(order=> order.handoffStatus !== 'served');
+    // ✅ Use order_header + order_line for static "prep/all" tab
+    const orders = buildOrdersFromHeaders(db).filter(order=> order.handoffStatus !== 'served');
     if(!orders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
@@ -1963,13 +2047,11 @@
       ]),
       order.tableLabel ? createBadge(`${t.labels.table} ${order.tableLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`) : null,
       order.customerName ? D.Text.P({ attrs:{ class: tw`text-sm text-slate-300` }}, [`${t.labels.customer}: ${order.customerName}`]) : null,
-      D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, order.jobs.map(job=> D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-1 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3` }}, [
-        D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between gap-3` }}, [
-          D.Text.Span({ attrs:{ class: tw`text-sm font-semibold text-slate-100` }}, [stationMap[job.stationId] ? (lang === 'ar' ? (stationMap[job.stationId].nameAr || stationMap[job.stationId].nameEn) : (stationMap[job.stationId].nameEn || stationMap[job.stationId].nameAr)) : job.stationCode || job.stationId]),
-          createBadge(t.labels.jobStatus[job.status] || job.status, STATUS_CLASS[job.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
-        ]),
-        D.Text.Span({ attrs:{ class: tw`text-xs text-slate-400` }}, [`${t.labels.timer}: ${job.startMs ? formatDuration(now - job.startMs) : '00:00'}`])
-      ])))
+      // ✅ Display all order lines grouped by kitchen section
+      D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, (order.detailRows || []).map(row=> {
+        const stationLabel = lang === 'ar' ? row.stationLabelAr : row.stationLabelEn;
+        return renderDetailRow(row.detail, t, lang, stationLabel);
+      }))
     ].filter(Boolean))));
   };
 
@@ -2537,10 +2619,14 @@
       job_order_status_history: Array.isArray(payload.job_order_status_history) ? payload.job_order_status_history : []
     };
 
-    // Skip if no job orders
-    const hasJobOrders = incomingJobOrders.job_order_header.length > 0
-                      || incomingJobOrders.job_order_detail.length > 0;
-    if(!hasJobOrders) return;
+    // ✅ Extract order_header and order_line for static tabs
+    const incomingOrderHeaders = Array.isArray(payload.order_header) ? payload.order_header : [];
+    const incomingOrderLines = Array.isArray(payload.order_line) ? payload.order_line : [];
+
+    // Skip if no data at all
+    const hasJobOrders = incomingJobOrders.job_order_header.length > 0 || incomingJobOrders.job_order_detail.length > 0;
+    const hasOrderData = incomingOrderHeaders.length > 0 || incomingOrderLines.length > 0;
+    if(!hasJobOrders && !hasOrderData) return;
 
     console.log('[KDS][applyRemoteOrder] Received payload:', {
       hasStations: !!payload.master?.stations,
@@ -2740,10 +2826,32 @@
       if(!syncNext.channel){
         syncNext.channel = BRANCH_CHANNEL;
       }
+      // ✅ Merge order_header and order_line for static tabs
+      const existingOrderHeaders = Array.isArray(state.data.orderHeaders) ? state.data.orderHeaders : [];
+      const existingOrderLines = Array.isArray(state.data.orderLines) ? state.data.orderLines : [];
+
+      const orderHeadersMap = new Map(existingOrderHeaders.map(h => [String(h.id), h]));
+      incomingOrderHeaders.forEach(header => {
+        if (header && header.id) {
+          orderHeadersMap.set(String(header.id), header);
+        }
+      });
+      const orderHeadersNext = Array.from(orderHeadersMap.values());
+
+      const orderLinesMap = new Map(existingOrderLines.map(l => [String(l.id), l]));
+      incomingOrderLines.forEach(line => {
+        if (line && line.id) {
+          orderLinesMap.set(String(line.id), line);
+        }
+      });
+      const orderLinesNext = Array.from(orderLinesMap.values());
+
       const nextState = {
         ...state,
         data:{
           ...state.data,
+          orderHeaders: orderHeadersNext,      // ✅ For static tabs
+          orderLines: orderLinesNext,          // ✅ For static tabs
           jobOrders: mergedOrders,
           jobs: jobsIndexedNext,
           expoSource: expoSourceNext,
@@ -2996,6 +3104,13 @@
         if(syncClient){
           syncClient.publishJobUpdate({ jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
         }
+        // ✅ Persist status change to server
+        persistJobOrderStatusChange(jobId, { status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso }, {
+          actorId: 'kds',
+          actorName: 'KDS',
+          actorRole: 'kds',
+          reason: 'job-started'
+        });
       }
     },
     'kds.job.finish':{
@@ -3013,6 +3128,13 @@
         if(syncClient){
           syncClient.publishJobUpdate({ jobId, payload:{ status:'ready', progressState:'completed',status:'finish', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
         }
+        // ✅ Persist status change to server
+        persistJobOrderStatusChange(jobId, { status:'ready', progressState:'completed', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso }, {
+          actorId: 'kds',
+          actorName: 'KDS',
+          actorRole: 'kds',
+          reason: 'job-completed'
+        });
       }
     },
     'kds.handoff.assembled':{
@@ -3246,6 +3368,60 @@
     headers: [],
     lines: [],
     deliveries: []
+  };
+
+  // ✅ Helper function to persist job order status changes to server
+  const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
+    if (!store || typeof store.save !== 'function' || typeof store.insert !== 'function') {
+      console.warn('[KDS][persistJobOrderStatusChange] Store not available, changes will not be persisted');
+      return;
+    }
+
+    try {
+      // 1. Update job_order_header with new status
+      const headerUpdate = {
+        id: jobId,
+        ...statusPayload,
+        updatedAt: statusPayload.updatedAt || new Date().toISOString()
+      };
+
+      await store.save('job_order_header', headerUpdate, {
+        source: 'kds-status-update',
+        actorId: actorInfo.actorId || 'kds',
+        reason: actorInfo.reason || 'status-change'
+      });
+
+      // 2. Insert status history entry
+      const historyEntry = {
+        id: `HIS-${jobId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        jobOrderId: jobId,
+        status: statusPayload.status || 'unknown',
+        actorId: actorInfo.actorId || 'kds',
+        actorName: actorInfo.actorName || 'KDS',
+        actorRole: actorInfo.actorRole || 'kds',
+        changedAt: statusPayload.updatedAt || new Date().toISOString(),
+        reason: actorInfo.reason || null,
+        meta: {
+          source: 'kds',
+          progressState: statusPayload.progressState || null,
+          ...actorInfo.meta
+        }
+      };
+
+      await store.insert('job_order_status_history', historyEntry, {
+        source: 'kds-status-history',
+        actorId: actorInfo.actorId || 'kds'
+      });
+
+      console.log('[KDS][persistJobOrderStatusChange] Persisted status change:', {
+        jobId,
+        status: statusPayload.status,
+        headerUpdate,
+        historyEntry
+      });
+    } catch (error) {
+      console.error('[KDS][persistJobOrderStatusChange] Failed to persist status change:', error);
+    }
   };
 
   const ensureArray = (value) => (Array.isArray(value) ? value : []);
