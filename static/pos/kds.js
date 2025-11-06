@@ -1494,6 +1494,10 @@
 
   const indexJobs = (jobsList)=>{
     const list = Array.isArray(jobsList) ? jobsList.slice() : [];
+    console.log('[KDS][indexJobs] Starting with jobs:', {
+      count: list.length,
+      sampleJobs: list.slice(0, 3).map(j => ({ id: j.id, stationId: j.stationId, status: j.status }))
+    });
     list.sort((a, b)=>{
       const aKey = a.acceptedMs ?? a.createdMs ?? 0;
       const bKey = b.acceptedMs ?? b.createdMs ?? 0;
@@ -1542,6 +1546,11 @@
       return order;
     });
     orders.sort((a, b)=> (a.createdMs || 0) - (b.createdMs || 0));
+
+    console.log('[KDS][indexJobs] Result byStation:', {
+      stationIds: Object.keys(byStation),
+      counts: Object.fromEntries(Object.entries(byStation).map(([k, v]) => [k, v.length]))
+    });
 
     return { list, byStation, byService, orders, stats };
   };
@@ -2061,9 +2070,22 @@
         .filter(order=> order.handoffStatus === 'served')
         .map(order=> order.orderId || order.id)
     );
-    const jobs = (db.data.jobs.byStation[stationId] || [])
+    const allJobsForStation = db.data.jobs.byStation[stationId] || [];
+    console.log('[KDS][renderStationPanel] Rendering station:', {
+      stationId,
+      allStationIds: Object.keys(db.data.jobs.byStation || {}),
+      allJobsCount: allJobsForStation.length,
+      sampleJob: allJobsForStation[0]
+    });
+    const jobs = allJobsForStation
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
       .filter(job=> !servedOrderIds.has(job.orderId));
+    console.log('[KDS][renderStationPanel] After filtering:', {
+      stationId,
+      filteredJobsCount: jobs.length,
+      removedByStatus: allJobsForStation.length - allJobsForStation.filter(job=> job.status !== 'ready' && job.status !== 'completed').length,
+      removedByServed: allJobsForStation.filter(job=> job.status !== 'ready' && job.status !== 'completed').length - jobs.length
+    });
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, jobs.map(job=> renderJobCard(job, station, t, lang, now)));
@@ -2640,7 +2662,15 @@
     appInstance.setState(state=>{
       console.log('[KDS][applyRemoteOrder] Current state stations:', state.data.stations?.length || 0);
       const mergedOrders = mergeJobOrders(state.data.jobOrders || {}, incomingJobOrders);
+      console.log('[KDS][applyRemoteOrder] After mergeJobOrders:', {
+        headersCount: mergedOrders.job_order_header?.length || 0,
+        detailsCount: mergedOrders.job_order_detail?.length || 0
+      });
       const jobRecordsNext = buildJobRecords(mergedOrders);
+      console.log('[KDS][applyRemoteOrder] After buildJobRecords:', {
+        jobRecordsCount: jobRecordsNext.length,
+        sampleJobRecord: jobRecordsNext[0] ? { id: jobRecordsNext[0].id, stationId: jobRecordsNext[0].stationId, detailsCount: jobRecordsNext[0].details?.length || 0 } : null
+      });
       const jobsIndexedNext = indexJobs(jobRecordsNext);
       const expoSourcePatch = Array.isArray(payload.expo_pass_ticket) ? payload.expo_pass_ticket
                             : Array.isArray(payload.expoPassTickets) ? payload.expoPassTickets
@@ -4023,6 +4053,12 @@
           line?.orderId ||
           line?.order_id
       );
+      console.log('[KDS][buildWatcherPayload] Processing line:', {
+        lineId: line?.id,
+        jobOrderId,
+        hasOrder: orders.has(jobOrderId),
+        ordersKeys: Array.from(orders.keys())
+      });
       if (!jobOrderId) return;
       if (!orders.has(jobOrderId)) {
         const fallbackDisplayId =
@@ -4314,7 +4350,8 @@
     console.log('[KDS][buildWatcherPayload] Final job counts:', {
       jobHeadersCount: jobHeaders.length,
       jobDetailsCount: jobDetails.length,
-      sampleJobHeader: jobHeaders[0]
+      sampleJobHeader: jobHeaders[0],
+      allJobHeaders: jobHeaders.map(h => ({ id: h.id, stationId: h.stationId, status: h.status }))
     });
 
     const handoff = {};
