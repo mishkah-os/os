@@ -2677,6 +2677,18 @@
       payload.handoff = baseHandoff;
       payload.meta = { ...(payload.meta || {}), publishedAt: nowIso };
       const channel = payload.meta?.channel || BRANCH_CHANNEL;
+
+      // ✅ Build snapshot with job_orders for backend persistence
+      // The backend only persists data in frameData.snapshot, so we need to include job_orders here
+      const jobOrders = payload.jobOrders || {};
+      const snapshot = {
+        job_order_header: jobOrders.headers || [],
+        job_order_detail: jobOrders.details || [],
+        job_order_detail_modifier: jobOrders.modifiers || [],
+        job_order_status_history: jobOrders.statusHistory || []
+      };
+      payload.snapshot = snapshot;
+
       return { payload, channel, publishedAt: nowIso };
     };
 
@@ -2714,28 +2726,13 @@
             const envelope = buildOrderEnvelope(orderPayload, state);
             if(!envelope) return null;
 
-            // ✅ PERSIST job_orders to store for cross-page persistence (fallback mode)
-            const jobOrders = envelope.payload?.jobOrders;
-            if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
-              const store = window.__POS_DB__;
-              const headers = jobOrders.headers || [];
-              const details = jobOrders.details || [];
-              const modifiers = jobOrders.modifiers || [];
-              const statusHistory = jobOrders.statusHistory || [];
-
-              console.log('[POS][KDS][Fallback] Persisting job_orders to store:', {
-                headers: headers.length,
-                details: details.length,
-                modifiers: modifiers.length,
-                statusHistory: statusHistory.length
-              });
-
-              // Insert all job_order records
-              headers.forEach(h => { try { store.insert('job_order_header', h, { silent: true }); } catch (e) {} });
-              details.forEach(d => { try { store.insert('job_order_detail', d, { silent: true }); } catch (e) {} });
-              modifiers.forEach(m => { try { store.insert('job_order_detail_modifier', m, { silent: true }); } catch (e) {} });
-              statusHistory.forEach(s => { try { store.insert('job_order_status_history', s, { silent: true }); } catch (e) {} });
-            }
+            // ⚠️ WARNING: Fallback mode (no WebSocket) - job_orders NOT persisted to backend!
+            // Data will be lost on refresh. Consider implementing HTTP POST fallback for persistence.
+            console.warn('[POS][KDS][Fallback] Publishing order WITHOUT WebSocket - job_orders will NOT be persisted!', {
+              orderId: orderPayload?.id,
+              headers: envelope.payload?.snapshot?.job_order_header?.length || 0,
+              details: envelope.payload?.snapshot?.job_order_detail?.length || 0
+            });
 
             pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });
             return envelope.payload;
@@ -2848,58 +2845,14 @@
             return null;
           }
 
-          // ✅ PERSIST job_orders to store for cross-page persistence
-          const jobOrders = envelope.payload?.jobOrders;
-          if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
-            const store = window.__POS_DB__;
-            const headers = jobOrders.headers || [];
-            const details = jobOrders.details || [];
-            const modifiers = jobOrders.modifiers || [];
-            const statusHistory = jobOrders.statusHistory || [];
-
-            console.log('[POS][KDS] Persisting job_orders to store:', {
-              headers: headers.length,
-              details: details.length,
-              modifiers: modifiers.length,
-              statusHistory: statusHistory.length
-            });
-
-            // Insert job_order_header
-            headers.forEach(header => {
-              try {
-                store.insert('job_order_header', header, { silent: true });
-              } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_header:', err);
-              }
-            });
-
-            // Insert job_order_detail
-            details.forEach(detail => {
-              try {
-                store.insert('job_order_detail', detail, { silent: true });
-              } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_detail:', err);
-              }
-            });
-
-            // Insert job_order_detail_modifier
-            modifiers.forEach(modifier => {
-              try {
-                store.insert('job_order_detail_modifier', modifier, { silent: true });
-              } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_detail_modifier:', err);
-              }
-            });
-
-            // Insert job_order_status_history
-            statusHistory.forEach(history => {
-              try {
-                store.insert('job_order_status_history', history, { silent: true });
-              } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_status_history:', err);
-              }
-            });
-          }
+          // ✅ Job orders are now persisted via snapshot (payload.snapshot contains job_order tables)
+          // Backend will automatically persist them via applySyncSnapshot
+          console.log('[POS][KDS] Publishing order with job_orders in snapshot:', {
+            headers: envelope.payload?.snapshot?.job_order_header?.length || 0,
+            details: envelope.payload?.snapshot?.job_order_detail?.length || 0,
+            modifiers: envelope.payload?.snapshot?.job_order_detail_modifier?.length || 0,
+            statusHistory: envelope.payload?.snapshot?.job_order_status_history?.length || 0
+          });
 
           sendEnvelope({ type:'publish', topic: topicOrders, data: envelope.payload });
           pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });
