@@ -2910,6 +2910,16 @@
         });
         driversNext = Array.from(map.values());
       }
+
+      // ✅ Handle payment methods from payload
+      let paymentMethodsNext = state.data.paymentMethods;
+      if(Array.isArray(payload.payment_methods)){
+        paymentMethodsNext = payload.payment_methods;
+      } else if(Array.isArray(payload.settings?.payment_methods)){
+        paymentMethodsNext = payload.settings.payment_methods;
+      } else if(Array.isArray(payload.master?.payment_methods)){
+        paymentMethodsNext = payload.master.payment_methods;
+      }
       const existingHandoff = state.data.handoff || {};
       let handoffNext = { ...existingHandoff };
       if(payload.handoff && typeof payload.handoff === 'object'){
@@ -3132,7 +3142,7 @@
           expoTickets: expoTicketsNext,
           deliveries: deliveriesNext,
           drivers: driversNext,
-          paymentMethods: paymentMethods,  // ✅ Add payment methods
+          paymentMethods: paymentMethodsNext,  // ✅ Add payment methods from watcher
           handoff: handoffNext,
           stations: stationsNext,
           stationMap: stationMapNext,
