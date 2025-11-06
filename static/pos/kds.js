@@ -359,6 +359,10 @@
         }
       },
       "jobStatus": {
+        "draft": {
+          "ar": "مسودة",
+          "en": "Draft"
+        },
         "queued": {
           "ar": "بانتظار",
           "en": "Queued"
@@ -370,6 +374,10 @@
         "accepted": {
           "ar": "تم القبول",
           "en": "Accepted"
+        },
+        "preparing": {
+          "ar": "جاري التحضير",
+          "en": "Preparing"
         },
         "in_progress": {
           "ar": "قيد التحضير",
@@ -386,6 +394,10 @@
         "completed": {
           "ar": "مكتمل",
           "en": "Completed"
+        },
+        "served": {
+          "ar": "مُقدّم",
+          "en": "Served"
         },
         "cancelled": {
           "ar": "ملغي",
@@ -2039,7 +2051,7 @@
         D.Text.Span(null, [`${t.stats.ready}: ${job.completedItems || 0}`])
       ]),
       job.notes ? D.Text.P({ attrs:{ class: tw`text-sm text-amber-200` }}, [`🧾 ${job.notes}`]) : null,
-      job.details && job.details.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, job.details.map(detail=> renderDetailRow(detail, t, lang))) : null,
+      job.details && job.details.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, job.details.map(detail=> renderDetailRow(detail, t, lang, null))) : null,
       renderHistory(job, t, lang),
       D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2 pt-2` }}, [
         job.status !== 'ready' && job.status !== 'completed'
