@@ -2919,19 +2919,34 @@
         if (header && header.id) {
           const existing = orderHeadersMap.get(String(header.id));
           // ✅ Smart merge: Keep local updates if they're newer (prevent watcher from overwriting)
-          // Use updatedAt timestamp to determine which version is newer
+          // Priority: version number > timestamp
           if (!existing) {
             // New header from database
             orderHeadersMap.set(String(header.id), header);
           } else {
-            const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const incomingTime = header.updatedAt ? new Date(header.updatedAt).getTime() : 0;
+            const existingVersion = existing.version || 1;
+            const incomingVersion = header.version || 1;
 
-            // Only replace if incoming is actually newer
-            if (incomingTime > existingTime) {
+            // Compare versions first (more reliable than timestamp)
+            if (incomingVersion > existingVersion) {
+              // Incoming is newer version
               orderHeadersMap.set(String(header.id), header);
+            } else if (incomingVersion < existingVersion) {
+              // Keep existing (local optimistic update that hasn't synced yet)
+              console.log('[KDS][SmartMerge] Keeping local version (newer):', {
+                id: header.id,
+                localVersion: existingVersion,
+                incomingVersion: incomingVersion
+              });
+            } else {
+              // Same version - fallback to timestamp comparison
+              const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+              const incomingTime = header.updatedAt ? new Date(header.updatedAt).getTime() : 0;
+
+              if (incomingTime >= existingTime) {
+                orderHeadersMap.set(String(header.id), header);
+              }
             }
-            // else: keep existing (it's newer - probably a local update)
           }
         }
       });
@@ -2940,7 +2955,28 @@
       const orderLinesMap = new Map(existingOrderLines.map(l => [String(l.id), l]));
       incomingOrderLines.forEach(line => {
         if (line && line.id) {
-          orderLinesMap.set(String(line.id), line);
+          const existing = orderLinesMap.get(String(line.id));
+          // ✅ Smart merge for order_line (also versioned)
+          if (!existing) {
+            orderLinesMap.set(String(line.id), line);
+          } else {
+            const existingVersion = existing.version || 1;
+            const incomingVersion = line.version || 1;
+
+            if (incomingVersion > existingVersion) {
+              orderLinesMap.set(String(line.id), line);
+            } else if (incomingVersion < existingVersion) {
+              // Keep local optimistic update
+              console.log('[KDS][SmartMerge] Keeping local order_line (newer):', {
+                id: line.id,
+                localVersion: existingVersion,
+                incomingVersion: incomingVersion
+              });
+            } else {
+              // Same version - use incoming (fresher from database)
+              orderLinesMap.set(String(line.id), line);
+            }
+          }
         }
       });
       const orderLinesNext = Array.from(orderLinesMap.values());
@@ -3801,12 +3837,29 @@
       return;
     }
 
+    // ✅ Calculate next version (CRITICAL for versioned tables!)
+    const currentVersion = matchingHeader.version || 1;
+    const nextVersion = currentVersion + 1;
+
+    console.log('[KDS][persistOrderHeaderStatus] 📊 Versions:', {
+      orderId,
+      currentVersion,
+      nextVersion,
+      status
+    });
+
     // ✅ Apply optimistic update (only on first attempt)
     if (retryCount === 0) {
       watcherState.orderHeaders = orderHeaders.map(header => {
         const headerId = String(header.id || header.orderId);
         if (headerId === orderId) {
-          return { ...header, statusId: status, status: status, updatedAt: timestamp || new Date().toISOString() };
+          return {
+            ...header,
+            statusId: status,
+            status: status,
+            version: nextVersion,  // ✅ Update version locally
+            updatedAt: timestamp || new Date().toISOString()
+          };
         }
         return header;
       });
@@ -3824,8 +3877,11 @@
         id: matchingHeader.id,
         status: status,
         statusId: status,
+        version: nextVersion,    // ✅ Send version! (CRITICAL)
         updatedAt: timestamp || new Date().toISOString()
       };
+
+      console.log('[KDS][persistOrderHeaderStatus] 📤 Sending update:', headerUpdate);
 
       // ✅ Increase timeout to 10 seconds for order_header updates
       await Promise.race([
@@ -3833,7 +3889,7 @@
         new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
       ]);
 
-      console.log('[KDS][persistOrderHeaderStatus] ✅ Persisted via store.update');
+      console.log('[KDS][persistOrderHeaderStatus] ✅ Persisted via store.update (version:', nextVersion, ')');
 
       // ✅ Broadcast the change to other KDS instances
       if (syncClient && typeof syncClient.publishHandoffUpdate === 'function') {

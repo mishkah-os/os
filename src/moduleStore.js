@@ -90,7 +90,17 @@ export default class ModuleStore {
     const normalizedTable = String(tableName || '').toLowerCase();
     const isHeader = normalizedTable === 'order_header';
     const friendly = isHeader ? 'order' : 'order item';
-    const message = `Another device has already updated this ${friendly}. Please reload and try again.`;
+
+    // ✅ Improved error messages based on reason
+    let message;
+    if (reason === 'missing-version') {
+      message = `Update failed: version number is required for ${friendly}. Please include version field in your request.`;
+    } else if (reason === 'stale-version') {
+      message = `Update failed: This ${friendly} has been modified (current version: ${currentVersion}, your version: ${expectedVersion}). Please reload and try again.`;
+    } else {
+      message = `Version conflict: Unable to update ${friendly} (expected: ${expectedVersion}, current: ${currentVersion}).`;
+    }
+
     throw new VersionConflictError(message, { table: tableName, key, expectedVersion, currentVersion, reason });
   }
 
@@ -101,7 +111,24 @@ export default class ModuleStore {
 
     // Missing version in request
     if (!expectedVersion) {
+      // ⚠️ CRITICAL: Missing version - this is almost always a bug!
+      // Log warning and reject (don't auto-increment to avoid data corruption)
+      console.error('[ModuleStore][VersionError] Missing version in update request:', {
+        table: tableName,
+        key,
+        currentVersion,
+        patchKeys: Object.keys(patch || {}),
+        recommendation: 'Frontend must send version field. See docs/MISHKAH_STORE_UPDATE_GUIDE.md'
+      });
+
+      // 🔒 STRICT MODE: Reject updates without version
+      // This prevents accidental data corruption from concurrent updates
       this.resolveConcurrencyConflict(tableName, key, expectedVersion, currentVersion, 'missing-version');
+
+      // 💡 FALLBACK MODE (disabled by default):
+      // If you want to auto-increment (NOT RECOMMENDED), uncomment this:
+      // console.warn('[ModuleStore] Auto-incrementing version (fallback mode)');
+      // return currentVersion + 1;
     }
 
     // CRITICAL FIX: Support optimistic locking properly
@@ -118,6 +145,14 @@ export default class ModuleStore {
     // Case 2: Update (expectedVersion should be currentVersion + 1)
     if (expectedVersion !== currentVersion + 1) {
       // Version mismatch: frontend is out of sync or another device updated
+      console.warn('[ModuleStore][VersionConflict] Stale version detected:', {
+        table: tableName,
+        key,
+        expectedVersion,
+        currentVersion,
+        diff: expectedVersion - currentVersion
+      });
+
       this.resolveConcurrencyConflict(tableName, key, expectedVersion, currentVersion, 'stale-version');
     }
 
