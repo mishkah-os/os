@@ -209,7 +209,7 @@ function canonicalizeTableName(name, registry) {
     'order_line_status', 'order_line_status_log', 'order_payment',
     'order_payment_state', 'order_refund', 'order_return_header',
     'order_return_line', 'order_stage', 'order_status', 'order_status_log',
-    'order_type', 'payment_method', 'pos_database', 'pos_shift', 'pos_terminal',
+    'order_type', 'payment_method', 'pos_shift', 'pos_terminal',
     'reservation', 'reservation_table', 'shift_cash_audit',
     'shift_payment_summary', 'table_lock'
   ]);
