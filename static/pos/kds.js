@@ -4020,6 +4020,31 @@
     const drivers = deriveDrivers(posPayload);
     const driverIndex = new Map(drivers.map((driver) => [driver.id, driver]));
 
+    // ✅ Create a map from jobOrderId to stationId from job_order_header
+    const jobOrderStationMap = new Map();
+    ensureArray(watcherState.headers).forEach((header) => {
+      const jobOrderId = canonicalId(
+        header?.id ||
+          header?.jobOrderId ||
+          header?.job_order_id ||
+          header?.orderJobId ||
+          header?.job_id
+      );
+      const stationId = canonicalId(
+        header?.stationId ||
+          header?.station_id ||
+          header?.kitchenSectionId ||
+          header?.kitchen_section_id
+      );
+      if (jobOrderId && stationId) {
+        jobOrderStationMap.set(jobOrderId, stationId);
+      }
+    });
+    console.log('[KDS][buildWatcherPayload] Job order station map:', {
+      mapSize: jobOrderStationMap.size,
+      sampleMappings: Array.from(jobOrderStationMap.entries()).slice(0, 3)
+    });
+
     const orders = new Map();
     ensureArray(watcherState.headers).forEach((header) => {
       const jobOrderId = canonicalId(
@@ -4192,7 +4217,9 @@
       );
       const categoryId =
         rawCategoryId || metadataCategoryId || canonicalId(item?.categoryId);
+      // ✅ Get stationId from job_order_header first (most reliable source)
       let sectionId =
+        jobOrderStationMap.get(jobOrderId) ||
         canonicalId(
           line?.kitchenSectionId ||
             line?.kitchen_section_id ||
@@ -4207,6 +4234,14 @@
         ) ||
         canonicalId(item?.sectionId) ||
         null;
+      console.log('[KDS][buildWatcherPayload] Section ID resolution:', {
+        lineId: line?.id,
+        jobOrderId,
+        fromHeader: jobOrderStationMap.get(jobOrderId),
+        fromLine: line?.kitchenSectionId || line?.kitchen_section_id,
+        fromItem: item?.sectionId,
+        finalSectionId: sectionId
+      });
       if (!sectionId) {
         sectionId = resolveStationForCategory(categoryId) || 'general';
       }
@@ -4221,6 +4256,13 @@
       }
       if (!order.jobs.has(jobId)) {
         const station = stationMap[sectionId] || {};
+        console.log('[KDS][buildWatcherPayload] Creating new job:', {
+          jobId,
+          stationId: sectionId,
+          stationCode: station?.code || sectionId,
+          orderId: order.orderId,
+          stationFound: !!station?.code
+        });
         order.jobs.set(jobId, {
           id: jobId,
           jobOrderId: jobOrderRef || jobId,
