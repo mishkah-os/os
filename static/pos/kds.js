@@ -4215,7 +4215,7 @@
     // تسجيل الجداول المطلوبة للـ KDS في الـ store
     // هذا ضروري قبل القراءة منها أو عمل watch
     console.log('[KDS] Registering required tables...');
-    const registeredObjects = (store.config && Array.isArray(store.config.objects))
+    const registeredObjects = (store.config && typeof store.config.objects === 'object')
       ? Object.keys(store.config.objects)
       : [];
 
@@ -4256,6 +4256,7 @@
 
         const response = await fetch(apiUrl, { cache: 'no-store' });
         if (!response.ok) {
+          console.warn(`[KDS] REST API returned ${response.status}, trying alternative...`);
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
@@ -4310,37 +4311,15 @@
 
       } catch (error) {
         console.error('[KDS] Failed to fetch initial data from server:', error);
+        console.log('[KDS] Note: REST API /api/branches/{branchId}/modules/{moduleId} may be unavailable');
+        console.log('[KDS] Relying on WebSocket live updates only (watchers will populate data when changes occur)');
 
-        // Fallback: محاولة القراءة من store cache (إذا كان فيه بيانات محفوظة)
-        console.log('[KDS] Falling back to store cache...');
-        try {
-          if (typeof store.list === 'function') {
-            const headers = store.list('job_order_header');
-            const details = store.list('job_order_detail');
-            const deliveries = store.list('order_delivery');
-            const posDb = store.list('pos_database');
-
-            watcherState.headers = ensureArray(headers);
-            watcherState.lines = ensureArray(details);
-            watcherState.deliveries = ensureArray(deliveries);
-
-            const latest = Array.isArray(posDb) && posDb.length ? posDb[posDb.length - 1] : null;
-            watcherState.posPayload = (latest && latest.payload) || {};
-
-            console.log('[KDS][CACHE] Loaded from cache:', {
-              headers: watcherState.headers.length,
-              details: watcherState.lines.length
-            });
-
-            updateFromWatchers();
-          }
-        } catch (fallbackError) {
-          console.error('[KDS] Fallback also failed:', fallbackError);
-        }
+        // لا نستخدم fallback للـ store.list() لأن الـ cache فاضي عند الاتصال الجديد
+        // البيانات هتيجي من الـ watchers لما يحصل أي تحديث من POS
       }
     };
 
-    // تحميل البيانات الأولية من السيرفر
+    // محاولة جلب البيانات الأولية من السيرفر (optional - will fail gracefully if REST API is down)
     fetchInitialDataFromServer();
 
     // إعداد الـ watchers للتحديثات المستقبلية
