@@ -20,7 +20,7 @@
       "historyPath": "history",
       "tables": [
         "pos_database",
-        "pos_terminals",
+        "pos_terminal",
         "employees",
         "pos_shift",
         "shift_cash_audit",
@@ -48,12 +48,18 @@
         "delivery_drivers",
         "order_header",
         "order_line",
+        "order_line_modifier",
         "order_status_log",
         "order_line_status_log",
-        "order_line_modifier",
         "order_payment",
         "order_refund",
+        "order_return_header",
+        "order_return_line",
         "order_delivery",
+        "job_order_header",
+        "job_order_detail",
+        "job_order_detail_modifier",
+        "job_order_status_history",
         "audit_events"
       ],
       "description": "Serialized POS dataset for front/back sync."
