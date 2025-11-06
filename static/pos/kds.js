@@ -1308,7 +1308,10 @@
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        return status !== 'assembled';
+        // ✅ Exclude both 'assembled' and 'served' orders from expo
+        // 'assembled' = ready for handoff (moved to handoff tab)
+        // 'served' = delivered to customer (order completed)
+        return status !== 'assembled' && status !== 'served';
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
