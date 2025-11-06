@@ -352,6 +352,8 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
   const watchers = new Map();
   const statusWatchers = new Set();
   let status = 'ready';
+  let initialFetchTriggered = false;
+  let initialFetchInProgress = false;
 
   const emitStatus = () => {
     for (const handler of Array.from(statusWatchers)) {
@@ -360,6 +362,54 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
       } catch (error) {
         config.logger?.warn?.('[PosMiniDB][offline] status listener failed', error);
       }
+    }
+  };
+
+  // Smart background fetch: جلب البيانات من REST API لو الـ cache فاضي
+  const fetchInitialSnapshot = async () => {
+    if (initialFetchTriggered || initialFetchInProgress) {
+      return; // Already fetching or done
+    }
+
+    initialFetchTriggered = true;
+    initialFetchInProgress = true;
+
+    try {
+      console.log(`[PosMiniDB] Smart fetch: Loading initial data from REST API for ${branchId}/${moduleId}...`);
+
+      const apiUrl = `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
+      const response = await fetch(apiUrl, { cache: 'no-store' });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const snapshot = await response.json();
+      console.log(`[PosMiniDB] Smart fetch: Received snapshot with tables:`, Object.keys(snapshot.tables || {}));
+
+      const fetchedTables = snapshot.tables || {};
+
+      // Inject data into cache
+      for (const [tableName, rows] of Object.entries(fetchedTables)) {
+        const canonical = canonicalizeTableNameLenient(tableName) || tableName;
+        const dataRows = Array.isArray(rows) ? rows : (Array.isArray(rows?.rows) ? rows.rows : []);
+
+        if (dataRows.length > 0) {
+          tableData.set(canonical, ensureArray(dataRows).map(cloneValue));
+          console.log(`[PosMiniDB] Smart fetch: Loaded ${dataRows.length} rows for table '${canonical}'`);
+
+          // Trigger watchers for this table!
+          emit(canonical);
+        }
+      }
+
+      console.log(`[PosMiniDB] Smart fetch: Complete! Cache populated.`);
+
+    } catch (error) {
+      console.warn(`[PosMiniDB] Smart fetch failed:`, error.message);
+      console.log(`[PosMiniDB] Will rely on WebSocket updates only.`);
+    } finally {
+      initialFetchInProgress = false;
     }
   };
 
@@ -421,9 +471,16 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
       ensureDefinition(name);
       const set = watchers.get(name);
       set.add(handler);
+
+      // Smart Fetch: لو الـ cache فاضي، جيب البيانات من REST API
+      const def = definitions.get(name);
+      const rows = tableData.get(def.table) || [];
+      if (rows.length === 0 && !initialFetchTriggered) {
+        console.log(`[PosMiniDB] watch('${name}'): Cache empty, triggering smart fetch...`);
+        fetchInitialSnapshot(); // Background fetch
+      }
+
       if (immediate) {
-        const def = definitions.get(name);
-        const rows = tableData.get(def.table) || [];
         handler(rows.map(cloneValue), { table: def.table });
       }
       return () => {
