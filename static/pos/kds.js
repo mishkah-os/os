@@ -1110,6 +1110,14 @@
     const stationMap = db?.data?.stationMap || {};
     const menuIndex = db?.data?.menuIndex || {};
 
+    console.log('[KDS][buildOrdersFromHeaders] Input data:', {
+      orderHeadersCount: orderHeaders.length,
+      orderLinesCount: orderLines.length,
+      jobOrderDetailsCount: jobOrderDetails.length,
+      sampleHeader: orderHeaders[0],
+      sampleLine: orderLines[0]
+    });
+
     // ✅ Create lookup map: orderId:itemId -> job_order_detail for derived status
     const jobStatusMap = new Map();
     jobOrderDetails.forEach(detail => {
@@ -1222,6 +1230,15 @@
         // Calculate from items: all ready = 'ready', else 'pending'
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
+
+      console.log('[KDS][buildOrdersFromHeaders] Order status calculation:', {
+        orderId,
+        recordStatus,
+        totalItems,
+        readyItems,
+        calculatedStatus: status,
+        linesCount: lines.length
+      });
 
       return {
         orderId,
@@ -2086,12 +2103,30 @@
   const renderPrepPanel = (db, t, lang, now)=>{
     // ✅ Use order_header + order_line for static "prep/all" tab
     // Show ALL orders except those assembled/served/delivered
-    const orders = buildOrdersFromHeaders(db).filter(order=> {
+    const allOrders = buildOrdersFromHeaders(db);
+    console.log('[KDS][renderPrepPanel] All orders from buildOrdersFromHeaders:', {
+      totalCount: allOrders.length,
+      orderStatuses: allOrders.map(o => ({ id: o.orderId, status: o.handoffStatus }))
+    });
+
+    const orders = allOrders.filter(order=> {
       const status = order.handoffStatus;
       // ✅ Show: pending (preparing), ready (waiting for assembly)
       // ❌ Hide: assembled, served, delivered (moved to handoff/done)
-      return status !== 'assembled' && status !== 'served' && status !== 'delivered';
+      const shouldShow = status !== 'assembled' && status !== 'served' && status !== 'delivered';
+
+      if (!shouldShow) {
+        console.log('[KDS][renderPrepPanel] Hiding order:', { orderId: order.orderId, status });
+      }
+
+      return shouldShow;
     });
+
+    console.log('[KDS][renderPrepPanel] Filtered orders:', {
+      shownCount: orders.length,
+      hiddenCount: allOrders.length - orders.length
+    });
+
     if(!orders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
