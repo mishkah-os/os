@@ -1114,13 +1114,20 @@
     const jobStatusMap = new Map();
     jobOrderDetails.forEach(detail => {
       // Extract orderId from jobOrderId format: "DAR-001001-{stationId}"
-      // stationId is always UUID format (last 5 dash-separated segments)
+      // stationId is UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (5 dash-separated parts)
       let orderId = detail.orderId || detail.order_id;
-      if (!orderId && detail.jobOrderId) {
-        const jobId = detail.jobOrderId || detail.job_order_id;
-        // Remove last UUID part: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-        const match = String(jobId).match(/^(.*)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-        orderId = match ? match[1] : jobId;
+      if (!orderId) {
+        const jobId = String(detail.jobOrderId || detail.job_order_id || '');
+        // Split and remove last 5 parts (UUID)
+        // Example: "DAR-001001-1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        // → ["DAR", "001001", "1e7a48ec", "425a", "4268", "81db", "c8f3fd4d432e"]
+        // → Remove last 5 → ["DAR", "001001"] → "DAR-001001"
+        const parts = jobId.split('-');
+        if (parts.length >= 6) {
+          orderId = parts.slice(0, -5).join('-');
+        } else {
+          orderId = jobId; // Fallback if format is unexpected
+        }
       }
 
       const itemId = detail.itemId || detail.item_id;
@@ -1130,14 +1137,12 @@
       }
     });
 
-    if (jobStatusMap.size > 0) {
-      console.log('[KDS][DerivedStatus] 🔄 Built jobStatusMap:', {
-        totalJobs: jobOrderDetails.length,
-        mappedKeys: jobStatusMap.size,
-        sampleKeys: Array.from(jobStatusMap.keys()).slice(0, 3),
-        sampleStatuses: Array.from(jobStatusMap.values()).slice(0, 3).map(d => ({ jobId: d.jobOrderId, itemId: d.itemId, status: d.status }))
-      });
-    }
+    console.log('[KDS][DerivedStatus] 🔄 Built jobStatusMap:', {
+      totalJobs: jobOrderDetails.length,
+      mappedKeys: jobStatusMap.size,
+      sampleKeys: Array.from(jobStatusMap.keys()).slice(0, 3),
+      sampleStatuses: Array.from(jobStatusMap.values()).slice(0, 3).map(d => ({ jobId: d.jobOrderId, itemId: d.itemId, status: d.status }))
+    });
 
     // Group lines by orderId
     const linesByOrder = new Map();
@@ -1156,7 +1161,6 @@
 
       const orderKey = normalizeOrderKey(orderId);
       let record = (orderKey && (handoff[orderKey] || handoff[orderId])) || {};
-      const recordStatus = record.status ? String(record.status).toLowerCase() : '';
 
       // Build detail rows from order_line
       const detailRows = lines.map(line => {
@@ -1206,14 +1210,16 @@
       }).reduce((sum, line) => sum + (Number(line.qty) || 1), 0);
       const pendingItems = totalItems - readyItems;
 
-      let status = record.status;
-      if (status === 'assembled' || status === 'served') {
-        if (pendingItems > 0) {
-          status = 'pending';
-        } else if (readyItems < totalItems) {
-          status = 'pending';
-        }
+      // ✅ Calculate handoff status based on derived item statuses
+      // Priority: record status (if manually set) > calculated from items
+      let status;
+      const recordStatus = record.status ? String(record.status).toLowerCase() : null;
+
+      // If already moved to next stage, keep that status
+      if (recordStatus === 'assembled' || recordStatus === 'served' || recordStatus === 'delivered') {
+        status = recordStatus;
       } else {
+        // Calculate from items: all ready = 'ready', else 'pending'
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
 
@@ -1456,8 +1462,10 @@
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        // ✅ Hide served orders from expo
-        return status !== 'assembled' && status !== 'served';
+        // ✅ Show in expo: 'pending' and 'ready'
+        // ✅ Hide from expo: 'assembled', 'served', 'delivered'
+        // Orders stay in expo until "تم التجميع" is pressed
+        return status !== 'assembled' && status !== 'served' && status !== 'delivered';
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
@@ -2077,7 +2085,11 @@
 
   const renderPrepPanel = (db, t, lang, now)=>{
     // ✅ Use order_header + order_line for static "prep/all" tab
-    const orders = buildOrdersFromHeaders(db).filter(order=> order.handoffStatus !== 'served');
+    // Hide orders that moved to expo (ready) or beyond (assembled/served)
+    const orders = buildOrdersFromHeaders(db).filter(order=> {
+      const status = order.handoffStatus;
+      return status !== 'ready' && status !== 'assembled' && status !== 'served' && status !== 'delivered';
+    });
     if(!orders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
