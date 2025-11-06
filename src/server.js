@@ -3184,8 +3184,16 @@ async function ensureModuleSeed(branchId, moduleId) {
     return normalized;
   };
 
-  // ALWAYS use central seed, skip branch-specific seed
-  // This ensures consistent seed data across all branches
+  // Try branch-specific seed first, then fallback to central seed
+  const branchPath = getModuleSeedPath(branchId, moduleId);
+  const branchDescriptor = await describeFile(branchPath);
+  if (branchDescriptor.exists) {
+    if (cached?.source === 'branch' && cached?.mtimeMs === branchDescriptor.mtimeMs) {
+      return cached.seed ?? null;
+    }
+    return readSeed(branchPath, 'branch', branchDescriptor.mtimeMs);
+  }
+
   const fallbackPath = getModuleSeedFallbackPath(moduleId);
   const fallbackDescriptor = await describeFile(fallbackPath);
   if (fallbackDescriptor.exists) {
