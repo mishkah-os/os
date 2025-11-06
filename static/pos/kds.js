@@ -1110,13 +1110,7 @@
     const stationMap = db?.data?.stationMap || {};
     const menuIndex = db?.data?.menuIndex || {};
 
-    console.log('[KDS][buildOrdersFromHeaders] Input data:', {
-      orderHeadersCount: orderHeaders.length,
-      orderLinesCount: orderLines.length,
-      jobOrderDetailsCount: jobOrderDetails.length,
-      sampleHeader: orderHeaders[0],
-      sampleLine: orderLines[0]
-    });
+    // Removed verbose logging - only log status changes for assembled/served orders
 
     // ✅ Create lookup map: orderId:itemId -> job_order_detail for derived status
     const jobStatusMap = new Map();
@@ -1251,15 +1245,15 @@
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
 
-      console.log('[KDS][buildOrdersFromHeaders] Order status calculation:', {
-        orderId,
-        headerStatusId,
-        recordStatus,
-        totalItems,
-        readyItems,
-        calculatedStatus: status,
-        linesCount: lines.length
-      });
+      // ✅ Only log status changes for assembled/served orders (reduce noise)
+      if (status === 'assembled' || status === 'served' || headerStatusId === 'assembled' || headerStatusId === 'served') {
+        console.log('[KDS][buildOrdersFromHeaders] 🔄 Order status:', {
+          orderId,
+          headerStatusId,
+          headerUpdatedAt: header.updatedAt,
+          calculatedStatus: status
+        });
+      }
 
       return {
         orderId,
@@ -2128,27 +2122,12 @@
     // ✅ Use order_header + order_line for static "prep/all" tab
     // Show ALL orders except those assembled/served/delivered
     const allOrders = buildOrdersFromHeaders(db);
-    console.log('[KDS][renderPrepPanel] All orders from buildOrdersFromHeaders:', {
-      totalCount: allOrders.length,
-      orderStatuses: allOrders.map(o => ({ id: o.orderId, status: o.handoffStatus }))
-    });
 
     const orders = allOrders.filter(order=> {
       const status = order.handoffStatus;
       // ✅ Show: pending (preparing), ready (waiting for assembly)
       // ❌ Hide: assembled, served, delivered (moved to handoff/done)
-      const shouldShow = status !== 'assembled' && status !== 'served' && status !== 'delivered';
-
-      if (!shouldShow) {
-        console.log('[KDS][renderPrepPanel] Hiding order:', { orderId: order.orderId, status });
-      }
-
-      return shouldShow;
-    });
-
-    console.log('[KDS][renderPrepPanel] Filtered orders:', {
-      shownCount: orders.length,
-      hiddenCount: allOrders.length - orders.length
+      return status !== 'assembled' && status !== 'served' && status !== 'delivered';
     });
 
     if(!orders.length) return renderEmpty(t.empty.prep);
@@ -2178,14 +2157,6 @@
         })
         .map(order=> order.orderId || order.id)
     );
-
-    if (completedOrderIds.size > 0) {
-      console.log('[KDS][StationPanel] Hiding jobs for completed orders:', {
-        stationId,
-        completedOrderIds: Array.from(completedOrderIds),
-        completedCount: completedOrderIds.size
-      });
-    }
 
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
     const jobs = allJobsForStation
@@ -2933,7 +2904,22 @@
       const orderHeadersMap = new Map(existingOrderHeaders.map(h => [String(h.id), h]));
       incomingOrderHeaders.forEach(header => {
         if (header && header.id) {
-          orderHeadersMap.set(String(header.id), header);
+          const existing = orderHeadersMap.get(String(header.id));
+          // ✅ Smart merge: Keep local updates if they're newer (prevent watcher from overwriting)
+          // Use updatedAt timestamp to determine which version is newer
+          if (!existing) {
+            // New header from database
+            orderHeadersMap.set(String(header.id), header);
+          } else {
+            const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+            const incomingTime = header.updatedAt ? new Date(header.updatedAt).getTime() : 0;
+
+            // Only replace if incoming is actually newer
+            if (incomingTime > existingTime) {
+              orderHeadersMap.set(String(header.id), header);
+            }
+            // else: keep existing (it's newer - probably a local update)
+          }
         }
       });
       const orderHeadersNext = Array.from(orderHeadersMap.values());
