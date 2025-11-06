@@ -1258,7 +1258,8 @@
       return {
         orderId,
         orderNumber: header.orderNumber || header.id,
-        serviceMode: header.serviceMode || header.type || 'dine_in',
+        // ✅ Read serviceMode from metadata (where it actually exists in database)
+        serviceMode: header.metadata?.serviceMode || header.metadata?.orderType || header.orderTypeId || header.serviceMode || header.type || 'dine_in',
         tableLabel: header.tableLabel || null,
         customerName: header.customerName || null,
         handoffStatus: status,
@@ -3759,8 +3760,29 @@
       timestamp
     });
 
+    // ✅ Update watcherState FIRST (before any async operations)
+    // This ensures the UI doesn't flicker even if database update fails
+    const orderHeaders = watcherState.orderHeaders || [];
+    const matchingHeader = orderHeaders.find(header =>
+      String(header.id || header.orderId) === orderId
+    );
+
+    if (matchingHeader) {
+      watcherState.orderHeaders = orderHeaders.map(header => {
+        const headerId = String(header.id || header.orderId);
+        if (headerId === orderId) {
+          return { ...header, statusId: status, status: status, updatedAt: timestamp || new Date().toISOString() };
+        }
+        return header;
+      });
+      console.log('[KDS][persistOrderHeaderStatus] ✅ Updated watcherState.orderHeaders (optimistic)');
+    } else {
+      console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in watcherState:', orderId);
+    }
+
+    // ✅ Then persist to database (REST API or store)
     if (!store || typeof store.update !== 'function') {
-      console.warn('[KDS][persistOrderHeaderStatus] Store not available, using REST API fallback');
+      console.warn('[KDS][persistOrderHeaderStatus] Using REST API fallback (store not available)');
 
       // ✅ Fallback: Use REST API directly
       try {
@@ -3775,7 +3797,8 @@
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
 
         console.log('[KDS][persistOrderHeaderStatus] ✅ Successfully persisted via REST API');
@@ -3786,19 +3809,13 @@
       }
     }
 
+    // ✅ Use store.update if available
     try {
-      // Find order_header in watcherState
-      const orderHeaders = watcherState.orderHeaders || [];
-      const matchingHeader = orderHeaders.find(header =>
-        String(header.id || header.orderId) === orderId
-      );
-
       if (!matchingHeader) {
-        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found for orderId:', orderId);
+        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ Cannot persist - order_header not found');
         return;
       }
 
-      // Update order_header with new status
       const headerUpdate = {
         id: matchingHeader.id,
         status: status,
@@ -3807,20 +3824,9 @@
       };
 
       await store.update('order_header', headerUpdate);
-      console.log('[KDS][persistOrderHeaderStatus] ✅ Successfully persisted to database:', headerUpdate);
-
-      // ✅ Update watcherState.orderHeaders immediately (optimistic update)
-      // This ensures buildOrdersFromHeaders uses the updated status before watcher re-fetches
-      watcherState.orderHeaders = orderHeaders.map(header => {
-        const headerId = String(header.id || header.orderId);
-        if (headerId === orderId) {
-          return { ...header, statusId: status, status: status, updatedAt: timestamp || new Date().toISOString() };
-        }
-        return header;
-      });
-      console.log('[KDS][persistOrderHeaderStatus] ✅ Updated watcherState.orderHeaders');
+      console.log('[KDS][persistOrderHeaderStatus] ✅ Successfully persisted via store.update:', headerUpdate);
     } catch (error) {
-      console.error('[KDS][persistOrderHeaderStatus] ❌ Failed to persist status change:', error);
+      console.error('[KDS][persistOrderHeaderStatus] ❌ Failed to persist via store.update:', error);
     }
   };
 
