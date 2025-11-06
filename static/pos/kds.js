@@ -1500,10 +1500,11 @@
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        // ✅ Show in expo: ONLY 'ready' (all items prepared)
-        // Orders appear here after all sections mark items ready
+        // ✅ Show in expo: ALL orders (pending + ready) EXCEPT assembled/served/delivered
+        // Orders appear here immediately when created
         // Orders stay until "تم التجميع" is pressed → 'assembled'
-        return status === 'ready';
+        // This shows ALL active orders being prepared across all sections
+        return status !== 'assembled' && status !== 'served' && status !== 'delivered';
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
@@ -1841,7 +1842,8 @@
     const deliveriesState = db.data.deliveries || {};
     const assignments = deliveriesState.assignments || {};
     const settlements = deliveriesState.settlements || {};
-    return computeOrdersSnapshot(db)
+    // ✅ Use order_header + order_line for consistent delivery tracking
+    return buildOrdersFromHeaders(db)
       .filter(order=>{
         if(!order) return false;
         if(order.handoffStatus !== 'assembled') return false;
@@ -1858,7 +1860,8 @@
     const deliveriesState = db.data.deliveries || {};
     const assignments = deliveriesState.assignments || {};
     const settlements = deliveriesState.settlements || {};
-    return computeOrdersSnapshot(db)
+    // ✅ Use order_header + order_line for consistent delivery tracking
+    return buildOrdersFromHeaders(db)
       .filter(order=> (order.serviceMode || 'dine_in') === 'delivery' && order.handoffStatus === 'served')
       .map(order=> ({
         ...order,
@@ -3265,6 +3268,8 @@
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
         }
+        // ✅ Persist order_header.statusId to database
+        persistOrderHeaderStatus(orderId, 'assembled', nowIso);
       }
     },
     'kds.handoff.served':{
@@ -3297,6 +3302,8 @@
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'served', servedAt: nowIso, updatedAt: nowIso } });
         }
+        // ✅ Persist order_header.statusId to database
+        persistOrderHeaderStatus(orderId, 'served', nowIso);
       }
     },
     'kds.delivery.assign':{
@@ -3731,6 +3738,68 @@
 
     } catch (error) {
       console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to persist status change:', error);
+    }
+  };
+
+  // ✅ Helper function to persist order_header status changes to server
+  const persistOrderHeaderStatus = async (orderId, status, timestamp) => {
+    console.log('[KDS][persistOrderHeaderStatus] 🔄 Persisting order_header status:', {
+      orderId,
+      status,
+      timestamp
+    });
+
+    if (!store || typeof store.update !== 'function') {
+      console.warn('[KDS][persistOrderHeaderStatus] Store not available, using REST API fallback');
+
+      // ✅ Fallback: Use REST API directly
+      try {
+        const response = await fetch(`/api/v1/order_header/${orderId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            status: status,
+            statusId: status,
+            updatedAt: timestamp || new Date().toISOString()
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        console.log('[KDS][persistOrderHeaderStatus] ✅ Successfully persisted via REST API');
+        return;
+      } catch (apiError) {
+        console.error('[KDS][persistOrderHeaderStatus] ❌ REST API fallback failed:', apiError);
+        return;
+      }
+    }
+
+    try {
+      // Find order_header in watcherState
+      const orderHeaders = watcherState.orderHeaders || [];
+      const matchingHeader = orderHeaders.find(header =>
+        String(header.id || header.orderId) === orderId
+      );
+
+      if (!matchingHeader) {
+        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found for orderId:', orderId);
+        return;
+      }
+
+      // Update order_header with new status
+      const headerUpdate = {
+        id: matchingHeader.id,
+        status: status,
+        statusId: status,
+        updatedAt: timestamp || new Date().toISOString()
+      };
+
+      await store.update('order_header', headerUpdate);
+      console.log('[KDS][persistOrderHeaderStatus] ✅ Successfully persisted to database:', headerUpdate);
+    } catch (error) {
+      console.error('[KDS][persistOrderHeaderStatus] ❌ Failed to persist status change:', error);
     }
   };
 
