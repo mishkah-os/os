@@ -1114,13 +1114,20 @@
     const jobStatusMap = new Map();
     jobOrderDetails.forEach(detail => {
       // Extract orderId from jobOrderId format: "DAR-001001-{stationId}"
-      // stationId is always UUID format (last 5 dash-separated segments)
+      // stationId is UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (5 dash-separated parts)
       let orderId = detail.orderId || detail.order_id;
-      if (!orderId && detail.jobOrderId) {
-        const jobId = detail.jobOrderId || detail.job_order_id;
-        // Remove last UUID part: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-        const match = String(jobId).match(/^(.*)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-        orderId = match ? match[1] : jobId;
+      if (!orderId) {
+        const jobId = String(detail.jobOrderId || detail.job_order_id || '');
+        // Split and remove last 5 parts (UUID)
+        // Example: "DAR-001001-1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+        // → ["DAR", "001001", "1e7a48ec", "425a", "4268", "81db", "c8f3fd4d432e"]
+        // → Remove last 5 → ["DAR", "001001"] → "DAR-001001"
+        const parts = jobId.split('-');
+        if (parts.length >= 6) {
+          orderId = parts.slice(0, -5).join('-');
+        } else {
+          orderId = jobId; // Fallback if format is unexpected
+        }
       }
 
       const itemId = detail.itemId || detail.item_id;
@@ -1130,14 +1137,12 @@
       }
     });
 
-    if (jobStatusMap.size > 0) {
-      console.log('[KDS][DerivedStatus] 🔄 Built jobStatusMap:', {
-        totalJobs: jobOrderDetails.length,
-        mappedKeys: jobStatusMap.size,
-        sampleKeys: Array.from(jobStatusMap.keys()).slice(0, 3),
-        sampleStatuses: Array.from(jobStatusMap.values()).slice(0, 3).map(d => ({ jobId: d.jobOrderId, itemId: d.itemId, status: d.status }))
-      });
-    }
+    console.log('[KDS][DerivedStatus] 🔄 Built jobStatusMap:', {
+      totalJobs: jobOrderDetails.length,
+      mappedKeys: jobStatusMap.size,
+      sampleKeys: Array.from(jobStatusMap.keys()).slice(0, 3),
+      sampleStatuses: Array.from(jobStatusMap.values()).slice(0, 3).map(d => ({ jobId: d.jobOrderId, itemId: d.itemId, status: d.status }))
+    });
 
     // Group lines by orderId
     const linesByOrder = new Map();
