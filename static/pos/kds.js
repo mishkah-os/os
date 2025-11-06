@@ -2150,21 +2150,79 @@
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
     // ✅ Get orders that are assembled/served/delivered from order_header
-    const completedOrderIds = new Set(
-      buildOrdersFromHeaders(db)
-        .filter(order=> {
-          const status = order.handoffStatus;
-          return status === 'assembled' || status === 'served' || status === 'delivered';
-        })
-        .map(order=> order.orderId || order.id)
-    );
+    const completedOrders = buildOrdersFromHeaders(db)
+      .filter(order=> {
+        const status = order.handoffStatus;
+        return status === 'assembled' || status === 'served' || status === 'delivered';
+      });
+
+    // ✅ Normalize order IDs to handle format mismatches
+    // Create a Set with multiple normalized versions of each order ID
+    const completedOrderIds = new Set();
+    const completedOrderIdMap = new Map();  // For debugging
+
+    completedOrders.forEach(order => {
+      const rawId = order.orderId || order.id;
+      if (!rawId) return;
+
+      // Add raw ID
+      const normalizedId = normalizeOrderKey(rawId);
+      if (normalizedId) {
+        completedOrderIds.add(normalizedId);
+        completedOrderIdMap.set(normalizedId, { orderId: rawId, status: order.handoffStatus });
+      }
+
+      // Also add the original without normalization (in case normalizeOrderKey changes it)
+      const stringId = String(rawId);
+      completedOrderIds.add(stringId);
+      completedOrderIdMap.set(stringId, { orderId: rawId, status: order.handoffStatus });
+    });
+
+    // 🔍 Debug: Log completed orders
+    if (completedOrderIds.size > 0) {
+      console.log('[KDS][renderStationPanel] 🔍 Completed orders:', {
+        stationId,
+        completedOrderIds: Array.from(completedOrderIds),
+        completedOrders: Array.from(completedOrderIdMap.values())
+      });
+    }
 
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
+
+    // 🔍 Debug: Log all jobs for station
+    if (allJobsForStation.length > 0 && completedOrderIds.size > 0) {
+      console.log('[KDS][renderStationPanel] 🔍 All jobs for station:', {
+        stationId,
+        totalJobs: allJobsForStation.length,
+        jobOrderIds: allJobsForStation.map(j => j.orderId),
+        jobStatuses: allJobsForStation.map(j => ({ id: j.id, orderId: j.orderId, status: j.status }))
+      });
+    }
+
     const jobs = allJobsForStation
       // Hide jobs that are already ready/completed
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
       // Hide jobs whose order is assembled/served/delivered
-      .filter(job=> !completedOrderIds.has(job.orderId));
+      .filter(job=> {
+        // Try both raw and normalized order IDs
+        const rawJobOrderId = job.orderId;
+        const normalizedJobOrderId = normalizeOrderKey(rawJobOrderId);
+        const stringJobOrderId = String(rawJobOrderId);
+
+        const shouldHide = completedOrderIds.has(normalizedJobOrderId) ||
+                          completedOrderIds.has(stringJobOrderId);
+
+        if (completedOrderIds.size > 0 && !shouldHide) {
+          console.log('[KDS][renderStationPanel] ⚠️ Job NOT filtered:', {
+            jobId: job.id,
+            jobOrderIdRaw: rawJobOrderId,
+            jobOrderIdNormalized: normalizedJobOrderId,
+            completedIds: Array.from(completedOrderIds),
+            hasMatch: shouldHide
+          });
+        }
+        return !shouldHide;
+      });
 
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
