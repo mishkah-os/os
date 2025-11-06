@@ -4212,6 +4212,52 @@
   };
 
   if (store && typeof store.watch === 'function') {
+    // تحميل البيانات الموجودة مسبقاً (Initial Load)
+    const loadInitialData = async () => {
+      try {
+        console.log('[KDS] Loading initial data...');
+
+        // تحميل job_order_header
+        if (typeof store.getAll === 'function') {
+          const headers = await store.getAll('job_order_header');
+          watcherState.headers = ensureArray(headers);
+          console.log('[KDS][INITIAL] job_order_header:', watcherState.headers.length);
+        }
+
+        // تحميل job_order_detail
+        if (typeof store.getAll === 'function') {
+          const details = await store.getAll('job_order_detail');
+          watcherState.lines = ensureArray(details);
+          console.log('[KDS][INITIAL] job_order_detail:', watcherState.lines.length);
+        }
+
+        // تحميل order_delivery
+        if (typeof store.getAll === 'function') {
+          const deliveries = await store.getAll('order_delivery');
+          watcherState.deliveries = ensureArray(deliveries);
+          console.log('[KDS][INITIAL] order_delivery:', watcherState.deliveries.length);
+        }
+
+        // تحميل pos_database
+        if (typeof store.getAll === 'function') {
+          const posDb = await store.getAll('pos_database');
+          const latest = Array.isArray(posDb) && posDb.length ? posDb[posDb.length - 1] : null;
+          watcherState.posPayload = (latest && latest.payload) || {};
+          console.log('[KDS][INITIAL] pos_database:', { hasPayload: !!(latest && latest.payload) });
+        }
+
+        // تحديث UI بالبيانات المحملة
+        updateFromWatchers();
+        console.log('[KDS] Initial data loaded successfully');
+      } catch (error) {
+        console.error('[KDS] Failed to load initial data:', error);
+      }
+    };
+
+    // تحميل البيانات الأولية
+    loadInitialData();
+
+    // إعداد الـ watchers للتحديثات المستقبلية
     watcherUnsubscribers.push(
       store.status((status) => {
         watcherState.status =
@@ -4259,6 +4305,51 @@
       if (window.__POS_DB__) {
         store = window.__POS_DB__;
         if (store && typeof store.watch === 'function') {
+          // تحميل البيانات الموجودة مسبقاً (Initial Load) - عند توفر store متأخراً
+          const loadInitialDataDelayed = async () => {
+            try {
+              console.log('[KDS] Loading initial data (delayed)...');
+
+              // تحميل job_order_header
+              if (typeof store.getAll === 'function') {
+                const headers = await store.getAll('job_order_header');
+                watcherState.headers = ensureArray(headers);
+                console.log('[KDS][INITIAL] job_order_header:', watcherState.headers.length);
+              }
+
+              // تحميل job_order_detail
+              if (typeof store.getAll === 'function') {
+                const details = await store.getAll('job_order_detail');
+                watcherState.lines = ensureArray(details);
+                console.log('[KDS][INITIAL] job_order_detail:', watcherState.lines.length);
+              }
+
+              // تحميل order_delivery
+              if (typeof store.getAll === 'function') {
+                const deliveries = await store.getAll('order_delivery');
+                watcherState.deliveries = ensureArray(deliveries);
+                console.log('[KDS][INITIAL] order_delivery:', watcherState.deliveries.length);
+              }
+
+              // تحميل pos_database
+              if (typeof store.getAll === 'function') {
+                const posDb = await store.getAll('pos_database');
+                const latest = Array.isArray(posDb) && posDb.length ? posDb[posDb.length - 1] : null;
+                watcherState.posPayload = (latest && latest.payload) || {};
+                console.log('[KDS][INITIAL] pos_database:', { hasPayload: !!(latest && latest.payload) });
+              }
+
+              // تحديث UI بالبيانات المحملة
+              updateFromWatchers();
+              console.log('[KDS] Initial data loaded successfully (delayed)');
+            } catch (error) {
+              console.error('[KDS] Failed to load initial data (delayed):', error);
+            }
+          };
+
+          // تحميل البيانات الأولية
+          loadInitialDataDelayed();
+
           watcherUnsubscribers.push(
             store.status((status) => {
               watcherState.status =
