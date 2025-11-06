@@ -87,7 +87,7 @@
         .then(() => {
           const db = window.__POS_DB__;
 
-          // Load data from REST API (preserves original structure)
+          // Load data from REST API once (preserves original structure)
           const loadFromRestApi = async () => {
             try {
               const tables = await window.loadPosData(BRANCH_ID, 'pos');
@@ -104,15 +104,18 @@
           loadFromRestApi().then(() => {
             status.finishedAt = Date.now();
 
-            // Watch for changes and reload from REST API to maintain structure consistency
+            // Setup watchers to update individual tables in window.database
             const registeredNames = typeof db.getRegisteredNames === 'function'
               ? db.getRegisteredNames()
               : Object.keys(db.config?.objects || {});
 
             registeredNames.forEach(name => {
               if (name === 'pos_database') return;
-              db.watch(name, () => {
-                loadFromRestApi(); // Reload from REST API on any change
+              db.watch(name, (rows, meta) => {
+                // Update only the changed table in window.database
+                const tableName = meta?.table || name;
+                if (!window.database) window.database = {};
+                window.database[tableName] = rows;
               });
             });
           });
