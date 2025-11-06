@@ -145,6 +145,11 @@ function createContext(store, config) {
   const statusWatchers = new Set();
   const cache = new Map();
 
+  // Smart Store: REST API fetching state
+  let initialFetchTriggered = false;
+  let initialFetchInProgress = false;
+  const restApiCache = new Map(); // Temporary cache for REST API data
+
   function indexDefinition(def) {
     const key = `${def.moduleId}::${def.table}`;
     if (!tableIndex.has(key)) {
@@ -152,6 +157,52 @@ function createContext(store, config) {
     }
     tableIndex.get(key).add(def.name);
   }
+
+  // Smart Store: Fetch initial data from REST API
+  const fetchInitialSnapshot = async () => {
+    if (initialFetchTriggered || initialFetchInProgress) {
+      return; // Already fetching or done
+    }
+
+    initialFetchTriggered = true;
+    initialFetchInProgress = true;
+
+    try {
+      config.logger?.log?.(`[MishkahSimpleDB] Smart fetch: Loading initial data from REST API for ${config.branchId}/${config.moduleId}...`);
+
+      const apiUrl = `/api/branches/${encodeURIComponent(config.branchId)}/modules/${encodeURIComponent(config.moduleId)}`;
+      const response = await fetch(apiUrl, { cache: 'no-store' });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const snapshot = await response.json();
+      config.logger?.log?.(`[MishkahSimpleDB] Smart fetch: Received snapshot with tables:`, Object.keys(snapshot.tables || {}));
+
+      const fetchedTables = snapshot.tables || {};
+
+      // Store data in restApiCache
+      for (const [tableName, rows] of Object.entries(fetchedTables)) {
+        const dataRows = Array.isArray(rows) ? rows : (Array.isArray(rows?.rows) ? rows.rows : []);
+        restApiCache.set(tableName, dataRows);
+        config.logger?.log?.(`[MishkahSimpleDB] Smart fetch: Cached ${dataRows.length} rows for table '${tableName}'`);
+      }
+
+      // Emit for all registered definitions
+      for (const name of definitions.keys()) {
+        emit(name);
+      }
+
+      config.logger?.log?.(`[MishkahSimpleDB] Smart fetch: Complete! Cache populated.`);
+
+    } catch (error) {
+      config.logger?.warn?.(`[MishkahSimpleDB] Smart fetch failed:`, error.message);
+      config.logger?.log?.(`[MishkahSimpleDB] Will rely on WebSocket updates only.`);
+    } finally {
+      initialFetchInProgress = false;
+    }
+  };
 
   let api = null;
 
@@ -168,8 +219,17 @@ function createContext(store, config) {
   function emit(name) {
     const def = definitions.get(name);
     if (!def) return;
+
+    // Smart Store: Try WebSocket first, fallback to REST API cache
     const tables = store.tables(def.moduleId);
-    const rows = Array.isArray(tables?.[def.table]) ? tables[def.table] : [];
+    let rows = Array.isArray(tables?.[def.table]) ? tables[def.table] : [];
+
+    // If WebSocket has no data, try REST API cache
+    if (rows.length === 0 && restApiCache.has(def.table)) {
+      rows = restApiCache.get(def.table) || [];
+      config.logger?.log?.(`[MishkahSimpleDB][emit] ${name}: Using REST API cache (${rows.length} rows)`);
+    }
+
     const plain = rows.map((row) => def.fromRecord(row, baseCtx));
     cache.set(name, plain);
 
@@ -260,6 +320,13 @@ function createContext(store, config) {
       if (!definitions.has(name)) {
         register(name);
       }
+
+      // Smart Store: Trigger fetch on first watch() call
+      if (!initialFetchTriggered) {
+        config.logger?.log?.(`[MishkahSimpleDB] watch('${name}'): Triggering smart fetch (first watch call)...`);
+        fetchInitialSnapshot(); // Background fetch
+      }
+
       const set = watchers.get(name) || new Set();
       set.add(handler);
       watchers.set(name, set);
