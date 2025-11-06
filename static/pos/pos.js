@@ -1908,7 +1908,8 @@
       notes: Array.isArray(record.notes) ? record.notes : [],
       discount: normalizeDiscount(record.discount),
       createdAt: record.createdAt,
-      updatedAt: record.updatedAt
+      updatedAt: record.updatedAt,
+      version: Number.isFinite(Number(record.version)) ? Number(record.version) : 1
     };
     const priced = applyLinePricing(baseLine);
     if(record.total != null && Number.isFinite(Number(record.total))){
