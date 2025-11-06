@@ -974,13 +974,10 @@
   });
 
   const summarizeJobPayload = (payload = {})=>{
-    const jobOrders = payload.jobOrders || {};
     const master = payload.master || {};
-    // Support both canonical names (job_order_header) and aliases (headers)
-    const headers = Array.isArray(jobOrders.job_order_header) ? jobOrders.job_order_header
-                  : Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
-    const details = Array.isArray(jobOrders.job_order_detail) ? jobOrders.job_order_detail
-                  : Array.isArray(jobOrders.details) ? jobOrders.details : [];
+    // ✅ Flat structure: read job order tables directly from payload root
+    const headers = Array.isArray(payload.job_order_header) ? payload.job_order_header : [];
+    const details = Array.isArray(payload.job_order_detail) ? payload.job_order_detail : [];
     const stations = Array.isArray(master.stations) ? master.stations : [];
     const kitchenSections = Array.isArray(master.kitchenSections) ? master.kitchenSections : [];
     const stationCategoryRoutes = Array.isArray(master.stationCategoryRoutes) ? master.stationCategoryRoutes : [];
@@ -2284,10 +2281,18 @@
     items: initialMenuItems
   };
   const initialMenuIndex = buildMenuIndex(initialMenuItems);
-  const rawJobOrders = cloneDeep(kdsSource.jobOrders || {});
+  // ✅ Read job order tables from flat structure (database or kdsSource)
+  const rawJobOrders = {
+    job_order_header: cloneDeep(database.job_order_header || kdsSource.jobOrders?.job_order_header || kdsSource.jobOrders?.headers || []),
+    job_order_detail: cloneDeep(database.job_order_detail || kdsSource.jobOrders?.job_order_detail || kdsSource.jobOrders?.details || []),
+    job_order_detail_modifier: cloneDeep(database.job_order_detail_modifier || kdsSource.jobOrders?.job_order_detail_modifier || kdsSource.jobOrders?.modifiers || []),
+    job_order_status_history: cloneDeep(database.job_order_status_history || kdsSource.jobOrders?.job_order_status_history || kdsSource.jobOrders?.statusHistory || [])
+  };
   const jobRecords = buildJobRecords(rawJobOrders);
   const jobsIndexed = indexJobs(jobRecords);
-  const expoSource = Array.isArray(rawJobOrders.expoPassTickets) ? rawJobOrders.expoPassTickets.map(ticket=>({ ...ticket })) : [];
+  const expoSource = Array.isArray(database.expo_pass_ticket) ? database.expo_pass_ticket.map(ticket=>({ ...ticket }))
+                   : Array.isArray(kdsSource.jobOrders?.expoPassTickets) ? kdsSource.jobOrders.expoPassTickets.map(ticket=>({ ...ticket }))
+                   : [];
   const expoTickets = buildExpoTickets(expoSource, jobsIndexed);
 
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -2382,11 +2387,31 @@
       });
       return Array.from(map.values());
     };
+    // ✅ Use canonical table names consistently
+    const getArray = (obj, canonicalKey, ...aliasKeys) => {
+      if (Array.isArray(obj[canonicalKey])) return obj[canonicalKey];
+      for (const alias of aliasKeys) {
+        if (Array.isArray(obj[alias])) return obj[alias];
+      }
+      return [];
+    };
     return {
-      headers: mergeList(Array.isArray(current.headers) ? current.headers : [], Array.isArray(patch.headers) ? patch.headers : []),
-      details: mergeList(Array.isArray(current.details) ? current.details : [], Array.isArray(patch.details) ? patch.details : []),
-      modifiers: mergeList(Array.isArray(current.modifiers) ? current.modifiers : [], Array.isArray(patch.modifiers) ? patch.modifiers : []),
-      statusHistory: mergeList(Array.isArray(current.statusHistory) ? current.statusHistory : [], Array.isArray(patch.statusHistory) ? patch.statusHistory : [])
+      job_order_header: mergeList(
+        getArray(current, 'job_order_header', 'headers'),
+        getArray(patch, 'job_order_header', 'headers')
+      ),
+      job_order_detail: mergeList(
+        getArray(current, 'job_order_detail', 'details'),
+        getArray(patch, 'job_order_detail', 'details')
+      ),
+      job_order_detail_modifier: mergeList(
+        getArray(current, 'job_order_detail_modifier', 'modifiers'),
+        getArray(patch, 'job_order_detail_modifier', 'modifiers')
+      ),
+      job_order_status_history: mergeList(
+        getArray(current, 'job_order_status_history', 'statusHistory'),
+        getArray(patch, 'job_order_status_history', 'statusHistory')
+      )
     };
   };
 
@@ -2504,22 +2529,36 @@
   };
 
   const applyRemoteOrder = (appInstance, payload={}, meta={})=>{
-    if(!payload || !payload.jobOrders) return;
+    // ✅ Extract job order tables from flat payload structure
+    const incomingJobOrders = {
+      job_order_header: Array.isArray(payload.job_order_header) ? payload.job_order_header : [],
+      job_order_detail: Array.isArray(payload.job_order_detail) ? payload.job_order_detail : [],
+      job_order_detail_modifier: Array.isArray(payload.job_order_detail_modifier) ? payload.job_order_detail_modifier : [],
+      job_order_status_history: Array.isArray(payload.job_order_status_history) ? payload.job_order_status_history : []
+    };
+
+    // Skip if no job orders
+    const hasJobOrders = incomingJobOrders.job_order_header.length > 0
+                      || incomingJobOrders.job_order_detail.length > 0;
+    if(!hasJobOrders) return;
+
     console.log('[KDS][applyRemoteOrder] Received payload:', {
       hasStations: !!payload.master?.stations,
       stationsCount: payload.master?.stations?.length || 0,
       hasKitchenSections: !!payload.master?.kitchenSections,
       kitchenSectionsCount: payload.master?.kitchenSections?.length || 0,
-      sampleKitchenSection: payload.master?.kitchenSections?.[0]
+      sampleKitchenSection: payload.master?.kitchenSections?.[0],
+      jobOrderHeaderCount: incomingJobOrders.job_order_header.length,
+      jobOrderDetailCount: incomingJobOrders.job_order_detail.length
     });
     appInstance.setState(state=>{
       console.log('[KDS][applyRemoteOrder] Current state stations:', state.data.stations?.length || 0);
-      const mergedOrders = mergeJobOrders(state.data.jobOrders || {}, payload.jobOrders);
+      const mergedOrders = mergeJobOrders(state.data.jobOrders || {}, incomingJobOrders);
       const jobRecordsNext = buildJobRecords(mergedOrders);
       const jobsIndexedNext = indexJobs(jobRecordsNext);
-      const expoSourcePatch = Array.isArray(payload.jobOrders?.expoPassTickets)
-        ? payload.jobOrders.expoPassTickets.map(ticket=> ({ ...ticket }))
-        : state.data.expoSource;
+      const expoSourcePatch = Array.isArray(payload.expo_pass_ticket) ? payload.expo_pass_ticket
+                            : Array.isArray(payload.expoPassTickets) ? payload.expoPassTickets
+                            : state.data.expoSource;
       let expoSourceNext = Array.isArray(expoSourcePatch) ? expoSourcePatch : [];
       let deliveriesNext = state.data.deliveries || { assignments:{}, settlements:{} };
       if(payload.deliveries){
@@ -4138,16 +4177,15 @@
     const channel = normalizeChannelName(channelSource, BRANCH_CHANNEL);
     watcherState.channel = channel;
 
+    // ✅ Flat structure: job order tables at root level (consistent with POS)
     const payload = {
-      jobOrders: {
-        headers: jobHeaders,
-        details: jobDetails,
-        modifiers: [],
-        statusHistory: [],
-        expoPassTickets: ensureArray(
-          posPayload?.kds?.expoPassTickets || posPayload?.expo_pass_tickets
-        )
-      },
+      job_order_header: jobHeaders,
+      job_order_detail: jobDetails,
+      job_order_detail_modifier: [],
+      job_order_status_history: [],
+      expo_pass_ticket: ensureArray(
+        posPayload?.kds?.expoPassTickets || posPayload?.expo_pass_tickets
+      ),
       master: {
         stations,
         stationCategoryRoutes,
@@ -4187,7 +4225,12 @@
 
   const updateFromWatchers = () => {
     const payload = buildWatcherPayload();
-    if (!payload || !payload.jobOrders) return;
+    // ✅ Check flat structure instead of nested jobOrders
+    const hasData = payload && (
+      (Array.isArray(payload.job_order_header) && payload.job_order_header.length > 0) ||
+      (Array.isArray(payload.job_order_detail) && payload.job_order_detail.length > 0)
+    );
+    if (!hasData) return;
     applyRemoteOrder(app, payload, { channel: watcherState.channel || BRANCH_CHANNEL });
     const posPayload = watcherState.posPayload || {};
     const lang = posPayload?.settings?.lang || initialState.env.lang || 'ar';
