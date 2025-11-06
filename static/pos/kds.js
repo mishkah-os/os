@@ -183,8 +183,8 @@
     },
     "stats": {
       "total": {
-        "ar": "إجمالي الأوامر",
-        "en": "Total jobs"
+        "ar": "تحت التجهيز",
+        "en": "In Progress"
       },
       "expedite": {
         "ar": "أوامر عاجلة",
@@ -1740,10 +1740,15 @@
         : (station.nameEn || station.nameAr || station.id);
       const isExpoStation = station.isExpo === true || (String(station.stationType || '').toLowerCase() === 'expo');
       const tabId = isExpoStation ? 'expo' : station.id;
+      // ✅ Count unique orders (not jobs) in this station
+      // Exclude orders that are assembled/served/delivered/settled
       const activeJobs = (jobs.byStation[station.id] || [])
         .filter(job=> job.status !== 'ready' && job.status !== 'completed')
         .filter(job=> !servedOrderIds.has(job.orderId));
-      const tabCount = isExpoStation ? getExpoOrders(db).length : activeJobs.length;
+
+      // Group jobs by orderId to count unique orders
+      const uniqueOrderIds = new Set(activeJobs.map(job => job.orderId));
+      const tabCount = isExpoStation ? getExpoOrders(db).length : uniqueOrderIds.size;
       if(!tabs.some(tab=> tab.id === tabId)){
         tabs.push({
           id: tabId,
@@ -1816,12 +1821,14 @@
     const deliveriesState = db.data.deliveries || {};
     const assignments = deliveriesState.assignments || {};
     const settlements = deliveriesState.settlements || {};
-    // ✅ Use order_header + order_line for consistent delivery tracking
+    // ✅ Show orders that are assembled and ready for delivery
+    // Status: assembled (جاهز للتوصيل)
     return buildOrdersFromHeaders(db)
       .filter(order=>{
         if(!order) return false;
         if(order.handoffStatus !== 'assembled') return false;
-        return (order.serviceMode || 'dine_in').toLowerCase() === 'delivery';
+        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return false;
+        return true;
       })
       .map(order=> ({
         ...order,
@@ -1834,18 +1841,26 @@
     const deliveriesState = db.data.deliveries || {};
     const assignments = deliveriesState.assignments || {};
     const settlements = deliveriesState.settlements || {};
-    // ✅ Use order_header + order_line for consistent delivery tracking
+    // ✅ Show orders that have been delivered but not yet settled
+    // Status: delivered (تم التوصيل - في انتظار التسوية)
     return buildOrdersFromHeaders(db)
-      .filter(order=> (order.serviceMode || 'dine_in') === 'delivery' && order.handoffStatus === 'served')
+      .filter(order=>{
+        if(!order) return false;
+        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return false;
+        // Show orders with status='delivered' (delivered but not settled)
+        if(order.handoffStatus !== 'delivered') return false;
+        return true;
+      })
       .map(order=> ({
         ...order,
         assignment: assignments[order.orderId] || null,
         settlement: settlements[order.orderId] || null
       }))
       .filter(order=>{
+        // Hide settled orders
         const settlement = order.settlement;
-        if(!settlement) return true;
-        return settlement.status !== 'settled';
+        if(settlement && settlement.status === 'settled') return false;
+        return true;
       });
   };
 
@@ -1857,7 +1872,22 @@
   ]);
 
   const renderHeader = (db, t)=>{
-    const stats = db.data.jobs.stats || { total:0, expedite:0, alerts:0, ready:0, pending:0 };
+    // ✅ Calculate stats from orders (not job_orders)
+    // Only count active orders (not assembled/served/delivered/settled)
+    const allOrders = buildOrdersFromHeaders(db);
+    const activeOrders = allOrders.filter(order => {
+      const status = order.handoffStatus;
+      return status !== 'assembled' && status !== 'served' && status !== 'delivered' && status !== 'settled';
+    });
+
+    const stats = {
+      total: activeOrders.length,  // Count active orders
+      pending: activeOrders.filter(o => o.handoffStatus === 'pending').length,
+      ready: activeOrders.filter(o => o.handoffStatus === 'ready').length,
+      expedite: 0,  // TODO: Add expedite flag to orders
+      alerts: 0     // TODO: Add alerts flag to orders
+    };
+
     const lang = db.env.lang || 'ar';
     const theme = db.env.theme || 'dark';
     const now = db.data.now || Date.now();
@@ -3482,8 +3512,9 @@
         if (assignmentPayload) {
           persistDeliveryAssignment(orderId, assignmentPayload);
         }
-        // ✅ Update order_header status to 'assembled' (not 'delivered' yet - that's after settlement)
-        persistOrderHeaderStatus(orderId, 'assembled', nowIso);
+        // ✅ Update order_header status to 'delivered' (ready for settlement)
+        // This moves order to "معلقات الديليفري" (pending delivery panel)
+        persistOrderHeaderStatus(orderId, 'delivered', nowIso);
       }
     },
     'kds.delivery.settle':{
@@ -3513,8 +3544,8 @@
         if(syncClient && settlementPayload){
           syncClient.publishDeliveryUpdate({ orderId, payload:{ settlement: settlementPayload } });
         }
-        // ✅ Update order_header status to 'delivered' after settlement
-        persistOrderHeaderStatus(orderId, 'delivered', nowIso);
+        // ✅ Update order_header status to 'settled' (completed - will hide from all panels)
+        persistOrderHeaderStatus(orderId, 'settled', nowIso);
       }
     },
     'ui.modal.close':{
@@ -4258,6 +4289,7 @@
       });
     };
     upsert(payload?.drivers);
+    upsert(payload?.delivery_drivers);  // ✅ Read from delivery_drivers
     upsert(payload?.settings?.drivers);
     upsert(payload?.master?.drivers);
     return drivers;
@@ -5062,6 +5094,8 @@
       { name: 'order_header', table: 'order_header' },
       { name: 'order_line', table: 'order_line' },
       { name: 'order_delivery', table: 'order_delivery' },
+      { name: 'delivery_driver', table: 'delivery_driver' },
+      { name: 'order_payment', table: 'order_payment' },
       { name: 'pos_database', table: 'pos_database' },
       // ✅ Register master data tables directly from REST API
       { name: 'kitchen_sections', table: 'kitchen_sections' },
@@ -5176,6 +5210,8 @@
             { name: 'order_header', table: 'order_header' },
             { name: 'order_line', table: 'order_line' },
             { name: 'order_delivery', table: 'order_delivery' },
+            { name: 'delivery_driver', table: 'delivery_driver' },
+            { name: 'order_payment', table: 'order_payment' },
             { name: 'pos_database', table: 'pos_database' },
             // ✅ Register master data tables directly from REST API
             { name: 'kitchen_sections', table: 'kitchen_sections' },
