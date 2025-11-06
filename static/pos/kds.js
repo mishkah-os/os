@@ -3426,6 +3426,24 @@
 
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
+    console.log('[KDS][persistJobOrderStatusChange] 🔄 Called with:', {
+      jobId,
+      statusPayload,
+      actorInfo,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log('[KDS][persistJobOrderStatusChange] watcherState snapshot:', {
+      hasHeaders: !!watcherState.headers,
+      headersCount: (watcherState.headers || []).length,
+      hasLines: !!watcherState.lines,
+      linesCount: (watcherState.lines || []).length,
+      hasOrderHeaders: !!watcherState.orderHeaders,
+      orderHeadersCount: (watcherState.orderHeaders || []).length,
+      hasOrderLines: !!watcherState.orderLines,
+      orderLinesCount: (watcherState.orderLines || []).length
+    });
+
     console.log('[KDS][persistJobOrderStatusChange] Checking store availability:', {
       storeExists: !!store,
       hasUpdate: store && typeof store.update === 'function',
@@ -3524,30 +3542,55 @@
 
       // 3. ✅ Update order_line status using orderId from job
       const baseOrderId = extractBaseOrderId(jobId);
+      console.log('[KDS][persistJobOrderStatusChange] Extracted baseOrderId:', {
+        jobId,
+        baseOrderId,
+        extractionMethod: 'extractBaseOrderId'
+      });
+
       if (baseOrderId && statusPayload.status) {
         const orderLines = watcherState.orderLines || [];
-        const matchingLines = orderLines.filter(line =>
-          String(line.orderId || line.order_id) === baseOrderId
-        );
+
+        // Try multiple matching strategies
+        const matchingLines = orderLines.filter(line => {
+          const lineOrderId = String(line.orderId || line.order_id || '');
+          const matches = lineOrderId === baseOrderId;
+
+          if (!matches && orderLines.length < 10) {
+            console.log('[KDS][persistJobOrderStatusChange] Line comparison:', {
+              lineId: line.id,
+              lineOrderId,
+              baseOrderId,
+              matches
+            });
+          }
+
+          return matches;
+        });
 
         console.log('[KDS][persistJobOrderStatusChange] Found order_lines:', {
           baseOrderId,
           totalLines: orderLines.length,
           matchingLines: matchingLines.length,
-          sampleLine: matchingLines[0]
+          sampleLine: matchingLines[0],
+          allOrderIds: orderLines.slice(0, 5).map(l => l.orderId || l.order_id)
         });
 
         for (const line of matchingLines) {
           try {
-            await store.update('order_line', {
+            const updatePayload = {
               id: line.id,
               statusId: statusPayload.status,
               status: statusPayload.status,
               updatedAt: statusPayload.updatedAt || new Date().toISOString()
-            });
-            console.log('[KDS][persistJobOrderStatusChange] Updated order_line:', line.id, 'status:', statusPayload.status);
+            };
+
+            console.log('[KDS][persistJobOrderStatusChange] Updating order_line with payload:', updatePayload);
+
+            await store.update('order_line', updatePayload);
+            console.log('[KDS][persistJobOrderStatusChange] ✅ Updated order_line:', line.id, 'status:', statusPayload.status);
           } catch (lineError) {
-            console.warn('[KDS][persistJobOrderStatusChange] Failed to update order_line:', line.id, lineError);
+            console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update order_line:', line.id, lineError);
           }
         }
 
@@ -3555,6 +3598,40 @@
           orderId: baseOrderId,
           linesUpdated: matchingLines.length,
           newStatus: statusPayload.status
+        });
+
+        // 3b. ✅ Also update order_header status
+        if (matchingLines.length > 0) {
+          try {
+            const orderHeaders = watcherState.orderHeaders || [];
+            const matchingHeader = orderHeaders.find(header =>
+              String(header.id || header.orderId) === baseOrderId
+            );
+
+            if (matchingHeader) {
+              const headerUpdatePayload = {
+                id: matchingHeader.id,
+                status: statusPayload.status,
+                statusId: statusPayload.status,
+                updatedAt: statusPayload.updatedAt || new Date().toISOString()
+              };
+
+              console.log('[KDS][persistJobOrderStatusChange] Updating order_header with payload:', headerUpdatePayload);
+
+              await store.update('order_header', headerUpdatePayload);
+              console.log('[KDS][persistJobOrderStatusChange] ✅ Updated order_header:', matchingHeader.id, 'status:', statusPayload.status);
+            } else {
+              console.warn('[KDS][persistJobOrderStatusChange] ⚠️ order_header not found for orderId:', baseOrderId);
+            }
+          } catch (headerError) {
+            console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update order_header:', headerError);
+          }
+        }
+      } else {
+        console.warn('[KDS][persistJobOrderStatusChange] ⚠️ Skipping order_line update:', {
+          baseOrderId,
+          hasStatus: !!statusPayload.status,
+          reason: !baseOrderId ? 'No baseOrderId' : 'No status'
         });
       }
 
@@ -3580,7 +3657,8 @@
       console.log('[KDS][persistJobOrderStatusChange] ✅ Complete! Persisted status change:', {
         jobId,
         status: statusPayload.status,
-        updatedTables: ['job_order_header', 'job_order_detail', 'order_line', 'job_order_status_history']
+        baseOrderId: extractBaseOrderId(jobId),
+        updatedTables: ['job_order_header', 'job_order_detail', 'order_line', 'order_header', 'job_order_status_history']
       });
     } catch (error) {
       console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to persist status change:', error);
