@@ -476,7 +476,15 @@ export default class ModuleStore {
   replaceTablesFromSnapshot(snapshot = {}, context = {}) {
     if (!snapshot || typeof snapshot !== 'object') return this.getSnapshot();
     const tables = snapshot.tables && typeof snapshot.tables === 'object' ? snapshot.tables : {};
+
+    // ✅ PARTIAL SNAPSHOT SUPPORT: Only update tables that are present in snapshot
+    // This prevents erasing tables that are not included (e.g., master tables when publishing job_orders)
     for (const tableName of this.tables) {
+      // Skip tables that are not present in the incoming snapshot
+      if (!(tableName in tables)) {
+        continue;
+      }
+
       const incomingRows = Array.isArray(tables[tableName]) ? tables[tableName] : [];
       let tableDefinition = null;
       try {
