@@ -145,13 +145,7 @@
               const tables = await window.loadPosData(BRANCH_ID, 'pos');
               window.database = tables;
 
-              // FIX: Ensure both singular and plural forms are available for kitchen_sections
-              // Seeds use plural form (kitchen_sections), but some code may expect singular
-              if (tables.kitchen_sections && !tables.kitchen_section) {
-                window.database.kitchen_section = tables.kitchen_sections;
-              } else if (tables.kitchen_section && !tables.kitchen_sections) {
-                window.database.kitchen_sections = tables.kitchen_section;
-              }
+              // NOTE: No aliasing needed here anymore - backend now handles plural/singular mapping
 
               status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
               status.keys = Object.keys(tables);
@@ -179,13 +173,7 @@
                   if (!window.database) window.database = {};
                   window.database[tableName] = rows;
 
-                  // FIX: Sync both singular and plural forms for kitchen_sections
-                  // Seeds use plural, but schema may use singular - keep both in sync
-                  if (tableName === 'kitchen_section') {
-                    window.database.kitchen_sections = rows;
-                  } else if (tableName === 'kitchen_sections') {
-                    window.database.kitchen_section = rows;
-                  }
+                  // NOTE: Backend now correctly maps plural seeds to singular table names
                 });
               });
             });
