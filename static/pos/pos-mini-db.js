@@ -365,7 +365,7 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
     }
   };
 
-  // Smart background fetch: جلب البيانات من REST API لو الـ cache فاضي
+  // Smart background fetch: جلب البيانات من REST API دائماً عند بداية الـ store
   const fetchInitialSnapshot = async () => {
     if (initialFetchTriggered || initialFetchInProgress) {
       return; // Already fetching or done
@@ -389,18 +389,17 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
 
       const fetchedTables = snapshot.tables || {};
 
-      // Inject data into cache
+      // Inject data into cache (OVERWRITE existing data)
       for (const [tableName, rows] of Object.entries(fetchedTables)) {
         const canonical = canonicalizeTableNameLenient(tableName) || tableName;
         const dataRows = Array.isArray(rows) ? rows : (Array.isArray(rows?.rows) ? rows.rows : []);
 
-        if (dataRows.length > 0) {
-          tableData.set(canonical, ensureArray(dataRows).map(cloneValue));
-          console.log(`[PosMiniDB] Smart fetch: Loaded ${dataRows.length} rows for table '${canonical}'`);
+        // Always update cache with fresh data from server
+        tableData.set(canonical, ensureArray(dataRows).map(cloneValue));
+        console.log(`[PosMiniDB] Smart fetch: Loaded ${dataRows.length} rows for table '${canonical}'`);
 
-          // Trigger watchers for this table!
-          emit(canonical);
-        }
+        // Trigger watchers for this table!
+        emit(canonical);
       }
 
       console.log(`[PosMiniDB] Smart fetch: Complete! Cache populated.`);
@@ -472,13 +471,14 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
       const set = watchers.get(name);
       set.add(handler);
 
-      // Smart Fetch: لو الـ cache فاضي، جيب البيانات من REST API
-      const def = definitions.get(name);
-      const rows = tableData.get(def.table) || [];
-      if (rows.length === 0 && !initialFetchTriggered) {
-        console.log(`[PosMiniDB] watch('${name}'): Cache empty, triggering smart fetch...`);
+      // Smart Fetch: جلب البيانات من REST API مرة واحدة عند أول watch()
+      if (!initialFetchTriggered) {
+        console.log(`[PosMiniDB] watch('${name}'): Triggering smart fetch (first watch call)...`);
         fetchInitialSnapshot(); // Background fetch
       }
+
+      const def = definitions.get(name);
+      const rows = tableData.get(def.table) || [];
 
       if (immediate) {
         handler(rows.map(cloneValue), { table: def.table });
