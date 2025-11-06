@@ -396,10 +396,24 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
 
         // Always update cache with fresh data from server
         tableData.set(canonical, ensureArray(dataRows).map(cloneValue));
-        console.log(`[PosMiniDB] Smart fetch: Loaded ${dataRows.length} rows for table '${canonical}'`);
+        console.log(`[PosMiniDB] Smart fetch: Table '${tableName}' → canonical '${canonical}' → ${dataRows.length} rows`);
 
-        // Trigger watchers for this table!
-        emit(canonical);
+        // Need to emit for all definitions that point to this table
+        // Find all definitions that map to this table and emit for each
+        let emitCount = 0;
+        for (const [defName, def] of definitions.entries()) {
+          if (def.table === canonical) {
+            console.log(`[PosMiniDB] Smart fetch: Emitting for definition '${defName}' (table: ${def.table})`);
+            emit(defName);
+            emitCount++;
+          }
+        }
+
+        // If no definitions found, emit using canonical name directly
+        if (emitCount === 0) {
+          console.log(`[PosMiniDB] Smart fetch: No definitions found for table '${canonical}', emitting directly`);
+          emit(canonical);
+        }
       }
 
       console.log(`[PosMiniDB] Smart fetch: Complete! Cache populated.`);
@@ -447,7 +461,11 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
     const rows = tableData.get(def.table) || [];
     const payload = rows.map(cloneValue);
     const set = watchers.get(name);
-    if (!set || !set.size) return;
+    if (!set || !set.size) {
+      console.log(`[PosMiniDB] emit('${name}'): No watchers found (table: ${def.table}, rows: ${rows.length})`);
+      return;
+    }
+    console.log(`[PosMiniDB] emit('${name}'): Calling ${set.size} watcher(s) with ${rows.length} rows (table: ${def.table})`);
     for (const handler of Array.from(set)) {
       try {
         handler(payload.map(cloneValue), { table: def.table });
@@ -468,8 +486,11 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
     watch(name, handler, { immediate = true } = {}) {
       if (typeof handler !== 'function') return () => {};
       ensureDefinition(name);
+      const def = definitions.get(name);
       const set = watchers.get(name);
       set.add(handler);
+
+      console.log(`[PosMiniDB] watch('${name}'): Registered watcher (table: ${def.table}, total watchers: ${set.size})`);
 
       // Smart Fetch: جلب البيانات من REST API مرة واحدة عند أول watch()
       if (!initialFetchTriggered) {
@@ -477,10 +498,10 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
         fetchInitialSnapshot(); // Background fetch
       }
 
-      const def = definitions.get(name);
       const rows = tableData.get(def.table) || [];
 
       if (immediate) {
+        console.log(`[PosMiniDB] watch('${name}'): Calling handler immediately with ${rows.length} rows`);
         handler(rows.map(cloneValue), { table: def.table });
       }
       return () => {
