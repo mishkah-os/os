@@ -1651,6 +1651,10 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
   };
   if (Number.isFinite(versionValue) && versionValue > 0) {
     record.version = Math.trunc(versionValue);
+  } else {
+    // ✅ FIX: Always set version=1 for new lines or lines without version
+    // This prevents version conflicts when adding new items to existing orders
+    record.version = 1;
   }
   return record;
 }
