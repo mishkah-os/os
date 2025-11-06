@@ -2601,10 +2601,10 @@
       const headers = Array.from(jobsMap.values());
       if(!headers.length) return null;
       const jobOrders = {
-        headers,
-        details: jobDetails,
-        modifiers: jobModifiers,
-        statusHistory: historyEntries
+        job_order_header: headers,
+        job_order_detail: jobDetails,
+        job_order_detail_modifier: jobModifiers,
+        job_order_status_history: historyEntries
       };
       const orderSummary = {
         orderId: order.id,
