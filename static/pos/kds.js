@@ -1462,10 +1462,10 @@
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        // ✅ Show in expo: 'pending' and 'ready'
-        // ✅ Hide from expo: 'assembled', 'served', 'delivered'
-        // Orders stay in expo until "تم التجميع" is pressed
-        return status !== 'assembled' && status !== 'served' && status !== 'delivered';
+        // ✅ Show in expo: ONLY 'ready' (all items prepared)
+        // Orders appear here after all sections mark items ready
+        // Orders stay until "تم التجميع" is pressed → 'assembled'
+        return status === 'ready';
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
