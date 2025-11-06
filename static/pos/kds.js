@@ -4241,93 +4241,9 @@
       });
     }
 
-    // جلب البيانات الموجودة من السيرفر عند الـ startup
-    // هذا ضروري لأن WebSocket بيبعت التحديثات الجديدة بس، مش البيانات القديمة
-    const fetchInitialDataFromServer = async () => {
-      try {
-        console.log('[KDS] Fetching initial data from server...');
-
-        // استخدام branchId و moduleId من الـ store config
-        const branchId = store?.config?.branchId || 'dar';
-        const moduleId = store?.config?.moduleId || 'pos';
-
-        const apiUrl = `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
-        console.log('[KDS] Fetching from:', apiUrl);
-
-        const response = await fetch(apiUrl, { cache: 'no-store' });
-        if (!response.ok) {
-          console.warn(`[KDS] REST API returned ${response.status}, trying alternative...`);
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const snapshot = await response.json();
-        console.log('[KDS] Received snapshot:', {
-          tables: Object.keys(snapshot.tables || {}),
-          hasJobOrders: !!(snapshot.tables?.job_order_header || snapshot.tables?.job_order_detail)
-        });
-
-        const tables = snapshot.tables || {};
-
-        // تحميل job_order_header
-        if (tables.job_order_header) {
-          const headers = Array.isArray(tables.job_order_header)
-            ? tables.job_order_header
-            : (Array.isArray(tables.job_order_header?.rows) ? tables.job_order_header.rows : []);
-          watcherState.headers = ensureArray(headers);
-          console.log('[KDS][SERVER] job_order_header:', watcherState.headers.length, 'records');
-        }
-
-        // تحميل job_order_detail
-        if (tables.job_order_detail) {
-          const details = Array.isArray(tables.job_order_detail)
-            ? tables.job_order_detail
-            : (Array.isArray(tables.job_order_detail?.rows) ? tables.job_order_detail.rows : []);
-          watcherState.lines = ensureArray(details);
-          console.log('[KDS][SERVER] job_order_detail:', watcherState.lines.length, 'records');
-        }
-
-        // تحميل order_delivery
-        if (tables.order_delivery) {
-          const deliveries = Array.isArray(tables.order_delivery)
-            ? tables.order_delivery
-            : (Array.isArray(tables.order_delivery?.rows) ? tables.order_delivery.rows : []);
-          watcherState.deliveries = ensureArray(deliveries);
-          console.log('[KDS][SERVER] order_delivery:', watcherState.deliveries.length, 'records');
-        }
-
-        // تحميل pos_database
-        if (tables.pos_database) {
-          const posDb = Array.isArray(tables.pos_database)
-            ? tables.pos_database
-            : (Array.isArray(tables.pos_database?.rows) ? tables.pos_database.rows : []);
-          const latest = posDb.length ? posDb[posDb.length - 1] : null;
-          watcherState.posPayload = (latest && latest.payload) || {};
-          console.log('[KDS][SERVER] pos_database:', { hasPayload: !!(latest && latest.payload) });
-        }
-
-        // تحديث UI بالبيانات المحملة من السيرفر
-        console.log('[KDS] About to call updateFromWatchers() with data:', {
-          headers: watcherState.headers.length,
-          lines: watcherState.lines.length,
-          deliveries: watcherState.deliveries.length
-        });
-        updateFromWatchers();
-        console.log('[KDS] Initial data loaded successfully from server');
-        console.log('[KDS] After updateFromWatchers(), check UI now!');
-
-      } catch (error) {
-        console.error('[KDS] Failed to fetch initial data from server:', error);
-        console.log('[KDS] Note: REST API /api/branches/{branchId}/modules/{moduleId} may be unavailable');
-        console.log('[KDS] Relying on WebSocket live updates only (watchers will populate data when changes occur)');
-
-        // لا نستخدم fallback للـ store.list() لأن الـ cache فاضي عند الاتصال الجديد
-        // البيانات هتيجي من الـ watchers لما يحصل أي تحديث من POS
-      }
-    };
-
-    // جلب البيانات الأولية من السيرفر ثم إعداد الـ watchers
-    // IMPORTANT: نستنى الـ API تخلص قبل ما نعمل setup للـ watchers
-    // عشان البيانات تكون موجودة في الـ UI أول ما الصفحة تفتح
+    // SMART STORE: الـ store بقى ذكي ويعرف يجيب البيانات الأولية تلقائياً من REST API
+    // لما الـ cache يكون فاضي عند أول watch() call
+    // مش محتاجين نعمل fetch يدوي بعد كده! 🎉
     const setupWatchers = () => {
       console.log('[KDS] Setting up watchers for live updates...');
 
@@ -4375,16 +4291,9 @@
       );
     };
 
-    // جلب البيانات الأولية ثم setup watchers
-    fetchInitialDataFromServer()
-      .then(() => {
-        console.log('[KDS] Initial data fetch completed, UI should be updated');
-        setupWatchers();
-      })
-      .catch((error) => {
-        console.error('[KDS] Initial fetch failed, but setting up watchers anyway:', error);
-        setupWatchers();
-      });
+    // إعداد الـ watchers - الـ Smart Store هيجيب البيانات تلقائياً!
+    console.log('[KDS] Setting up watchers - Smart Store will auto-fetch data if cache is empty');
+    setupWatchers();
   } else if (!store || typeof store.watch !== 'function') {
     console.warn(
       '[Mishkah][KDS] POS dataset store unavailable. Live updates are disabled.'
@@ -4422,99 +4331,9 @@
             });
           }
 
-          // جلب البيانات الموجودة من السيرفر عند الـ startup (delayed)
-          const fetchInitialDataFromServerDelayed = async () => {
-            try {
-              console.log('[KDS] Fetching initial data from server (delayed)...');
-
-              const branchId = store?.config?.branchId || 'dar';
-              const moduleId = store?.config?.moduleId || 'pos';
-
-              const apiUrl = `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
-              console.log('[KDS] Fetching from (delayed):', apiUrl);
-
-              const response = await fetch(apiUrl, { cache: 'no-store' });
-              if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-              }
-
-              const snapshot = await response.json();
-              console.log('[KDS] Received snapshot (delayed):', {
-                tables: Object.keys(snapshot.tables || {}),
-                hasJobOrders: !!(snapshot.tables?.job_order_header || snapshot.tables?.job_order_detail)
-              });
-
-              const tables = snapshot.tables || {};
-
-              if (tables.job_order_header) {
-                const headers = Array.isArray(tables.job_order_header)
-                  ? tables.job_order_header
-                  : (Array.isArray(tables.job_order_header?.rows) ? tables.job_order_header.rows : []);
-                watcherState.headers = ensureArray(headers);
-                console.log('[KDS][SERVER] job_order_header (delayed):', watcherState.headers.length, 'records');
-              }
-
-              if (tables.job_order_detail) {
-                const details = Array.isArray(tables.job_order_detail)
-                  ? tables.job_order_detail
-                  : (Array.isArray(tables.job_order_detail?.rows) ? tables.job_order_detail.rows : []);
-                watcherState.lines = ensureArray(details);
-                console.log('[KDS][SERVER] job_order_detail (delayed):', watcherState.lines.length, 'records');
-              }
-
-              if (tables.order_delivery) {
-                const deliveries = Array.isArray(tables.order_delivery)
-                  ? tables.order_delivery
-                  : (Array.isArray(tables.order_delivery?.rows) ? tables.order_delivery.rows : []);
-                watcherState.deliveries = ensureArray(deliveries);
-                console.log('[KDS][SERVER] order_delivery (delayed):', watcherState.deliveries.length, 'records');
-              }
-
-              if (tables.pos_database) {
-                const posDb = Array.isArray(tables.pos_database)
-                  ? tables.pos_database
-                  : (Array.isArray(tables.pos_database?.rows) ? tables.pos_database.rows : []);
-                const latest = posDb.length ? posDb[posDb.length - 1] : null;
-                watcherState.posPayload = (latest && latest.payload) || {};
-                console.log('[KDS][SERVER] pos_database (delayed):', { hasPayload: !!(latest && latest.payload) });
-              }
-
-              updateFromWatchers();
-              console.log('[KDS] Initial data loaded successfully from server (delayed)');
-
-            } catch (error) {
-              console.error('[KDS] Failed to fetch initial data from server (delayed):', error);
-
-              console.log('[KDS] Falling back to store cache (delayed)...');
-              try {
-                if (typeof store.list === 'function') {
-                  const headers = store.list('job_order_header');
-                  const details = store.list('job_order_detail');
-                  const deliveries = store.list('order_delivery');
-                  const posDb = store.list('pos_database');
-
-                  watcherState.headers = ensureArray(headers);
-                  watcherState.lines = ensureArray(details);
-                  watcherState.deliveries = ensureArray(deliveries);
-
-                  const latest = Array.isArray(posDb) && posDb.length ? posDb[posDb.length - 1] : null;
-                  watcherState.posPayload = (latest && latest.payload) || {};
-
-                  console.log('[KDS][CACHE] Loaded from cache (delayed):', {
-                    headers: watcherState.headers.length,
-                    details: watcherState.lines.length
-                  });
-
-                  updateFromWatchers();
-                }
-              } catch (fallbackError) {
-                console.error('[KDS] Fallback also failed (delayed):', fallbackError);
-              }
-            }
-          };
-
-          // تحميل البيانات الأولية من السيرفر
-          fetchInitialDataFromServerDelayed();
+          // SMART STORE: الـ store بقى ذكي ويجيب البيانات تلقائياً عند أول watch()!
+          // مش محتاجين نعمل fetch يدوي بعد كده 🎉
+          console.log('[KDS] Smart Store will auto-fetch data if cache is empty (delayed)');
 
           watcherUnsubscribers.push(
             store.status((status) => {
