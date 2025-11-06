@@ -1220,22 +1220,33 @@
 
       // ✅ Calculate handoff status based on derived item statuses
       // Priority:
-      // 1. order_header.statusId (if set) - from database
-      // 2. handoff record (if manually set) - from UI actions
-      // 3. calculated from items - derived from job_order_detail
+      // 1. order_header.statusId (database source of truth) - even if empty
+      // 2. calculated from items - derived from job_order_detail
+      // 3. handoff record (only for final stages) - UI actions
       let status;
-      const headerStatusId = header.statusId ? String(header.statusId).toLowerCase() : null;
+
+      // Get statusId from header (check existence, not truthiness - empty string is valid!)
+      const headerStatusId = (header.statusId !== null && header.statusId !== undefined)
+        ? String(header.statusId).toLowerCase()
+        : null;
       const recordStatus = record.status ? String(record.status).toLowerCase() : null;
 
-      // First check order_header.statusId (database state)
-      if (headerStatusId && headerStatusId !== '' && headerStatusId !== 'null') {
-        status = headerStatusId;
+      // If header has statusId in database (even if empty), prioritize it over stale handoff records
+      if (headerStatusId !== null && headerStatusId !== 'null' && headerStatusId !== 'undefined') {
+        // Empty string = new order -> calculate from items (ignore stale handoff record!)
+        if (headerStatusId === '') {
+          status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
+        }
+        // Has value -> use it directly (database is source of truth)
+        else {
+          status = headerStatusId;
+        }
       }
-      // Then check handoff record (UI state) - only if moved to final stages
-      else if (recordStatus === 'assembled' || recordStatus === 'served' || recordStatus === 'delivered') {
+      // No header status in database -> fall back to handoff record (only final stages)
+      else if (['assembled', 'served', 'delivered'].includes(recordStatus)) {
         status = recordStatus;
       }
-      // Otherwise calculate from items
+      // Default -> calculate from items
       else {
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
