@@ -145,11 +145,7 @@
               const tables = await window.loadPosData(BRANCH_ID, 'pos');
               window.database = tables;
 
-              // CRITICAL FIX: Backend returns kitchen_section (singular) but KDS expects kitchen_sections (plural)
-              // Create alias so both names work
-              if (tables.kitchen_section && !tables.kitchen_sections) {
-                window.database.kitchen_sections = tables.kitchen_section;
-              }
+              // Fixed: pos-mini-db now correctly uses kitchen_sections (plural) to match seeds
 
               status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
               status.keys = Object.keys(tables);
@@ -177,10 +173,7 @@
                   if (!window.database) window.database = {};
                   window.database[tableName] = rows;
 
-                  // CRITICAL FIX: Sync kitchen_section to kitchen_sections for KDS compatibility
-                  if (tableName === 'kitchen_section') {
-                    window.database.kitchen_sections = rows;
-                  }
+                  // Fixed: No aliasing needed - table name matches what KDS expects
                 });
               });
             });

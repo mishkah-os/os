@@ -19,7 +19,7 @@ const TABLE_ALIAS_GROUPS = {
   expo_pass_ticket: ['expo_pass_tickets', 'expo_tickets', 'expoPassTickets'],
   menu_item: ['menu_items', 'menuItems', 'menuItem', 'items'],
   menu_category: ['menu_categories', 'menuCategories', 'menuCategory', 'categories'],
-  kitchen_section: ['kitchen_sections', 'kitchenStations'],
+  kitchen_sections: ['kitchen_section', 'kitchenStations'],  // FIXED: Use plural as canonical (matches seeds)
   dining_table: ['dining_tables', 'restaurant_tables', 'tables'],
   table_lock: ['table_locks', 'locks', 'tableLocks'],
   customer_profile: ['customer_profiles', 'customers', 'customerProfiles'],
@@ -50,7 +50,7 @@ const DEFAULT_TABLES = [
   'menu_item',
   'menu_category',
   'category_section',
-  'kitchen_section',
+  'kitchen_sections',  // FIXED: Use plural to match seeds
   'dining_table',
   'employee',
   'payment_method',
