@@ -2600,12 +2600,7 @@
       });
       const headers = Array.from(jobsMap.values());
       if(!headers.length) return null;
-      const jobOrders = {
-        job_order_header: headers,
-        job_order_detail: jobDetails,
-        job_order_detail_modifier: jobModifiers,
-        job_order_status_history: historyEntries
-      };
+
       const orderSummary = {
         orderId: order.id,
         orderNumber: order.orderNumber || order.invoiceId || order.id,
@@ -2642,9 +2637,14 @@
         settlements:{ ...(kdsState.deliveries?.settlements || {}) }
       };
       const handoffSnapshot = { ...(kdsState.handoff || {}) };
+
+      // ✅ Flat structure: job order tables at root level (consistent with REST API)
       return {
         order: orderSummary,
-        jobOrders,
+        job_order_header: headers,
+        job_order_detail: jobDetails,
+        job_order_detail_modifier: jobModifiers,
+        job_order_status_history: historyEntries,
         master: masterSnapshot,
         deliveries: deliveriesSnapshot,
         handoff: handoffSnapshot,
