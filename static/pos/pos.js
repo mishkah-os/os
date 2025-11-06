@@ -3632,7 +3632,7 @@
       return coerceArray(value);
     };
 
-    function installRealtimeOrderWatchers(){
+    async function installRealtimeOrderWatchers(){
       console.log('[POS][installRealtimeOrderWatchers] Starting...', realtimeOrders);
       if(realtimeOrders.installed) return;
       if(!realtimeOrders.store) return;
@@ -3683,105 +3683,78 @@
         paymentTableName
       });
 
-      // ===== التعبئة الأولية: قراءة البيانات الموجودة من السيرفر مثل pos_finance =====
-      console.log('[POS][installRealtimeOrderWatchers] Loading initial data from server...');
+      // ===== التعبئة الأولية: Smart Fetch من REST API =====
+      console.log('[POS][installRealtimeOrderWatchers] Smart Fetch: Loading initial data from REST API...');
 
-      // تشخيص: فحص محتويات الـ store الداخلية
-      if(typeof store.tables === 'function'){
+      const fetchInitialData = async ()=>{
         try {
-          const allTables = store.tables('pos');
-          console.log('[POS][installRealtimeOrderWatchers] Available tables in store:', Object.keys(allTables || {}));
-          if(allTables && allTables.order_header){
-            console.log('[POS][installRealtimeOrderWatchers] order_header in store:', allTables.order_header.length);
+          const branchId = BRANCH_ID || 'dar';
+          const apiUrl = window.basedomain + `/api/branches/${encodeURIComponent(branchId)}/modules/pos`;
+          console.log('[POS][installRealtimeOrderWatchers] Fetching from:', apiUrl);
+          const response = await fetch(apiUrl, { cache: 'no-store' });
+          if(!response.ok){
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           }
-          if(allTables && allTables.order_line){
-            console.log('[POS][installRealtimeOrderWatchers] order_line in store:', allTables.order_line.length);
-          }
-          if(allTables && allTables.order_payment){
-            console.log('[POS][installRealtimeOrderWatchers] order_payment in store:', allTables.order_payment.length);
-          }
+          const snapshot = await response.json();
+          console.log('[POS][installRealtimeOrderWatchers] Received snapshot with tables:', Object.keys(snapshot.tables || {}));
+
+          // معالجة البيانات المحملة
+          const fetchedTables = snapshot.tables || {};
+
+          // معالجة headers
+          const headerRows = Array.isArray(fetchedTables.order_header) ? fetchedTables.order_header : [];
+          const headersMap = new Map();
+          headerRows.forEach(row=>{
+            const normalized = sanitizeOrderHeaderRow(row);
+            if(!normalized) return;
+            const id = String(normalized.id);
+            headersMap.set(id, normalized);
+          });
+          realtimeOrders.headers = headersMap;
+          console.log('[POS][installRealtimeOrderWatchers] Loaded', headersMap.size, 'headers from REST API');
+
+          // معالجة lines
+          const lineRows = Array.isArray(fetchedTables.order_line) ? fetchedTables.order_line : [];
+          const linesMap = new Map();
+          lineRows.forEach(row=>{
+            const normalized = sanitizeOrderLineRow(row);
+            if(!normalized || !normalized.orderId) return;
+            const orderId = String(normalized.orderId);
+            if(!linesMap.has(orderId)) linesMap.set(orderId, []);
+            linesMap.get(orderId).push(normalized);
+          });
+          realtimeOrders.lines = linesMap;
+          console.log('[POS][installRealtimeOrderWatchers] Loaded', linesMap.size, 'line groups from REST API');
+
+          // معالجة payments
+          const paymentRows = Array.isArray(fetchedTables.order_payment) ? fetchedTables.order_payment : [];
+          const paymentsMap = new Map();
+          paymentRows.forEach(row=>{
+            const normalized = sanitizeOrderPaymentRow(row);
+            if(!normalized || !normalized.orderId) return;
+            const orderId = String(normalized.orderId);
+            if(!paymentsMap.has(orderId)) paymentsMap.set(orderId, []);
+            paymentsMap.get(orderId).push(normalized);
+          });
+          realtimeOrders.payments = paymentsMap;
+          console.log('[POS][installRealtimeOrderWatchers] Loaded', paymentsMap.size, 'payment groups from REST API');
+
+          // تحديث الـ snapshot
+          scheduleRealtimeSnapshot();
+          console.log('[POS][installRealtimeOrderWatchers] Smart Fetch: Complete!');
         } catch(err) {
-          console.warn('[POS][installRealtimeOrderWatchers] Failed to inspect store.tables:', err);
+          console.warn('[POS][installRealtimeOrderWatchers] Smart Fetch failed:', err.message);
+          console.log('[POS][installRealtimeOrderWatchers] Will rely on WebSocket updates only');
+          // Initialize with empty maps
+          realtimeOrders.headers = new Map();
+          realtimeOrders.lines = new Map();
+          realtimeOrders.payments = new Map();
+          scheduleRealtimeSnapshot();
         }
-      }
+      };
 
-      // قراءة headers الموجودة
-      let initialHeaderRows = [];
-      try {
-        const rawHeaders = store.list(headerTableName);
-        console.log('[POS][installRealtimeOrderWatchers] store.list returned for', headerTableName, ':', rawHeaders);
-        initialHeaderRows = Array.isArray(rawHeaders) ? rawHeaders : [];
-        console.log('[POS][installRealtimeOrderWatchers] Initial headers loaded:', initialHeaderRows.length);
-        if(initialHeaderRows.length > 0) {
-          console.log('[POS][installRealtimeOrderWatchers] Sample header:', initialHeaderRows[0]);
-        }
-      } catch(err) {
-        console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial headers:', err);
-      }
-
-      // قراءة lines الموجودة
-      let initialLineRows = [];
-      try {
-        const rawLines = store.list(lineTableName);
-        initialLineRows = Array.isArray(rawLines) ? rawLines : [];
-        console.log('[POS][installRealtimeOrderWatchers] Initial lines loaded:', initialLineRows.length);
-        if(initialLineRows.length > 0) {
-          console.log('[POS][installRealtimeOrderWatchers] Sample line:', initialLineRows[0]);
-        }
-      } catch(err) {
-        console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial lines:', err);
-      }
-
-      // قراءة payments الموجودة
-      let initialPaymentRows = [];
-      try {
-        const rawPayments = store.list(paymentTableName);
-        initialPaymentRows = Array.isArray(rawPayments) ? rawPayments : [];
-        console.log('[POS][installRealtimeOrderWatchers] Initial payments loaded:', initialPaymentRows.length);
-        if(initialPaymentRows.length > 0) {
-          console.log('[POS][installRealtimeOrderWatchers] Sample payment:', initialPaymentRows[0]);
-        }
-      } catch(err) {
-        console.warn('[POS][installRealtimeOrderWatchers] Failed to load initial payments:', err);
-      }
-
-      // معالجة وتخزين headers الأولية
-      const headersMap = new Map();
-      (initialHeaderRows || []).forEach(row=>{
-        const normalized = sanitizeOrderHeaderRow(row);
-        if(!normalized) return;
-        const id = String(normalized.id);
-        headersMap.set(id, normalized);
-      });
-      realtimeOrders.headers = headersMap;
-      console.log('[POS][installRealtimeOrderWatchers] Initialized headers:', headersMap.size);
-
-      // معالجة وتخزين lines الأولية
-      const linesMap = new Map();
-      (initialLineRows || []).forEach(row=>{
-        const normalized = sanitizeOrderLineRow(row);
-        if(!normalized || !normalized.orderId) return;
-        const orderId = String(normalized.orderId);
-        if(!linesMap.has(orderId)) linesMap.set(orderId, []);
-        linesMap.get(orderId).push(normalized);
-      });
-      realtimeOrders.lines = linesMap;
-      console.log('[POS][installRealtimeOrderWatchers] Initialized lines groups:', linesMap.size);
-
-      // معالجة وتخزين payments الأولية
-      const paymentsMap = new Map();
-      (initialPaymentRows || []).forEach(row=>{
-        const normalized = sanitizeOrderPaymentRow(row);
-        if(!normalized || !normalized.orderId) return;
-        const orderId = String(normalized.orderId);
-        if(!paymentsMap.has(orderId)) paymentsMap.set(orderId, []);
-        paymentsMap.get(orderId).push(normalized);
-      });
-      realtimeOrders.payments = paymentsMap;
-      console.log('[POS][installRealtimeOrderWatchers] Initialized payment groups:', paymentsMap.size);
-
-      // تحديث الـ snapshot الأولي
-      scheduleRealtimeSnapshot();
+      // تنفيذ fetch فوراً
+      await fetchInitialData();
 
       // ===== تسجيل Watchers للتحديثات في الوقت الفعلي =====
       console.log('[POS][installRealtimeOrderWatchers] Registering watchers...');
