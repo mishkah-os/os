@@ -3,7 +3,7 @@
 let createDBAuto = window.createDBAuto ;
   
 const TABLE_ALIAS_GROUPS = {
-  pos_database: ['pos_dataset', 'pos_data', 'dataset', 'pos_snapshot'],
+  // pos_database REMOVED - tables are now direct in window.database
   pos_shift: ['pos_shifts', 'shift_header', 'shiftHeaders', 'shifts'],
   order_header: ['orders', 'order_headers', 'orderHeader', 'order_header_live', 'pos_order_header'],
   order_line: ['order_lines', 'order_line_items', 'orderDetails', 'order_items', 'orderLines'],
