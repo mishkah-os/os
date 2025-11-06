@@ -2959,7 +2959,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_headers",
+              "table": "order_header",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -2981,10 +2981,10 @@
         "indexes": []
       },
       {
-        "name": "order_headers",
+        "name": "order_header",
         "label": "Order Header",
         "comment": "Primary sales order header tied to shifts and tables.",
-        "sqlName": "order_headers",
+        "sqlName": "order_header",
         "layout": {
           "x": 320,
           "y": 260
@@ -3392,10 +3392,10 @@
         ]
       },
       {
-        "name": "order_lines",
+        "name": "order_line",
         "label": "Order Line",
         "comment": "Line items included in orders.",
-        "sqlName": "order_lines",
+        "sqlName": "order_line",
         "layout": {
           "x": 560,
           "y": 260
@@ -3483,7 +3483,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_headers",
+              "table": "order_header",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3500,7 +3500,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_lines",
+              "table": "order_line",
               "column": "line_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3607,7 +3607,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_lines",
+              "table": "order_line",
               "column": "line_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3802,7 +3802,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_headers",
+              "table": "order_header",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3819,7 +3819,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_lines",
+              "table": "order_line",
               "column": "line_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -3948,7 +3948,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_headers",
+              "table": "order_header",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
@@ -4269,7 +4269,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_headers",
+              "table": "order_header",
               "column": "order_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -4407,7 +4407,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_lines",
+              "table": "order_line",
               "column": "line_id",
               "onDelete": "RESTRICT",
               "onUpdate": "CASCADE"
@@ -4698,7 +4698,7 @@
             "comment": "",
             "notes": "",
             "references": {
-              "table": "order_headers",
+              "table": "order_header",
               "column": "order_id",
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
