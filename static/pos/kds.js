@@ -1926,14 +1926,16 @@
   };
 
   const renderDetailRow = (detail, t, lang, stationLabel)=>{
-    const statusLabel = t.labels.jobStatus[detail.status] || detail.status;
+    const statusLabel = t.labels.jobStatus[detail.status] || detail.status || 'draft';
     const stationText = lang === 'ar' ? t.labels.station.ar : t.labels.station.en;
+    // ✅ Only show station label if it's a valid non-empty string
+    const hasValidStationLabel = stationLabel && typeof stationLabel === 'string' && stationLabel !== 'undefined' && stationLabel.trim().length > 0;
     return D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
         D.Text.Strong({ attrs:{ class: tw`text-base font-semibold leading-tight text-slate-100 sm:text-lg` }}, [`${detail.quantity}× ${lang === 'ar' ? (detail.itemNameAr || detail.itemNameEn || detail.itemId) : (detail.itemNameEn || detail.itemNameAr || detail.itemId)}`]),
         createBadge(statusLabel, STATUS_CLASS[detail.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
       ]),
-      stationLabel ? createBadge(`${stationText}: ${stationLabel}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
+      hasValidStationLabel ? createBadge(`${stationText}: ${stationLabel}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
       detail.prepNotes ? D.Text.P({ attrs:{ class: tw`text-xs text-slate-300` }}, [`📝 ${detail.prepNotes}`]) : null,
       detail.modifiers && detail.modifiers.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, detail.modifiers.map(mod=>{
         const typeText = mod.modifierType === 'remove'
@@ -2154,7 +2156,7 @@
         ]),
         order.detailRows && order.detailRows.length
           ? D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, order.detailRows.map(entry=>{
-              const stationLabel = lang === 'ar' ? entry.stationLabelAr : entry.stationLabelEn;
+              const stationLabel = (lang === 'ar' ? entry.stationLabelAr : entry.stationLabelEn) || null;
               return renderDetailRow(entry.detail, t, lang, stationLabel);
             }))
           : null,
@@ -2242,7 +2244,7 @@
         ]),
         order.detailRows && order.detailRows.length
           ? D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, order.detailRows.map(entry=>{
-              const stationLabel = lang === 'ar' ? entry.stationLabelAr : entry.stationLabelEn;
+              const stationLabel = (lang === 'ar' ? entry.stationLabelAr : entry.stationLabelEn) || null;
               return renderDetailRow(entry.detail, t, lang, stationLabel);
             }))
           : null,
@@ -3430,6 +3432,8 @@
     }
 
     try {
+      console.log('[KDS][persistJobOrderStatusChange] Starting:', { jobId, status: statusPayload.status });
+
       // 1. Update job_order_header with new status
       const headerUpdate = {
         id: jobId,
@@ -3442,18 +3446,51 @@
         actorId: actorInfo.actorId || 'kds',
         reason: actorInfo.reason || 'status-change'
       });
+      console.log('[KDS][persistJobOrderStatusChange] Updated job_order_header');
 
-      // 2. ✅ Update order_line status to sync with job status for expo/handoff
-      // Extract base orderId from jobId (e.g., "DAR-001001-1e7a48ec..." → "DAR-001001")
+      // 2. ✅ Update all job_order_detail for this job
+      const allJobDetails = watcherState.lines || [];
+      const jobDetails = allJobDetails.filter(detail =>
+        String(detail.jobOrderId || detail.job_order_id) === jobId
+      );
+      console.log('[KDS][persistJobOrderStatusChange] Found job_order_detail:', {
+        totalDetails: allJobDetails.length,
+        matchingDetails: jobDetails.length,
+        jobId
+      });
+
+      for (const detail of jobDetails) {
+        try {
+          await store.save('job_order_detail', {
+            id: detail.id,
+            status: statusPayload.status,
+            updatedAt: statusPayload.updatedAt || new Date().toISOString()
+          }, {
+            source: 'kds-status-sync',
+            actorId: actorInfo.actorId || 'kds',
+            reason: 'sync-from-job-header'
+          });
+        } catch (detailError) {
+          console.warn('[KDS][persistJobOrderStatusChange] Failed to update job_order_detail:', detail.id, detailError);
+        }
+      }
+      console.log('[KDS][persistJobOrderStatusChange] Updated job_order_detail count:', jobDetails.length);
+
+      // 3. ✅ Update order_line status using orderId from job
       const baseOrderId = extractBaseOrderId(jobId);
       if (baseOrderId && statusPayload.status) {
-        // Get all order_lines for this order
         const orderLines = watcherState.orderLines || [];
         const matchingLines = orderLines.filter(line =>
-          String(line.orderId) === baseOrderId
+          String(line.orderId || line.order_id) === baseOrderId
         );
 
-        // Update each order_line with the new status
+        console.log('[KDS][persistJobOrderStatusChange] Found order_lines:', {
+          baseOrderId,
+          totalLines: orderLines.length,
+          matchingLines: matchingLines.length,
+          sampleLine: matchingLines[0]
+        });
+
         for (const line of matchingLines) {
           try {
             await store.save('order_line', {
@@ -3466,6 +3503,7 @@
               actorId: actorInfo.actorId || 'kds',
               reason: 'sync-from-job-order'
             });
+            console.log('[KDS][persistJobOrderStatusChange] Updated order_line:', line.id, 'status:', statusPayload.status);
           } catch (lineError) {
             console.warn('[KDS][persistJobOrderStatusChange] Failed to update order_line:', line.id, lineError);
           }
@@ -3478,7 +3516,7 @@
         });
       }
 
-      // 3. Insert status history entry
+      // 4. Insert status history entry
       const historyEntry = {
         id: `HIS-${jobId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         jobOrderId: jobId,
@@ -3500,14 +3538,13 @@
         actorId: actorInfo.actorId || 'kds'
       });
 
-      console.log('[KDS][persistJobOrderStatusChange] Persisted status change:', {
+      console.log('[KDS][persistJobOrderStatusChange] ✅ Complete! Persisted status change:', {
         jobId,
         status: statusPayload.status,
-        headerUpdate,
-        historyEntry
+        updatedTables: ['job_order_header', 'job_order_detail', 'order_line', 'job_order_status_history']
       });
     } catch (error) {
-      console.error('[KDS][persistJobOrderStatusChange] Failed to persist status change:', error);
+      console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to persist status change:', error);
     }
   };
 
