@@ -2458,6 +2458,14 @@
       const jobDetails = [];
       const jobModifiers = [];
       const historyEntries = [];
+
+      // ✅ BATCH IDENTIFIER: Each save creates separate job_orders
+      // This ensures adding new items doesn't overwrite existing job_orders
+      const batchTimestamp = order.updatedAt || order.savedAt || Date.now();
+      const batchId = typeof batchTimestamp === 'number'
+        ? batchTimestamp
+        : new Date(batchTimestamp).getTime();
+
       lines.forEach((line, index)=>{
         const lineIndex = index + 1;
         // ✅ Check all variants of kitchenSection field
@@ -2478,7 +2486,9 @@
           });
         }
 
-        const jobId = `${order.id}-${stationId}`;
+        // ✅ UNIQUE JOB ID per batch: orderId-stationId-timestamp
+        // This ensures each save creates NEW job_orders, not overwrite existing ones
+        const jobId = `${order.id}-${stationId}-${batchId}`;
         const section = sectionMap.get(stationId) || {};
         const stationCode = section.code || (stationId ? String(stationId).toUpperCase() : 'KDS');
         const existing = jobsMap.get(jobId) || {
@@ -2704,6 +2714,30 @@
           publishOrder(orderPayload, state){
             const envelope = buildOrderEnvelope(orderPayload, state);
             if(!envelope) return null;
+
+            // ✅ PERSIST job_orders to store for cross-page persistence (fallback mode)
+            const jobOrders = envelope.payload?.jobOrders;
+            if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
+              const store = window.__POS_DB__;
+              const headers = jobOrders.headers || [];
+              const details = jobOrders.details || [];
+              const modifiers = jobOrders.modifiers || [];
+              const statusHistory = jobOrders.statusHistory || [];
+
+              console.log('[POS][KDS][Fallback] Persisting job_orders to store:', {
+                headers: headers.length,
+                details: details.length,
+                modifiers: modifiers.length,
+                statusHistory: statusHistory.length
+              });
+
+              // Insert all job_order records
+              headers.forEach(h => { try { store.insert('job_order_header', h, { silent: true }); } catch (e) {} });
+              details.forEach(d => { try { store.insert('job_order_detail', d, { silent: true }); } catch (e) {} });
+              modifiers.forEach(m => { try { store.insert('job_order_detail_modifier', m, { silent: true }); } catch (e) {} });
+              statusHistory.forEach(s => { try { store.insert('job_order_status_history', s, { silent: true }); } catch (e) {} });
+            }
+
             pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });
             return envelope.payload;
           },
@@ -2814,6 +2848,60 @@
             console.warn('[Mishkah][POS][KDS] Skipped publishing order payload — serialization failed.', { orderId: orderPayload?.id });
             return null;
           }
+
+          // ✅ PERSIST job_orders to store for cross-page persistence
+          const jobOrders = envelope.payload?.jobOrders;
+          if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
+            const store = window.__POS_DB__;
+            const headers = jobOrders.headers || [];
+            const details = jobOrders.details || [];
+            const modifiers = jobOrders.modifiers || [];
+            const statusHistory = jobOrders.statusHistory || [];
+
+            console.log('[POS][KDS] Persisting job_orders to store:', {
+              headers: headers.length,
+              details: details.length,
+              modifiers: modifiers.length,
+              statusHistory: statusHistory.length
+            });
+
+            // Insert job_order_header
+            headers.forEach(header => {
+              try {
+                store.insert('job_order_header', header, { silent: true });
+              } catch (err) {
+                console.warn('[POS][KDS] Failed to insert job_order_header:', err);
+              }
+            });
+
+            // Insert job_order_detail
+            details.forEach(detail => {
+              try {
+                store.insert('job_order_detail', detail, { silent: true });
+              } catch (err) {
+                console.warn('[POS][KDS] Failed to insert job_order_detail:', err);
+              }
+            });
+
+            // Insert job_order_detail_modifier
+            modifiers.forEach(modifier => {
+              try {
+                store.insert('job_order_detail_modifier', modifier, { silent: true });
+              } catch (err) {
+                console.warn('[POS][KDS] Failed to insert job_order_detail_modifier:', err);
+              }
+            });
+
+            // Insert job_order_status_history
+            statusHistory.forEach(history => {
+              try {
+                store.insert('job_order_status_history', history, { silent: true });
+              } catch (err) {
+                console.warn('[POS][KDS] Failed to insert job_order_status_history:', err);
+              }
+            });
+          }
+
           sendEnvelope({ type:'publish', topic: topicOrders, data: envelope.payload });
           pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });
           return envelope.payload;
