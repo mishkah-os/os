@@ -4306,8 +4306,14 @@
         }
 
         // تحديث UI بالبيانات المحملة من السيرفر
+        console.log('[KDS] About to call updateFromWatchers() with data:', {
+          headers: watcherState.headers.length,
+          lines: watcherState.lines.length,
+          deliveries: watcherState.deliveries.length
+        });
         updateFromWatchers();
         console.log('[KDS] Initial data loaded successfully from server');
+        console.log('[KDS] After updateFromWatchers(), check UI now!');
 
       } catch (error) {
         console.error('[KDS] Failed to fetch initial data from server:', error);
@@ -4319,48 +4325,66 @@
       }
     };
 
-    // محاولة جلب البيانات الأولية من السيرفر (optional - will fail gracefully if REST API is down)
-    fetchInitialDataFromServer();
+    // جلب البيانات الأولية من السيرفر ثم إعداد الـ watchers
+    // IMPORTANT: نستنى الـ API تخلص قبل ما نعمل setup للـ watchers
+    // عشان البيانات تكون موجودة في الـ UI أول ما الصفحة تفتح
+    const setupWatchers = () => {
+      console.log('[KDS] Setting up watchers for live updates...');
 
-    // إعداد الـ watchers للتحديثات المستقبلية
-    watcherUnsubscribers.push(
-      store.status((status) => {
-        watcherState.status =
-          typeof status === 'string' ? status : status?.status || 'idle';
-        updateFromWatchers();
+      watcherUnsubscribers.push(
+        store.status((status) => {
+          watcherState.status =
+            typeof status === 'string' ? status : status?.status || 'idle';
+          updateFromWatchers();
+        })
+      );
+
+      watcherUnsubscribers.push(
+        store.watch('pos_database', (rows) => {
+          const latest =
+            Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
+          watcherState.posPayload =
+            (latest && latest.payload) || {};
+          console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
+          updateFromWatchers();
+        })
+      );
+
+      watcherUnsubscribers.push(
+        store.watch('job_order_header', (rows) => {
+          watcherState.headers = ensureArray(rows);
+          console.log('[KDS][WATCH][job_order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
+          updateFromWatchers();
+        })
+      );
+
+      watcherUnsubscribers.push(
+        store.watch('job_order_detail', (rows) => {
+          watcherState.lines = ensureArray(rows);
+          console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
+          updateFromWatchers();
+        })
+      );
+
+      watcherUnsubscribers.push(
+        store.watch('order_delivery', (rows) => {
+          watcherState.deliveries = ensureArray(rows);
+          console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
+          updateFromWatchers();
+        })
+      );
+    };
+
+    // جلب البيانات الأولية ثم setup watchers
+    fetchInitialDataFromServer()
+      .then(() => {
+        console.log('[KDS] Initial data fetch completed, UI should be updated');
+        setupWatchers();
       })
-    );
-    watcherUnsubscribers.push(
-      store.watch('pos_database', (rows) => {
-        const latest =
-          Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
-        watcherState.posPayload =
-          (latest && latest.payload) || {};
-        console.log('[KDS][WATCH][pos_database]', { count:(rows||[]).length, hasPayload:!!(latest&&latest.payload), keys: latest && latest.payload ? Object.keys(latest.payload) : [] });
-        updateFromWatchers();
-      })
-    );
-    watcherUnsubscribers.push(
-      store.watch('job_order_header', (rows) => {
-        watcherState.headers = ensureArray(rows);
-        console.log('[KDS][WATCH][job_order_header]', { count: watcherState.headers.length, sample: watcherState.headers[0] || null });
-        updateFromWatchers();
-      })
-    );
-    watcherUnsubscribers.push(
-      store.watch('job_order_detail', (rows) => {
-        watcherState.lines = ensureArray(rows);
-        console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
-        updateFromWatchers();
-      })
-    );
-    watcherUnsubscribers.push(
-      store.watch('order_delivery', (rows) => {
-        watcherState.deliveries = ensureArray(rows);
-        console.log('[KDS][WATCH][order_delivery]', { count: watcherState.deliveries.length, sample: watcherState.deliveries[0] || null });
-        updateFromWatchers();
-      })
-    );
+      .catch((error) => {
+        console.error('[KDS] Initial fetch failed, but setting up watchers anyway:', error);
+        setupWatchers();
+      });
   } else if (!store || typeof store.watch !== 'function') {
     console.warn(
       '[Mishkah][KDS] POS dataset store unavailable. Live updates are disabled.'
