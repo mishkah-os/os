@@ -3254,11 +3254,23 @@
           const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'assembled', assembledAt: nowIso, updatedAt: nowIso });
           const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
           recordPersistedHandoff(orderId, cloneDeep(record));
+
+          // ✅ Update order_header in state immediately (don't wait for watcher)
+          const orderHeaders = state.data.orderHeaders || [];
+          const orderHeadersNext = orderHeaders.map(header => {
+            const headerId = String(header.id || header.orderId);
+            if (headerId === orderId) {
+              return { ...header, statusId: 'assembled', status: 'assembled', updatedAt: nowIso };
+            }
+            return header;
+          });
+
           return {
             ...state,
             data:{
               ...state.data,
               handoff: next,
+              orderHeaders: orderHeadersNext,  // ✅ Updated immediately!
               expoSource: expoSourceNext,
               expoTickets: expoTicketsNext
             }
@@ -3288,11 +3300,23 @@
           const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'served', servedAt: nowIso, updatedAt: nowIso });
           const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
           recordPersistedHandoff(orderId, cloneDeep(record));
+
+          // ✅ Update order_header in state immediately (don't wait for watcher)
+          const orderHeaders = state.data.orderHeaders || [];
+          const orderHeadersNext = orderHeaders.map(header => {
+            const headerId = String(header.id || header.orderId);
+            if (headerId === orderId) {
+              return { ...header, statusId: 'served', status: 'served', updatedAt: nowIso };
+            }
+            return header;
+          });
+
           return {
             ...state,
             data:{
               ...state.data,
               handoff: next,
+              orderHeaders: orderHeadersNext,  // ✅ Updated immediately!
               expoSource: expoSourceNext,
               expoTickets: expoTicketsNext
             }
@@ -3798,6 +3822,18 @@
 
       await store.update('order_header', headerUpdate);
       console.log('[KDS][persistOrderHeaderStatus] ✅ Successfully persisted to database:', headerUpdate);
+
+      // ✅ Update watcherState.orderHeaders immediately (optimistic update)
+      // This ensures buildOrdersFromHeaders uses the updated status before watcher re-fetches
+      const orderHeaders = watcherState.orderHeaders || [];
+      watcherState.orderHeaders = orderHeaders.map(header => {
+        const headerId = String(header.id || header.orderId);
+        if (headerId === orderId) {
+          return { ...header, statusId: status, status: status, updatedAt: timestamp || new Date().toISOString() };
+        }
+        return header;
+      });
+      console.log('[KDS][persistOrderHeaderStatus] ✅ Updated watcherState.orderHeaders');
     } catch (error) {
       console.error('[KDS][persistOrderHeaderStatus] ❌ Failed to persist status change:', error);
     }
