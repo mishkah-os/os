@@ -2638,9 +2638,61 @@
       };
       const handoffSnapshot = { ...(kdsState.handoff || {}) };
 
+      // ✅ Build order_header record for static tabs (all sections, expo, handoff)
+      const orderHeader = {
+        id: order.id,
+        type: serviceMode,
+        orderNumber: orderNumber,
+        orderTypeId: serviceMode,
+        serviceMode,
+        status: order.status || 'open',
+        fulfillmentStage: order.fulfillmentStage || order.stage || 'new',
+        paymentState: order.paymentState || 'unpaid',
+        tableIds: Array.isArray(order.tableIds) ? order.tableIds : [],
+        tableLabel: tableLabel || null,
+        guests: Number.isFinite(order.guests) ? Number(order.guests) : 0,
+        totals: order.totals || {},
+        discount: order.discount || null,
+        customerName: customerName || null,
+        customerId: order.customerId || null,
+        customerPhone: order.customerPhone || '',
+        customerAddress: order.customerAddress || '',
+        createdAt: createdIso,
+        updatedAt: updatedIso
+      };
+
+      // ✅ Build order_line records for static tabs
+      const orderLines = lines.map((line, index) => {
+        const lineIndex = index + 1;
+        const itemId = toIdentifier(line.itemId, line.productId, line.menuItemId, line.sku, `${order.id}-line-${lineIndex}`);
+        const itemName = line.name || line.displayName || line.label || itemId;
+        const kitchenSectionSource = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.kitchen_section;
+        const resolvedStation = toIdentifier(kitchenSectionSource) || 'expo';
+
+        return {
+          id: line.id || `${order.id}-line-${lineIndex}`,
+          orderId: order.id,
+          itemId,
+          name: itemName,
+          qty: Number(line.qty) || 1,
+          price: Number(line.price) || 0,
+          total: Number(line.total) || 0,
+          status: line.status || 'draft',
+          stage: line.stage || 'new',
+          kitchenSectionId: resolvedStation,
+          kitchen_section_id: resolvedStation,
+          notes: Array.isArray(line.notes) ? line.notes : (line.notes ? [line.notes] : []),
+          locked: line.locked || false,
+          createdAt: createdIso,
+          updatedAt: updatedIso
+        };
+      });
+
       // ✅ Flat structure: job order tables at root level (consistent with REST API)
       return {
         order: orderSummary,
+        order_header: [orderHeader],  // ✅ For static tabs
+        order_line: orderLines,        // ✅ For static tabs
         job_order_header: headers,
         job_order_detail: jobDetails,
         job_order_detail_modifier: jobModifiers,
