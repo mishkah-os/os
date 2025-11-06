@@ -4212,35 +4212,36 @@
   };
 
   if (store && typeof store.watch === 'function') {
-    // تحميل البيانات الموجودة مسبقاً (Initial Load)
-    const loadInitialData = async () => {
+    // تحميل البيانات الموجودة مسبقاً (Initial Load) من الـ store cache
+    // هذا ضروري لأن الـ watchers قد لا ترسل البيانات الموجودة فوراً
+    const loadInitialData = () => {
       try {
-        console.log('[KDS] Loading initial data...');
+        console.log('[KDS] Loading initial data from store cache...');
 
         // تحميل job_order_header
-        if (typeof store.getAll === 'function') {
-          const headers = await store.getAll('job_order_header');
+        if (typeof store.list === 'function') {
+          const headers = store.list('job_order_header');
           watcherState.headers = ensureArray(headers);
           console.log('[KDS][INITIAL] job_order_header:', watcherState.headers.length);
         }
 
         // تحميل job_order_detail
-        if (typeof store.getAll === 'function') {
-          const details = await store.getAll('job_order_detail');
+        if (typeof store.list === 'function') {
+          const details = store.list('job_order_detail');
           watcherState.lines = ensureArray(details);
           console.log('[KDS][INITIAL] job_order_detail:', watcherState.lines.length);
         }
 
         // تحميل order_delivery
-        if (typeof store.getAll === 'function') {
-          const deliveries = await store.getAll('order_delivery');
+        if (typeof store.list === 'function') {
+          const deliveries = store.list('order_delivery');
           watcherState.deliveries = ensureArray(deliveries);
           console.log('[KDS][INITIAL] order_delivery:', watcherState.deliveries.length);
         }
 
         // تحميل pos_database
-        if (typeof store.getAll === 'function') {
-          const posDb = await store.getAll('pos_database');
+        if (typeof store.list === 'function') {
+          const posDb = store.list('pos_database');
           const latest = Array.isArray(posDb) && posDb.length ? posDb[posDb.length - 1] : null;
           watcherState.posPayload = (latest && latest.payload) || {};
           console.log('[KDS][INITIAL] pos_database:', { hasPayload: !!(latest && latest.payload) });
@@ -4254,7 +4255,7 @@
       }
     };
 
-    // تحميل البيانات الأولية
+    // تحميل البيانات الأولية فوراً
     loadInitialData();
 
     // إعداد الـ watchers للتحديثات المستقبلية
@@ -4306,34 +4307,34 @@
         store = window.__POS_DB__;
         if (store && typeof store.watch === 'function') {
           // تحميل البيانات الموجودة مسبقاً (Initial Load) - عند توفر store متأخراً
-          const loadInitialDataDelayed = async () => {
+          const loadInitialDataDelayed = () => {
             try {
-              console.log('[KDS] Loading initial data (delayed)...');
+              console.log('[KDS] Loading initial data from store cache (delayed)...');
 
               // تحميل job_order_header
-              if (typeof store.getAll === 'function') {
-                const headers = await store.getAll('job_order_header');
+              if (typeof store.list === 'function') {
+                const headers = store.list('job_order_header');
                 watcherState.headers = ensureArray(headers);
                 console.log('[KDS][INITIAL] job_order_header:', watcherState.headers.length);
               }
 
               // تحميل job_order_detail
-              if (typeof store.getAll === 'function') {
-                const details = await store.getAll('job_order_detail');
+              if (typeof store.list === 'function') {
+                const details = store.list('job_order_detail');
                 watcherState.lines = ensureArray(details);
                 console.log('[KDS][INITIAL] job_order_detail:', watcherState.lines.length);
               }
 
               // تحميل order_delivery
-              if (typeof store.getAll === 'function') {
-                const deliveries = await store.getAll('order_delivery');
+              if (typeof store.list === 'function') {
+                const deliveries = store.list('order_delivery');
                 watcherState.deliveries = ensureArray(deliveries);
                 console.log('[KDS][INITIAL] order_delivery:', watcherState.deliveries.length);
               }
 
               // تحميل pos_database
-              if (typeof store.getAll === 'function') {
-                const posDb = await store.getAll('pos_database');
+              if (typeof store.list === 'function') {
+                const posDb = store.list('pos_database');
                 const latest = Array.isArray(posDb) && posDb.length ? posDb[posDb.length - 1] : null;
                 watcherState.posPayload = (latest && latest.payload) || {};
                 console.log('[KDS][INITIAL] pos_database:', { hasPayload: !!(latest && latest.payload) });
@@ -4347,7 +4348,7 @@
             }
           };
 
-          // تحميل البيانات الأولية
+          // تحميل البيانات الأولية فوراً
           loadInitialDataDelayed();
 
           watcherUnsubscribers.push(

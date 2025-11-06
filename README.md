@@ -268,9 +268,9 @@ const orders = {
 
 ### **7. إعادة البناء الواعي (Conscious Reconstruction): من الأمر الشامل إلى التحكم الجراحي**
 
-**المبدأ:** في "مشكاة"، لا توجد آليات سحرية خفية. كل فعل حيوي في دورة حياة التطبيق يجب أن يكون فعلاً واعياً ومقصوداً. إن أمر `rebuild()` ليس مجرد استدعاء دالة، بل هو **فعل التكوين الصريح** الذي ينقل التطبيق من حالة (State) إلى حالة أخرى. هذا المبدأ يرفض فكرة التحديثات التلقائية الضمنية التي قد تبدو مريحة، لكنها تفتح باب الفوضى الخفية، مثل حلقات إعادة التصيير اللانهائية (Infinite Re-render Loops) ومشاكل الأداء الغامضة. نحن نؤمن بأن الوضوح والتحكم الصريح هما أساس بناء أنظمة متينة وقابلة للصيانة.
+**المبدأ:** في "مشكاة"، لا توجد آليات سحرية خفية. كل فعل حيوي في دورة حياة التطبيق يمكن أن يكون فعلاً واعياً ومقصوداً. في الإصدارات الحالية من مشكاة، أصبح `rebuild()` **تلقائياً (Automatic)** بشكل افتراضي، حيث يتم تحديث الواجهة تلقائياً عند تغيير الحالة. ومع ذلك، توفر مشكاة للمطورين المتقدمين **آليات التحكم الاختيارية** مثل `freeze()` و `rebuild()` و `unfreeze()` للتحكم الدقيق في توقيت التحديثات عند الحاجة. هذه الآليات ليست إلزامية، بل هي **ميزات اختيارية متقدمة** للسيناريوهات التي تتطلب تحكماً جراحياً في الأداء.
 
-**الشبهة الهندسية والرد العلمي:** قد يُنظر إلى استدعاء `rebuild()` اليدوي على أنه آلية "غاشمة" (Brute-force) أو "غير ذكية" مقارنة بالأنظمة التفاعلية الدقيقة (Fine-grained Reactivity). هذا التحليل سطحي ويتجاهل حقيقة التنفيذ. إن بساطة الاستدعاء تخفي وراءها محركاً عالي الذكاء. `rebuild()` لا يعيد بناء الـ DOM من الصفر، بل يطلق سلسلة من العمليات المحسوبة بدقة:
+**الفلسفة التقنية:** على الرغم من أن التحديث أصبح تلقائياً، فإن آلية `rebuild()` تخفي وراءها محركاً عالي الذكاء. `rebuild()` لا يعيد بناء الـ DOM من الصفر، بل يطلق سلسلة من العمليات المحسوبة بدقة:
 
 1.  **توليد شجرة افتراضية جديدة (Next VDOM):** يتم استدعاء دالة `body` لإنتاج تمثيل نقي للحالة الجديدة.
 2.  **خوارزمية المقارنة (Diffing Algorithm):** تقوم النواة بتطبيق خوارزمية مقارنة عالية الكفاءة بين الشجرة الجديدة (Next VDOM) والسابقة (Previous VDOM) لتحديد مجموعة التغيرات الدنيا (Minimal Change Set).
@@ -278,9 +278,9 @@ const orders = {
 
 إن بساطة `rebuild()` هي **تجريد للقوة (Abstraction of Power)**، وليست غياباً للذكاء.
 
-#### **القوة الحالية: التحكم الجراحي والانتقائي**
+#### **القوة الحالية: التحكم الجراحي والانتقائي (اختياري)**
 
-إن كون `rebuild()` أمراً يدوياً يمنح المطور قدرات تحكم دقيقة غير متاحة في الأنظمة التلقائية. فهو ليس مجرد أمر واحد، بل هو واجهة تحكم (Control Interface) تقبل معامِلات لتوجيه عملية التحديث:
+عندما يختار المطور استخدام `rebuild()` يدوياً (بعد استدعاء `freeze()`)، فإنه يحصل على قدرات تحكم دقيقة غير متاحة في التحديث التلقائي القياسي. فهو ليس مجرد أمر واحد، بل هو واجهة تحكم (Control Interface) تقبل معامِلات لتوجيه عملية التحديث:
 
   * **التركيز (Focusing):** عبر `buildOnly`، يمكنك حصر عملية المقارنة والتحديث في نطاق محدد من التطبيق، مما يزيد السرعة بشكل هائل في التفاعلات المتكررة (مثل الألعاب أو تحديثات الشبكة الحية).
   * **الاستثناء (Exclusion):** عبر `except`، يمكنك حماية أجزاء "ثقيلة" أو حساسة من الـ DOM (مثل مشغل فيديو، خرائط، أو مكونات طرف ثالث) من أي عملية مقارنة، مما يضمن استقرارها الكامل.
@@ -617,9 +617,9 @@ const orders = {
 
 ### **7. Conscious Reconstruction: From Global Command to Surgical Control**
 
-**Principle:** In Mishkah, there are no hidden magical mechanisms. Every vital action in the application's lifecycle must be a conscious and intentional act. The `rebuild()` command is not merely a function call; it is the **explicit act of formation** that transitions the application from one state to another. This principle rejects the notion of implicit, automatic updates, which, while seemingly convenient, open the door to hidden chaos such as infinite re-render loops and cryptic performance issues. We believe that clarity and explicit control are the foundation for building robust and maintainable systems.
+**Principle:** In Mishkah, there are no hidden magical mechanisms. Every vital action in the application's lifecycle can be a conscious and intentional act. In current versions of Mishkah, `rebuild()` is **automatic by default**, where the UI updates automatically when the state changes. However, Mishkah provides advanced developers with **optional control mechanisms** such as `freeze()`, `rebuild()`, and `unfreeze()` for precise control over update timing when needed. These mechanisms are not mandatory, but rather **optional advanced features** for scenarios that require surgical control over performance.
 
-**The Engineering Critique and The Scientific Rebuttal:** A manual `rebuild()` call might be perceived as a "brute-force" or "unintelligent" mechanism compared to fine-grained reactivity systems. This analysis is superficial and ignores the implementation's reality. The simplicity of the call conceals a highly intelligent engine. `rebuild()` does not reconstruct the DOM from scratch; rather, it initiates a series of precisely calculated operations:
+**Technical Philosophy:** Although updates are now automatic, the `rebuild()` mechanism conceals a highly intelligent engine. `rebuild()` does not reconstruct the DOM from scratch; rather, it initiates a series of precisely calculated operations:
 
 1.  **Generate Next VDOM Tree:** The `body` function is invoked to produce a pure representation of the new state.
 2.  **Diffing Algorithm:** The kernel applies a high-efficiency diffing algorithm between the new (Next VDOM) and previous (Previous VDOM) trees to identify the minimal change set.
@@ -627,9 +627,9 @@ const orders = {
 
 The simplicity of `rebuild()` is an **Abstraction of Power**, not an absence of intelligence.
 
-#### **The Present Power: Surgical and Selective Control**
+#### **The Present Power: Surgical and Selective Control (Optional)**
 
-The manual nature of `rebuild()` grants the developer precise control capabilities unavailable in automatic systems. It is not a single command but a control interface that accepts parameters to direct the update process:
+When a developer chooses to use `rebuild()` manually (after calling `freeze()`), they gain precise control capabilities unavailable in standard automatic updates. It is not a single command but a control interface that accepts parameters to direct the update process:
 
   * **Focusing:** Via `buildOnly`, you can confine the diffing and patching process to a specific scope of the application, dramatically increasing speed for frequent interactions (like games or live data updates).
   * **Exclusion:** Via `except`, you can shield "heavy" or sensitive parts of the DOM (like video players, interactive maps, or third-party components) from any diffing, guaranteeing their complete stability.
