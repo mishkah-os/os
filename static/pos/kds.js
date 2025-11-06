@@ -1640,8 +1640,8 @@
         id,
         code,
         name: item.name || item.itemName || item.nameAr || item.nameEn || id,
-        nameAr: item.nameAr || item.itemNameAr || item.name?.ar || item.name || '',
-        nameEn: item.nameEn || item.itemNameEn || item.name?.en || item.name || '',
+        nameAr: item.item_name?.ar || item.nameAr || item.itemNameAr || item.name?.ar || item.name || '',
+        nameEn: item.item_name?.en || item.nameEn || item.itemNameEn || item.name?.en || item.name || '',
         description: item.description || item.itemDescription || '',
         price: Number(item.price) || 0
       };
@@ -4010,6 +4010,12 @@
     const jobDetails = [];
     const jobHeaders = [];
 
+    console.log('[KDS][buildWatcherPayload] Processing job_order_detail:', {
+      linesCount: ensureArray(watcherState.lines).length,
+      firstLine: ensureArray(watcherState.lines)[0],
+      ordersCount: orders.size
+    });
+
     ensureArray(watcherState.lines).forEach((line) => {
       const jobOrderId = canonicalId(
         line?.jobOrderId ||
@@ -4248,6 +4254,11 @@
       });
     });
 
+    console.log('[KDS][buildWatcherPayload] After processing lines:', {
+      jobDetailsCount: jobDetails.length,
+      ordersCount: orders.size
+    });
+
     orders.forEach((order) => {
       order.jobs.forEach((job) => {
         job.remainingItems = Math.max(0, job.totalItems - job.completedItems);
@@ -4298,6 +4309,12 @@
           });
         });
       });
+    });
+
+    console.log('[KDS][buildWatcherPayload] Final job counts:', {
+      jobHeadersCount: jobHeaders.length,
+      jobDetailsCount: jobDetails.length,
+      sampleJobHeader: jobHeaders[0]
     });
 
     const handoff = {};
