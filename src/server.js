@@ -354,18 +354,15 @@ async function loadModuleSchemaSnapshot(branchId, moduleId) {
 }
 
 async function loadModuleSeedSnapshot(branchId, moduleId) {
-  // Try branch-specific seed first
-  const primaryPath = getModuleSeedPath(branchId, moduleId);
-  let seed = await readJsonSafe(primaryPath, null);
-  let source = seed ? 'branch' : null;
+  // ALWAYS use central seed, skip branch-specific seed
+  // This ensures consistent seed data across all branches
+  const fallbackPath = getModuleSeedFallbackPath(moduleId);
+  let seed = null;
+  let source = null;
 
-  // Fallback to central seed if branch seed doesn't exist
-  if (!seed) {
-    const fallbackPath = getModuleSeedFallbackPath(moduleId);
-    if (fallbackPath) {
-      seed = await readJsonSafe(fallbackPath, null);
-      if (seed) source = 'fallback';
-    }
+  if (fallbackPath) {
+    seed = await readJsonSafe(fallbackPath, null);
+    if (seed) source = 'central';
   }
 
   return { seed, source };
@@ -1643,6 +1640,10 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
   };
   if (Number.isFinite(versionValue) && versionValue > 0) {
     record.version = Math.trunc(versionValue);
+  } else {
+    // ✅ FIX: Always set version=1 for new lines or lines without version
+    // This prevents version conflicts when adding new items to existing orders
+    record.version = 1;
   }
   return record;
 }
@@ -3174,8 +3175,6 @@ async function ensureModuleSchema(branchId, moduleId) {
 
 async function ensureModuleSeed(branchId, moduleId) {
   const cacheKey = `${branchId}::${moduleId}`;
-  const seedPath = getModuleSeedPath(branchId, moduleId);
-  const branchDescriptor = await describeFile(seedPath);
   const cached = moduleSeedCache.get(cacheKey);
 
   const readSeed = async (filePath, source, mtimeMs) => {
@@ -3185,22 +3184,23 @@ async function ensureModuleSeed(branchId, moduleId) {
     return normalized;
   };
 
-  // Try branch-specific seed first
+  // Try branch-specific seed first, then fallback to central seed
+  const branchPath = getModuleSeedPath(branchId, moduleId);
+  const branchDescriptor = await describeFile(branchPath);
   if (branchDescriptor.exists) {
     if (cached?.source === 'branch' && cached?.mtimeMs === branchDescriptor.mtimeMs) {
       return cached.seed ?? null;
     }
-    return readSeed(seedPath, 'branch', branchDescriptor.mtimeMs);
+    return readSeed(branchPath, 'branch', branchDescriptor.mtimeMs);
   }
 
-  // Fallback to central seed if branch seed doesn't exist
   const fallbackPath = getModuleSeedFallbackPath(moduleId);
   const fallbackDescriptor = await describeFile(fallbackPath);
   if (fallbackDescriptor.exists) {
-    if (cached?.source === 'fallback' && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
+    if (cached?.source === 'central' && cached?.mtimeMs === fallbackDescriptor.mtimeMs) {
       return cached.seed ?? null;
     }
-    return readSeed(fallbackPath, 'fallback', fallbackDescriptor.mtimeMs);
+    return readSeed(fallbackPath, 'central', fallbackDescriptor.mtimeMs);
   }
 
   moduleSeedCache.set(cacheKey, { source: 'missing', mtimeMs: null, seed: null });
