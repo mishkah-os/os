@@ -1956,7 +1956,7 @@ async function syncOrderLineStatusLogs(branchId, moduleId, store, orderId, lineR
   }
 }
 
-function generateJobOrderRecords(header, lines) {
+function generateJobOrderRecords(store, header, lines) {
   if (!header || !header.id) return null;
   if (!Array.isArray(lines) || lines.length === 0) return null;
 
@@ -1965,6 +1965,35 @@ function generateJobOrderRecords(header, lines) {
   const serviceMode = header.type || 'dine_in';
   const createdAt = header.createdAt || Date.now();
   const updatedAt = header.updatedAt || createdAt;
+
+  // ✅ Query kitchen_sections from store
+  const kitchenSections = store.listTable('kitchen_sections') || [];
+  const sectionMap = new Map();
+  kitchenSections.forEach(section => {
+    if (section && section.id) {
+      sectionMap.set(section.id, section);
+    }
+  });
+
+  // ✅ Query menu_items from store
+  const menuItems = store.listTable('menu_items') || [];
+  const itemMap = new Map();
+  menuItems.forEach(item => {
+    if (item && item.id) {
+      itemMap.set(item.id, item);
+    }
+  });
+
+  // Helper function to extract localized string
+  const extractLocalizedString = (value, lang, fallback = '') => {
+    if (!value) return fallback;
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object') {
+      if (lang === 'ar') return value.ar || value.en || fallback;
+      return value.en || value.ar || fallback;
+    }
+    return fallback;
+  };
 
   // Group lines by kitchen section (stationId)
   const jobsMap = new Map();
@@ -1979,6 +2008,22 @@ function generateJobOrderRecords(header, lines) {
     const stationId = line.kitchenSectionId || line.kitchen_section_id || line.kitchenSection || 'expo';
     const jobId = `${orderId}-${stationId}`;
 
+    // ✅ Lookup kitchen section data
+    const section = sectionMap.get(stationId);
+
+    // Handle multiple formats: section_name object, or nameAr/nameEn fields
+    let sectionName = section?.section_name;
+    if (!sectionName && section) {
+      // Fallback to nameAr/nameEn if section_name doesn't exist
+      sectionName = {
+        ar: section.nameAr || section.name_ar || '',
+        en: section.nameEn || section.name_en || ''
+      };
+    }
+
+    const stationCode = section?.code || section?.stationCode || section?.station_code ||
+                        extractLocalizedString(sectionName, 'en', String(stationId).substring(0, 8).toUpperCase());
+
     // Create or update job header for this station
     const existing = jobsMap.get(jobId) || {
       id: jobId,
@@ -1988,7 +2033,7 @@ function generateJobOrderRecords(header, lines) {
       orderTypeId: serviceMode,
       serviceMode,
       stationId,
-      stationCode: String(stationId).toUpperCase(),
+      stationCode,  // ✅ Use real station code
       status: 'queued',
       progressState: 'awaiting',
       totalItems: 0,
@@ -2021,19 +2066,31 @@ function generateJobOrderRecords(header, lines) {
     const detailId = `${jobId}-detail-${baseLineId}`;
     const itemId = line.itemId || line.item_id || baseLineId;
 
+    // ✅ Lookup menu item data
+    const menuItem = itemMap.get(itemId);
+    const itemName = menuItem?.item_name || menuItem?.name || line.name;
+    const itemSku = menuItem?.sku || line.sku || null;
+    const categoryId = menuItem?.categoryId || menuItem?.category_id || '';
+
+    // ✅ Extract localized strings (NOT objects)
+    const itemNameAr = extractLocalizedString(itemName, 'ar', `عنصر ${lineIndex}`);
+    const itemNameEn = extractLocalizedString(itemName, 'en', `Item ${lineIndex}`);
+
     const detail = {
       id: detailId,
       jobOrderId: jobId,
       itemId,
       itemCode: itemId,
+      itemSku,  // ✅ Add SKU
+      categoryId,  // ✅ Add category
       quantity,
       status: 'queued',
       startAt: null,
       finishAt: null,
       createdAt,
       updatedAt,
-      itemNameAr: line.name || `عنصر ${lineIndex}`,
-      itemNameEn: line.name || `Item ${lineIndex}`,
+      itemNameAr,  // ✅ String, not object
+      itemNameEn,  // ✅ String, not object
       prepNotes: Array.isArray(line.notes) ? line.notes.join('; ') : '',
       stationId,
       kitchenSectionId: stationId
@@ -2069,7 +2126,8 @@ function generateJobOrderRecords(header, lines) {
 
 async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, options = {}) {
   // Generate job order records from order data
-  const jobOrderData = generateJobOrderRecords(header, lines);
+  // ✅ Pass store as first parameter to query kitchen_sections and menu_items
+  const jobOrderData = generateJobOrderRecords(store, header, lines);
 
   if (!jobOrderData) {
     logger.debug({ orderId }, 'No job order data to sync (empty order or no lines)');
