@@ -1469,13 +1469,13 @@
   };
 
   const buildStations = (database, kdsSource, masterSource={})=>{
-    console.log('[KDS][buildStations] Starting with:', {
-      hasKdsSource: !!kdsSource,
-      hasMasterSource: !!masterSource,
-      hasDatabaseKitchenSections: !!database?.kitchen_sections,
-      kitchenSectionsLength: database?.kitchen_sections?.length || 0
+    console.log('[KDS][buildStations] Called with:', {
+      hasKdsStations: !!(kdsSource?.stations?.length),
+      hasMasterStations: !!(masterSource?.stations?.length),
+      hasDatabaseKitchenSections: !!(database?.kitchen_sections?.length),
+      databaseKitchenSectionsCount: database?.kitchen_sections?.length || 0,
+      hasMasterKitchenSections: !!(masterSource?.kitchenSections?.length)
     });
-
     const explicitStations = Array.isArray(kdsSource?.stations) && kdsSource.stations.length
       ? kdsSource.stations.map(station=> ({ ...station }))
       : [];
@@ -1506,7 +1506,7 @@
       const id = section.id || section.section_id || section.sectionId;
       const nameAr = section.section_name?.ar || section.name?.ar || section.nameAr || id;
       const nameEn = section.section_name?.en || section.name?.en || section.nameEn || id;
-      return {
+      const station = {
         id,
         code: id && id.toString ? id.toString().toUpperCase() : id,
         nameAr,
@@ -1520,7 +1520,13 @@
         createdAt: null,
         updatedAt: null
       };
+      if(idx === 0){
+        console.log('[KDS][buildStations] First built station:', station);
+      }
+      return station;
     });
+    console.log('[KDS][buildStations] Result count:', result.length);
+    return result;
   };
 
   const toStationMap = (list)=> (Array.isArray(list)
@@ -2217,6 +2223,11 @@
     window.MishkahKdsChannel = BRANCH_CHANNEL;
   }
   const stations = buildStations(database, kdsSource, masterSource);
+  console.log('[KDS][Initial] Built stations:', {
+    count: stations.length,
+    firstStation: stations[0],
+    databaseKitchenSections: database?.kitchen_sections?.length || 0
+  });
   const stationMap = toStationMap(stations);
   const initialStationRoutes = Array.isArray(kdsSource.stationCategoryRoutes)
     ? kdsSource.stationCategoryRoutes.map(route=> ({ ...route }))
@@ -2483,7 +2494,15 @@
 
   const applyRemoteOrder = (appInstance, payload={}, meta={})=>{
     if(!payload || !payload.jobOrders) return;
+    console.log('[KDS][applyRemoteOrder] Received payload:', {
+      hasStations: !!payload.master?.stations,
+      stationsCount: payload.master?.stations?.length || 0,
+      hasKitchenSections: !!payload.master?.kitchenSections,
+      kitchenSectionsCount: payload.master?.kitchenSections?.length || 0,
+      sampleKitchenSection: payload.master?.kitchenSections?.[0]
+    });
     appInstance.setState(state=>{
+      console.log('[KDS][applyRemoteOrder] Current state stations:', state.data.stations?.length || 0);
       const mergedOrders = mergeJobOrders(state.data.jobOrders || {}, payload.jobOrders);
       const jobRecordsNext = buildJobRecords(mergedOrders);
       const jobsIndexedNext = indexJobs(jobRecordsNext);
@@ -2600,11 +2619,16 @@
         kitchenSectionsNext = payload.master.kitchenSections.map(section=> ({ ...section }));
       }
       if(!stationsExplicitlyProvided && kitchenSectionsNext.length){
+        console.log('[KDS][applyRemoteOrder] Rebuilding stations from kitchenSections:', {
+          kitchenSectionsCount: kitchenSectionsNext.length,
+          sampleSection: kitchenSectionsNext[0],
+          currentStationsCount: stationsNext.length
+        });
         stationsNext = kitchenSectionsNext.map((section, idx)=>{
           const id = section.id || section.section_id || section.sectionId;
           const nameAr = section.section_name?.ar || section.name?.ar || section.nameAr || id;
           const nameEn = section.section_name?.en || section.name?.en || section.nameEn || id;
-          return {
+          const result = {
             id,
             code: id && id.toString ? id.toString().toUpperCase() : id,
             nameAr,
@@ -2618,7 +2642,12 @@
             createdAt: section.createdAt || null,
             updatedAt: section.updatedAt || null
           };
+          if(idx === 0){
+            console.log('[KDS][applyRemoteOrder] First rebuilt station:', result);
+          }
+          return result;
         });
+        console.log('[KDS][applyRemoteOrder] Rebuilt stations count:', stationsNext.length);
       }
       const stationMapNext = toStationMap(stationsNext);
       let categorySectionsNext = Array.isArray(state.data.categorySections)
@@ -3622,6 +3651,13 @@
 
   const buildWatcherPayload = () => {
     const posPayload = watcherState.posPayload || {};
+    console.log('[KDS][buildWatcherPayload] posPayload kitchen data:', {
+      hasKitchenSections: !!posPayload?.kitchen_sections,
+      kitchenSectionsCount: posPayload?.kitchen_sections?.length || 0,
+      hasKdsStations: !!posPayload?.kds?.stations,
+      hasMasterStations: !!posPayload?.master?.stations,
+      hasMasterKitchenSections: !!posPayload?.master?.kitchenSections
+    });
     const stations = buildStations(
       posPayload,
       posPayload?.kds || {},
@@ -3631,6 +3667,12 @@
     const kitchenSections = normalizeKitchenSections(
       posPayload?.kitchen_sections
     );
+    console.log('[KDS][buildWatcherPayload] Built data:', {
+      stationsCount: stations.length,
+      kitchenSectionsCount: kitchenSections.length,
+      firstStation: stations[0],
+      firstKitchenSection: kitchenSections[0]
+    });
     const stationCategoryRoutes = normalizeCategoryRoutes(
       posPayload?.category_sections
     );
