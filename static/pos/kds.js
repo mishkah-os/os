@@ -1122,6 +1122,14 @@
         const stationLabelAr = station.nameAr || line.kitchenSectionId || 'غير محدد';
         const stationLabelEn = station.nameEn || line.kitchenSectionId || 'Unassigned';
         const menuItem = line.itemId ? menuIndex[String(line.itemId)] : null;
+        console.log('[KDS][buildOrdersFromHeaders] Processing order_line:', {
+          lineId: line.id,
+          itemId: line.itemId,
+          foundMenuItem: !!menuItem,
+          menuItemNameAr: menuItem?.nameAr,
+          menuItemNameEn: menuItem?.nameEn,
+          menuIndexKeysCount: Object.keys(menuIndex).length
+        });
 
         return {
           detail: {
@@ -3945,6 +3953,12 @@
     }));
     const categories = deriveMenuCategories(posPayload);
     const items = deriveMenuItems(posPayload);
+    console.log('[KDS][buildWatcherPayload] Menu items derived:', {
+      itemsCount: items.length,
+      sampleItems: items.slice(0, 3).map(i => ({ id: i.id, nameAr: i.nameAr, nameEn: i.nameEn })),
+      hasPosPayloadMenuItems: !!posPayload?.menu_items,
+      posPayloadMenuItemsCount: posPayload?.menu_items?.length || 0
+    });
     const itemById = new Map();
     const itemByCode = new Map();
     items.forEach((item) => {
@@ -3957,6 +3971,11 @@
       if (codeKey && !itemByCode.has(codeKey)) {
         itemByCode.set(codeKey, item);
       }
+    });
+    console.log('[KDS][buildWatcherPayload] Item maps built:', {
+      itemByIdCount: itemById.size,
+      itemByCodeCount: itemByCode.size,
+      sampleItemIds: Array.from(itemById.keys()).slice(0, 5)
     });
     const getItemById = (value) => {
       const key = canonicalId(value);
@@ -4143,6 +4162,13 @@
         getItemByCode(rawItemCode) ||
         getItemByCode(metadataItemCode) ||
         {};
+      console.log('[KDS][buildWatcherPayload] Item lookup for line:', {
+        lineId: line?.id,
+        rawItemId,
+        foundItem: !!item?.id,
+        itemNameAr: item?.nameAr,
+        itemNameEn: item?.nameEn
+      });
       const resolvedItemId =
         rawItemId ||
         metadataItemId ||
@@ -4235,6 +4261,44 @@
       if (status === 'ready') job.completedItems += quantity;
       const detailId =
         normalizeId(line?.id) || `${jobId}-detail-${job.details.length + 1}`;
+      const finalItemNameAr =
+          metadata?.itemNameAr ||
+          metadata?.nameAr ||
+          metadata?.itemName ||
+          metadata?.name ||
+          line?.item_name?.ar ||
+          line?.itemNameAr ||
+          line?.nameAr ||
+          line?.itemName ||
+          line?.name ||
+          item?.nameAr ||
+          item?.name ||
+          item?.item_name?.ar ||
+          station?.nameAr ||
+          job.stationCode;
+      const finalItemNameEn =
+          metadata?.itemNameEn ||
+          metadata?.nameEn ||
+          metadata?.itemName ||
+          metadata?.name ||
+          line?.item_name?.en ||
+          line?.itemNameEn ||
+          line?.nameEn ||
+          line?.itemName ||
+          line?.name ||
+          item?.nameEn ||
+          item?.name ||
+          item?.item_name?.en ||
+          station?.nameEn ||
+          job.stationCode;
+      console.log('[KDS][buildWatcherPayload] Creating detail:', {
+        detailId,
+        jobId,
+        itemId: jobItemId,
+        finalItemNameAr,
+        finalItemNameEn,
+        sourceUsed: metadata?.itemNameAr ? 'metadata' : line?.item_name?.ar ? 'line.item_name' : item?.nameAr ? 'item.nameAr' : 'fallback'
+      });
       job.details.push({
         id: detailId,
         jobOrderId: job.jobOrderId || jobId,
@@ -4249,36 +4313,8 @@
           metadataItemId,
         quantity,
         status,
-        itemNameAr:
-          metadata?.itemNameAr ||
-          metadata?.nameAr ||
-          metadata?.itemName ||
-          metadata?.name ||
-          line?.item_name?.ar ||
-          line?.itemNameAr ||
-          line?.nameAr ||
-          line?.itemName ||
-          line?.name ||
-          item?.nameAr ||
-          item?.name ||
-          item?.item_name?.ar ||
-          station?.nameAr ||
-          job.stationCode,
-        itemNameEn:
-          metadata?.itemNameEn ||
-          metadata?.nameEn ||
-          metadata?.itemName ||
-          metadata?.name ||
-          line?.item_name?.en ||
-          line?.itemNameEn ||
-          line?.nameEn ||
-          line?.itemName ||
-          line?.name ||
-          item?.nameEn ||
-          item?.name ||
-          item?.item_name?.en ||
-          station?.nameEn ||
-          job.stationCode,
+        itemNameAr: finalItemNameAr,
+        itemNameEn: finalItemNameEn,
         prepNotes: Array.isArray(line?.notes)
           ? line.notes.filter(Boolean).join(' • ')
           :
