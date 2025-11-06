@@ -182,19 +182,29 @@ function createContext(store, config) {
 
       const fetchedTables = snapshot.tables || {};
 
-      // Store data in restApiCache
+      // Store data in restApiCache AND update cache directly
       for (const [tableName, rows] of Object.entries(fetchedTables)) {
         const dataRows = Array.isArray(rows) ? rows : (Array.isArray(rows?.rows) ? rows.rows : []);
         restApiCache.set(tableName, dataRows);
         config.logger?.log?.(`[MishkahSimpleDB] Smart fetch: Cached ${dataRows.length} rows for table '${tableName}'`);
       }
 
-      // Emit for all registered definitions
-      for (const name of definitions.keys()) {
-        emit(name);
+      // Update cache for all registered definitions and emit
+      let emitCount = 0;
+      for (const [name, def] of definitions.entries()) {
+        if (restApiCache.has(def.table)) {
+          const rows = restApiCache.get(def.table) || [];
+          const plain = rows.map((row) => def.fromRecord(row, baseCtx));
+          cache.set(name, plain);
+          config.logger?.log?.(`[MishkahSimpleDB] Smart fetch: Updated cache for '${name}' (${plain.length} rows, table: ${def.table})`);
+
+          // Emit to notify watchers
+          emit(name);
+          emitCount++;
+        }
       }
 
-      config.logger?.log?.(`[MishkahSimpleDB] Smart fetch: Complete! Cache populated.`);
+      config.logger?.log?.(`[MishkahSimpleDB] Smart fetch: Complete! Emitted ${emitCount} definitions.`);
 
     } catch (error) {
       config.logger?.warn?.(`[MishkahSimpleDB] Smart fetch failed:`, error.message);
@@ -220,29 +230,45 @@ function createContext(store, config) {
     const def = definitions.get(name);
     if (!def) return;
 
-    // Smart Store: Try WebSocket first, fallback to REST API cache
+    // Priority: WebSocket > Smart Fetch cache > REST API cache > empty
     const tables = store.tables(def.moduleId);
-    let rows = Array.isArray(tables?.[def.table]) ? tables[def.table] : [];
+    const wsRows = Array.isArray(tables?.[def.table]) ? tables[def.table] : [];
 
-    // If WebSocket has no data, try REST API cache
-    if (rows.length === 0 && restApiCache.has(def.table)) {
-      rows = restApiCache.get(def.table) || [];
-      config.logger?.log?.(`[MishkahSimpleDB][emit] ${name}: Using REST API cache (${rows.length} rows)`);
+    let plain;
+    let source = '';
+
+    if (wsRows.length > 0) {
+      // WebSocket has data - use it (highest priority)
+      plain = wsRows.map((row) => def.fromRecord(row, baseCtx));
+      cache.set(name, plain);
+      source = 'WebSocket';
+    } else if (cache.has(name) && cache.get(name).length > 0) {
+      // WebSocket empty but cache has data from Smart Fetch - use it
+      plain = cache.get(name);
+      source = 'Smart Fetch cache';
+    } else if (restApiCache.has(def.table)) {
+      // Fallback to REST API cache (shouldn't happen if Smart Fetch worked)
+      const apiRows = restApiCache.get(def.table) || [];
+      plain = apiRows.map((row) => def.fromRecord(row, baseCtx));
+      cache.set(name, plain);
+      source = 'REST API cache';
+    } else {
+      // No data anywhere
+      plain = [];
+      cache.set(name, plain);
+      source = 'empty';
     }
-
-    const plain = rows.map((row) => def.fromRecord(row, baseCtx));
-    cache.set(name, plain);
 
     // DEBUG: Log emit details
     if (config.logger?.log) {
-      config.logger.log(`[MishkahSimpleDB][emit] ${name}: ${rows.length} rows (table: ${def.table})`);
+      config.logger.log(`[MishkahSimpleDB][emit] ${name}: ${plain.length} rows from ${source} (table: ${def.table})`);
     }
 
     const subs = watchers.get(name);
     if (!subs || !subs.size) return;
     for (const handler of Array.from(subs)) {
       try {
-        handler(clone(plain), { rows: clone(rows), table: def.table });
+        handler(clone(plain), { rows: clone(plain), table: def.table });
       } catch (error) {
         config.logger?.warn?.('[MishkahSimpleDB] watcher failed', error);
       }
