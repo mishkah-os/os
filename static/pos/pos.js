@@ -2678,16 +2678,11 @@
       payload.meta = { ...(payload.meta || {}), publishedAt: nowIso };
       const channel = payload.meta?.channel || BRANCH_CHANNEL;
 
-      // ✅ Build snapshot with job_orders for backend persistence
-      // Backend requires ALL tables in snapshot (ensureInsertOnlySnapshot checks for all required tables)
-      // So we merge window.database (all master tables) + job_orders
-      const windowDatabase = (typeof window !== 'undefined' && window.database && typeof window.database === 'object')
-        ? window.database
-        : {};
-
+      // ✅ Build snapshot with job_orders ONLY for backend persistence
+      // Backend now supports PARTIAL SNAPSHOTS (only updates tables present in snapshot)
+      // This prevents erasing master tables and reduces payload size
       const jobOrders = payload.jobOrders || {};
       const snapshot = {
-        ...windowDatabase,  // Include all master tables from window.database
         job_order_header: jobOrders.headers || [],
         job_order_detail: jobOrders.details || [],
         job_order_detail_modifier: jobOrders.modifiers || [],
