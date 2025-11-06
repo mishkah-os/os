@@ -2259,20 +2259,12 @@ function ensureInsertOnlySnapshot(store, incomingSnapshot) {
     };
   }
 
-  const requiredTables = Array.isArray(store.tables) ? store.tables : [];
+  // ✅ PARTIAL SNAPSHOT SUPPORT: Only validate tables that are present in incoming snapshot
+  // This allows publishing job_orders without sending all 60+ tables
   const incomingTables = incomingSnapshot.tables && typeof incomingSnapshot.tables === 'object' ? incomingSnapshot.tables : {};
+  const tablesToValidate = Object.keys(incomingTables);
 
-  for (const tableName of requiredTables) {
-    if (!(tableName in incomingTables)) {
-      const currentRows = Array.isArray(currentSnapshot.tables?.[tableName]) ? currentSnapshot.tables[tableName] : [];
-      return {
-        ok: false,
-        reason: 'missing-table',
-        tableName,
-        currentCount: currentRows.length
-      };
-    }
-
+  for (const tableName of tablesToValidate) {
     const incomingRows = incomingTables[tableName];
     if (!Array.isArray(incomingRows)) {
       return {
