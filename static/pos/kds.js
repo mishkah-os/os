@@ -1139,12 +1139,7 @@
       }
     });
 
-    console.log('[KDS][DerivedStatus] 🔄 Built jobStatusMap:', {
-      totalJobs: jobOrderDetails.length,
-      mappedKeys: jobStatusMap.size,
-      sampleKeys: Array.from(jobStatusMap.keys()).slice(0, 3),
-      sampleStatuses: Array.from(jobStatusMap.values()).slice(0, 3).map(d => ({ jobId: d.jobOrderId, itemId: d.itemId, status: d.status }))
-    });
+    // Removed verbose logging for jobStatusMap
 
     // Group lines by orderId
     const linesByOrder = new Map();
@@ -1176,15 +1171,7 @@
         const jobDetail = jobStatusMap.get(lookupKey);
         const derivedStatus = jobDetail?.status || line.status || 'draft';
 
-        if (jobDetail && jobDetail.status !== line.status) {
-          console.log('[KDS][DerivedStatus] ✅ Using job status:', {
-            orderId,
-            itemId: line.itemId,
-            lineStatus: line.status,
-            jobStatus: jobDetail.status,
-            derivedStatus
-          });
-        }
+        // Removed verbose logging for derived status
 
         return {
           detail: {
@@ -1245,15 +1232,7 @@
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
 
-      // ✅ Only log status changes for assembled/served orders (reduce noise)
-      if (status === 'assembled' || status === 'served' || headerStatusId === 'assembled' || headerStatusId === 'served') {
-        console.log('[KDS][buildOrdersFromHeaders] 🔄 Order status:', {
-          orderId,
-          headerStatusId,
-          headerUpdatedAt: header.updatedAt,
-          calculatedStatus: status
-        });
-      }
+      // Removed verbose logging for order status
 
       return {
         orderId,
@@ -2178,26 +2157,7 @@
       completedOrderIdMap.set(stringId, { orderId: rawId, status: order.handoffStatus });
     });
 
-    // 🔍 Debug: Log completed orders
-    if (completedOrderIds.size > 0) {
-      console.log('[KDS][renderStationPanel] 🔍 Completed orders:', {
-        stationId,
-        completedOrderIds: Array.from(completedOrderIds),
-        completedOrders: Array.from(completedOrderIdMap.values())
-      });
-    }
-
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
-
-    // 🔍 Debug: Log all jobs for station
-    if (allJobsForStation.length > 0 && completedOrderIds.size > 0) {
-      console.log('[KDS][renderStationPanel] 🔍 All jobs for station:', {
-        stationId,
-        totalJobs: allJobsForStation.length,
-        jobOrderIds: allJobsForStation.map(j => j.orderId),
-        jobStatuses: allJobsForStation.map(j => ({ id: j.id, orderId: j.orderId, status: j.status }))
-      });
-    }
 
     const jobs = allJobsForStation
       // Hide jobs that are already ready/completed
@@ -2212,15 +2172,6 @@
         const shouldHide = completedOrderIds.has(normalizedJobOrderId) ||
                           completedOrderIds.has(stringJobOrderId);
 
-        if (completedOrderIds.size > 0 && !shouldHide) {
-          console.log('[KDS][renderStationPanel] ⚠️ Job NOT filtered:', {
-            jobId: job.id,
-            jobOrderIdRaw: rawJobOrderId,
-            jobOrderIdNormalized: normalizedJobOrderId,
-            completedIds: Array.from(completedOrderIds),
-            hasMatch: shouldHide
-          });
-        }
         return !shouldHide;
       });
 
@@ -3440,6 +3391,10 @@
         if(syncClient && assignmentPayload){
           syncClient.publishDeliveryUpdate({ orderId, payload:{ assignment: assignmentPayload } });
         }
+        // ✅ Persist to database
+        if (assignmentPayload) {
+          persistDeliveryAssignment(orderId, assignmentPayload);
+        }
       }
     },
     'kds.delivery.complete':{
@@ -3487,6 +3442,12 @@
         if(syncClient){
           syncClient.publishDeliveryUpdate({ orderId, payload:{ assignment: assignmentPayload, settlement: settlementPayload } });
         }
+        // ✅ Persist to database
+        if (assignmentPayload) {
+          persistDeliveryAssignment(orderId, assignmentPayload);
+        }
+        // ✅ Update order_header status to 'assembled' (not 'delivered' yet - that's after settlement)
+        persistOrderHeaderStatus(orderId, 'assembled', nowIso);
       }
     },
     'kds.delivery.settle':{
@@ -3516,6 +3477,8 @@
         if(syncClient && settlementPayload){
           syncClient.publishDeliveryUpdate({ orderId, payload:{ settlement: settlementPayload } });
         }
+        // ✅ Update order_header status to 'delivered' after settlement
+        persistOrderHeaderStatus(orderId, 'delivered', nowIso);
       }
     },
     'ui.modal.close':{
@@ -3814,13 +3777,17 @@
     }
   };
 
-  // ✅ Helper function to persist order_header status changes
+  // ✅ Helper function to persist order_header status changes with retry logic
   // Uses store.update() which handles REST API automatically
-  const persistOrderHeaderStatus = async (orderId, status, timestamp) => {
+  const persistOrderHeaderStatus = async (orderId, status, timestamp, retryCount = 0) => {
+    const maxRetries = 3;
+    const retryDelays = [2000, 4000, 8000]; // Exponential backoff: 2s, 4s, 8s
+
     console.log('[KDS][persistOrderHeaderStatus] 🔄 Persisting:', {
       orderId,
       status,
-      timestamp
+      timestamp,
+      attempt: retryCount + 1
     });
 
     // ✅ Update watcherState FIRST (optimistic update)
@@ -3829,7 +3796,13 @@
       String(header.id || header.orderId) === orderId
     );
 
-    if (matchingHeader) {
+    if (!matchingHeader) {
+      console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found:', orderId);
+      return;
+    }
+
+    // ✅ Apply optimistic update (only on first attempt)
+    if (retryCount === 0) {
       watcherState.orderHeaders = orderHeaders.map(header => {
         const headerId = String(header.id || header.orderId);
         if (headerId === orderId) {
@@ -3838,9 +3811,6 @@
         return header;
       });
       console.log('[KDS][persistOrderHeaderStatus] ✅ Optimistic update applied');
-    } else {
-      console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found:', orderId);
-      return;
     }
 
     // ✅ Persist via store.update() (mishkah-store handles REST API)
@@ -3857,20 +3827,106 @@
         updatedAt: timestamp || new Date().toISOString()
       };
 
-      await store.update('order_header', headerUpdate);
-      console.log('[KDS][persistOrderHeaderStatus] ✅ Persisted via store.update');
-    } catch (error) {
-      console.error('[KDS][persistOrderHeaderStatus] ❌ Failed:', error);
+      // ✅ Increase timeout to 10 seconds for order_header updates
+      await Promise.race([
+        store.update('order_header', headerUpdate),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
+      ]);
 
-      // ⚠️ Rollback optimistic update on error
-      watcherState.orderHeaders = orderHeaders.map(header => {
-        const headerId = String(header.id || header.orderId);
-        if (headerId === orderId) {
-          return matchingHeader;  // Restore original
-        }
-        return header;
-      });
-      console.warn('[KDS][persistOrderHeaderStatus] ⚠️ Rolled back');
+      console.log('[KDS][persistOrderHeaderStatus] ✅ Persisted via store.update');
+
+      // ✅ Broadcast the change to other KDS instances
+      if (syncClient && typeof syncClient.publishHandoffUpdate === 'function') {
+        syncClient.publishHandoffUpdate({
+          orderId,
+          payload: { status, updatedAt: timestamp }
+        });
+      }
+
+    } catch (error) {
+      console.error('[KDS][persistOrderHeaderStatus] ❌ Failed (attempt ' + (retryCount + 1) + '):', error);
+
+      // ✅ Retry with exponential backoff
+      if (retryCount < maxRetries) {
+        const delay = retryDelays[retryCount];
+        console.log('[KDS][persistOrderHeaderStatus] ⏳ Retrying in ' + delay + 'ms...');
+        setTimeout(() => {
+          persistOrderHeaderStatus(orderId, status, timestamp, retryCount + 1);
+        }, delay);
+      } else {
+        // ❌ All retries failed - keep optimistic update but warn user
+        console.error('[KDS][persistOrderHeaderStatus] ❌ All retries failed - optimistic update kept, but changes may be lost on refresh');
+      }
+    }
+  };
+
+  // ✅ Helper function to persist delivery assignment to database
+  const persistDeliveryAssignment = async (orderId, assignment, retryCount = 0) => {
+    const maxRetries = 3;
+    const retryDelays = [2000, 4000, 8000];
+
+    console.log('[KDS][persistDeliveryAssignment] 🔄 Persisting:', {
+      orderId,
+      assignment,
+      attempt: retryCount + 1
+    });
+
+    if (!store || typeof store.insert !== 'function' || typeof store.update !== 'function') {
+      console.warn('[KDS][persistDeliveryAssignment] ⚠️ Store not available');
+      return;
+    }
+
+    try {
+      // ✅ Prepare delivery record
+      const deliveryRecord = {
+        orderId: orderId,
+        order_id: orderId,
+        driverId: assignment.driverId,
+        driver_id: assignment.driverId,
+        driverName: assignment.driverName,
+        driver_name: assignment.driverName,
+        driverPhone: assignment.driverPhone || '',
+        driver_phone: assignment.driverPhone || '',
+        vehicleId: assignment.vehicleId || '',
+        vehicle_id: assignment.vehicleId || '',
+        status: assignment.status,
+        assignedAt: assignment.assignedAt,
+        assigned_at: assignment.assignedAt,
+        deliveredAt: assignment.deliveredAt || null,
+        delivered_at: assignment.deliveredAt || null,
+        updatedAt: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // ✅ Try insert first, if it fails (duplicate), try update
+      try {
+        await Promise.race([
+          store.insert('delivery_driver', deliveryRecord),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Insert timeout after 10s')), 10000))
+        ]);
+        console.log('[KDS][persistDeliveryAssignment] ✅ Inserted to delivery_driver table');
+      } catch (insertError) {
+        // If insert failed (likely duplicate), try update
+        console.log('[KDS][persistDeliveryAssignment] ℹ️ Insert failed, trying update...');
+        await Promise.race([
+          store.update('delivery_driver', deliveryRecord),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
+        ]);
+        console.log('[KDS][persistDeliveryAssignment] ✅ Updated delivery_driver table');
+      }
+
+    } catch (error) {
+      console.error('[KDS][persistDeliveryAssignment] ❌ Failed (attempt ' + (retryCount + 1) + '):', error);
+
+      if (retryCount < maxRetries) {
+        const delay = retryDelays[retryCount];
+        console.log('[KDS][persistDeliveryAssignment] ⏳ Retrying in ' + delay + 'ms...');
+        setTimeout(() => {
+          persistDeliveryAssignment(orderId, assignment, retryCount + 1);
+        }, delay);
+      } else {
+        console.error('[KDS][persistDeliveryAssignment] ❌ All retries failed');
+      }
     }
   };
 
