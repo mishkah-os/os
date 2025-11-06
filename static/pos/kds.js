@@ -976,8 +976,11 @@
   const summarizeJobPayload = (payload = {})=>{
     const jobOrders = payload.jobOrders || {};
     const master = payload.master || {};
-    const headers = Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
-    const details = Array.isArray(jobOrders.details) ? jobOrders.details : [];
+    // Support both canonical names (job_order_header) and aliases (headers)
+    const headers = Array.isArray(jobOrders.job_order_header) ? jobOrders.job_order_header
+                  : Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
+    const details = Array.isArray(jobOrders.job_order_detail) ? jobOrders.job_order_detail
+                  : Array.isArray(jobOrders.details) ? jobOrders.details : [];
     const stations = Array.isArray(master.stations) ? master.stations : [];
     const kitchenSections = Array.isArray(master.kitchenSections) ? master.kitchenSections : [];
     const stationCategoryRoutes = Array.isArray(master.stationCategoryRoutes) ? master.stationCategoryRoutes : [];
@@ -1354,10 +1357,15 @@
 
   const buildJobRecords = (jobOrders)=>{
     if(!jobOrders) return [];
-    const headers = Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
-    const details = Array.isArray(jobOrders.details) ? jobOrders.details : [];
-    const modifiers = Array.isArray(jobOrders.modifiers) ? jobOrders.modifiers : [];
-    const history = Array.isArray(jobOrders.statusHistory) ? jobOrders.statusHistory : [];
+    // Support both canonical names and aliases
+    const headers = Array.isArray(jobOrders.job_order_header) ? jobOrders.job_order_header
+                  : Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
+    const details = Array.isArray(jobOrders.job_order_detail) ? jobOrders.job_order_detail
+                  : Array.isArray(jobOrders.details) ? jobOrders.details : [];
+    const modifiers = Array.isArray(jobOrders.job_order_detail_modifier) ? jobOrders.job_order_detail_modifier
+                    : Array.isArray(jobOrders.modifiers) ? jobOrders.modifiers : [];
+    const history = Array.isArray(jobOrders.job_order_status_history) ? jobOrders.job_order_status_history
+                  : Array.isArray(jobOrders.statusHistory) ? jobOrders.statusHistory : [];
 
     const modifiersByDetail = modifiers.reduce((acc, mod)=>{
       const bucket = acc[mod.detailId] || (acc[mod.detailId] = []);
