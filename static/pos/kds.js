@@ -3365,8 +3365,10 @@
   const watcherState = {
     status: 'idle',
     posPayload: database,
-    headers: [],
-    lines: [],
+    headers: [],           // job_order_header
+    lines: [],             // job_order_detail
+    orderHeaders: [],      // ✅ order_header for static tabs
+    orderLines: [],        // ✅ order_line for static tabs
     deliveries: []
   };
 
@@ -4353,8 +4355,14 @@
     const channel = normalizeChannelName(channelSource, BRANCH_CHANNEL);
     watcherState.channel = channel;
 
+    // ✅ Build order_header and order_line from watcherState for static tabs
+    const orderHeaders = ensureArray(watcherState.orderHeaders);
+    const orderLines = ensureArray(watcherState.orderLines);
+
     // ✅ Flat structure: job order tables at root level (consistent with POS)
     const payload = {
+      order_header: orderHeaders,           // ✅ For static tabs
+      order_line: orderLines,               // ✅ For static tabs
       job_order_header: jobHeaders,
       job_order_detail: jobDetails,
       job_order_detail_modifier: [],
@@ -4390,6 +4398,8 @@
       watcher:{
         headers: ensureArray(watcherState.headers).length,
         lines: ensureArray(watcherState.lines).length,
+        orderHeaders: ensureArray(watcherState.orderHeaders).length,  // ✅
+        orderLines: ensureArray(watcherState.orderLines).length,      // ✅
         deliveries: ensureArray(watcherState.deliveries).length
       },
       payload: payloadSummary
@@ -4401,8 +4411,10 @@
 
   const updateFromWatchers = () => {
     const payload = buildWatcherPayload();
-    // ✅ Check flat structure instead of nested jobOrders
+    // ✅ Check flat structure for both static tabs (order_header/order_line) and dynamic tabs (job_order_*)
     const hasData = payload && (
+      (Array.isArray(payload.order_header) && payload.order_header.length > 0) ||
+      (Array.isArray(payload.order_line) && payload.order_line.length > 0) ||
       (Array.isArray(payload.job_order_header) && payload.job_order_header.length > 0) ||
       (Array.isArray(payload.job_order_detail) && payload.job_order_detail.length > 0)
     );
@@ -4512,6 +4524,24 @@
         })
       );
 
+      // ✅ Watch order_header for static tabs
+      watcherUnsubscribers.push(
+        store.watch('order_header', (rows) => {
+          watcherState.orderHeaders = ensureArray(rows);
+          console.log('[KDS][WATCH][order_header]', { count: watcherState.orderHeaders.length, sample: watcherState.orderHeaders[0] || null });
+          updateFromWatchers();
+        })
+      );
+
+      // ✅ Watch order_line for static tabs
+      watcherUnsubscribers.push(
+        store.watch('order_line', (rows) => {
+          watcherState.orderLines = ensureArray(rows);
+          console.log('[KDS][WATCH][order_line]', { count: watcherState.orderLines.length, sample: watcherState.orderLines[0] || null });
+          updateFromWatchers();
+        })
+      );
+
       watcherUnsubscribers.push(
         store.watch('order_delivery', (rows) => {
           watcherState.deliveries = ensureArray(rows);
@@ -4593,6 +4623,22 @@
             store.watch('job_order_detail', (rows) => {
               watcherState.lines = ensureArray(rows);
               console.log('[KDS][WATCH][job_order_detail]', { count: watcherState.lines.length, sample: watcherState.lines[0] || null });
+              updateFromWatchers();
+            })
+          );
+          // ✅ Watch order_header for static tabs
+          watcherUnsubscribers.push(
+            store.watch('order_header', (rows) => {
+              watcherState.orderHeaders = ensureArray(rows);
+              console.log('[KDS][WATCH][order_header]', { count: watcherState.orderHeaders.length, sample: watcherState.orderHeaders[0] || null });
+              updateFromWatchers();
+            })
+          );
+          // ✅ Watch order_line for static tabs
+          watcherUnsubscribers.push(
+            store.watch('order_line', (rows) => {
+              watcherState.orderLines = ensureArray(rows);
+              console.log('[KDS][WATCH][order_line]', { count: watcherState.orderLines.length, sample: watcherState.orderLines[0] || null });
               updateFromWatchers();
             })
           );
