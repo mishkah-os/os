@@ -2679,9 +2679,15 @@
       const channel = payload.meta?.channel || BRANCH_CHANNEL;
 
       // ✅ Build snapshot with job_orders for backend persistence
-      // The backend only persists data in frameData.snapshot, so we need to include job_orders here
+      // Backend requires ALL tables in snapshot (ensureInsertOnlySnapshot checks for all required tables)
+      // So we merge window.database (all master tables) + job_orders
+      const windowDatabase = (typeof window !== 'undefined' && window.database && typeof window.database === 'object')
+        ? window.database
+        : {};
+
       const jobOrders = payload.jobOrders || {};
       const snapshot = {
+        ...windowDatabase,  // Include all master tables from window.database
         job_order_header: jobOrders.headers || [],
         job_order_detail: jobOrders.details || [],
         job_order_detail_modifier: jobOrders.modifiers || [],
