@@ -3174,9 +3174,9 @@
         const nowIso = new Date().toISOString();
         const nowMs = Date.parse(nowIso);
         ctx.setState(state=> applyJobsUpdate(state, list=> list.map(job=> job.id === jobId ? finishJob(job, nowIso, nowMs) : job)));
-        emitSync({ type:'job:update', jobId, payload:{ status:'ready', progressState:'completed',status:'finish', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
+        emitSync({ type:'job:update', jobId, payload:{ status:'ready', progressState:'completed', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
         if(syncClient){
-          syncClient.publishJobUpdate({ jobId, payload:{ status:'ready', progressState:'completed',status:'finish', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
+          syncClient.publishJobUpdate({ jobId, payload:{ status:'ready', progressState:'completed', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso } });
         }
         // ✅ Persist status change to server
         persistJobOrderStatusChange(jobId, { status:'ready', progressState:'completed', readyAt: nowIso, completedAt: nowIso, updatedAt: nowIso }, {
@@ -3443,7 +3443,42 @@
         reason: actorInfo.reason || 'status-change'
       });
 
-      // 2. Insert status history entry
+      // 2. ✅ Update order_line status to sync with job status for expo/handoff
+      // Extract base orderId from jobId (e.g., "DAR-001001-1e7a48ec..." → "DAR-001001")
+      const baseOrderId = extractBaseOrderId(jobId);
+      if (baseOrderId && statusPayload.status) {
+        // Get all order_lines for this order
+        const orderLines = watcherState.orderLines || [];
+        const matchingLines = orderLines.filter(line =>
+          String(line.orderId) === baseOrderId
+        );
+
+        // Update each order_line with the new status
+        for (const line of matchingLines) {
+          try {
+            await store.save('order_line', {
+              id: line.id,
+              statusId: statusPayload.status,
+              status: statusPayload.status,
+              updatedAt: statusPayload.updatedAt || new Date().toISOString()
+            }, {
+              source: 'kds-status-sync',
+              actorId: actorInfo.actorId || 'kds',
+              reason: 'sync-from-job-order'
+            });
+          } catch (lineError) {
+            console.warn('[KDS][persistJobOrderStatusChange] Failed to update order_line:', line.id, lineError);
+          }
+        }
+
+        console.log('[KDS][persistJobOrderStatusChange] Synced order_line status:', {
+          orderId: baseOrderId,
+          linesUpdated: matchingLines.length,
+          newStatus: statusPayload.status
+        });
+      }
+
+      // 3. Insert status history entry
       const historyEntry = {
         id: `HIS-${jobId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         jobOrderId: jobId,
