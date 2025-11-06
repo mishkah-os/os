@@ -1113,7 +1113,16 @@
     // ✅ Create lookup map: orderId:itemId -> job_order_detail for derived status
     const jobStatusMap = new Map();
     jobOrderDetails.forEach(detail => {
-      const orderId = detail.orderId || detail.order_id || extractBaseOrderId(detail.jobOrderId || detail.job_order_id);
+      // Extract orderId from jobOrderId format: "DAR-001001-{stationId}"
+      // stationId is always UUID format (last 5 dash-separated segments)
+      let orderId = detail.orderId || detail.order_id;
+      if (!orderId && detail.jobOrderId) {
+        const jobId = detail.jobOrderId || detail.job_order_id;
+        // Remove last UUID part: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+        const match = String(jobId).match(/^(.*)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+        orderId = match ? match[1] : jobId;
+      }
+
       const itemId = detail.itemId || detail.item_id;
       if (orderId && itemId) {
         const key = `${orderId}:${itemId}`;
