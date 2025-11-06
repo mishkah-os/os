@@ -1105,9 +1105,30 @@
   const buildOrdersFromHeaders = (db)=>{
     const orderHeaders = Array.isArray(db?.data?.orderHeaders) ? db.data.orderHeaders : [];
     const orderLines = Array.isArray(db?.data?.orderLines) ? db.data.orderLines : [];
+    const jobOrderDetails = Array.isArray(db?.data?.jobOrderDetails) ? db.data.jobOrderDetails : [];
     const handoff = db?.data?.handoff || {};
     const stationMap = db?.data?.stationMap || {};
     const menuIndex = db?.data?.menuIndex || {};
+
+    // ✅ Create lookup map: orderId:itemId -> job_order_detail for derived status
+    const jobStatusMap = new Map();
+    jobOrderDetails.forEach(detail => {
+      const orderId = detail.orderId || detail.order_id || extractBaseOrderId(detail.jobOrderId || detail.job_order_id);
+      const itemId = detail.itemId || detail.item_id;
+      if (orderId && itemId) {
+        const key = `${orderId}:${itemId}`;
+        jobStatusMap.set(key, detail);
+      }
+    });
+
+    if (jobStatusMap.size > 0) {
+      console.log('[KDS][DerivedStatus] 🔄 Built jobStatusMap:', {
+        totalJobs: jobOrderDetails.length,
+        mappedKeys: jobStatusMap.size,
+        sampleKeys: Array.from(jobStatusMap.keys()).slice(0, 3),
+        sampleStatuses: Array.from(jobStatusMap.values()).slice(0, 3).map(d => ({ jobId: d.jobOrderId, itemId: d.itemId, status: d.status }))
+      });
+    }
 
     // Group lines by orderId
     const linesByOrder = new Map();
@@ -1134,6 +1155,22 @@
         const stationLabelAr = station.nameAr || line.kitchenSectionId || 'غير محدد';
         const stationLabelEn = station.nameEn || line.kitchenSectionId || 'Unassigned';
         const menuItem = line.itemId ? menuIndex[String(line.itemId)] : null;
+
+        // ✅ Derived status: check if job_order_detail for this item is ready
+        const lookupKey = `${orderId}:${line.itemId}`;
+        const jobDetail = jobStatusMap.get(lookupKey);
+        const derivedStatus = jobDetail?.status || line.status || 'draft';
+
+        if (jobDetail && jobDetail.status !== line.status) {
+          console.log('[KDS][DerivedStatus] ✅ Using job status:', {
+            orderId,
+            itemId: line.itemId,
+            lineStatus: line.status,
+            jobStatus: jobDetail.status,
+            derivedStatus
+          });
+        }
+
         return {
           detail: {
             id: line.id,
@@ -1141,7 +1178,7 @@
             itemNameAr: line.name || menuItem?.nameAr || line.itemId || stationLabelAr,
             itemNameEn: line.name || menuItem?.nameEn || line.itemId || stationLabelEn,
             quantity: Number(line.qty) || 1,
-            status: line.status || 'draft',
+            status: derivedStatus,  // ✅ Use derived status from job_order_detail
             prepNotes: Array.isArray(line.notes) ? line.notes.join('; ') : '',
             modifiers: []
           },
@@ -1150,8 +1187,14 @@
         };
       });
 
+      // ✅ Calculate totals using derived status
       const totalItems = lines.reduce((sum, line) => sum + (Number(line.qty) || 1), 0);
-      const readyItems = lines.filter(line => line.status === 'ready' || line.status === 'completed').reduce((sum, line) => sum + (Number(line.qty) || 1), 0);
+      const readyItems = lines.filter(line => {
+        const lookupKey = `${orderId}:${line.itemId}`;
+        const jobDetail = jobStatusMap.get(lookupKey);
+        const derivedStatus = jobDetail?.status || line.status || 'draft';
+        return derivedStatus === 'ready' || derivedStatus === 'completed';
+      }).reduce((sum, line) => sum + (Number(line.qty) || 1), 0);
       const pendingItems = totalItems - readyItems;
 
       let status = record.status;
@@ -2809,6 +2852,7 @@
           ...state.data,
           orderHeaders: orderHeadersNext,      // ✅ For static tabs
           orderLines: orderLinesNext,          // ✅ For static tabs
+          jobOrderDetails: mergedOrders.job_order_detail || [],  // ✅ For derived status
           jobOrders: mergedOrders,
           jobs: jobsIndexedNext,
           expoSource: expoSourceNext,
