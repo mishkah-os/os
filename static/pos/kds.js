@@ -1668,13 +1668,45 @@
       ? jobsList.filter(job => {
           const hasDetails = Array.isArray(job.details) && job.details.length > 0;
           if (!hasDetails) {
-            console.log('[KDS][indexJobs] Filtering out job without details:', job.id);
+            console.log('[KDS][indexJobs] ❌ Filtering out job without details:', job.id);
           }
           return hasDetails;
         })
       : [];
 
-    const list = validJobs.slice();
+    console.log('[KDS][indexJobs] 📊 Valid jobs after filtering:', {
+      total: validJobs.length,
+      sample: validJobs.slice(0, 2).map(j => ({
+        id: j.id?.substring(0, 30) + '...',
+        status: j.status,
+        progressState: j.progressState,
+        orderId: j.orderId
+      }))
+    });
+
+    // ✅ Also filter out jobs with progressState='completed'
+    const activeJobs = validJobs.filter(job => {
+      const isCompleted = job.status === 'ready' ||
+                         job.status === 'completed' ||
+                         job.progressState === 'completed';
+
+      if(isCompleted) {
+        console.log('[KDS][indexJobs] ❌ Filtering out completed job:', {
+          id: job.id?.substring(0, 30) + '...',
+          status: job.status,
+          progressState: job.progressState,
+          orderId: job.orderId
+        });
+      }
+
+      return !isCompleted;
+    });
+
+    console.log('[KDS][indexJobs] ✅ Active jobs after filtering completed:', {
+      total: activeJobs.length
+    });
+
+    const list = activeJobs.slice();
     list.sort((a, b)=>{
       const aKey = a.acceptedMs ?? a.createdMs ?? 0;
       const bKey = b.acceptedMs ?? b.createdMs ?? 0;
