@@ -1585,17 +1585,25 @@
       cloned.updatedMs = parseTime(cloned.updatedAt);
       cloned.dueMs = parseTime(cloned.dueAt);
 
-      // ✅ If header status is pending but ANY detail is in_progress,
-      // calculate startMs from first in_progress detail's startAt
+      // ✅ If header status is NOT in_progress/ready/completed but ANY detail is in_progress,
+      // calculate startMs and update header status from first in_progress detail
       // This ensures timer works even after page reload
-      if(cloned.status === 'pending' || !cloned.startMs) {
-        const inProgressDetails = cloned.details.filter(d => d.status === 'in_progress');
+      const currentStatus = String(cloned.status || '').toLowerCase();
+      if(currentStatus !== 'in_progress' && currentStatus !== 'ready' && currentStatus !== 'completed') {
+        const inProgressDetails = cloned.details.filter(d => {
+          const detailStatus = String(d.status || '').toLowerCase();
+          return detailStatus === 'in_progress';
+        });
+
         if(inProgressDetails.length > 0) {
-          // Find earliest startAt from in_progress details
-          const earliestStartAt = inProgressDetails
-            .map(d => d.startAt)
+          // Find earliest start time from in_progress details
+          // Try multiple property names: startAt, startedAt, start_at
+          const startTimes = inProgressDetails
+            .map(d => d.startAt || d.startedAt || d.start_at || d.started_at)
             .filter(Boolean)
-            .sort()[0];
+            .sort();
+
+          const earliestStartAt = startTimes[0];
 
           if(earliestStartAt) {
             const calculatedStartMs = parseTime(earliestStartAt);
@@ -1614,7 +1622,19 @@
   };
 
   const indexJobs = (jobsList)=>{
-    const list = Array.isArray(jobsList) ? jobsList.slice() : [];    list.sort((a, b)=>{
+    // ✅ Filter out jobs without details (these are incomplete/stale jobs)
+    const validJobs = Array.isArray(jobsList)
+      ? jobsList.filter(job => {
+          const hasDetails = Array.isArray(job.details) && job.details.length > 0;
+          if (!hasDetails) {
+            console.log('[KDS][indexJobs] Filtering out job without details:', job.id);
+          }
+          return hasDetails;
+        })
+      : [];
+
+    const list = validJobs.slice();
+    list.sort((a, b)=>{
       const aKey = a.acceptedMs ?? a.createdMs ?? 0;
       const bKey = b.acceptedMs ?? b.createdMs ?? 0;
       if(aKey === bKey){
