@@ -3774,13 +3774,37 @@
       gkeys:['ui:modal:close'],
       handler:(event, ctx)=>{
         event?.preventDefault();
+        // ✅ Close ALL modals
         ctx.setState(state=>({
           ...state,
           ui:{
             ...(state.ui || {}),
             modalOpen:false,
-            modals:{ ...(state.ui?.modals || {}), driver:false },
-            deliveryAssignment:null
+            modals:{ driver:false, payment:false },  // ✅ Close all modals
+            deliveryAssignment:null,
+            paymentSettlement:null
+          }
+        }));
+      }
+    },
+    'ui.modal.escape':{
+      on:['keydown'],
+      gkeys:['escape'],
+      handler:(event, ctx)=>{
+        // ✅ ESC key closes modals
+        if(event?.key !== 'Escape') return;
+        const state = ctx.getState();
+        if(!state.ui?.modalOpen) return;
+
+        event?.preventDefault();
+        ctx.setState(state=>({
+          ...state,
+          ui:{
+            ...(state.ui || {}),
+            modalOpen:false,
+            modals:{ driver:false, payment:false },  // ✅ Close all modals
+            deliveryAssignment:null,
+            paymentSettlement:null
           }
         }));
       }
@@ -4799,15 +4823,30 @@
       return null;
     };
     const statusLookup = buildStatusLookup(posPayload);
-    const drivers = deriveDrivers(posPayload);
+
+    // ✅ Read drivers from watcher first (like kitchenSections and menuItems)
+    const driversFromWatcher = ensureArray(watcherState.drivers);
+    const drivers = driversFromWatcher.length > 0
+      ? driversFromWatcher.map(driver => ({
+          id: driver.id,
+          code: driver.code || driver.id,
+          name: driver.name || driver.id,
+          phone: driver.phone || '',
+          vehicleId: driver.vehicleId || driver.vehicle_id || '',
+          isActive: driver.isActive !== false
+        }))
+      : deriveDrivers(posPayload);
     const driverIndex = new Map(drivers.map((driver) => [driver.id, driver]));
 
-    // ✅ Read payment methods from posPayload
-    const paymentMethods = Array.isArray(posPayload?.payment_methods)
-      ? posPayload.payment_methods
-      : Array.isArray(posPayload?.settings?.payment_methods)
-        ? posPayload.settings.payment_methods
-        : [];
+    // ✅ Read payment methods from watcher first (like kitchenSections and menuItems)
+    const paymentMethodsFromWatcher = ensureArray(watcherState.paymentMethods);
+    const paymentMethods = paymentMethodsFromWatcher.length > 0
+      ? paymentMethodsFromWatcher
+      : Array.isArray(posPayload?.payment_methods)
+        ? posPayload.payment_methods
+        : Array.isArray(posPayload?.settings?.payment_methods)
+          ? posPayload.settings.payment_methods
+          : [];
 
     // ✅ Create a map from jobOrderId to stationId from job_order_header
     const jobOrderStationMap = new Map();
@@ -5322,7 +5361,8 @@
       { name: 'order_header', table: 'order_header' },
       { name: 'order_line', table: 'order_line' },
       { name: 'order_delivery', table: 'order_delivery' },
-      { name: 'delivery_driver', table: 'delivery_driver' },
+      { name: 'delivery_drivers', table: 'delivery_drivers' },  // ✅ Fixed: plural
+      { name: 'payment_methods', table: 'payment_methods' },    // ✅ Added
       { name: 'order_payment', table: 'order_payment' },
       { name: 'pos_database', table: 'pos_database' },
       // ✅ Register master data tables directly from REST API
@@ -5414,6 +5454,18 @@
           watcherState.categorySections = ensureArray(rows);          updateFromWatchers();
         })
       );
+
+      watcherUnsubscribers.push(
+        store.watch('delivery_drivers', (rows) => {
+          watcherState.drivers = ensureArray(rows);          updateFromWatchers();
+        })
+      );
+
+      watcherUnsubscribers.push(
+        store.watch('payment_methods', (rows) => {
+          watcherState.paymentMethods = ensureArray(rows);          updateFromWatchers();
+        })
+      );
     };
 
     // إعداد الـ watchers - الـ Smart Store هيجيب البيانات تلقائياً!
@@ -5438,7 +5490,8 @@
             { name: 'order_header', table: 'order_header' },
             { name: 'order_line', table: 'order_line' },
             { name: 'order_delivery', table: 'order_delivery' },
-            { name: 'delivery_driver', table: 'delivery_driver' },
+            { name: 'delivery_drivers', table: 'delivery_drivers' },  // ✅ Fixed: plural
+            { name: 'payment_methods', table: 'payment_methods' },    // ✅ Added
             { name: 'order_payment', table: 'order_payment' },
             { name: 'pos_database', table: 'pos_database' },
             // ✅ Register master data tables directly from REST API
@@ -5522,6 +5575,18 @@
               watcherState.categorySections = ensureArray(rows);              updateFromWatchers();
             })
           );
+
+          watcherUnsubscribers.push(
+            store.watch('delivery_drivers', (rows) => {
+              watcherState.drivers = ensureArray(rows);              updateFromWatchers();
+            })
+          );
+
+          watcherUnsubscribers.push(
+            store.watch('payment_methods', (rows) => {
+              watcherState.paymentMethods = ensureArray(rows);              updateFromWatchers();
+            })
+          );
         }
       } else {
         setTimeout(checkStoreReady, 100);
@@ -5541,6 +5606,28 @@
   app.mount('#app');
   scheduleInteractiveSnapshot();
   setupKdsDevtools();
+
+  // ✅ ESC key closes modals (document-level listener)
+  if(typeof document !== 'undefined'){
+    document.addEventListener('keydown', (event) => {
+      if(event?.key === 'Escape'){
+        const state = app.getState();
+        if(state.ui?.modalOpen){
+          event.preventDefault();
+          app.setState(state=>({
+            ...state,
+            ui:{
+              ...(state.ui || {}),
+              modalOpen:false,
+              modals:{ driver:false, payment:false },
+              deliveryAssignment:null,
+              paymentSettlement:null
+            }
+          }));
+        }
+      }
+    });
+  }
 
   const tick = setInterval(()=>{
     app.setState(state=>({
