@@ -1577,13 +1577,19 @@
         const bMs = parseTime(b.changedAt) || 0;
         return aMs - bMs;
       });
-      cloned.createdMs = parseTime(cloned.createdAt);
-      cloned.acceptedMs = parseTime(cloned.acceptedAt);
-      cloned.startMs = parseTime(cloned.startedAt);
-      cloned.readyMs = parseTime(cloned.readyAt);
-      cloned.completedMs = parseTime(cloned.completedAt);
-      cloned.updatedMs = parseTime(cloned.updatedAt);
-      cloned.dueMs = parseTime(cloned.dueAt);
+      cloned.createdMs = parseTime(cloned.createdAt || cloned.created_at);
+      cloned.acceptedMs = parseTime(cloned.acceptedAt || cloned.accepted_at);
+      // ✅ Try both camelCase and snake_case
+      cloned.startMs = parseTime(cloned.startedAt || cloned.started_at);
+      cloned.readyMs = parseTime(cloned.readyAt || cloned.ready_at);
+      cloned.completedMs = parseTime(cloned.completedAt || cloned.completed_at);
+      cloned.updatedMs = parseTime(cloned.updatedAt || cloned.updated_at);
+      cloned.dueMs = parseTime(cloned.dueAt || cloned.due_at);
+
+      // ✅ Normalize startedAt to always use camelCase
+      if(!cloned.startedAt && cloned.started_at) {
+        cloned.startedAt = cloned.started_at;
+      }
 
       // ✅ If header status is NOT in_progress/ready/completed but ANY detail is in_progress,
       // calculate startMs and update header status from first in_progress detail
@@ -4169,7 +4175,11 @@
       const headerUpdate = {
         id: jobId,
         ...statusPayload,
-        updatedAt: statusPayload.updatedAt || new Date().toISOString()
+        // ✅ Try both camelCase and snake_case for compatibility
+        startedAt: statusPayload.startedAt,
+        started_at: statusPayload.startedAt,
+        updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+        updated_at: statusPayload.updatedAt || new Date().toISOString()
       };
 
       console.log('[KDS][persistJobOrderStatusChange] 📤 Updating job_order_header:', headerUpdate);
@@ -4184,11 +4194,20 @@
 
       for (const detail of jobDetails) {
         try {
-          await store.update('job_order_detail', {
+          const detailUpdate = {
             id: detail.id,
             status: statusPayload.status,
-            updatedAt: statusPayload.updatedAt || new Date().toISOString()
-          });
+            updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+            updated_at: statusPayload.updatedAt || new Date().toISOString()
+          };
+
+          // ✅ Add startAt if this is the first time starting
+          if(statusPayload.status === 'in_progress' && statusPayload.startedAt) {
+            detailUpdate.startAt = statusPayload.startedAt;
+            detailUpdate.start_at = statusPayload.startedAt;
+          }
+
+          await store.update('job_order_detail', detailUpdate);
         } catch (detailError) {
           console.warn('[KDS][persistJobOrderStatusChange] Failed to update job_order_detail:', detail.id, detailError);
         }
