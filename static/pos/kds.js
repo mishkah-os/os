@@ -1820,15 +1820,48 @@
         return status === 'assembled' || status === 'served' || status === 'delivered';
       });
 
+    console.log('[KDS][getCompletedOrderIds] 🔍 Completed orders (assembled/served/delivered):', {
+      count: completedOrders.length,
+      sample: completedOrders.slice(0, 2).map(o => ({
+        orderId: o.orderId,
+        handoffStatus: o.handoffStatus
+      }))
+    });
+
     // 2. Get settled delivery orders
     const deliveriesState = db.data.deliveries || {};
     const settlements = deliveriesState.settlements || {};
+    console.log('[KDS][getCompletedOrderIds] 💰 Settlements data:', {
+      hasDeliveries: !!deliveriesState,
+      settlementsCount: Object.keys(settlements).length,
+      settlementKeys: Object.keys(settlements).slice(0, 5),
+      sampleSettlements: Object.entries(settlements).slice(0, 2).map(([orderId, s]) => ({
+        orderId,
+        status: s.status
+      }))
+    });
+
     const settledDeliveryOrders = buildOrdersFromHeaders(db)
       .filter(order=> {
-        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return false;
+        const isDelivery = (order.serviceMode || 'dine_in').toLowerCase() === 'delivery';
+        if(!isDelivery) return false;
+
         const settlement = settlements[order.orderId];
-        return settlement && settlement.status === 'settled';
+        const isSettled = settlement && settlement.status === 'settled';
+
+        console.log('[KDS][getCompletedOrderIds] 🚚 Checking delivery order:', {
+          orderId: order.orderId,
+          hasSettlement: !!settlement,
+          settlementStatus: settlement?.status,
+          isSettled
+        });
+
+        return isSettled;
       });
+
+    console.log('[KDS][getCompletedOrderIds] 📦 Settled delivery orders:', {
+      count: settledDeliveryOrders.length
+    });
 
     // Add all completed order IDs with normalization
     [...completedOrders, ...settledDeliveryOrders].forEach(order => {
@@ -1840,6 +1873,11 @@
         completedOrderIds.add(normalizedId);
       }
       completedOrderIds.add(String(rawId));
+    });
+
+    console.log('[KDS][getCompletedOrderIds] ✅ Final completed order IDs:', {
+      count: completedOrderIds.size,
+      ids: Array.from(completedOrderIds).slice(0, 5)
     });
 
     return completedOrderIds;
