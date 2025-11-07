@@ -1538,21 +1538,6 @@
                   : Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
     const details = Array.isArray(jobOrders.job_order_detail) ? jobOrders.job_order_detail
                   : Array.isArray(jobOrders.details) ? jobOrders.details : [];
-
-    // ✅ Log in_progress jobs being built
-    const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
-    if (inProgressHeaders.length > 0) {
-      console.log('[KDS][buildJobRecords] 🏗️ Building jobs from headers:', {
-        total: headers.length,
-        inProgress: inProgressHeaders.length,
-        sample: inProgressHeaders.slice(0, 1).map(h => ({
-          id: h.id?.substring(0, 20) + '...',
-          status: h.status,
-          startedAt: h.startedAt,
-          progressState: h.progressState
-        }))
-      });
-    }
     const modifiers = Array.isArray(jobOrders.job_order_detail_modifier) ? jobOrders.job_order_detail_modifier
                     : Array.isArray(jobOrders.modifiers) ? jobOrders.modifiers : [];
     const history = Array.isArray(jobOrders.job_order_status_history) ? jobOrders.job_order_status_history
@@ -2569,16 +2554,6 @@
             }
           ]
         });
-
-        // ✅ Subscribe to CRUD state changes and trigger Mishkah app re-render
-        window.__driverCRUD__.subscribe((state) => {
-          console.log('[KDS][CRUD] State changed, triggering app re-render:', state.mode);
-          // Trigger Mishkah app re-render
-          if (Mishkah && Mishkah.app && typeof Mishkah.app.setState === 'function') {
-            Mishkah.app.setState(s => ({ ...s, _crudTrigger: Date.now() }));
-          }
-        });
-
         // Initial load
         window.__driverCRUD__.loadRecords();
       } catch (err) {
@@ -2588,21 +2563,14 @@
     }
 
     const crud = window.__driverCRUD__;
-
-    // ✅ Pass app instance for reactive updates
-    const crudUI = window.MishkahCRUD.renderCRUD(crud, D, tw, { lang }, Mishkah.app);
+    const crudUI = window.MishkahCRUD.renderCRUD(crud, D, tw, { lang });
 
     return UI.Modal({
       open,
       title: lang === 'ar' ? 'إدارة السائقين' : 'Manage Drivers',
       description: lang === 'ar' ? 'إضافة وتعديل وحذف السائقين' : 'Add, edit, and delete drivers',
       size: 'large',
-      content: D.Containers.Div({
-        attrs: {
-          class: tw`w-full`,
-          style: 'max-width: 100%; overflow-x: auto;'
-        }
-      }, [crudUI]),
+      content: crudUI,
       actions:[
         {
           label: t.modal.close,
@@ -3500,34 +3468,19 @@
         if(!btn) return;
         const jobId = btn.getAttribute('data-job-id');
         if(!jobId) return;
-
-        console.log('[KDS][job:start] 🎬 Button clicked for job:', jobId);
-
         const nowIso = new Date().toISOString();
         const nowMs = Date.parse(nowIso);
-
-        console.log('[KDS][job:start] 📋 Updating state for job:', jobId);
         ctx.setState(state=> applyJobsUpdate(state, list=> list.map(job=> job.id === jobId ? startJob(job, nowIso, nowMs) : job)));
-
-        console.log('[KDS][job:start] 📡 Emitting sync event');
         emitSync({ type:'job:update', jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
-
         if(syncClient){
-          console.log('[KDS][job:start] 📤 Publishing to sync client');
           syncClient.publishJobUpdate({ jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
         }
-
         // ✅ Persist status change to server
-        console.log('[KDS][job:start] 💾 Persisting to database');
         persistJobOrderStatusChange(jobId, { status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso }, {
           actorId: 'kds',
           actorName: 'KDS',
           actorRole: 'kds',
           reason: 'job-started'
-        }).then(() => {
-          console.log('[KDS][job:start] ✅ Persistence complete');
-        }).catch(err => {
-          console.error('[KDS][job:start] ❌ Persistence failed:', err);
         });
       }
     },
@@ -3973,13 +3926,8 @@
 
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
-    console.log('[KDS][persistJobOrderStatusChange] 🚀 START:', {
-      jobId,
-      statusPayload,
-      storeAvailable: !!store,
-      updateFn: typeof store?.update,
-      insertFn: typeof store?.insert
-    });
+
+
 
     if (!store || typeof store.update !== 'function' || typeof store.insert !== 'function') {
       console.warn('[KDS][persistJobOrderStatusChange] Store not available, changes will not be persisted');
@@ -4061,7 +4009,6 @@
     }
 
     try {
-      console.log('[KDS][persistJobOrderStatusChange] ✅ Using store for persistence');
 
       // 1. Update job_order_header with new status
       const headerUpdate = {
@@ -4070,34 +4017,7 @@
         updatedAt: statusPayload.updatedAt || new Date().toISOString()
       };
 
-      console.log('[KDS][persistJobOrderStatusChange] 📝 Updating job_order_header:', headerUpdate);
-
-      // ✅ Log current state BEFORE update
-      const currentHeaders = watcherState.headers || [];
-      const currentHeader = currentHeaders.find(h => h.id === jobId);
-      console.log('[KDS][persistJobOrderStatusChange] 📋 BEFORE update - current header:', {
-        id: currentHeader?.id,
-        status: currentHeader?.status,
-        startedAt: currentHeader?.startedAt,
-        progressState: currentHeader?.progressState
-      });
-
-      const headerResult = await store.update('job_order_header', headerUpdate);
-      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated - result:', headerResult);
-
-      // ✅ Wait a bit for watcher to update
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // ✅ Log state AFTER update
-      const updatedHeaders = watcherState.headers || [];
-      const updatedHeader = updatedHeaders.find(h => h.id === jobId);
-      console.log('[KDS][persistJobOrderStatusChange] 📋 AFTER update - updated header:', {
-        id: updatedHeader?.id,
-        status: updatedHeader?.status,
-        startedAt: updatedHeader?.startedAt,
-        progressState: updatedHeader?.progressState,
-        didChange: updatedHeader?.status !== currentHeader?.status
-      });
+      await store.update('job_order_header', headerUpdate);
 
       // 2. ✅ Update all job_order_detail for this job
       const allJobDetails = watcherState.lines || [];
@@ -4105,23 +4025,17 @@
         String(detail.jobOrderId || detail.job_order_id) === jobId
       );
 
-      console.log('[KDS][persistJobOrderStatusChange] 📝 Found job_order_details:', jobDetails.length);
-
       for (const detail of jobDetails) {
         try {
-          const detailUpdate = {
+          await store.update('job_order_detail', {
             id: detail.id,
             status: statusPayload.status,
             updatedAt: statusPayload.updatedAt || new Date().toISOString()
-          };
-          console.log('[KDS][persistJobOrderStatusChange] 📝 Updating job_order_detail:', detailUpdate);
-          await store.update('job_order_detail', detailUpdate);
+          });
         } catch (detailError) {
-          console.warn('[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail:', detail.id, detailError);
+          console.warn('[KDS][persistJobOrderStatusChange] Failed to update job_order_detail:', detail.id, detailError);
         }
       }
-
-      console.log('[KDS][persistJobOrderStatusChange] ✅ All job_order_details updated');
 
       // 3. ✅ Update order_line status using orderId from job + itemId matching
       const baseOrderId = extractBaseOrderId(jobId);
@@ -5592,33 +5506,12 @@
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_header', (rows) => {
-          const headers = ensureArray(rows);
-
-          // ✅ Log changes in job_order_header
-          const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
-          if (inProgressHeaders.length > 0) {
-            console.log('[KDS][Watcher] 📥 job_order_header received:', {
-              total: headers.length,
-              inProgress: inProgressHeaders.length,
-              sample: inProgressHeaders.slice(0, 2).map(h => ({
-                id: h.id?.substring(0, 20) + '...',
-                status: h.status,
-                startedAt: h.startedAt,
-                progressState: h.progressState
-              }))
-            });
-          }
-
-          watcherState.headers = headers;
-          updateFromWatchers();
+        store.watch('job_order_header', (rows) => {          watcherState.headers = ensureArray(rows);          updateFromWatchers();
         })
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_detail', (rows) => {
-          watcherState.lines = ensureArray(rows);
-          updateFromWatchers();
+        store.watch('job_order_detail', (rows) => {          watcherState.lines = ensureArray(rows);          updateFromWatchers();
         })
       );
 
@@ -5738,32 +5631,11 @@
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_header', (rows) => {
-              const headers = ensureArray(rows);
-
-              // ✅ Log changes in job_order_header
-              const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
-              if (inProgressHeaders.length > 0) {
-                console.log('[KDS][Watcher] 📥 job_order_header received:', {
-                  total: headers.length,
-                  inProgress: inProgressHeaders.length,
-                  sample: inProgressHeaders.slice(0, 2).map(h => ({
-                    id: h.id?.substring(0, 20) + '...',
-                    status: h.status,
-                    startedAt: h.startedAt,
-                    progressState: h.progressState
-                  }))
-                });
-              }
-
-              watcherState.headers = headers;
-              updateFromWatchers();
+            store.watch('job_order_header', (rows) => {              watcherState.headers = ensureArray(rows);              updateFromWatchers();
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_detail', (rows) => {
-              watcherState.lines = ensureArray(rows);
-              updateFromWatchers();
+            store.watch('job_order_detail', (rows) => {              watcherState.lines = ensureArray(rows);              updateFromWatchers();
             })
           );
           // ✅ Watch order_header for static tabs
