@@ -13,6 +13,9 @@
     const { tw, token } = U.twcss;
     const BASE_PALETTE = U.twcss?.PALETTE || {};
 
+    // ✅ CLAUDE FIX: Global flag to prevent duplicate saves
+    let IS_SAVING_ORDER = false;
+
     const JSONX = U.JSON || {};
     const hasStructuredClone = typeof structuredClone === 'function';
     const isPlainObject = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -2652,7 +2655,7 @@
       const orderHeader = {
         id: order.id,
         type: serviceMode,
-        orderNumber: orderNumber,
+        orderNumber: order.orderNumber || order.invoiceId || order.id,
         orderTypeId: serviceMode,
         serviceMode,
         status: order.status || 'open',
@@ -5982,6 +5985,10 @@
     }
 
     async function persistOrderFlow(ctx, rawMode, options={}){
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('🔥 [CLAUDE FIX v2] persistOrderFlow STARTED');
+      console.log('═══════════════════════════════════════════════════════');
+
       const state = ctx.getState();
       const t = getTexts(state);
       const retryCount = options.retryCount || 0;
@@ -6020,6 +6027,30 @@
         mode: rawMode,
         retryCount
       });
+
+      // ✅ فحص: يوجد سطر واحد على الأقل؟
+      const lines = order.lines || [];
+      const validLines = lines.filter(line => !line.cancelled && !line.voided);
+      if(!validLines.length){
+        console.error('[POS] Cannot save empty order');
+        UI.pushToast(ctx, {
+          title: t.toast.empty_order || 'لا يمكن حفظ طلب فارغ',
+          subtitle: 'يجب إضافة صنف واحد على الأقل',
+          icon:'⚠️'
+        });
+        return { status:'error', reason:'empty-order' };
+      }
+
+      // ✅ فحص: هل يوجد تغييرات؟ (فقط للمسودات)
+      if(order.isPersisted && !order.dirty && rawMode === 'draft'){
+        console.log('[POS] No changes detected, skipping save');
+        UI.pushToast(ctx, {
+          title: t.toast.no_changes || 'لا توجد تغييرات للحفظ',
+          icon:'ℹ️'
+        });
+        return { status:'no-changes' };
+      }
+
       const previousOrderId = order.id;
       const orderType = order.type || 'dine_in';
       const mode = normalizeSaveMode(rawMode, orderType);
@@ -6248,6 +6279,9 @@
         willAllocateNew: !order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId
       });
       if(!order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId){
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('🔢 [CLAUDE FIX v2] ALLOCATING NEW INVOICE ID (sequence call)');
+        console.log('═══════════════════════════════════════════════════════');
         console.log('[Mishkah][POS] 🆕 Allocating NEW invoice ID', {
           isPersisted: order.isPersisted,
           previousOrderId,
@@ -6257,6 +6291,7 @@
         });
         try {
           finalOrderId = await allocateInvoiceId();
+          console.log('✅ [CLAUDE FIX v2] Invoice ID allocated successfully - THIS SHOULD ONLY HAPPEN ONCE');
           console.log('[Mishkah][POS] ✅ New invoice ID allocated:', {
             allocatedId: finalOrderId,
             previousId: previousOrderId,
@@ -6362,6 +6397,9 @@
       try{
         const persistableOrder = { ...orderPayload };
         delete persistableOrder.dirty;
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('💾 [CLAUDE FIX v2] SENDING ORDER TO REST API (NOT IndexedDB)');
+        console.log('═══════════════════════════════════════════════════════');
         console.log('[Mishkah][POS] Saving order to DB:', {
           orderId: persistableOrder.id,
           totals: persistableOrder.totals,
@@ -6373,6 +6411,7 @@
         let savedOrder = null;
         try {
           savedOrder = await posDB.saveOrder(persistableOrder);
+          console.log('✅ [CLAUDE FIX v2] REST API responded successfully');
           console.log('[Mishkah][POS] Order saved to DB, returned data:', {
             orderId: savedOrder?.id,
             totals: savedOrder?.totals,
@@ -7263,7 +7302,12 @@
       ]));
       if(canShowSave){
         const saveButton = UI.Button({
-          attrs:{ gkey:'pos:order:save', 'data-save-mode':'draft', class: tw`min-w-[160px] flex items-center justify-center gap-2` },
+          attrs:{
+            gkey:'pos:order:save',
+            'data-save-mode':'draft',
+            disabled: db.ui?.saving ? 'disabled' : undefined,
+            class: tw`min-w-[160px] flex items-center justify-center gap-2 ${db.ui?.saving ? 'opacity-50 cursor-not-allowed' : ''}`
+          },
           variant:'solid',
           size:'md'
         }, [D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [saveLabel])]);
@@ -7273,11 +7317,11 @@
         const finishAttrs = {
           gkey:'pos:order:save',
           'data-save-mode': finishMode,
-          class: tw`min-w-[180px] flex items-center justify-center gap-2`
+          class: tw`min-w-[180px] flex items-center justify-center gap-2 ${(finishDisabled || db.ui?.saving) ? 'opacity-50 cursor-not-allowed' : ''}`
         };
-        if(finishDisabled){
+        if(finishDisabled || db.ui?.saving){
           finishAttrs.disabled = 'disabled';
-          finishAttrs.title = t.ui.balance_due;
+          finishAttrs.title = finishDisabled ? t.ui.balance_due : undefined;
         }
         primaryActions.push(UI.Button({
           attrs: finishAttrs,
@@ -10768,9 +10812,39 @@
         on:['click'],
         gkeys:['pos:order:save'],
         handler: async (e,ctx)=>{
+          console.log('🚀 [CLAUDE FIX v2] Save button clicked - checking if save in progress...');
+
+          // ✅ STRONG protection against duplicate saves
+          if(IS_SAVING_ORDER){
+            console.warn('⚠️ [CLAUDE FIX] Save already in progress - BLOCKING duplicate save attempt');
+            return;
+          }
+
           const trigger = e.target.closest('[data-save-mode]');
           const mode = trigger?.getAttribute('data-save-mode') || 'draft';
-          await persistOrderFlow(ctx, mode);
+
+          console.log('✅ [CLAUDE FIX] Starting save operation', { mode, timestamp: new Date().toISOString() });
+
+          IS_SAVING_ORDER = true;
+          ctx.setState(s=>({
+            ...s,
+            ui:{ ...(s.ui || {}), saving:true }
+          }));
+
+          try {
+            await persistOrderFlow(ctx, mode);
+            console.log('✅ [CLAUDE FIX] Save completed successfully');
+          } catch(error) {
+            console.error('❌ [CLAUDE FIX] Save failed:', error);
+            throw error;
+          } finally {
+            IS_SAVING_ORDER = false;
+            ctx.setState(s=>({
+              ...s,
+              ui:{ ...(s.ui || {}), saving:false }
+            }));
+            console.log('🔓 [CLAUDE FIX] Save lock released');
+          }
         }
       },
       'pos.shift.open':{

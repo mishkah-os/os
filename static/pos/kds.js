@@ -1538,6 +1538,21 @@
                   : Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
     const details = Array.isArray(jobOrders.job_order_detail) ? jobOrders.job_order_detail
                   : Array.isArray(jobOrders.details) ? jobOrders.details : [];
+
+    // ✅ Log in_progress jobs being built
+    const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
+    if (inProgressHeaders.length > 0) {
+      console.log('[KDS][buildJobRecords] 🏗️ Building jobs from headers:', {
+        total: headers.length,
+        inProgress: inProgressHeaders.length,
+        sample: inProgressHeaders.slice(0, 1).map(h => ({
+          id: h.id?.substring(0, 20) + '...',
+          status: h.status,
+          startedAt: h.startedAt,
+          progressState: h.progressState
+        }))
+      });
+    }
     const modifiers = Array.isArray(jobOrders.job_order_detail_modifier) ? jobOrders.job_order_detail_modifier
                     : Array.isArray(jobOrders.modifiers) ? jobOrders.modifiers : [];
     const history = Array.isArray(jobOrders.job_order_status_history) ? jobOrders.job_order_status_history
@@ -2573,7 +2588,9 @@
     }
 
     const crud = window.__driverCRUD__;
-    const crudUI = window.MishkahCRUD.renderCRUD(crud, D, tw, { lang });
+
+    // ✅ Pass app instance for reactive updates
+    const crudUI = window.MishkahCRUD.renderCRUD(crud, D, tw, { lang }, Mishkah.app);
 
     return UI.Modal({
       open,
@@ -3507,6 +3524,10 @@
           actorName: 'KDS',
           actorRole: 'kds',
           reason: 'job-started'
+        }).then(() => {
+          console.log('[KDS][job:start] ✅ Persistence complete');
+        }).catch(err => {
+          console.error('[KDS][job:start] ❌ Persistence failed:', err);
         });
       }
     },
@@ -4050,8 +4071,33 @@
       };
 
       console.log('[KDS][persistJobOrderStatusChange] 📝 Updating job_order_header:', headerUpdate);
+
+      // ✅ Log current state BEFORE update
+      const currentHeaders = watcherState.headers || [];
+      const currentHeader = currentHeaders.find(h => h.id === jobId);
+      console.log('[KDS][persistJobOrderStatusChange] 📋 BEFORE update - current header:', {
+        id: currentHeader?.id,
+        status: currentHeader?.status,
+        startedAt: currentHeader?.startedAt,
+        progressState: currentHeader?.progressState
+      });
+
       const headerResult = await store.update('job_order_header', headerUpdate);
-      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated:', headerResult);
+      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated - result:', headerResult);
+
+      // ✅ Wait a bit for watcher to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // ✅ Log state AFTER update
+      const updatedHeaders = watcherState.headers || [];
+      const updatedHeader = updatedHeaders.find(h => h.id === jobId);
+      console.log('[KDS][persistJobOrderStatusChange] 📋 AFTER update - updated header:', {
+        id: updatedHeader?.id,
+        status: updatedHeader?.status,
+        startedAt: updatedHeader?.startedAt,
+        progressState: updatedHeader?.progressState,
+        didChange: updatedHeader?.status !== currentHeader?.status
+      });
 
       // 2. ✅ Update all job_order_detail for this job
       const allJobDetails = watcherState.lines || [];
@@ -4059,17 +4105,23 @@
         String(detail.jobOrderId || detail.job_order_id) === jobId
       );
 
+      console.log('[KDS][persistJobOrderStatusChange] 📝 Found job_order_details:', jobDetails.length);
+
       for (const detail of jobDetails) {
         try {
-          await store.update('job_order_detail', {
+          const detailUpdate = {
             id: detail.id,
             status: statusPayload.status,
             updatedAt: statusPayload.updatedAt || new Date().toISOString()
-          });
+          };
+          console.log('[KDS][persistJobOrderStatusChange] 📝 Updating job_order_detail:', detailUpdate);
+          await store.update('job_order_detail', detailUpdate);
         } catch (detailError) {
-          console.warn('[KDS][persistJobOrderStatusChange] Failed to update job_order_detail:', detail.id, detailError);
+          console.warn('[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail:', detail.id, detailError);
         }
       }
+
+      console.log('[KDS][persistJobOrderStatusChange] ✅ All job_order_details updated');
 
       // 3. ✅ Update order_line status using orderId from job + itemId matching
       const baseOrderId = extractBaseOrderId(jobId);
@@ -5540,12 +5592,33 @@
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_header', (rows) => {          watcherState.headers = ensureArray(rows);          updateFromWatchers();
+        store.watch('job_order_header', (rows) => {
+          const headers = ensureArray(rows);
+
+          // ✅ Log changes in job_order_header
+          const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
+          if (inProgressHeaders.length > 0) {
+            console.log('[KDS][Watcher] 📥 job_order_header received:', {
+              total: headers.length,
+              inProgress: inProgressHeaders.length,
+              sample: inProgressHeaders.slice(0, 2).map(h => ({
+                id: h.id?.substring(0, 20) + '...',
+                status: h.status,
+                startedAt: h.startedAt,
+                progressState: h.progressState
+              }))
+            });
+          }
+
+          watcherState.headers = headers;
+          updateFromWatchers();
         })
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_detail', (rows) => {          watcherState.lines = ensureArray(rows);          updateFromWatchers();
+        store.watch('job_order_detail', (rows) => {
+          watcherState.lines = ensureArray(rows);
+          updateFromWatchers();
         })
       );
 
@@ -5665,11 +5738,32 @@
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_header', (rows) => {              watcherState.headers = ensureArray(rows);              updateFromWatchers();
+            store.watch('job_order_header', (rows) => {
+              const headers = ensureArray(rows);
+
+              // ✅ Log changes in job_order_header
+              const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
+              if (inProgressHeaders.length > 0) {
+                console.log('[KDS][Watcher] 📥 job_order_header received:', {
+                  total: headers.length,
+                  inProgress: inProgressHeaders.length,
+                  sample: inProgressHeaders.slice(0, 2).map(h => ({
+                    id: h.id?.substring(0, 20) + '...',
+                    status: h.status,
+                    startedAt: h.startedAt,
+                    progressState: h.progressState
+                  }))
+                });
+              }
+
+              watcherState.headers = headers;
+              updateFromWatchers();
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_detail', (rows) => {              watcherState.lines = ensureArray(rows);              updateFromWatchers();
+            store.watch('job_order_detail', (rows) => {
+              watcherState.lines = ensureArray(rows);
+              updateFromWatchers();
             })
           );
           // ✅ Watch order_header for static tabs
