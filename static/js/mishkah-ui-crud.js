@@ -332,11 +332,21 @@
    * @param {Object} crud - CRUD instance
    * @param {Object} D - Mishkah DOM builder
    * @param {Function} tw - Tailwind class builder
+   * @param {Object} app - Mishkah app instance (for re-rendering)
    * @returns {VNode} Virtual DOM node
    */
-  const renderCRUD = (crud, D, tw, config) => {
+  const renderCRUD = (crud, D, tw, config, app) => {
     const state = crud.getState();
     const cfg = { ...DEFAULT_CONFIG, ...config };
+
+    // ✅ Subscribe to state changes and trigger app re-render
+    if (app && typeof app.setState === 'function' && !crud._mishkahSubscribed) {
+      crud.subscribe(() => {
+        // Trigger Mishkah app re-render
+        app.setState(s => ({ ...s, _crudTrigger: Date.now() }));
+      });
+      crud._mishkahSubscribed = true;
+    }
 
     // Translations
     const t = {
@@ -538,6 +548,72 @@
     const renderList = () => {
       const records = crud.getFilteredRecords();
 
+      // ✅ Table view with search in all fields
+      const renderTable = () => {
+        if (records.length === 0) {
+          return D.Containers.Div({
+            attrs: { class: tw`py-12 text-center text-slate-400` }
+          }, [lang.noRecords]);
+        }
+
+        return D.Containers.Div({ attrs: { class: tw`overflow-x-auto` } }, [
+          D.Elements.Table({ attrs: { class: tw`w-full text-sm` } }, [
+            D.Elements.Thead({ attrs: { class: tw`border-b border-slate-700/60` } }, [
+              D.Elements.Tr(null, [
+                ...cfg.fields
+                  .filter(f => f.type !== FIELD_TYPES.CHECKBOX)
+                  .map(field => {
+                    const label = cfg.lang === 'ar'
+                      ? (field.labelAr || field.label || field.name)
+                      : (field.labelEn || field.label || field.name);
+                    return D.Elements.Th({
+                      attrs: { class: tw`px-3 py-2 text-start text-xs font-semibold uppercase tracking-wide text-slate-300` }
+                    }, [label]);
+                  }),
+                D.Elements.Th({
+                  attrs: { class: tw`px-3 py-2 text-start text-xs font-semibold uppercase tracking-wide text-slate-300` }
+                }, [lang.edit])
+              ])
+            ]),
+            D.Elements.Tbody(null, records.map(record => {
+              return D.Elements.Tr({
+                attrs: { class: tw`border-b border-slate-800/60 hover:bg-slate-800/30` }
+              }, [
+                ...cfg.fields
+                  .filter(f => f.type !== FIELD_TYPES.CHECKBOX)
+                  .map(field => {
+                    const value = record[field.name];
+                    const displayValue = field.type === FIELD_TYPES.CHECKBOX
+                      ? (value ? '✓' : '✗')
+                      : (value || '-');
+                    return D.Elements.Td({
+                      attrs: { class: tw`px-3 py-2 text-slate-200` }
+                    }, [String(displayValue)]);
+                  }),
+                D.Elements.Td({ attrs: { class: tw`px-3 py-2` } }, [
+                  D.Containers.Div({ attrs: { class: tw`flex gap-2` } }, [
+                    D.Forms.Button({
+                      attrs: {
+                        type: 'button',
+                        onclick: () => crud.startEdit(record[cfg.idField]),
+                        class: tw`px-2 py-1 text-xs rounded border border-sky-600/60 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20`
+                      }
+                    }, [lang.edit]),
+                    cfg.allowDelete ? D.Forms.Button({
+                      attrs: {
+                        type: 'button',
+                        onclick: () => crud.deleteRecord(record[cfg.idField]),
+                        class: tw`px-2 py-1 text-xs rounded border border-red-600/60 bg-red-500/10 text-red-100 hover:bg-red-500/20`
+                      }
+                    }, [lang.delete]) : null
+                  ].filter(Boolean))
+                ])
+              ]);
+            }))
+          ])
+        ]);
+      };
+
       return D.Containers.Div({ attrs: { class: tw`flex flex-col gap-4` } }, [
         // Header with search and create button
         D.Containers.Div({ attrs: { class: tw`flex items-center gap-3` } }, [
@@ -570,55 +646,10 @@
           attrs: { class: tw`px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-200 text-sm` }
         }, [state.error]) : null,
 
-        // Records list
+        // ✅ Table view
         state.loading
           ? D.Text.P({ attrs: { class: tw`text-center text-slate-400 py-8` } }, [lang.loading])
-          : records.length === 0
-            ? D.Text.P({ attrs: { class: tw`text-center text-slate-400 py-8` } }, [lang.noRecords])
-            : D.Containers.Div({ attrs: { class: tw`flex flex-col gap-2` } },
-                records.map(record => {
-                  const displayValue = record[cfg.displayField] || record[cfg.idField];
-
-                  return D.Containers.Div({
-                    attrs: {
-                      class: tw`flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/70 px-4 py-3`
-                    }
-                  }, [
-                    // Display info
-                    D.Containers.Div({ attrs: { class: tw`flex flex-col` } }, [
-                      D.Text.Strong({ attrs: { class: tw`text-sm text-slate-100` } }, [displayValue]),
-                      // Show additional fields
-                      ...cfg.fields.slice(0, 2).map(field => {
-                        if (field.name === cfg.displayField) return null;
-                        const value = record[field.name];
-                        if (!value) return null;
-                        return D.Text.Span({ attrs: { class: tw`text-xs text-slate-400` } }, [
-                          String(value)
-                        ]);
-                      }).filter(Boolean)
-                    ]),
-
-                    // Actions
-                    D.Containers.Div({ attrs: { class: tw`flex gap-2` } }, [
-                      cfg.allowEdit ? D.Forms.Button({
-                        attrs: {
-                          type: 'button',
-                          onclick: () => crud.startEdit(record[cfg.idField]),
-                          class: tw`px-3 py-1 text-xs rounded-lg border border-sky-600/60 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20`
-                        }
-                      }, [lang.edit]) : null,
-
-                      cfg.allowDelete ? D.Forms.Button({
-                        attrs: {
-                          type: 'button',
-                          onclick: () => crud.deleteRecord(record[cfg.idField]),
-                          class: tw`px-3 py-1 text-xs rounded-lg border border-red-600/60 bg-red-500/10 text-red-100 hover:bg-red-500/20`
-                        }
-                      }, [lang.delete]) : null
-                    ].filter(Boolean))
-                  ]);
-                })
-              )
+          : renderTable()
       ].filter(Boolean));
     };
 
