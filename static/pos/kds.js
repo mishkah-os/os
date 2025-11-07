@@ -1596,6 +1596,14 @@
         });
 
         if(inProgressDetails.length > 0) {
+          console.log('[KDS][buildJobRecords] 🔍 Found in_progress details for job with status=' + currentStatus, {
+            jobId: cloned.id?.substring(0, 30) + '...',
+            currentStatus,
+            currentStartMs: cloned.startMs,
+            currentStartedAt: cloned.startedAt,
+            inProgressDetailsCount: inProgressDetails.length
+          });
+
           // Find earliest start time from in_progress details
           // Try multiple property names: startAt, startedAt, start_at
           const startTimes = inProgressDetails
@@ -1608,6 +1616,13 @@
           if(earliestStartAt) {
             const calculatedStartMs = parseTime(earliestStartAt);
             if(calculatedStartMs) {
+              console.log('[KDS][buildJobRecords] ✨ Updating header from in_progress details:', {
+                jobId: cloned.id?.substring(0, 30) + '...',
+                oldStatus: cloned.status,
+                newStatus: 'in_progress',
+                earliestStartAt,
+                calculatedStartMs
+              });
               cloned.status = 'in_progress';
               cloned.progressState = 'cooking';
               cloned.startedAt = earliestStartAt;
@@ -3553,12 +3568,20 @@
         if(!jobId) return;
         const nowIso = new Date().toISOString();
         const nowMs = Date.parse(nowIso);
+
+        console.log('[KDS][job:start] 🚀 Starting job:', {
+          jobId: jobId?.substring(0, 30) + '...',
+          nowIso,
+          nowMs
+        });
+
         ctx.setState(state=> applyJobsUpdate(state, list=> list.map(job=> job.id === jobId ? startJob(job, nowIso, nowMs) : job)));
         emitSync({ type:'job:update', jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
         if(syncClient){
           syncClient.publishJobUpdate({ jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
         }
         // ✅ Persist status change to server
+        console.log('[KDS][job:start] 💾 Calling persistJobOrderStatusChange...');
         persistJobOrderStatusChange(jobId, { status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso }, {
           actorId: 'kds',
           actorName: 'KDS',
@@ -4009,8 +4032,13 @@
 
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
-
-
+    console.log('[KDS][persistJobOrderStatusChange] 📝 Called with:', {
+      jobId: jobId?.substring(0, 30) + '...',
+      statusPayload,
+      actorInfo,
+      hasStore: !!store,
+      storeType: store ? typeof store.update : 'no-store'
+    });
 
     if (!store || typeof store.update !== 'function' || typeof store.insert !== 'function') {
       console.warn('[KDS][persistJobOrderStatusChange] Store not available, changes will not be persisted');
@@ -4100,7 +4128,9 @@
         updatedAt: statusPayload.updatedAt || new Date().toISOString()
       };
 
+      console.log('[KDS][persistJobOrderStatusChange] 📤 Updating job_order_header:', headerUpdate);
       await store.update('job_order_header', headerUpdate);
+      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated successfully');
 
       // 2. ✅ Update all job_order_detail for this job
       const allJobDetails = watcherState.lines || [];
