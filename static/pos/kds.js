@@ -1820,15 +1820,48 @@
         return status === 'assembled' || status === 'served' || status === 'delivered';
       });
 
+    console.log('[KDS][getCompletedOrderIds] 🔍 Completed orders (assembled/served/delivered):', {
+      count: completedOrders.length,
+      sample: completedOrders.slice(0, 2).map(o => ({
+        orderId: o.orderId,
+        handoffStatus: o.handoffStatus
+      }))
+    });
+
     // 2. Get settled delivery orders
     const deliveriesState = db.data.deliveries || {};
     const settlements = deliveriesState.settlements || {};
+    console.log('[KDS][getCompletedOrderIds] 💰 Settlements data:', {
+      hasDeliveries: !!deliveriesState,
+      settlementsCount: Object.keys(settlements).length,
+      settlementKeys: Object.keys(settlements).slice(0, 5),
+      sampleSettlements: Object.entries(settlements).slice(0, 2).map(([orderId, s]) => ({
+        orderId,
+        status: s.status
+      }))
+    });
+
     const settledDeliveryOrders = buildOrdersFromHeaders(db)
       .filter(order=> {
-        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return false;
+        const isDelivery = (order.serviceMode || 'dine_in').toLowerCase() === 'delivery';
+        if(!isDelivery) return false;
+
         const settlement = settlements[order.orderId];
-        return settlement && settlement.status === 'settled';
+        const isSettled = settlement && settlement.status === 'settled';
+
+        console.log('[KDS][getCompletedOrderIds] 🚚 Checking delivery order:', {
+          orderId: order.orderId,
+          hasSettlement: !!settlement,
+          settlementStatus: settlement?.status,
+          isSettled
+        });
+
+        return isSettled;
       });
+
+    console.log('[KDS][getCompletedOrderIds] 📦 Settled delivery orders:', {
+      count: settledDeliveryOrders.length
+    });
 
     // Add all completed order IDs with normalization
     [...completedOrders, ...settledDeliveryOrders].forEach(order => {
@@ -1840,6 +1873,11 @@
         completedOrderIds.add(normalizedId);
       }
       completedOrderIds.add(String(rawId));
+    });
+
+    console.log('[KDS][getCompletedOrderIds] ✅ Final completed order IDs:', {
+      count: completedOrderIds.size,
+      ids: Array.from(completedOrderIds).slice(0, 5)
     });
 
     return completedOrderIds;
@@ -2325,9 +2363,35 @@
 
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
 
+    console.log('[KDS][renderStationPanel] 📊 Station jobs:', {
+      stationId,
+      totalJobs: allJobsForStation.length,
+      sampleJobs: allJobsForStation.slice(0, 2).map(j => ({
+        id: j.id?.substring(0, 30) + '...',
+        status: j.status,
+        progressState: j.progressState,
+        orderId: j.orderId
+      }))
+    });
+
     const jobs = allJobsForStation
       // Hide jobs that are already ready/completed
-      .filter(job=> job.status !== 'ready' && job.status !== 'completed')
+      .filter(job=> {
+        // ✅ Filter by status OR progressState
+        const isCompleted = job.status === 'ready' ||
+                           job.status === 'completed' ||
+                           job.progressState === 'completed';
+
+        if(isCompleted) {
+          console.log('[KDS][renderStationPanel] ❌ Filtering out completed job:', {
+            id: job.id?.substring(0, 30) + '...',
+            status: job.status,
+            progressState: job.progressState
+          });
+        }
+
+        return !isCompleted;
+      })
       // Hide jobs whose order is assembled/served/delivered or settled (for delivery orders)
       .filter(job=> {
         // Try both raw and normalized order IDs
@@ -2338,8 +2402,20 @@
         const shouldHide = completedOrderIds.has(normalizedJobOrderId) ||
                           completedOrderIds.has(stringJobOrderId);
 
+        if(shouldHide) {
+          console.log('[KDS][renderStationPanel] ❌ Filtering out job (order completed):', {
+            id: job.id?.substring(0, 30) + '...',
+            orderId: job.orderId
+          });
+        }
+
         return !shouldHide;
       });
+
+    console.log('[KDS][renderStationPanel] ✅ Final jobs to display:', {
+      stationId,
+      count: jobs.length
+    });
 
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
