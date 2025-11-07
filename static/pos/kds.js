@@ -3052,6 +3052,30 @@
   };
 
   const applyRemoteOrder = (appInstance, payload={}, meta={})=>{
+    console.log('[KDS][applyRemoteOrder] 📥 Incoming data:', {
+      source: meta?.channel || 'unknown',
+      hasJobOrderHeader: Array.isArray(payload.job_order_header) && payload.job_order_header.length > 0,
+      hasJobOrderDetail: Array.isArray(payload.job_order_detail) && payload.job_order_detail.length > 0,
+      hasOrderHeader: Array.isArray(payload.order_header) && payload.order_header.length > 0,
+      hasOrderLine: Array.isArray(payload.order_line) && payload.order_line.length > 0,
+      jobOrderHeaderCount: payload.job_order_header?.length || 0,
+      jobOrderDetailCount: payload.job_order_detail?.length || 0,
+      sampleJobOrderHeader: payload.job_order_header?.[0] ? {
+        id: payload.job_order_header[0].id?.substring(0, 30) + '...',
+        status: payload.job_order_header[0].status,
+        startedAt: payload.job_order_header[0].startedAt,
+        startMs: payload.job_order_header[0].startMs,
+        keys: Object.keys(payload.job_order_header[0])
+      } : null,
+      sampleJobOrderDetail: payload.job_order_detail?.[0] ? {
+        id: payload.job_order_detail[0].id?.substring(0, 30) + '...',
+        status: payload.job_order_detail[0].status,
+        startAt: payload.job_order_detail[0].startAt,
+        startedAt: payload.job_order_detail[0].startedAt,
+        keys: Object.keys(payload.job_order_detail[0])
+      } : null
+    });
+
     // ✅ Extract job order tables from flat payload structure
     const incomingJobOrders = {
       job_order_header: Array.isArray(payload.job_order_header) ? payload.job_order_header : [],
