@@ -6020,6 +6020,30 @@
         mode: rawMode,
         retryCount
       });
+
+      // ✅ فحص: يوجد سطر واحد على الأقل؟
+      const lines = order.lines || [];
+      const validLines = lines.filter(line => !line.cancelled && !line.voided);
+      if(!validLines.length){
+        console.error('[POS] Cannot save empty order');
+        UI.pushToast(ctx, {
+          title: t.toast.empty_order || 'لا يمكن حفظ طلب فارغ',
+          subtitle: 'يجب إضافة صنف واحد على الأقل',
+          icon:'⚠️'
+        });
+        return { status:'error', reason:'empty-order' };
+      }
+
+      // ✅ فحص: هل يوجد تغييرات؟ (فقط للمسودات)
+      if(order.isPersisted && !order.dirty && rawMode === 'draft'){
+        console.log('[POS] No changes detected, skipping save');
+        UI.pushToast(ctx, {
+          title: t.toast.no_changes || 'لا توجد تغييرات للحفظ',
+          icon:'ℹ️'
+        });
+        return { status:'no-changes' };
+      }
+
       const previousOrderId = order.id;
       const orderType = order.type || 'dine_in';
       const mode = normalizeSaveMode(rawMode, orderType);
@@ -7263,7 +7287,12 @@
       ]));
       if(canShowSave){
         const saveButton = UI.Button({
-          attrs:{ gkey:'pos:order:save', 'data-save-mode':'draft', class: tw`min-w-[160px] flex items-center justify-center gap-2` },
+          attrs:{
+            gkey:'pos:order:save',
+            'data-save-mode':'draft',
+            disabled: db.ui?.saving ? 'disabled' : undefined,
+            class: tw`min-w-[160px] flex items-center justify-center gap-2 ${db.ui?.saving ? 'opacity-50 cursor-not-allowed' : ''}`
+          },
           variant:'solid',
           size:'md'
         }, [D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [saveLabel])]);
@@ -7273,11 +7302,11 @@
         const finishAttrs = {
           gkey:'pos:order:save',
           'data-save-mode': finishMode,
-          class: tw`min-w-[180px] flex items-center justify-center gap-2`
+          class: tw`min-w-[180px] flex items-center justify-center gap-2 ${(finishDisabled || db.ui?.saving) ? 'opacity-50 cursor-not-allowed' : ''}`
         };
-        if(finishDisabled){
+        if(finishDisabled || db.ui?.saving){
           finishAttrs.disabled = 'disabled';
-          finishAttrs.title = t.ui.balance_due;
+          finishAttrs.title = finishDisabled ? t.ui.balance_due : undefined;
         }
         primaryActions.push(UI.Button({
           attrs: finishAttrs,
@@ -10768,9 +10797,32 @@
         on:['click'],
         gkeys:['pos:order:save'],
         handler: async (e,ctx)=>{
+          const state = ctx.getState();
+
+          // ✅ منع الحفظ المتكرر
+          if(state.ui?.saving){
+            console.log('[POS] Save already in progress, ignoring click');
+            return;
+          }
+
           const trigger = e.target.closest('[data-save-mode]');
           const mode = trigger?.getAttribute('data-save-mode') || 'draft';
-          await persistOrderFlow(ctx, mode);
+
+          // ✅ تفعيل flag
+          ctx.setState(s=>({
+            ...s,
+            ui:{ ...(s.ui || {}), saving:true }
+          }));
+
+          try {
+            await persistOrderFlow(ctx, mode);
+          } finally {
+            // ✅ إلغاء flag
+            ctx.setState(s=>({
+              ...s,
+              ui:{ ...(s.ui || {}), saving:false }
+            }));
+          }
         }
       },
       'pos.shift.open':{
