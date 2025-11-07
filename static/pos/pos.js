@@ -2481,6 +2481,10 @@
         const jobId = `${order.id}-${stationId}`;
         const section = sectionMap.get(stationId) || {};
         const stationCode = section.code || (stationId ? String(stationId).toUpperCase() : 'KDS');
+
+        // ✅ Check if job header already exists in KDS database
+        const existingInDb = realtimeJobOrders.headers.get(String(jobId));
+
         const existing = jobsMap.get(jobId) || {
           id: jobId,
           orderId: order.id,
@@ -2490,8 +2494,8 @@
           serviceMode,
           stationId,
           stationCode,
-          status:'queued',
-          progressState:'awaiting',
+          status: existingInDb?.status || 'queued',
+          progressState: existingInDb?.progressState || 'awaiting',
           totalItems:0,
           completedItems:0,
           remainingItems:0,
@@ -2500,11 +2504,12 @@
           tableLabel: tableLabel || null,
           customerName: customerName || null,
           dueAt: order.dueAt ? normalizeIso(order.dueAt) : null,
-          acceptedAt:null,
-          startedAt:null,
-          readyAt:null,
-          completedAt:null,
-          expoAt:null,
+          // ✅ Preserve existing KDS time fields instead of overwriting with null
+          acceptedAt: existingInDb?.acceptedAt || existingInDb?.accepted_at || null,
+          startedAt: existingInDb?.startedAt || existingInDb?.started_at || null,
+          readyAt: existingInDb?.readyAt || existingInDb?.ready_at || null,
+          completedAt: existingInDb?.completedAt || existingInDb?.completed_at || null,
+          expoAt: existingInDb?.expoAt || existingInDb?.expo_at || null,
           syncChecksum:`${order.id}-${stationId}`,
           notes: notesToText(line.notes, '; '),
           meta:{ orderSource:'pos', kdsTab: stationId },
@@ -2538,15 +2543,21 @@
         ) || (displayIdentifier ? displayIdentifier : null);
         const fallbackNameAr = displayIdentifier || `عنصر ${lineIndex}`;
         const fallbackNameEn = displayIdentifier || `Item ${lineIndex}`;
+
+        // ✅ Check if detail already exists in KDS database
+        const existingDetails = realtimeJobOrders.details.get(String(jobId)) || [];
+        const existingDetail = existingDetails.find(d => String(d.id) === String(detailId));
+
         const detail = {
           id: detailId,
           jobOrderId: jobId,
           itemId: itemIdentifier,
           itemCode: itemIdentifier,
           quantity,
-          status:'queued',
-          startAt:null,
-          finishAt:null,
+          status: existingDetail?.status || 'queued',
+          // ✅ Preserve existing startAt/finishAt fields
+          startAt: existingDetail?.startAt || existingDetail?.start_at || null,
+          finishAt: existingDetail?.finishAt || existingDetail?.finish_at || null,
           createdAt: createdIso,
           updatedAt: updatedIso,
           itemNameAr: localizeValue(nameSource, 'ar', fallbackNameAr),

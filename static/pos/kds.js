@@ -1607,20 +1607,6 @@
         });
 
         if(inProgressDetails.length > 0) {
-          console.log('[KDS][buildJobRecords] 🔍 Found in_progress details for job with status=' + currentStatus, {
-            jobId: cloned.id?.substring(0, 30) + '...',
-            currentStatus,
-            currentStartMs: cloned.startMs,
-            currentStartedAt: cloned.startedAt,
-            inProgressDetailsCount: inProgressDetails.length,
-            sampleDetail: inProgressDetails[0] ? {
-              id: inProgressDetails[0].id?.substring(0, 20) + '...',
-              status: inProgressDetails[0].status,
-              startAt: inProgressDetails[0].startAt,
-              startedAt: inProgressDetails[0].startedAt
-            } : null
-          });
-
           // Find earliest start time from in_progress details
           // Try multiple property names: startAt, startedAt, start_at, started_at
           const startTimes = inProgressDetails
@@ -1629,31 +1615,14 @@
             .sort();
 
           const earliestStartAt = startTimes[0];
-          console.log('[KDS][buildJobRecords] ⏰ Start times found:', {
-            count: startTimes.length,
-            earliest: earliestStartAt,
-            allTimes: startTimes
-          });
-
           if(earliestStartAt) {
             const calculatedStartMs = parseTime(earliestStartAt);
             if(calculatedStartMs) {
-              console.log('[KDS][buildJobRecords] ✨ Updating header from in_progress details:', {
-                jobId: cloned.id?.substring(0, 30) + '...',
-                oldStatus: cloned.status,
-                newStatus: 'in_progress',
-                earliestStartAt,
-                calculatedStartMs
-              });
               cloned.status = 'in_progress';
               cloned.progressState = 'cooking';
               cloned.startedAt = earliestStartAt;
               cloned.startMs = calculatedStartMs;
-            } else {
-              console.warn('[KDS][buildJobRecords] ⚠️ Failed to parse startMs from:', earliestStartAt);
             }
-          } else {
-            console.warn('[KDS][buildJobRecords] ⚠️ No valid start time found in in_progress details');
           }
         }
       }
@@ -1667,22 +1636,9 @@
     const validJobs = Array.isArray(jobsList)
       ? jobsList.filter(job => {
           const hasDetails = Array.isArray(job.details) && job.details.length > 0;
-          if (!hasDetails) {
-            console.log('[KDS][indexJobs] ❌ Filtering out job without details:', job.id);
-          }
           return hasDetails;
         })
       : [];
-
-    console.log('[KDS][indexJobs] 📊 Valid jobs after filtering:', {
-      total: validJobs.length,
-      sample: validJobs.slice(0, 2).map(j => ({
-        id: j.id?.substring(0, 30) + '...',
-        status: j.status,
-        progressState: j.progressState,
-        orderId: j.orderId
-      }))
-    });
 
     // ✅ Also filter out jobs with progressState='completed'
     const activeJobs = validJobs.filter(job => {
@@ -1690,20 +1646,7 @@
                          job.status === 'completed' ||
                          job.progressState === 'completed';
 
-      if(isCompleted) {
-        console.log('[KDS][indexJobs] ❌ Filtering out completed job:', {
-          id: job.id?.substring(0, 30) + '...',
-          status: job.status,
-          progressState: job.progressState,
-          orderId: job.orderId
-        });
-      }
-
       return !isCompleted;
-    });
-
-    console.log('[KDS][indexJobs] ✅ Active jobs after filtering completed:', {
-      total: activeJobs.length
     });
 
     const list = activeJobs.slice();
@@ -1852,26 +1795,9 @@
         return status === 'assembled' || status === 'served' || status === 'delivered';
       });
 
-    console.log('[KDS][getCompletedOrderIds] 🔍 Completed orders (assembled/served/delivered):', {
-      count: completedOrders.length,
-      sample: completedOrders.slice(0, 2).map(o => ({
-        orderId: o.orderId,
-        handoffStatus: o.handoffStatus
-      }))
-    });
-
     // 2. Get settled delivery orders
     const deliveriesState = db.data.deliveries || {};
     const settlements = deliveriesState.settlements || {};
-    console.log('[KDS][getCompletedOrderIds] 💰 Settlements data:', {
-      hasDeliveries: !!deliveriesState,
-      settlementsCount: Object.keys(settlements).length,
-      settlementKeys: Object.keys(settlements).slice(0, 5),
-      sampleSettlements: Object.entries(settlements).slice(0, 2).map(([orderId, s]) => ({
-        orderId,
-        status: s.status
-      }))
-    });
 
     const settledDeliveryOrders = buildOrdersFromHeaders(db)
       .filter(order=> {
@@ -1881,19 +1807,8 @@
         const settlement = settlements[order.orderId];
         const isSettled = settlement && settlement.status === 'settled';
 
-        console.log('[KDS][getCompletedOrderIds] 🚚 Checking delivery order:', {
-          orderId: order.orderId,
-          hasSettlement: !!settlement,
-          settlementStatus: settlement?.status,
-          isSettled
-        });
-
         return isSettled;
       });
-
-    console.log('[KDS][getCompletedOrderIds] 📦 Settled delivery orders:', {
-      count: settledDeliveryOrders.length
-    });
 
     // Add all completed order IDs with normalization
     [...completedOrders, ...settledDeliveryOrders].forEach(order => {
@@ -1905,11 +1820,6 @@
         completedOrderIds.add(normalizedId);
       }
       completedOrderIds.add(String(rawId));
-    });
-
-    console.log('[KDS][getCompletedOrderIds] ✅ Final completed order IDs:', {
-      count: completedOrderIds.size,
-      ids: Array.from(completedOrderIds).slice(0, 5)
     });
 
     return completedOrderIds;
@@ -2395,17 +2305,6 @@
 
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
 
-    console.log('[KDS][renderStationPanel] 📊 Station jobs:', {
-      stationId,
-      totalJobs: allJobsForStation.length,
-      sampleJobs: allJobsForStation.slice(0, 2).map(j => ({
-        id: j.id?.substring(0, 30) + '...',
-        status: j.status,
-        progressState: j.progressState,
-        orderId: j.orderId
-      }))
-    });
-
     const jobs = allJobsForStation
       // Hide jobs that are already ready/completed
       .filter(job=> {
@@ -2413,14 +2312,6 @@
         const isCompleted = job.status === 'ready' ||
                            job.status === 'completed' ||
                            job.progressState === 'completed';
-
-        if(isCompleted) {
-          console.log('[KDS][renderStationPanel] ❌ Filtering out completed job:', {
-            id: job.id?.substring(0, 30) + '...',
-            status: job.status,
-            progressState: job.progressState
-          });
-        }
 
         return !isCompleted;
       })
@@ -2434,20 +2325,8 @@
         const shouldHide = completedOrderIds.has(normalizedJobOrderId) ||
                           completedOrderIds.has(stringJobOrderId);
 
-        if(shouldHide) {
-          console.log('[KDS][renderStationPanel] ❌ Filtering out job (order completed):', {
-            id: job.id?.substring(0, 30) + '...',
-            orderId: job.orderId
-          });
-        }
-
         return !shouldHide;
       });
-
-    console.log('[KDS][renderStationPanel] ✅ Final jobs to display:', {
-      stationId,
-      count: jobs.length
-    });
 
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
@@ -3727,19 +3606,12 @@
         const nowIso = new Date().toISOString();
         const nowMs = Date.parse(nowIso);
 
-        console.log('[KDS][job:start] 🚀 Starting job:', {
-          jobId: jobId?.substring(0, 30) + '...',
-          nowIso,
-          nowMs
-        });
-
         ctx.setState(state=> applyJobsUpdate(state, list=> list.map(job=> job.id === jobId ? startJob(job, nowIso, nowMs) : job)));
         emitSync({ type:'job:update', jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
         if(syncClient){
           syncClient.publishJobUpdate({ jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
         }
         // ✅ Persist status change to server
-        console.log('[KDS][job:start] 💾 Calling persistJobOrderStatusChange...');
         persistJobOrderStatusChange(jobId, { status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso }, {
           actorId: 'kds',
           actorName: 'KDS',
@@ -4190,17 +4062,8 @@
 
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
-    console.log('[KDS][persistJobOrderStatusChange] 📝 Called with:', {
-      jobId: jobId?.substring(0, 30) + '...',
-      statusPayload,
-      actorInfo,
-      hasStore: !!store,
-      storeType: store ? typeof store.update : 'no-store'
-    });
-
     if (!store || typeof store.update !== 'function' || typeof store.insert !== 'function') {
-      console.warn('[KDS][persistJobOrderStatusChange] Store not available, changes will not be persisted');
-      console.warn('[KDS][persistJobOrderStatusChange] Will try to use REST API directly instead');
+      console.warn('[KDS][persistJobOrderStatusChange] Store not available, will try REST API instead');
 
       // ✅ Fallback: Use REST API directly if store is not available
       try {
@@ -4290,9 +4153,7 @@
         updated_at: statusPayload.updatedAt || new Date().toISOString()
       };
 
-      console.log('[KDS][persistJobOrderStatusChange] 📤 Updating job_order_header:', headerUpdate);
       await store.update('job_order_header', headerUpdate);
-      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated successfully');
 
       // 2. ✅ Update all job_order_detail for this job
       const allJobDetails = watcherState.lines || [];
@@ -4405,14 +4266,6 @@
                 return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
               }).length;
 
-              console.log('[KDS][persistJobOrderStatusChange] 🧮 Checking if all order_lines ready:', {
-                orderId: baseOrderId,
-                totalLines: orderAllLines.length,
-                readyLines: readyCount,
-                allReady: allLinesReady,
-                lineStatuses: orderAllLines.map(l => ({ id: l.id, status: l.status || l.statusId }))
-              });
-
               // ✅ Only update order_header if ALL lines are ready
               if (allLinesReady && orderAllLines.length > 0) {
                 const headerUpdatePayload = {
@@ -4422,17 +4275,9 @@
                   updatedAt: statusPayload.updatedAt || new Date().toISOString()
                 };
 
-                console.log('[KDS][persistJobOrderStatusChange] ✅ All order_lines ready! Updating order_header to ready:', headerUpdatePayload);
-
                 await store.update('order_header', headerUpdatePayload);
-              } else {
-                console.log('[KDS][persistJobOrderStatusChange] ⏳ Not all order_lines ready yet, keeping order_header unchanged:', {
-                  orderId: baseOrderId,
-                  currentHeaderStatus: matchingHeader.status || matchingHeader.statusId,
-                  readyCount,
-                  totalCount: orderAllLines.length
-                });
               }
+              // else: Not all lines ready yet, keeping order_header unchanged
             } else {
               console.warn('[KDS][persistJobOrderStatusChange] ⚠️ order_header not found for orderId:', baseOrderId);
             }
@@ -4689,12 +4534,7 @@
     const uuidRegex = /^(.+?)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
     const match = id.match(uuidRegex);
     if (match) {
-      const baseOrderId = match[1];
-      console.log('[KDS][extractBaseOrderId] Extracted:', {
-        fullId: id?.substring(0, 50) + '...',
-        extracted: baseOrderId
-      });
-      return baseOrderId;
+      return match[1];
     }
 
     // Fallback: return full ID
