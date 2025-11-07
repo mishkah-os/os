@@ -33,18 +33,22 @@
   <script src="../lib/mishkah.core.js"></script>
   <script src="../lib/mishkah-ui.js"></script>
   <script src="../lib/mishkah-schema.js"></script>
-    <script src="../lib/mishkah.store.js"></script>
+  <script src="../lib/mishkah.store.js"></script>
   <script src="../lib/mishkah.simple-store.js"></script>
   <script src="./pos-simple-loader.js"></script>
-  <script src="./pos-mini-db.js"></script>
+  <!-- ❌ pos-mini-db.js REMOVED - using pure mishkah-store -->
 </head>
 <body>
   <div id="app"></div>
   <script>
-    let createPosDb = window.createPosDb;
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('🔥 [POS V2] PURE MISHKAH-STORE (No pos-mini-db.js!) 🔥');
+    console.log('═══════════════════════════════════════════════════════');
 
     const params = new URLSearchParams(window.location.search || '');
     const BRANCH_ID = (params.get('brname') || '').trim();
+    const MODULE_ID = 'pos';
+
     if (BRANCH_ID) {
       window.__POS_BRANCH_ID__ = BRANCH_ID;
     }
@@ -58,15 +62,13 @@
             place-items: center;
             font-size: clamp(1.4rem, 4vw, 2.2rem);
             color: #f8fafc;
-              text-align:center;
+            text-align:center;
           "
         >
-        
           يرجى اختيار الفرع
         </main>
       `;
     } else {
-
       const status = {
         status: 'loading',
         startedAt: Date.now(),
@@ -78,59 +80,109 @@
 
       window.__POS_DATA_STATUS__ = status;
 
-      createPosDb({ branchId: BRANCH_ID })
-        .then(({ db, moduleEntry }) => {
-          window.__POS_DB__ = db;
-          window.__POS_MODULE_ENTRY__ = moduleEntry;
-          return db.ready();
-        })
-        .then(() => {
-          const db = window.__POS_DB__;
+      // ✅ Direct mishkah-store initialization (like kds.js)
+      (async function initPosV2() {
+        try {
+          console.log('📡 [POS V2] Fetching schema from /api/schema...');
 
-          // Load data from REST API once (preserves original structure)
+          // 1. Fetch schema directly from API
+          const schemaParams = new URLSearchParams({
+            branch: BRANCH_ID,
+            module: MODULE_ID
+          });
+          const schemaResponse = await fetch(`/api/schema?${schemaParams.toString()}`);
+          const schemaPayload = await schemaResponse.json();
+          const moduleEntry = schemaPayload?.modules?.[MODULE_ID];
+
+          if (!moduleEntry || !moduleEntry.schema) {
+            throw new Error(`Schema for module "${MODULE_ID}" not found`);
+          }
+
+          console.log('✅ [POS V2] Schema loaded:', moduleEntry.schema);
+          window.__POS_MODULE_ENTRY__ = moduleEntry;
+
+          // 2. Define tables to watch
+          const tables = [
+            'order_header',
+            'order_line',
+            'order_payment',
+            'pos_shift',
+            'pos_item',
+            'pos_category',
+            'pos_table',
+            'pos_driver',
+            'pos_payment_method',
+            'pos_customer'
+          ];
+
+          console.log('🔌 [POS V2] Creating WebSocket connection with createDBAuto...');
+
+          // 3. Use createDBAuto directly (no wrapper!)
+          const db = window.createDBAuto(moduleEntry.schema, tables, {
+            branchId: BRANCH_ID,
+            moduleId: MODULE_ID,
+            role: 'pos-v2',
+            autoReconnect: true,
+            historyLimit: 200,
+            logger: console
+          });
+
+          window.__POS_DB__ = db;
+          console.log('✅ [POS V2] createDBAuto called, waiting for ready...');
+
+          await db.ready();
+          console.log('✅ [POS V2] WebSocket ready!');
+
+          // 4. Load initial data from REST API (for backward compatibility)
           const loadFromRestApi = async () => {
             try {
-              const tables = await window.loadPosData(BRANCH_ID, 'pos');
+              console.log('📥 [POS V2] Loading initial data from REST API...');
+              const tables = await window.loadPosData(BRANCH_ID, MODULE_ID);
               window.database = tables;
               status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
               status.keys = Object.keys(tables);
+              console.log('✅ [POS V2] REST API data loaded:', Object.keys(tables));
             } catch (error) {
+              console.error('❌ [POS V2] REST API load failed:', error);
               window.database = {};
               status.status = 'error';
             }
           };
 
-          // Initial load from REST API
-          loadFromRestApi().then(() => {
-            status.finishedAt = Date.now();
+          await loadFromRestApi();
+          status.finishedAt = Date.now();
 
-            // Setup watchers to update individual tables in window.database
-            const registeredNames = typeof db.getRegisteredNames === 'function'
-              ? db.getRegisteredNames()
-              : Object.keys(db.config?.objects || {});
+          // 5. Setup watchers to update window.database in real-time
+          const registeredNames = typeof db.getRegisteredNames === 'function'
+            ? db.getRegisteredNames()
+            : Object.keys(db.config?.objects || {});
 
-            registeredNames.forEach(name => {
-              if (name === 'pos_database') return;
-              db.watch(name, (rows, meta) => {
-                // Update only the changed table in window.database
-                const tableName = meta?.table || name;
-                if (!window.database) window.database = {};
-                window.database[tableName] = rows;
-              });
+          console.log('👀 [POS V2] Setting up watchers for:', registeredNames);
+
+          registeredNames.forEach(name => {
+            if (name === 'pos_database') return;
+            db.watch(name, (rows, meta) => {
+              const tableName = meta?.table || name;
+              if (!window.database) window.database = {};
+              window.database[tableName] = rows;
+              console.log(`🔄 [POS V2] Table "${tableName}" updated:`, rows.length, 'rows');
             });
           });
 
-          console.log('🚀 [POS V2] Loading WebSocket-based POS...');
+          // 6. Load posv2.js
+          console.log('🚀 [POS V2] Loading posv2.js...');
           const script = document.createElement('script');
-          script.src = './posv2.js';  // ← Load posv2.js instead
+          script.src = './posv2.js';
           document.head.appendChild(script);
-        })
-        .catch((error) => {
+
+        } catch (error) {
+          console.error('❌ [POS V2] Initialization failed:', error);
           window.database = {};
           status.status = 'error';
           status.error = error;
           status.finishedAt = Date.now();
-        });
+        }
+      })();
     }
   </script>
 </body>

@@ -239,11 +239,62 @@ cp static/pos/pos.js static/pos/posv2.js
 ## الحالة / Status
 
 - ✅ posv2.html created
-- ⏳ posv2.js (in progress)
-- ⏳ Testing
-- ⏳ Refinement
+- ✅ **pos-mini-db.js removed from posv2.html**
+- ✅ **Direct createDBAuto usage implemented**
+- ✅ posv2.js (copy of pos.js with console marker)
+- ⏳ Testing WebSocket connection
+- ⏳ Migrate persistOrderFlow() to use db.insert/update
+- ⏳ Remove allocateInvoiceId() calls
+- ⏳ Add db.watch() for real-time sync
+
+---
+
+## التغييرات الحاسمة / Critical Changes
+
+### ✅ **DONE**: إزالة pos-mini-db.js من posv2.html
+
+**قبل**:
+```html
+<script src="./pos-mini-db.js"></script>
+<script>
+  createPosDb({ branchId: BRANCH_ID })
+    .then(({ db, moduleEntry }) => {
+      window.__POS_DB__ = db;
+      // ...
+    });
+</script>
+```
+
+**بعد** ✅:
+```html
+<!-- ❌ pos-mini-db.js REMOVED - using pure mishkah-store -->
+<script>
+  // 1. Fetch schema directly
+  const schemaResponse = await fetch(`/api/schema?branch=${BRANCH_ID}&module=pos`);
+  const schemaPayload = await schemaResponse.json();
+  const moduleEntry = schemaPayload?.modules?.pos;
+
+  // 2. Use createDBAuto directly (no wrapper!)
+  const db = window.createDBAuto(moduleEntry.schema, tables, {
+    branchId: BRANCH_ID,
+    moduleId: 'pos',
+    role: 'pos-v2',
+    autoReconnect: true,
+    historyLimit: 200
+  });
+
+  window.__POS_DB__ = db;
+  await db.ready();
+</script>
+```
+
+**الفوائد**:
+- ❌ لا memory wrapper overhead
+- ✅ اتصال مباشر مع mishkah-store
+- ✅ نفس النمط المستخدم في kds.js
+- ✅ كود أبسط وأوضح
 
 ---
 
 **آخر تحديث**: 2025-11-07
-**الحالة**: جاهز للتنفيذ
+**الحالة**: pos-mini-db.js removed, ready for persistOrderFlow migration
