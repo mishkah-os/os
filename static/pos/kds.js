@@ -3468,14 +3468,25 @@
         if(!btn) return;
         const jobId = btn.getAttribute('data-job-id');
         if(!jobId) return;
+
+        console.log('[KDS][job:start] 🎬 Button clicked for job:', jobId);
+
         const nowIso = new Date().toISOString();
         const nowMs = Date.parse(nowIso);
+
+        console.log('[KDS][job:start] 📋 Updating state for job:', jobId);
         ctx.setState(state=> applyJobsUpdate(state, list=> list.map(job=> job.id === jobId ? startJob(job, nowIso, nowMs) : job)));
+
+        console.log('[KDS][job:start] 📡 Emitting sync event');
         emitSync({ type:'job:update', jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
+
         if(syncClient){
+          console.log('[KDS][job:start] 📤 Publishing to sync client');
           syncClient.publishJobUpdate({ jobId, payload:{ status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso } });
         }
+
         // ✅ Persist status change to server
+        console.log('[KDS][job:start] 💾 Persisting to database');
         persistJobOrderStatusChange(jobId, { status:'in_progress', progressState:'cooking', startedAt: nowIso, updatedAt: nowIso }, {
           actorId: 'kds',
           actorName: 'KDS',
@@ -3926,8 +3937,13 @@
 
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
-
-
+    console.log('[KDS][persistJobOrderStatusChange] 🚀 START:', {
+      jobId,
+      statusPayload,
+      storeAvailable: !!store,
+      updateFn: typeof store?.update,
+      insertFn: typeof store?.insert
+    });
 
     if (!store || typeof store.update !== 'function' || typeof store.insert !== 'function') {
       console.warn('[KDS][persistJobOrderStatusChange] Store not available, changes will not be persisted');
@@ -4009,6 +4025,7 @@
     }
 
     try {
+      console.log('[KDS][persistJobOrderStatusChange] ✅ Using store for persistence');
 
       // 1. Update job_order_header with new status
       const headerUpdate = {
@@ -4017,7 +4034,9 @@
         updatedAt: statusPayload.updatedAt || new Date().toISOString()
       };
 
-      await store.update('job_order_header', headerUpdate);
+      console.log('[KDS][persistJobOrderStatusChange] 📝 Updating job_order_header:', headerUpdate);
+      const headerResult = await store.update('job_order_header', headerUpdate);
+      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated:', headerResult);
 
       // 2. ✅ Update all job_order_detail for this job
       const allJobDetails = watcherState.lines || [];
