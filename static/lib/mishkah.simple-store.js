@@ -168,7 +168,7 @@ function createContext(store, config) {
     initialFetchInProgress = true;
 
     try {
-      const apiUrl = `/api/branches/${encodeURIComponent(config.branchId)}/modules/${encodeURIComponent(config.moduleId)}`;
+      const apiUrl =  window.basedomain + `/api/branches/${encodeURIComponent(config.branchId)}/modules/${encodeURIComponent(config.moduleId)}`;
       const response = await fetch(apiUrl, { cache: 'no-store' });
 
       if (!response.ok) {
