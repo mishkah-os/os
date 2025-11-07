@@ -1584,6 +1584,31 @@
       cloned.completedMs = parseTime(cloned.completedAt);
       cloned.updatedMs = parseTime(cloned.updatedAt);
       cloned.dueMs = parseTime(cloned.dueAt);
+
+      // ✅ If header status is pending but ANY detail is in_progress,
+      // calculate startMs from first in_progress detail's startAt
+      // This ensures timer works even after page reload
+      if(cloned.status === 'pending' || !cloned.startMs) {
+        const inProgressDetails = cloned.details.filter(d => d.status === 'in_progress');
+        if(inProgressDetails.length > 0) {
+          // Find earliest startAt from in_progress details
+          const earliestStartAt = inProgressDetails
+            .map(d => d.startAt)
+            .filter(Boolean)
+            .sort()[0];
+
+          if(earliestStartAt) {
+            const calculatedStartMs = parseTime(earliestStartAt);
+            if(calculatedStartMs) {
+              cloned.status = 'in_progress';
+              cloned.progressState = 'cooking';
+              cloned.startedAt = earliestStartAt;
+              cloned.startMs = calculatedStartMs;
+            }
+          }
+        }
+      }
+
       return cloned;
     });
   };
@@ -2177,6 +2202,16 @@
         return status === 'assembled' || status === 'served' || status === 'delivered';
       });
 
+    // ✅ Get settled delivery orders
+    const deliveriesState = db.data.deliveries || {};
+    const settlements = deliveriesState.settlements || {};
+    const settledDeliveryOrders = buildOrdersFromHeaders(db)
+      .filter(order=> {
+        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return false;
+        const settlement = settlements[order.orderId];
+        return settlement && settlement.status === 'settled';
+      });
+
     // ✅ Normalize order IDs to handle format mismatches
     // Create a Set with multiple normalized versions of each order ID
     const completedOrderIds = new Set();
@@ -2199,12 +2234,28 @@
       completedOrderIdMap.set(stringId, { orderId: rawId, status: order.handoffStatus });
     });
 
+    // ✅ Add settled delivery orders to completed set
+    settledDeliveryOrders.forEach(order => {
+      const rawId = order.orderId || order.id;
+      if (!rawId) return;
+
+      const normalizedId = normalizeOrderKey(rawId);
+      if (normalizedId) {
+        completedOrderIds.add(normalizedId);
+        completedOrderIdMap.set(normalizedId, { orderId: rawId, status: 'settled' });
+      }
+
+      const stringId = String(rawId);
+      completedOrderIds.add(stringId);
+      completedOrderIdMap.set(stringId, { orderId: rawId, status: 'settled' });
+    });
+
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
 
     const jobs = allJobsForStation
       // Hide jobs that are already ready/completed
       .filter(job=> job.status !== 'ready' && job.status !== 'completed')
-      // Hide jobs whose order is assembled/served/delivered
+      // Hide jobs whose order is assembled/served/delivered or settled (for delivery orders)
       .filter(job=> {
         // Try both raw and normalized order IDs
         const rawJobOrderId = job.orderId;
