@@ -1538,6 +1538,21 @@
                   : Array.isArray(jobOrders.headers) ? jobOrders.headers : [];
     const details = Array.isArray(jobOrders.job_order_detail) ? jobOrders.job_order_detail
                   : Array.isArray(jobOrders.details) ? jobOrders.details : [];
+
+    // ✅ Log in_progress jobs being built
+    const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
+    if (inProgressHeaders.length > 0) {
+      console.log('[KDS][buildJobRecords] 🏗️ Building jobs from headers:', {
+        total: headers.length,
+        inProgress: inProgressHeaders.length,
+        sample: inProgressHeaders.slice(0, 1).map(h => ({
+          id: h.id?.substring(0, 20) + '...',
+          status: h.status,
+          startedAt: h.startedAt,
+          progressState: h.progressState
+        }))
+      });
+    }
     const modifiers = Array.isArray(jobOrders.job_order_detail_modifier) ? jobOrders.job_order_detail_modifier
                     : Array.isArray(jobOrders.modifiers) ? jobOrders.modifiers : [];
     const history = Array.isArray(jobOrders.job_order_status_history) ? jobOrders.job_order_status_history
@@ -4045,8 +4060,33 @@
       };
 
       console.log('[KDS][persistJobOrderStatusChange] 📝 Updating job_order_header:', headerUpdate);
+
+      // ✅ Log current state BEFORE update
+      const currentHeaders = watcherState.headers || [];
+      const currentHeader = currentHeaders.find(h => h.id === jobId);
+      console.log('[KDS][persistJobOrderStatusChange] 📋 BEFORE update - current header:', {
+        id: currentHeader?.id,
+        status: currentHeader?.status,
+        startedAt: currentHeader?.startedAt,
+        progressState: currentHeader?.progressState
+      });
+
       const headerResult = await store.update('job_order_header', headerUpdate);
-      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated:', headerResult);
+      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated - result:', headerResult);
+
+      // ✅ Wait a bit for watcher to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // ✅ Log state AFTER update
+      const updatedHeaders = watcherState.headers || [];
+      const updatedHeader = updatedHeaders.find(h => h.id === jobId);
+      console.log('[KDS][persistJobOrderStatusChange] 📋 AFTER update - updated header:', {
+        id: updatedHeader?.id,
+        status: updatedHeader?.status,
+        startedAt: updatedHeader?.startedAt,
+        progressState: updatedHeader?.progressState,
+        didChange: updatedHeader?.status !== currentHeader?.status
+      });
 
       // 2. ✅ Update all job_order_detail for this job
       const allJobDetails = watcherState.lines || [];
@@ -5541,12 +5581,33 @@
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_header', (rows) => {          watcherState.headers = ensureArray(rows);          updateFromWatchers();
+        store.watch('job_order_header', (rows) => {
+          const headers = ensureArray(rows);
+
+          // ✅ Log changes in job_order_header
+          const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
+          if (inProgressHeaders.length > 0) {
+            console.log('[KDS][Watcher] 📥 job_order_header received:', {
+              total: headers.length,
+              inProgress: inProgressHeaders.length,
+              sample: inProgressHeaders.slice(0, 2).map(h => ({
+                id: h.id?.substring(0, 20) + '...',
+                status: h.status,
+                startedAt: h.startedAt,
+                progressState: h.progressState
+              }))
+            });
+          }
+
+          watcherState.headers = headers;
+          updateFromWatchers();
         })
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_detail', (rows) => {          watcherState.lines = ensureArray(rows);          updateFromWatchers();
+        store.watch('job_order_detail', (rows) => {
+          watcherState.lines = ensureArray(rows);
+          updateFromWatchers();
         })
       );
 
@@ -5666,11 +5727,32 @@
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_header', (rows) => {              watcherState.headers = ensureArray(rows);              updateFromWatchers();
+            store.watch('job_order_header', (rows) => {
+              const headers = ensureArray(rows);
+
+              // ✅ Log changes in job_order_header
+              const inProgressHeaders = headers.filter(h => h.status === 'in_progress');
+              if (inProgressHeaders.length > 0) {
+                console.log('[KDS][Watcher] 📥 job_order_header received:', {
+                  total: headers.length,
+                  inProgress: inProgressHeaders.length,
+                  sample: inProgressHeaders.slice(0, 2).map(h => ({
+                    id: h.id?.substring(0, 20) + '...',
+                    status: h.status,
+                    startedAt: h.startedAt,
+                    progressState: h.progressState
+                  }))
+                });
+              }
+
+              watcherState.headers = headers;
+              updateFromWatchers();
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_detail', (rows) => {              watcherState.lines = ensureArray(rows);              updateFromWatchers();
+            store.watch('job_order_detail', (rows) => {
+              watcherState.lines = ensureArray(rows);
+              updateFromWatchers();
             })
           );
           // ✅ Watch order_header for static tabs

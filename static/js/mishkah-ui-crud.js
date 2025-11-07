@@ -548,7 +548,7 @@
     const renderList = () => {
       const records = crud.getFilteredRecords();
 
-      // ✅ Table view with search in all fields
+      // ✅ Table view using CSS Grid (Mishkah doesn't have D.Elements.Table)
       const renderTable = () => {
         if (records.length === 0) {
           return D.Containers.Div({
@@ -556,61 +556,61 @@
           }, [lang.noRecords]);
         }
 
-        return D.Containers.Div({ attrs: { class: tw`overflow-x-auto` } }, [
-          D.Elements.Table({ attrs: { class: tw`w-full text-sm` } }, [
-            D.Elements.Thead({ attrs: { class: tw`border-b border-slate-700/60` } }, [
-              D.Elements.Tr(null, [
-                ...cfg.fields
-                  .filter(f => f.type !== FIELD_TYPES.CHECKBOX)
-                  .map(field => {
-                    const label = cfg.lang === 'ar'
-                      ? (field.labelAr || field.label || field.name)
-                      : (field.labelEn || field.label || field.name);
-                    return D.Elements.Th({
-                      attrs: { class: tw`px-3 py-2 text-start text-xs font-semibold uppercase tracking-wide text-slate-300` }
-                    }, [label]);
-                  }),
-                D.Elements.Th({
-                  attrs: { class: tw`px-3 py-2 text-start text-xs font-semibold uppercase tracking-wide text-slate-300` }
-                }, [lang.edit])
-              ])
-            ]),
-            D.Elements.Tbody(null, records.map(record => {
-              return D.Elements.Tr({
-                attrs: { class: tw`border-b border-slate-800/60 hover:bg-slate-800/30` }
-              }, [
-                ...cfg.fields
-                  .filter(f => f.type !== FIELD_TYPES.CHECKBOX)
-                  .map(field => {
-                    const value = record[field.name];
-                    const displayValue = field.type === FIELD_TYPES.CHECKBOX
-                      ? (value ? '✓' : '✗')
-                      : (value || '-');
-                    return D.Elements.Td({
-                      attrs: { class: tw`px-3 py-2 text-slate-200` }
-                    }, [String(displayValue)]);
-                  }),
-                D.Elements.Td({ attrs: { class: tw`px-3 py-2` } }, [
-                  D.Containers.Div({ attrs: { class: tw`flex gap-2` } }, [
-                    D.Forms.Button({
-                      attrs: {
-                        type: 'button',
-                        onclick: () => crud.startEdit(record[cfg.idField]),
-                        class: tw`px-2 py-1 text-xs rounded border border-sky-600/60 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20`
-                      }
-                    }, [lang.edit]),
-                    cfg.allowDelete ? D.Forms.Button({
-                      attrs: {
-                        type: 'button',
-                        onclick: () => crud.deleteRecord(record[cfg.idField]),
-                        class: tw`px-2 py-1 text-xs rounded border border-red-600/60 bg-red-500/10 text-red-100 hover:bg-red-500/20`
-                      }
-                    }, [lang.delete]) : null
-                  ].filter(Boolean))
-                ])
-              ]);
-            }))
-          ])
+        // Get visible fields (exclude checkbox, show first 4 fields)
+        const visibleFields = cfg.fields
+          .filter(f => f.type !== FIELD_TYPES.CHECKBOX)
+          .slice(0, 4);
+
+        return D.Containers.Div({ attrs: { class: tw`overflow-x-auto border border-slate-700/60 rounded-lg` } }, [
+          // Table header
+          D.Containers.Div({
+            attrs: {
+              class: tw`grid gap-2 px-4 py-3 bg-slate-900/70 border-b border-slate-700/60 font-semibold text-xs uppercase text-slate-300`,
+              style: `grid-template-columns: repeat(${visibleFields.length}, 1fr) 120px;`
+            }
+          }, [
+            ...visibleFields.map(field => {
+              const label = cfg.lang === 'ar'
+                ? (field.labelAr || field.label || field.name)
+                : (field.labelEn || field.label || field.name);
+              return D.Text.Span({ attrs: { class: tw`text-start` } }, [label]);
+            }),
+            D.Text.Span({ attrs: { class: tw`text-center` } }, [lang.edit])
+          ]),
+
+          // Table body
+          D.Containers.Div(null, records.map(record => {
+            return D.Containers.Div({
+              attrs: {
+                class: tw`grid gap-2 px-4 py-3 border-b border-slate-800/60 hover:bg-slate-800/30 text-sm`,
+                style: `grid-template-columns: repeat(${visibleFields.length}, 1fr) 120px;`
+              }
+            }, [
+              ...visibleFields.map(field => {
+                const value = record[field.name];
+                const displayValue = value || '-';
+                return D.Text.Span({
+                  attrs: { class: tw`text-slate-200 truncate` }
+                }, [String(displayValue)]);
+              }),
+              D.Containers.Div({ attrs: { class: tw`flex gap-2 justify-center` } }, [
+                D.Forms.Button({
+                  attrs: {
+                    type: 'button',
+                    onclick: () => crud.startEdit(record[cfg.idField]),
+                    class: tw`px-2 py-1 text-xs rounded border border-sky-600/60 bg-sky-500/10 text-sky-100 hover:bg-sky-500/20`
+                  }
+                }, [lang.edit]),
+                cfg.allowDelete ? D.Forms.Button({
+                  attrs: {
+                    type: 'button',
+                    onclick: () => crud.deleteRecord(record[cfg.idField]),
+                    class: tw`px-2 py-1 text-xs rounded border border-red-600/60 bg-red-500/10 text-red-100 hover:bg-red-500/20`
+                  }
+                }, [lang.delete]) : null
+              ].filter(Boolean))
+            ]);
+          }))
         ]);
       };
 
