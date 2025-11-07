@@ -13,9 +13,6 @@
     const { tw, token } = U.twcss;
     const BASE_PALETTE = U.twcss?.PALETTE || {};
 
-    // ✅ CLAUDE FIX: Global flag to prevent duplicate saves
-    let IS_SAVING_ORDER = false;
-
     const JSONX = U.JSON || {};
     const hasStructuredClone = typeof structuredClone === 'function';
     const isPlainObject = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -2461,14 +2458,6 @@
       const jobDetails = [];
       const jobModifiers = [];
       const historyEntries = [];
-
-      // ✅ BATCH IDENTIFIER: Each save creates separate job_orders
-      // This ensures adding new items doesn't overwrite existing job_orders
-      const batchTimestamp = order.updatedAt || order.savedAt || Date.now();
-      const batchId = typeof batchTimestamp === 'number'
-        ? batchTimestamp
-        : new Date(batchTimestamp).getTime();
-
       lines.forEach((line, index)=>{
         const lineIndex = index + 1;
         // ✅ Check all variants of kitchenSection field
@@ -2489,9 +2478,7 @@
           });
         }
 
-        // ✅ UNIQUE JOB ID per batch: orderId-stationId-timestamp
-        // This ensures each save creates NEW job_orders, not overwrite existing ones
-        const jobId = `${order.id}-${stationId}-${batchId}`;
+        const jobId = `${order.id}-${stationId}`;
         const section = sectionMap.get(stationId) || {};
         const stationCode = section.code || (stationId ? String(stationId).toUpperCase() : 'KDS');
         const existing = jobsMap.get(jobId) || {
@@ -2655,7 +2642,7 @@
       const orderHeader = {
         id: order.id,
         type: serviceMode,
-        orderNumber: order.orderNumber || order.invoiceId || order.id,
+        orderNumber: orderNumber,
         orderTypeId: serviceMode,
         serviceMode,
         status: order.status || 'open',
@@ -2733,19 +2720,6 @@
       payload.handoff = baseHandoff;
       payload.meta = { ...(payload.meta || {}), publishedAt: nowIso };
       const channel = payload.meta?.channel || BRANCH_CHANNEL;
-
-      // ✅ Build snapshot with job_orders ONLY for backend persistence
-      // Backend now supports PARTIAL SNAPSHOTS (only updates tables present in snapshot)
-      // This prevents erasing master tables and reduces payload size
-      const jobOrders = payload.jobOrders || {};
-      const snapshot = {
-        job_order_header: jobOrders.headers || [],
-        job_order_detail: jobOrders.details || [],
-        job_order_detail_modifier: jobOrders.modifiers || [],
-        job_order_status_history: jobOrders.statusHistory || []
-      };
-      payload.snapshot = snapshot;
-
       return { payload, channel, publishedAt: nowIso };
     };
 
@@ -2782,31 +2756,6 @@
           publishOrder(orderPayload, state){
             const envelope = buildOrderEnvelope(orderPayload, state);
             if(!envelope) return null;
-
-            // ⚠️ FALLBACK MODE: No WebSocket - job_orders stored in offline store only
-            // Data will NOT persist to backend - consider implementing HTTP POST fallback
-            const jobOrders = envelope.payload?.jobOrders;
-            if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
-              const store = window.__POS_DB__;
-              const headers = jobOrders.headers || [];
-              const details = jobOrders.details || [];
-              const modifiers = jobOrders.modifiers || [];
-              const statusHistory = jobOrders.statusHistory || [];
-
-              console.warn('[POS][KDS][Fallback] WebSocket unavailable - job_orders will NOT persist! Consider HTTP POST:', {
-                headers: headers.length,
-                details: details.length,
-                modifiers: modifiers.length,
-                statusHistory: statusHistory.length
-              });
-
-              // Insert to offline store (NOT persistent - data lost on refresh!)
-              headers.forEach(h => { try { store.insert('job_order_header', h, { silent: true }); } catch (e) {} });
-              details.forEach(d => { try { store.insert('job_order_detail', d, { silent: true }); } catch (e) {} });
-              modifiers.forEach(m => { try { store.insert('job_order_detail_modifier', m, { silent: true }); } catch (e) {} });
-              statusHistory.forEach(s => { try { store.insert('job_order_status_history', s, { silent: true }); } catch (e) {} });
-            }
-
             pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });
             return envelope.payload;
           },
@@ -2917,64 +2866,6 @@
             console.warn('[Mishkah][POS][KDS] Skipped publishing order payload — serialization failed.', { orderId: orderPayload?.id });
             return null;
           }
-
-          // ✅ PERSIST job_orders via WebSocket store - backend persists & broadcasts automatically
-          // Using store.insert() WITHOUT silent - backend will:
-          // 1. Receive WebSocket event (module:insert)
-          // 2. Persist to disk
-          // 3. Broadcast to all connected clients (including KDS)
-          // No need for separate sendEnvelope!
-          const jobOrders = envelope.payload?.jobOrders;
-          if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
-            const store = window.__POS_DB__;
-            const headers = jobOrders.headers || [];
-            const details = jobOrders.details || [];
-            const modifiers = jobOrders.modifiers || [];
-            const statusHistory = jobOrders.statusHistory || [];
-
-            console.log('[POS][KDS] Persisting job_orders via WebSocket store:', {
-              headers: headers.length,
-              details: details.length,
-              modifiers: modifiers.length,
-              statusHistory: statusHistory.length
-            });
-
-            // Insert WITHOUT silent - backend will persist AND broadcast
-            headers.forEach(header => {
-              try {
-                store.insert('job_order_header', header);
-              } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_header:', err);
-              }
-            });
-
-            details.forEach(detail => {
-              try {
-                store.insert('job_order_detail', detail);
-              } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_detail:', err);
-              }
-            });
-
-            modifiers.forEach(modifier => {
-              try {
-                store.insert('job_order_detail_modifier', modifier);
-              } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_detail_modifier:', err);
-              }
-            });
-
-            statusHistory.forEach(history => {
-              try {
-                store.insert('job_order_status_history', history);
-              } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_status_history:', err);
-              }
-            });
-          }
-
-          // Still send envelope for other data (order, master, deliveries, handoff)
-          // but job_orders are now handled via store.insert() above
           sendEnvelope({ type:'publish', topic: topicOrders, data: envelope.payload });
           pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });
           return envelope.payload;
@@ -5985,10 +5876,6 @@
     }
 
     async function persistOrderFlow(ctx, rawMode, options={}){
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('🔥 [CLAUDE FIX v2] persistOrderFlow STARTED');
-      console.log('═══════════════════════════════════════════════════════');
-
       const state = ctx.getState();
       const t = getTexts(state);
       const retryCount = options.retryCount || 0;
@@ -6027,30 +5914,6 @@
         mode: rawMode,
         retryCount
       });
-
-      // ✅ فحص: يوجد سطر واحد على الأقل؟
-      const lines = order.lines || [];
-      const validLines = lines.filter(line => !line.cancelled && !line.voided);
-      if(!validLines.length){
-        console.error('[POS] Cannot save empty order');
-        UI.pushToast(ctx, {
-          title: t.toast.empty_order || 'لا يمكن حفظ طلب فارغ',
-          subtitle: 'يجب إضافة صنف واحد على الأقل',
-          icon:'⚠️'
-        });
-        return { status:'error', reason:'empty-order' };
-      }
-
-      // ✅ فحص: هل يوجد تغييرات؟ (فقط للمسودات)
-      if(order.isPersisted && !order.dirty && rawMode === 'draft'){
-        console.log('[POS] No changes detected, skipping save');
-        UI.pushToast(ctx, {
-          title: t.toast.no_changes || 'لا توجد تغييرات للحفظ',
-          icon:'ℹ️'
-        });
-        return { status:'no-changes' };
-      }
-
       const previousOrderId = order.id;
       const orderType = order.type || 'dine_in';
       const mode = normalizeSaveMode(rawMode, orderType);
@@ -6279,9 +6142,6 @@
         willAllocateNew: !order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId
       });
       if(!order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId){
-        console.log('═══════════════════════════════════════════════════════');
-        console.log('🔢 [CLAUDE FIX v2] ALLOCATING NEW INVOICE ID (sequence call)');
-        console.log('═══════════════════════════════════════════════════════');
         console.log('[Mishkah][POS] 🆕 Allocating NEW invoice ID', {
           isPersisted: order.isPersisted,
           previousOrderId,
@@ -6291,7 +6151,6 @@
         });
         try {
           finalOrderId = await allocateInvoiceId();
-          console.log('✅ [CLAUDE FIX v2] Invoice ID allocated successfully - THIS SHOULD ONLY HAPPEN ONCE');
           console.log('[Mishkah][POS] ✅ New invoice ID allocated:', {
             allocatedId: finalOrderId,
             previousId: previousOrderId,
@@ -6397,9 +6256,6 @@
       try{
         const persistableOrder = { ...orderPayload };
         delete persistableOrder.dirty;
-        console.log('═══════════════════════════════════════════════════════');
-        console.log('💾 [CLAUDE FIX v2] SENDING ORDER TO REST API (NOT IndexedDB)');
-        console.log('═══════════════════════════════════════════════════════');
         console.log('[Mishkah][POS] Saving order to DB:', {
           orderId: persistableOrder.id,
           totals: persistableOrder.totals,
@@ -6411,7 +6267,6 @@
         let savedOrder = null;
         try {
           savedOrder = await posDB.saveOrder(persistableOrder);
-          console.log('✅ [CLAUDE FIX v2] REST API responded successfully');
           console.log('[Mishkah][POS] Order saved to DB, returned data:', {
             orderId: savedOrder?.id,
             totals: savedOrder?.totals,
@@ -7302,12 +7157,7 @@
       ]));
       if(canShowSave){
         const saveButton = UI.Button({
-          attrs:{
-            gkey:'pos:order:save',
-            'data-save-mode':'draft',
-            disabled: db.ui?.saving ? 'disabled' : undefined,
-            class: tw`min-w-[160px] flex items-center justify-center gap-2 ${db.ui?.saving ? 'opacity-50 cursor-not-allowed' : ''}`
-          },
+          attrs:{ gkey:'pos:order:save', 'data-save-mode':'draft', class: tw`min-w-[160px] flex items-center justify-center gap-2` },
           variant:'solid',
           size:'md'
         }, [D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [saveLabel])]);
@@ -7317,11 +7167,11 @@
         const finishAttrs = {
           gkey:'pos:order:save',
           'data-save-mode': finishMode,
-          class: tw`min-w-[180px] flex items-center justify-center gap-2 ${(finishDisabled || db.ui?.saving) ? 'opacity-50 cursor-not-allowed' : ''}`
+          class: tw`min-w-[180px] flex items-center justify-center gap-2`
         };
-        if(finishDisabled || db.ui?.saving){
+        if(finishDisabled){
           finishAttrs.disabled = 'disabled';
-          finishAttrs.title = finishDisabled ? t.ui.balance_due : undefined;
+          finishAttrs.title = t.ui.balance_due;
         }
         primaryActions.push(UI.Button({
           attrs: finishAttrs,
@@ -10812,39 +10662,9 @@
         on:['click'],
         gkeys:['pos:order:save'],
         handler: async (e,ctx)=>{
-          console.log('🚀 [CLAUDE FIX v2] Save button clicked - checking if save in progress...');
-
-          // ✅ STRONG protection against duplicate saves
-          if(IS_SAVING_ORDER){
-            console.warn('⚠️ [CLAUDE FIX] Save already in progress - BLOCKING duplicate save attempt');
-            return;
-          }
-
           const trigger = e.target.closest('[data-save-mode]');
           const mode = trigger?.getAttribute('data-save-mode') || 'draft';
-
-          console.log('✅ [CLAUDE FIX] Starting save operation', { mode, timestamp: new Date().toISOString() });
-
-          IS_SAVING_ORDER = true;
-          ctx.setState(s=>({
-            ...s,
-            ui:{ ...(s.ui || {}), saving:true }
-          }));
-
-          try {
-            await persistOrderFlow(ctx, mode);
-            console.log('✅ [CLAUDE FIX] Save completed successfully');
-          } catch(error) {
-            console.error('❌ [CLAUDE FIX] Save failed:', error);
-            throw error;
-          } finally {
-            IS_SAVING_ORDER = false;
-            ctx.setState(s=>({
-              ...s,
-              ui:{ ...(s.ui || {}), saving:false }
-            }));
-            console.log('🔓 [CLAUDE FIX] Save lock released');
-          }
+          await persistOrderFlow(ctx, mode);
         }
       },
       'pos.shift.open':{
