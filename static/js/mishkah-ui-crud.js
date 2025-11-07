@@ -416,7 +416,7 @@
           break;
 
         case FIELD_TYPES.CHECKBOX:
-          input = D.Forms.Input({
+          input = D.Inputs.Input({
             attrs: {
               type: 'checkbox',
               id: fieldId,
@@ -428,7 +428,7 @@
           break;
 
         default:
-          input = D.Forms.Input({
+          input = D.Inputs.Input({
             attrs: {
               type: field.type || 'text',
               id: fieldId,
@@ -542,7 +542,7 @@
         // Header with search and create button
         D.Containers.Div({ attrs: { class: tw`flex items-center gap-3` } }, [
           // Search
-          cfg.searchable ? D.Forms.Input({
+          cfg.searchable ? D.Inputs.Input({
             attrs: {
               type: 'text',
               placeholder: lang.search,
