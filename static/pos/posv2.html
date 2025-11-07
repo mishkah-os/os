@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+  <title>V2 (WebSocket) — نقطة البيع للمطاعم</title>
+  <style>
+    :root { color-scheme: light dark; }
+    html, body {
+      height: 100%;
+      min-height: 100vh;
+      width: 100vw;
+      margin: 0;
+      overflow: hidden;
+      background: var(--background, #0f1115);
+    }
+    body {
+      font-family: "Tajawal", "Cairo", system-ui, sans-serif;
+      touch-action: manipulation;
+      display: flex;
+      min-height: 100vh;
+      width: 100vw;
+    }
+    #app {
+      flex: 1 1 auto;
+      min-height: 100vh;
+      width: 100vw;
+      display: flex;
+    }
+    .pos-shell { flex: 1 1 auto; width: 100vw; }
+  </style>
+  <script src="../lib/mishkah-utils.js"></script>
+  <script src="../lib/mishkah.core.js"></script>
+  <script src="../lib/mishkah-ui.js"></script>
+  <script src="../lib/mishkah-schema.js"></script>
+    <script src="../lib/mishkah.store.js"></script>
+  <script src="../lib/mishkah.simple-store.js"></script>
+  <script src="./pos-simple-loader.js"></script>
+  <script src="./pos-mini-db.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    let createPosDb = window.createPosDb;
+
+    const params = new URLSearchParams(window.location.search || '');
+    const BRANCH_ID = (params.get('brname') || '').trim();
+    if (BRANCH_ID) {
+      window.__POS_BRANCH_ID__ = BRANCH_ID;
+    }
+
+    if (!BRANCH_ID) {
+      document.body.innerHTML = `
+        <main
+          style="
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-size: clamp(1.4rem, 4vw, 2.2rem);
+            color: #f8fafc;
+              text-align:center;
+          "
+        >
+        
+          يرجى اختيار الفرع
+        </main>
+      `;
+    } else {
+
+      const status = {
+        status: 'loading',
+        startedAt: Date.now(),
+        finishedAt: null,
+        error: null,
+        keys: [],
+        branchId: BRANCH_ID
+      };
+
+      window.__POS_DATA_STATUS__ = status;
+
+      createPosDb({ branchId: BRANCH_ID })
+        .then(({ db, moduleEntry }) => {
+          window.__POS_DB__ = db;
+          window.__POS_MODULE_ENTRY__ = moduleEntry;
+          return db.ready();
+        })
+        .then(() => {
+          const db = window.__POS_DB__;
+
+          // Load data from REST API once (preserves original structure)
+          const loadFromRestApi = async () => {
+            try {
+              const tables = await window.loadPosData(BRANCH_ID, 'pos');
+              window.database = tables;
+              status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
+              status.keys = Object.keys(tables);
+            } catch (error) {
+              window.database = {};
+              status.status = 'error';
+            }
+          };
+
+          // Initial load from REST API
+          loadFromRestApi().then(() => {
+            status.finishedAt = Date.now();
+
+            // Setup watchers to update individual tables in window.database
+            const registeredNames = typeof db.getRegisteredNames === 'function'
+              ? db.getRegisteredNames()
+              : Object.keys(db.config?.objects || {});
+
+            registeredNames.forEach(name => {
+              if (name === 'pos_database') return;
+              db.watch(name, (rows, meta) => {
+                // Update only the changed table in window.database
+                const tableName = meta?.table || name;
+                if (!window.database) window.database = {};
+                window.database[tableName] = rows;
+              });
+            });
+          });
+
+          console.log('🚀 [POS V2] Loading WebSocket-based POS...');
+          const script = document.createElement('script');
+          script.src = './posv2.js';  // ← Load posv2.js instead
+          document.head.appendChild(script);
+        })
+        .catch((error) => {
+          window.database = {};
+          status.status = 'error';
+          status.error = error;
+          status.finishedAt = Date.now();
+        });
+    }
+  </script>
+</body>
+</html>
