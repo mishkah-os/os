@@ -24,6 +24,7 @@ import HybridStore from './hybridStore.js';
 import { VersionConflictError } from './moduleStore.js';
 import SequenceManager from './sequenceManager.js';
 import { initializeSqlite } from './db/sqlite.js';
+import { createQuery, executeRawQuery, getDatabaseSchema } from './queryBuilder.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -6280,6 +6281,110 @@ const httpServer = createServer(async (req, res) => {
     await handleBranchesApi(req, res, url);
     return;
   }
+
+  // Query API - Structured SQL query interface
+  if (url.pathname === '/api/query' && req.method === 'POST') {
+    const startTime = Date.now();
+    try {
+      const body = await readBody(req);
+
+      // Validate request
+      if (!body.table || typeof body.table !== 'string') {
+        jsonResponse(res, 400, { error: 'Missing or invalid "table" field' });
+        return;
+      }
+
+      // Extract context
+      const branchId = body.branchId || body.branch_id || null;
+      const moduleId = body.moduleId || body.module_id || null;
+
+      // Build query
+      const query = createQuery({ branchId, moduleId }).table(body.table);
+
+      if (body.select && Array.isArray(body.select)) {
+        query.select(body.select);
+      }
+
+      if (body.where && typeof body.where === 'object') {
+        query.where(body.where);
+      }
+
+      if (body.orderBy && Array.isArray(body.orderBy)) {
+        query.orderBy(body.orderBy);
+      }
+
+      if (body.limit !== undefined) {
+        query.limit(body.limit);
+      }
+
+      if (body.offset !== undefined) {
+        query.offset(body.offset);
+      }
+
+      // Execute query
+      const result = query.execute();
+
+      const duration = Date.now() - startTime;
+      recordHttpRequest('POST', true, duration);
+
+      jsonResponse(res, 200, result);
+    } catch (error) {
+      logger.error({ err: error, url: url.pathname }, 'Query API error');
+      const statusCode = error.message.includes('not queryable') ? 403 : 500;
+      jsonResponse(res, statusCode, {
+        error: error.message,
+        type: 'query-error'
+      });
+    }
+    return;
+  }
+
+  // Raw SQL Execute API (Admin only - for debugging)
+  if (url.pathname === '/api/query/raw' && req.method === 'POST') {
+    const startTime = Date.now();
+    try {
+      const body = await readBody(req);
+
+      if (!body.sql || typeof body.sql !== 'string') {
+        jsonResponse(res, 400, { error: 'Missing or invalid "sql" field' });
+        return;
+      }
+
+      const params = Array.isArray(body.params) ? body.params : [];
+      const branchId = body.branchId || body.branch_id || null;
+      const moduleId = body.moduleId || body.module_id || null;
+
+      const result = executeRawQuery(body.sql, params, { branchId, moduleId });
+
+      const duration = Date.now() - startTime;
+      recordHttpRequest('POST', true, duration);
+
+      jsonResponse(res, 200, result);
+    } catch (error) {
+      logger.error({ err: error, url: url.pathname }, 'Raw query API error');
+      jsonResponse(res, 500, {
+        error: error.message,
+        type: 'raw-query-error'
+      });
+    }
+    return;
+  }
+
+  // Database Schema API
+  if (url.pathname === '/api/schema/database' && req.method === 'GET') {
+    try {
+      const schema = getDatabaseSchema();
+      jsonResponse(res, 200, schema);
+    } catch (error) {
+      logger.error({ err: error }, 'Schema API error');
+      jsonResponse(res, 500, {
+        error: error.message,
+        type: 'schema-error'
+      });
+    }
+    return;
+  }
+
   jsonResponse(res, 404, { error: 'not-found', path: url.pathname });
 });
 
