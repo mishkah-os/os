@@ -257,7 +257,7 @@ async function fetchModuleSchemaRemote(branchId, moduleId) {
     branch: branchId,
     module: moduleId
   });
-  const payload = await fetchJson(`/api/schema?${params.toString()}`);
+  const payload = await fetchJson(window.basedomain + `/api/schema?${params.toString()}`);
   const moduleEntry = payload?.modules?.[moduleId];
   if (!moduleEntry || !moduleEntry.schema) {
     throw new Error(`Schema for module "${moduleId}" not found in /api/schema response`);
@@ -272,7 +272,7 @@ async function fetchModuleSchemaLocal(branchId, moduleId) {
     branch: branchId,
     module: moduleId
   });
-  const payload = await fetchJson(`/api/schema?${params.toString()}`);
+  const payload = await fetchJson( window.basedomain + `/api/schema?${params.toString()}`);
   const moduleEntry = payload?.modules?.[moduleId];
   if (!moduleEntry || !moduleEntry.schema) {
     throw new Error(`Schema for module "${moduleId}" not found in /api/schema response`);
