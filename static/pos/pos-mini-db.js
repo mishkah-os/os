@@ -285,7 +285,7 @@ async function fetchModuleDataset(branchId, moduleId) {
   // This prevents direct access to sensitive live/seed data files
   // and allows for future authentication/authorization
   try {
-    const apiUrl = `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
+    const apiUrl = window.basedomain + `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
     const snapshot = await fetchJson(apiUrl);
     // The API returns a snapshot with { branchId, moduleId, tables, meta, version }
     return snapshot;
@@ -377,7 +377,7 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
     try {
       console.log(`[PosMiniDB] Smart fetch: Loading initial data from REST API for ${branchId}/${moduleId}...`);
 
-      const apiUrl = `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
+      const apiUrl = window.basedomain + `/api/branches/${encodeURIComponent(branchId)}/modules/${encodeURIComponent(moduleId)}`;
       const response = await fetch(apiUrl, { cache: 'no-store' });
 
       if (!response.ok) {
