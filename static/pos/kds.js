@@ -4923,10 +4923,10 @@
     };
     const statusLookup = buildStatusLookup(posPayload);
 
-    // ✅ Read drivers from db.data (already updated from watcher in state reducer)
-    const driversFromDb = Array.isArray(db?.data?.drivers) ? db.data.drivers : [];
-    const drivers = driversFromDb.length > 0
-      ? driversFromDb.map(driver => ({
+    // ✅ Read drivers from watcher first (like kitchenSections and menuItems)
+    const driversFromWatcher = ensureArray(watcherState.drivers);
+    const drivers = driversFromWatcher.length > 0
+      ? driversFromWatcher.map(driver => ({
           id: driver.id,
           code: driver.code || driver.id,
           name: driver.name || driver.id,
@@ -4937,10 +4937,10 @@
       : deriveDrivers(posPayload);
     const driverIndex = new Map(drivers.map((driver) => [driver.id, driver]));
 
-    // ✅ Read payment methods from db.data (already updated from watcher in state reducer)
-    const paymentMethodsFromDb = Array.isArray(db?.data?.paymentMethods) ? db.data.paymentMethods : [];
-    const paymentMethods = paymentMethodsFromDb.length > 0
-      ? paymentMethodsFromDb
+    // ✅ Read payment methods from watcher first (like kitchenSections and menuItems)
+    const paymentMethodsFromWatcher = ensureArray(watcherState.paymentMethods);
+    const paymentMethods = paymentMethodsFromWatcher.length > 0
+      ? paymentMethodsFromWatcher
       : Array.isArray(posPayload?.payment_methods)
         ? posPayload.payment_methods
         : Array.isArray(posPayload?.settings?.payment_methods)
