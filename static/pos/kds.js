@@ -2505,6 +2505,82 @@
     });
   };
 
+  // ✅ CRUD Modal for Driver Management
+  const DriverCRUDModal = (db, t, lang)=>{
+    const open = db.ui?.modals?.crudDriver || false;
+    if(!open) return null;
+
+    // Get store instance
+    const store = window.__POS_DB__;
+    if (!store || !window.MishkahCRUD) {
+      console.error('[KDS][CRUD] Store or MishkahCRUD not available');
+      return null;
+    }
+
+    // Create CRUD instance (singleton pattern)
+    if (!window.__driverCRUD__) {
+      try {
+        window.__driverCRUD__ = window.MishkahCRUD.createCRUD({
+          table: 'delivery_drivers',
+          store: store,
+          displayField: 'name',
+          lang: lang,
+          fields: [
+            {
+              name: 'name',
+              type: 'text',
+              labelAr: 'الاسم',
+              labelEn: 'Name',
+              required: true
+            },
+            {
+              name: 'phone',
+              type: 'phone',
+              labelAr: 'الهاتف',
+              labelEn: 'Phone'
+            },
+            {
+              name: 'vehicleId',
+              type: 'text',
+              labelAr: 'رقم المركبة',
+              labelEn: 'Vehicle ID'
+            },
+            {
+              name: 'isActive',
+              type: 'checkbox',
+              labelAr: 'نشط',
+              labelEn: 'Active',
+              defaultValue: true
+            }
+          ]
+        });
+        // Initial load
+        window.__driverCRUD__.loadRecords();
+      } catch (err) {
+        console.error('[KDS][CRUD] Failed to create CRUD:', err);
+        return null;
+      }
+    }
+
+    const crud = window.__driverCRUD__;
+    const crudUI = window.MishkahCRUD.renderCRUD(crud, D, tw, { lang });
+
+    return UI.Modal({
+      open,
+      title: lang === 'ar' ? 'إدارة السائقين' : 'Manage Drivers',
+      description: lang === 'ar' ? 'إضافة وتعديل وحذف السائقين' : 'Add, edit, and delete drivers',
+      size: 'large',
+      content: crudUI,
+      actions:[
+        {
+          label: t.modal.close,
+          gkey:'kds:crud:close',
+          variant:'secondary'
+        }
+      ]
+    });
+  };
+
   const renderActivePanel = (db, t, lang, now)=>{
     const active = db.data.filters.activeTab;
     if(active === 'prep') return renderPrepPanel(db, t, lang, now);
@@ -2537,7 +2613,7 @@
           renderActivePanel(db, t, lang, now)
         ].filter(Boolean))
       ]),
-      overlays:[ DriverModal(db, t, lang), PaymentModal(db, t, lang) ].filter(Boolean)
+      overlays:[ DriverModal(db, t, lang), PaymentModal(db, t, lang), DriverCRUDModal(db, t, lang) ].filter(Boolean)
     });
   };
 
@@ -2666,7 +2742,7 @@
       now: Date.now()
     },
     ui:{
-      modals:{ driver:false },
+      modals:{ driver:false, crudDriver:false },
       modalOpen:false,
       deliveryAssignment:null
     }
@@ -2911,9 +2987,19 @@
         driversNext = Array.from(map.values());
       }
 
-      // ✅ Handle payment methods from payload
+      // ✅ Handle payment methods - READ FROM WATCHER FIRST
       let paymentMethodsNext = state.data.paymentMethods;
-      if(Array.isArray(payload.payment_methods)){
+      // 1️⃣ Read from watcher first (highest priority)
+      if(Array.isArray(watcherState.paymentMethods) && watcherState.paymentMethods.length > 0){
+        const existing = Array.isArray(state.data.paymentMethods) ? state.data.paymentMethods : [];
+        const map = new Map(existing.map(pm=> [String(pm.id), pm]));
+        watcherState.paymentMethods.forEach(pm=>{
+          if(pm && pm.id != null) map.set(String(pm.id), pm);
+        });
+        paymentMethodsNext = Array.from(map.values());
+      }
+      // 2️⃣ Fallback to payload if watcher is empty
+      else if(Array.isArray(payload.payment_methods)){
         paymentMethodsNext = payload.payment_methods;
       } else if(Array.isArray(payload.settings?.payment_methods)){
         paymentMethodsNext = payload.settings.payment_methods;
@@ -3753,17 +3839,14 @@
       gkeys:['kds:driver:manage'],
       handler:(event, ctx)=>{
         event?.preventDefault();
-        // TODO: Open CRUD modal for delivery_driver table
-        // For now, show alert
-        alert('إدارة السائقين - قريبا!\n\nسيتم إضافة واجهة CRUD كاملة لإدارة السائقين.');
-        console.log('[KDS][drivers] CRUD management requested');
-        // Close driver selection modal
+        console.log('[KDS][drivers] Opening CRUD management modal');
+        // Open CRUD modal for delivery_drivers management
         ctx.setState(state=>({
           ...state,
           ui:{
             ...(state.ui || {}),
-            modalOpen: false,
-            modals: { ...(state.ui?.modals || {}), driver: false },
+            modalOpen: true,
+            modals: { ...(state.ui?.modals || {}), driver: false, crudDriver: true },
             deliveryAssignment: null
           }
         }));
@@ -3780,9 +3863,25 @@
           ui:{
             ...(state.ui || {}),
             modalOpen:false,
-            modals:{ driver:false, payment:false },  // ✅ Close all modals
+            modals:{ driver:false, payment:false, crudDriver:false },  // ✅ Close all modals
             deliveryAssignment:null,
             paymentSettlement:null
+          }
+        }));
+      }
+    },
+    'kds.crud.close':{
+      on:['click'],
+      gkeys:['kds:crud:close'],
+      handler:(event, ctx)=>{
+        event?.preventDefault();
+        // Close CRUD modal
+        ctx.setState(state=>({
+          ...state,
+          ui:{
+            ...(state.ui || {}),
+            modalOpen:false,
+            modals:{ ...(state.ui?.modals || {}), crudDriver:false }
           }
         }));
       }
@@ -3802,7 +3901,7 @@
           ui:{
             ...(state.ui || {}),
             modalOpen:false,
-            modals:{ driver:false, payment:false },  // ✅ Close all modals
+            modals:{ driver:false, payment:false, crudDriver:false },  // ✅ Close all modals
             deliveryAssignment:null,
             paymentSettlement:null
           }
@@ -4824,10 +4923,10 @@
     };
     const statusLookup = buildStatusLookup(posPayload);
 
-    // ✅ Read drivers from watcher first (like kitchenSections and menuItems)
-    const driversFromWatcher = ensureArray(watcherState.drivers);
-    const drivers = driversFromWatcher.length > 0
-      ? driversFromWatcher.map(driver => ({
+    // ✅ Read drivers from db.data (already updated from watcher in state reducer)
+    const driversFromDb = Array.isArray(db?.data?.drivers) ? db.data.drivers : [];
+    const drivers = driversFromDb.length > 0
+      ? driversFromDb.map(driver => ({
           id: driver.id,
           code: driver.code || driver.id,
           name: driver.name || driver.id,
@@ -4838,10 +4937,10 @@
       : deriveDrivers(posPayload);
     const driverIndex = new Map(drivers.map((driver) => [driver.id, driver]));
 
-    // ✅ Read payment methods from watcher first (like kitchenSections and menuItems)
-    const paymentMethodsFromWatcher = ensureArray(watcherState.paymentMethods);
-    const paymentMethods = paymentMethodsFromWatcher.length > 0
-      ? paymentMethodsFromWatcher
+    // ✅ Read payment methods from db.data (already updated from watcher in state reducer)
+    const paymentMethodsFromDb = Array.isArray(db?.data?.paymentMethods) ? db.data.paymentMethods : [];
+    const paymentMethods = paymentMethodsFromDb.length > 0
+      ? paymentMethodsFromDb
       : Array.isArray(posPayload?.payment_methods)
         ? posPayload.payment_methods
         : Array.isArray(posPayload?.settings?.payment_methods)
