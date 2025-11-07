@@ -2363,9 +2363,35 @@
 
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
 
+    console.log('[KDS][renderStationPanel] 📊 Station jobs:', {
+      stationId,
+      totalJobs: allJobsForStation.length,
+      sampleJobs: allJobsForStation.slice(0, 2).map(j => ({
+        id: j.id?.substring(0, 30) + '...',
+        status: j.status,
+        progressState: j.progressState,
+        orderId: j.orderId
+      }))
+    });
+
     const jobs = allJobsForStation
       // Hide jobs that are already ready/completed
-      .filter(job=> job.status !== 'ready' && job.status !== 'completed')
+      .filter(job=> {
+        // ✅ Filter by status OR progressState
+        const isCompleted = job.status === 'ready' ||
+                           job.status === 'completed' ||
+                           job.progressState === 'completed';
+
+        if(isCompleted) {
+          console.log('[KDS][renderStationPanel] ❌ Filtering out completed job:', {
+            id: job.id?.substring(0, 30) + '...',
+            status: job.status,
+            progressState: job.progressState
+          });
+        }
+
+        return !isCompleted;
+      })
       // Hide jobs whose order is assembled/served/delivered or settled (for delivery orders)
       .filter(job=> {
         // Try both raw and normalized order IDs
@@ -2376,8 +2402,20 @@
         const shouldHide = completedOrderIds.has(normalizedJobOrderId) ||
                           completedOrderIds.has(stringJobOrderId);
 
+        if(shouldHide) {
+          console.log('[KDS][renderStationPanel] ❌ Filtering out job (order completed):', {
+            id: job.id?.substring(0, 30) + '...',
+            orderId: job.orderId
+          });
+        }
+
         return !shouldHide;
       });
+
+    console.log('[KDS][renderStationPanel] ✅ Final jobs to display:', {
+      stationId,
+      count: jobs.length
+    });
 
     const station = db.data.stationMap?.[stationId];
     if(!jobs.length) return renderEmpty(t.empty.station);
