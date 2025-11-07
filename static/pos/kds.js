@@ -1589,7 +1589,12 @@
       // calculate startMs and update header status from first in_progress detail
       // This ensures timer works even after page reload
       const currentStatus = String(cloned.status || '').toLowerCase();
-      if(currentStatus !== 'in_progress' && currentStatus !== 'ready' && currentStatus !== 'completed') {
+      // ✅ Check for pending, queued, draft, or empty status
+      const shouldCheckDetails = currentStatus !== 'in_progress' &&
+                                currentStatus !== 'ready' &&
+                                currentStatus !== 'completed';
+
+      if(shouldCheckDetails) {
         const inProgressDetails = cloned.details.filter(d => {
           const detailStatus = String(d.status || '').toLowerCase();
           return detailStatus === 'in_progress';
@@ -1601,17 +1606,28 @@
             currentStatus,
             currentStartMs: cloned.startMs,
             currentStartedAt: cloned.startedAt,
-            inProgressDetailsCount: inProgressDetails.length
+            inProgressDetailsCount: inProgressDetails.length,
+            sampleDetail: inProgressDetails[0] ? {
+              id: inProgressDetails[0].id?.substring(0, 20) + '...',
+              status: inProgressDetails[0].status,
+              startAt: inProgressDetails[0].startAt,
+              startedAt: inProgressDetails[0].startedAt
+            } : null
           });
 
           // Find earliest start time from in_progress details
-          // Try multiple property names: startAt, startedAt, start_at
+          // Try multiple property names: startAt, startedAt, start_at, started_at
           const startTimes = inProgressDetails
             .map(d => d.startAt || d.startedAt || d.start_at || d.started_at)
             .filter(Boolean)
             .sort();
 
           const earliestStartAt = startTimes[0];
+          console.log('[KDS][buildJobRecords] ⏰ Start times found:', {
+            count: startTimes.length,
+            earliest: earliestStartAt,
+            allTimes: startTimes
+          });
 
           if(earliestStartAt) {
             const calculatedStartMs = parseTime(earliestStartAt);
@@ -1627,7 +1643,11 @@
               cloned.progressState = 'cooking';
               cloned.startedAt = earliestStartAt;
               cloned.startMs = calculatedStartMs;
+            } else {
+              console.warn('[KDS][buildJobRecords] ⚠️ Failed to parse startMs from:', earliestStartAt);
             }
+          } else {
+            console.warn('[KDS][buildJobRecords] ⚠️ No valid start time found in in_progress details');
           }
         }
       }
@@ -4508,8 +4528,25 @@
   const extractBaseOrderId = (value) => {
     const id = canonicalId(value);
     if (!id) return null;
+
+    // Try colon separator first (old format: "DAR-001003:uuid")
     const colonIndex = id.indexOf(':');
     if (colonIndex > 0) return id.slice(0, colonIndex);
+
+    // ✅ Try to find UUID pattern (new format: "DAR-001003-uuid")
+    // UUID format: 8-4-4-4-12 characters (36 chars total with dashes)
+    const uuidRegex = /^(.+?)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+    const match = id.match(uuidRegex);
+    if (match) {
+      const baseOrderId = match[1];
+      console.log('[KDS][extractBaseOrderId] Extracted:', {
+        fullId: id?.substring(0, 50) + '...',
+        extracted: baseOrderId
+      });
+      return baseOrderId;
+    }
+
+    // Fallback: return full ID
     return id;
   };
   const toNumber = (value, fallback = 0) => {
