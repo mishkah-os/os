@@ -2235,22 +2235,86 @@ async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, 
   );
 }
 
+// ✅ CLAUDE FIX: Global map to track in-flight save operations
+const SAVE_IN_PROGRESS = new Map();
+
 async function savePosOrder(branchId, moduleId, orderPayload, options = {}) {
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🔥 [CLAUDE BACKEND FIX] savePosOrder CALLED');
+  console.log('═══════════════════════════════════════════════════════');
+
   if (!orderPayload || typeof orderPayload !== 'object') {
     throw new Error('Order payload is required');
   }
+
   const baseOrder = deepClone(orderPayload);
-  if (!baseOrder.id) {
-    const allocation = await sequenceManager.nextValue(branchId, moduleId, 'order_header', 'id', { record: baseOrder });
-    if (allocation?.formatted) {
-      baseOrder.id = allocation.formatted;
-      if (!baseOrder.metadata || typeof baseOrder.metadata !== 'object') baseOrder.metadata = {};
-      baseOrder.metadata.invoiceSequence = allocation.value;
-      baseOrder.metadata.sequenceRule = allocation.rule || null;
+
+  // ✅ CRITICAL: Check if order already exists in store (prevent duplicates)
+  if (baseOrder.id) {
+    const store = await ensureModuleStore(branchId, moduleId);
+    const existingOrder = store.listTable('order_header').find(h => h.id === baseOrder.id);
+
+    if (existingOrder) {
+      console.log('⚠️ [CLAUDE BACKEND FIX] Order already exists in store:', {
+        orderId: baseOrder.id,
+        existingVersion: existingOrder.version,
+        incomingVersion: baseOrder.version
+      });
+
+      // If versions match exactly, this is likely a duplicate request - REJECT IT
+      if (baseOrder.version && existingOrder.version === baseOrder.version) {
+        console.error('❌ [CLAUDE BACKEND FIX] DUPLICATE SAVE BLOCKED - Same version!');
+        throw new Error('DUPLICATE_SAVE_DETECTED: Order with same ID and version already exists');
+      }
     }
   }
+
+  // ✅ CRITICAL: Prevent duplicate in-flight requests
+  const requestKey = baseOrder.id || `temp-${Date.now()}`;
+  if (SAVE_IN_PROGRESS.has(requestKey)) {
+    console.error('❌ [CLAUDE BACKEND FIX] DUPLICATE SAVE BLOCKED - Already saving!', { requestKey });
+    throw new Error('DUPLICATE_SAVE_IN_PROGRESS: This order is currently being saved');
+  }
+
+  SAVE_IN_PROGRESS.set(requestKey, Date.now());
+  console.log('🔒 [CLAUDE BACKEND FIX] Save lock acquired:', requestKey);
+
+  try {
+    // ✅ Only allocate sequence for truly NEW orders (no ID OR draft ID)
+    const isDraftId = baseOrder.id && String(baseOrder.id).startsWith('draft-');
+    if (!baseOrder.id || isDraftId) {
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('🔢 [CLAUDE BACKEND FIX] ALLOCATING SEQUENCE (NEW ORDER)');
+      console.log('═══════════════════════════════════════════════════════');
+
+      const allocation = await sequenceManager.nextValue(branchId, moduleId, 'order_header', 'id', { record: baseOrder });
+      if (allocation?.formatted) {
+        baseOrder.id = allocation.formatted;
+        if (!baseOrder.metadata || typeof baseOrder.metadata !== 'object') baseOrder.metadata = {};
+        baseOrder.metadata.invoiceSequence = allocation.value;
+        baseOrder.metadata.sequenceRule = allocation.rule || null;
+
+        console.log('✅ [CLAUDE BACKEND FIX] Sequence allocated:', {
+          oldId: isDraftId ? requestKey : 'none',
+          newId: baseOrder.id,
+          sequence: allocation.value
+        });
+      }
+    } else {
+      console.log('♻️ [CLAUDE BACKEND FIX] Using existing ID (update):', baseOrder.id);
+    }
   const actorId = options.actorId || baseOrder.updatedBy || baseOrder.closedBy || baseOrder.openedBy || null;
   const normalized = normalizeIncomingOrder(baseOrder, { actorId });
+
+  // ✅ CRITICAL: Prevent saving empty orders (no lines)
+  if (!normalized.lines || normalized.lines.length === 0) {
+    console.error('❌ [CLAUDE BACKEND FIX] EMPTY ORDER BLOCKED - No order lines!');
+    throw new Error('EMPTY_ORDER_NOT_ALLOWED: Order must have at least one order_line');
+  }
+  console.log('✅ [CLAUDE BACKEND FIX] Order validation passed:', {
+    orderId: normalized.header.id,
+    linesCount: normalized.lines.length
+  });
   const headerResult = await applyModuleMutation(
     branchId,
     moduleId,
@@ -2306,7 +2370,13 @@ async function savePosOrder(branchId, moduleId, orderPayload, options = {}) {
     { source: options.source || 'pos-order-api' }
   );
 
-  return { orderId, normalized, header: headerResult?.record };
+    console.log('✅ [CLAUDE BACKEND FIX] Save completed successfully:', orderId);
+    return { orderId, normalized, header: headerResult?.record };
+  } finally {
+    // ✅ CRITICAL: Always release lock
+    SAVE_IN_PROGRESS.delete(requestKey);
+    console.log('🔓 [CLAUDE BACKEND FIX] Save lock released:', requestKey);
+  }
 }
 
 function buildPosOrderSnapshot(store, orderId) {
