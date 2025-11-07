@@ -2563,14 +2563,20 @@
     }
 
     const crud = window.__driverCRUD__;
-    const crudUI = window.MishkahCRUD.renderCRUD(crud, D, tw, { lang });
+
+    // ✅ Pass app instance for reactive updates
+    const crudUI = window.MishkahCRUD.renderCRUD(crud, D, tw, { lang }, Mishkah.app);
 
     return UI.Modal({
       open,
       title: lang === 'ar' ? 'إدارة السائقين' : 'Manage Drivers',
       description: lang === 'ar' ? 'إضافة وتعديل وحذف السائقين' : 'Add, edit, and delete drivers',
-      size: 'large',
-      content: crudUI,
+      content: D.Containers.Div({
+        attrs: {
+          class: tw`w-full`,
+          style: 'max-width: 90vw; min-width: 70vw;'
+        }
+      }, [crudUI]),
       actions:[
         {
           label: t.modal.close,
@@ -3492,6 +3498,10 @@
           actorName: 'KDS',
           actorRole: 'kds',
           reason: 'job-started'
+        }).then(() => {
+          console.log('[KDS][job:start] ✅ Persistence complete');
+        }).catch(err => {
+          console.error('[KDS][job:start] ❌ Persistence failed:', err);
         });
       }
     },
@@ -4044,17 +4054,23 @@
         String(detail.jobOrderId || detail.job_order_id) === jobId
       );
 
+      console.log('[KDS][persistJobOrderStatusChange] 📝 Found job_order_details:', jobDetails.length);
+
       for (const detail of jobDetails) {
         try {
-          await store.update('job_order_detail', {
+          const detailUpdate = {
             id: detail.id,
             status: statusPayload.status,
             updatedAt: statusPayload.updatedAt || new Date().toISOString()
-          });
+          };
+          console.log('[KDS][persistJobOrderStatusChange] 📝 Updating job_order_detail:', detailUpdate);
+          await store.update('job_order_detail', detailUpdate);
         } catch (detailError) {
-          console.warn('[KDS][persistJobOrderStatusChange] Failed to update job_order_detail:', detail.id, detailError);
+          console.warn('[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail:', detail.id, detailError);
         }
       }
+
+      console.log('[KDS][persistJobOrderStatusChange] ✅ All job_order_details updated');
 
       // 3. ✅ Update order_line status using orderId from job + itemId matching
       const baseOrderId = extractBaseOrderId(jobId);
