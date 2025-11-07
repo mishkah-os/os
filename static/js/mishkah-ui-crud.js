@@ -121,7 +121,14 @@
     const loadRecords = async () => {
       setState({ loading: true, error: null });
       try {
+        console.log('[CRUD] loadRecords started for table:', cfg.table);
         const records = await cfg.store.list(cfg.table);
+        console.log('[CRUD] loadRecords received:', {
+          table: cfg.table,
+          count: records?.length || 0,
+          sample: records?.slice(0, 2)
+        });
+
         setState({
           records: Array.isArray(records) ? records : [],
           loading: false
@@ -258,6 +265,7 @@
      * Switch to create mode
      */
     const startCreate = () => {
+      console.log('[CRUD] startCreate called');
       setState({ mode: 'create', editingRecord: null });
     };
 
@@ -265,9 +273,11 @@
      * Switch to edit mode
      */
     const startEdit = (id) => {
+      console.log('[CRUD] startEdit called for id:', id);
       const record = state.records.find(r =>
         normalizeId(r[cfg.idField]) === normalizeId(id)
       );
+      console.log('[CRUD] startEdit found record:', record);
       if (record) {
         setState({ mode: 'edit', editingRecord: record });
       }
@@ -339,6 +349,12 @@
     const state = crud.getState();
     const cfg = { ...DEFAULT_CONFIG, ...config };
 
+    console.log('[CRUD] renderCRUD called with state:', {
+      mode: state.mode,
+      recordsCount: state.records?.length || 0,
+      loading: state.loading,
+      editingRecord: state.editingRecord
+    });
     // ✅ Subscribe to state changes and trigger app re-render
     if (app && typeof app.setState === 'function' && !crud._mishkahSubscribed) {
       crud.subscribe(() => {

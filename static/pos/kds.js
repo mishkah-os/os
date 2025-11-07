@@ -2569,6 +2569,16 @@
             }
           ]
         });
+
+        // ✅ Subscribe to CRUD state changes and trigger Mishkah app re-render
+        window.__driverCRUD__.subscribe((state) => {
+          console.log('[KDS][CRUD] State changed, triggering app re-render:', state.mode);
+          // Trigger Mishkah app re-render
+          if (Mishkah && Mishkah.app && typeof Mishkah.app.setState === 'function') {
+            Mishkah.app.setState(s => ({ ...s, _crudTrigger: Date.now() }));
+          }
+        });
+
         // Initial load
         window.__driverCRUD__.loadRecords();
       } catch (err) {
@@ -2586,10 +2596,11 @@
       open,
       title: lang === 'ar' ? 'إدارة السائقين' : 'Manage Drivers',
       description: lang === 'ar' ? 'إضافة وتعديل وحذف السائقين' : 'Add, edit, and delete drivers',
+      size: 'large',
       content: D.Containers.Div({
         attrs: {
           class: tw`w-full`,
-          style: 'max-width: 90vw; min-width: 70vw;'
+          style: 'max-width: 100%; overflow-x: auto;'
         }
       }, [crudUI]),
       actions:[
