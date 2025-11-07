@@ -1748,6 +1748,42 @@
     return index;
   };
 
+  // ✅ Helper function to get all completed order IDs (to hide from stations)
+  const getCompletedOrderIds = (db)=>{
+    const completedOrderIds = new Set();
+
+    // 1. Get orders that are assembled/served/delivered from order_header
+    const completedOrders = buildOrdersFromHeaders(db)
+      .filter(order=> {
+        const status = order.handoffStatus;
+        return status === 'assembled' || status === 'served' || status === 'delivered';
+      });
+
+    // 2. Get settled delivery orders
+    const deliveriesState = db.data.deliveries || {};
+    const settlements = deliveriesState.settlements || {};
+    const settledDeliveryOrders = buildOrdersFromHeaders(db)
+      .filter(order=> {
+        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return false;
+        const settlement = settlements[order.orderId];
+        return settlement && settlement.status === 'settled';
+      });
+
+    // Add all completed order IDs with normalization
+    [...completedOrders, ...settledDeliveryOrders].forEach(order => {
+      const rawId = order.orderId || order.id;
+      if (!rawId) return;
+
+      const normalizedId = normalizeOrderKey(rawId);
+      if (normalizedId) {
+        completedOrderIds.add(normalizedId);
+      }
+      completedOrderIds.add(String(rawId));
+    });
+
+    return completedOrderIds;
+  };
+
   const buildTabs = (db, t)=>{
     const tabs = [];
     const toLabelKey = (value)=> (value == null ? '' : String(value).toLowerCase().replace(/\s+/g, ''));
@@ -1758,13 +1794,26 @@
     };
     const { filters, jobs } = db.data;
     const locked = filters.lockedSection;
-    const servedOrderIds = new Set(
-      computeOrdersSnapshot(db)
-        .filter(order=> order.handoffStatus === 'served')
-        .map(order=> order.orderId || order.id)
-    );
+
+    // ✅ Get all completed order IDs (assembled/served/delivered/settled)
+    const completedOrderIds = getCompletedOrderIds(db);
+
     if(!locked){
-      const prepCount = computeOrdersSnapshot(db).filter(order=> order.handoffStatus !== 'served').length;
+      // ✅ Count orders that are NOT completed (same logic as renderPrepPanel)
+      const prepOrders = buildOrdersFromHeaders(db).filter(order=> {
+        const status = order.handoffStatus;
+        return status !== 'assembled' && status !== 'served' && status !== 'delivered';
+      });
+
+      // ✅ Also exclude settled delivery orders
+      const deliveriesState = db.data.deliveries || {};
+      const settlements = deliveriesState.settlements || {};
+      const prepCount = prepOrders.filter(order=> {
+        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return true;
+        const settlement = settlements[order.orderId];
+        return !settlement || settlement.status !== 'settled';
+      }).length;
+
       tabs.push({ id:'prep', label:t.tabs.prep, count: prepCount });
       registerLabel(t.tabs.prep);
     }
@@ -1777,11 +1826,16 @@
         : (station.nameEn || station.nameAr || station.id);
       const isExpoStation = station.isExpo === true || (String(station.stationType || '').toLowerCase() === 'expo');
       const tabId = isExpoStation ? 'expo' : station.id;
+
       // ✅ Count unique orders (not jobs) in this station
       // Exclude orders that are assembled/served/delivered/settled
       const activeJobs = (jobs.byStation[station.id] || [])
         .filter(job=> job.status !== 'ready' && job.status !== 'completed')
-        .filter(job=> !servedOrderIds.has(job.orderId));
+        .filter(job=> {
+          const normalizedJobOrderId = normalizeOrderKey(job.orderId);
+          const stringJobOrderId = String(job.orderId);
+          return !completedOrderIds.has(normalizedJobOrderId) && !completedOrderIds.has(stringJobOrderId);
+        });
 
       // Group jobs by orderId to count unique orders
       const uniqueOrderIds = new Set(activeJobs.map(job => job.orderId));
@@ -2167,14 +2221,24 @@
 
   const renderPrepPanel = (db, t, lang, now)=>{
     // ✅ Use order_header + order_line for static "prep/all" tab
-    // Show ALL orders except those assembled/served/delivered
+    // Show ALL orders except those assembled/served/delivered/settled
     const allOrders = buildOrdersFromHeaders(db);
 
     const orders = allOrders.filter(order=> {
       const status = order.handoffStatus;
       // ✅ Show: pending (preparing), ready (waiting for assembly)
       // ❌ Hide: assembled, served, delivered (moved to handoff/done)
-      return status !== 'assembled' && status !== 'served' && status !== 'delivered';
+      if(status === 'assembled' || status === 'served' || status === 'delivered') return false;
+
+      // ✅ Also hide settled delivery orders
+      if((order.serviceMode || 'dine_in').toLowerCase() === 'delivery') {
+        const deliveriesState = db.data.deliveries || {};
+        const settlements = deliveriesState.settlements || {};
+        const settlement = settlements[order.orderId];
+        if(settlement && settlement.status === 'settled') return false;
+      }
+
+      return true;
     });
 
     if(!orders.length) return renderEmpty(t.empty.prep);
@@ -2195,60 +2259,8 @@
   };
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
-    // ✅ Get orders that are assembled/served/delivered from order_header
-    const completedOrders = buildOrdersFromHeaders(db)
-      .filter(order=> {
-        const status = order.handoffStatus;
-        return status === 'assembled' || status === 'served' || status === 'delivered';
-      });
-
-    // ✅ Get settled delivery orders
-    const deliveriesState = db.data.deliveries || {};
-    const settlements = deliveriesState.settlements || {};
-    const settledDeliveryOrders = buildOrdersFromHeaders(db)
-      .filter(order=> {
-        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return false;
-        const settlement = settlements[order.orderId];
-        return settlement && settlement.status === 'settled';
-      });
-
-    // ✅ Normalize order IDs to handle format mismatches
-    // Create a Set with multiple normalized versions of each order ID
-    const completedOrderIds = new Set();
-    const completedOrderIdMap = new Map();  // For debugging
-
-    completedOrders.forEach(order => {
-      const rawId = order.orderId || order.id;
-      if (!rawId) return;
-
-      // Add raw ID
-      const normalizedId = normalizeOrderKey(rawId);
-      if (normalizedId) {
-        completedOrderIds.add(normalizedId);
-        completedOrderIdMap.set(normalizedId, { orderId: rawId, status: order.handoffStatus });
-      }
-
-      // Also add the original without normalization (in case normalizeOrderKey changes it)
-      const stringId = String(rawId);
-      completedOrderIds.add(stringId);
-      completedOrderIdMap.set(stringId, { orderId: rawId, status: order.handoffStatus });
-    });
-
-    // ✅ Add settled delivery orders to completed set
-    settledDeliveryOrders.forEach(order => {
-      const rawId = order.orderId || order.id;
-      if (!rawId) return;
-
-      const normalizedId = normalizeOrderKey(rawId);
-      if (normalizedId) {
-        completedOrderIds.add(normalizedId);
-        completedOrderIdMap.set(normalizedId, { orderId: rawId, status: 'settled' });
-      }
-
-      const stringId = String(rawId);
-      completedOrderIds.add(stringId);
-      completedOrderIdMap.set(stringId, { orderId: rawId, status: 'settled' });
-    });
+    // ✅ Use shared helper to get all completed order IDs
+    const completedOrderIds = getCompletedOrderIds(db);
 
     const allJobsForStation = db.data.jobs.byStation[stationId] || [];
 
