@@ -8,7 +8,7 @@
   'use strict';
 
   async function loadPosData(branchId, moduleId) {
-    const apiUrl = `/api/branches/${branchId}/modules/${moduleId}`;
+    const apiUrl =window.basedomain + `/api/branches/${branchId}/modules/${moduleId}`;
 
     try {
       const response = await fetch(apiUrl, {
