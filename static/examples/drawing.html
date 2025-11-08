@@ -5,20 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>لوحة الرسم — Mishkah Drawing Board</title>
   <style>
-    :root {
-      --bg: #0f172a;
-      --surface-1: rgba(15, 23, 42, 0.95);
-      --surface-2: rgba(30, 41, 59, 0.8);
-      --surface-3: rgba(51, 65, 85, 0.6);
-      --border: rgba(148, 163, 184, 0.2);
-      --accent: #6366f1;
-      --accent-light: #818cf8;
-      --text: #f8fafc;
-      --text-muted: rgba(148, 163, 184, 0.8);
-      --danger: #ef4444;
-      --success: #10b981;
-    }
-
     * {
       margin: 0;
       padding: 0;
@@ -26,195 +12,226 @@
     }
 
     body {
-      background: radial-gradient(circle at top, rgba(99, 102, 241, 0.1), transparent 60%), var(--bg);
-      color: var(--text);
       font-family: "Inter", "Tajawal", system-ui, sans-serif;
       overflow: hidden;
       height: 100vh;
+      width: 100vw;
       touch-action: none;
+      background: #0f172a;
     }
 
-    /* Main Layout */
-    .drawing-app {
-      display: grid;
-      grid-template-rows: auto 1fr auto;
+    /* Canvas fills entire screen */
+    #drawingCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
       height: 100vh;
-      gap: 0;
+      background: white;
+      cursor: crosshair;
     }
 
-    /* Top Toolbar */
-    .toolbar-top {
-      background: var(--surface-1);
-      border-bottom: 1px solid var(--border);
-      padding: 0.8rem 1.2rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
-      flex-wrap: wrap;
+    /* Floating Top Toolbar - minimal and transparent */
+    .floating-toolbar {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(10px);
-    }
-
-    .toolbar-section {
+      border-radius: 12px;
+      padding: 8px 12px;
       display: flex;
+      gap: 8px;
       align-items: center;
-      gap: 0.5rem;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
 
-    .app-title {
-      font-size: 1.3rem;
-      font-weight: 700;
-      background: linear-gradient(135deg, #6366f1, #22d3ee);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .btn {
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.5rem 1rem;
+    /* Toolbar buttons - small and compact */
+    .toolbar-btn {
+      background: rgba(51, 65, 85, 0.6);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #f8fafc;
+      padding: 6px 10px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
       transition: all 0.2s;
       display: flex;
       align-items: center;
-      gap: 0.4rem;
+      gap: 4px;
       white-space: nowrap;
     }
 
-    .btn:hover {
-      background: var(--surface-3);
-      border-color: var(--accent);
+    .toolbar-btn:hover,
+    .toolbar-btn.active {
+      background: #6366f1;
+      border-color: #6366f1;
     }
 
-    .btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
+    .toolbar-btn-icon {
+      font-size: 1rem;
     }
 
-    .btn-icon {
-      width: 32px;
-      height: 32px;
-      padding: 0.4rem;
+    /* Side Toggle Buttons - minimal */
+    .toggle-btn {
+      position: fixed;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #f8fafc;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-size: 1.2rem;
+      z-index: 1000;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
-    /* Main Canvas Area */
-    .canvas-container {
-      position: relative;
-      display: flex;
-      gap: 0;
-      overflow: hidden;
+    .toggle-btn:hover {
+      background: #6366f1;
+      transform: scale(1.1);
     }
 
-    /* Left Sidebar - Tools */
-    .sidebar-left {
-      width: 80px;
-      background: var(--surface-1);
-      border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      padding: 1rem 0.5rem;
+    #toggleTools {
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    #toggleColors {
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    /* Floating Panels */
+    .floating-panel {
+      position: fixed;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(15px);
+      border-radius: 16px;
+      padding: 16px;
+      z-index: 999;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      max-height: 80vh;
       overflow-y: auto;
+      display: none;
     }
 
-    .tool-btn {
-      width: 64px;
-      height: 64px;
-      background: var(--surface-2);
+    .floating-panel.show {
+      display: block;
+      animation: slideIn 0.2s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    #toolsPanel {
+      left: 10px;
+      top: 60px;
+      width: 200px;
+    }
+
+    #colorsPanel {
+      right: 10px;
+      top: 60px;
+      width: 260px;
+    }
+
+    .panel-header {
+      color: #818cf8;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .close-panel {
+      background: none;
+      border: none;
+      color: #f8fafc;
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+
+    .close-panel:hover {
+      background: rgba(239, 68, 68, 0.2);
+    }
+
+    /* Tools Grid */
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .tool-item {
+      background: rgba(51, 65, 85, 0.6);
       border: 2px solid transparent;
-      border-radius: 12px;
+      border-radius: 10px;
+      padding: 10px;
       cursor: pointer;
       transition: all 0.2s;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 0.3rem;
-      color: var(--text-muted);
+      gap: 4px;
+      color: rgba(248, 250, 252, 0.8);
       font-size: 0.7rem;
     }
 
-    .tool-btn:hover {
-      background: var(--surface-3);
-      border-color: var(--accent-light);
+    .tool-item:hover {
+      background: rgba(51, 65, 85, 0.9);
+      border-color: #818cf8;
     }
 
-    .tool-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
+    .tool-item.active {
+      background: #6366f1;
+      border-color: #6366f1;
       color: white;
     }
 
-    .tool-icon {
-      font-size: 1.8rem;
+    .tool-item-icon {
+      font-size: 1.6rem;
     }
 
-    /* Canvas Wrapper */
-    .canvas-wrapper {
-      flex: 1;
-      position: relative;
-      background:
-        linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
-        linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px);
-      background-size: 20px 20px;
-      overflow: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    #drawingCanvas {
-      display: block;
-      cursor: crosshair;
-      background: white;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-    }
-
-    /* Right Sidebar - Properties */
-    .sidebar-right {
-      width: 280px;
-      background: var(--surface-1);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      padding: 1rem;
-      overflow-y: auto;
-    }
-
-    .panel {
-      background: var(--surface-2);
-      border-radius: 12px;
-      padding: 1rem;
-      border: 1px solid var(--border);
-    }
-
-    .panel-title {
-      font-size: 0.9rem;
-      font-weight: 600;
-      margin-bottom: 0.8rem;
-      color: var(--accent-light);
-    }
-
-    /* Color Picker */
+    /* Colors Section */
     .color-grid {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
-      gap: 0.4rem;
-      margin-bottom: 0.8rem;
+      gap: 6px;
+      margin-bottom: 12px;
     }
 
     .color-swatch {
       width: 100%;
       aspect-ratio: 1;
-      border-radius: 6px;
+      border-radius: 8px;
       border: 2px solid transparent;
       cursor: pointer;
       transition: all 0.2s;
@@ -226,32 +243,45 @@
 
     .color-swatch.active {
       border-color: white;
-      box-shadow: 0 0 0 2px var(--accent);
+      box-shadow: 0 0 0 2px #6366f1;
+    }
+
+    .custom-color-wrapper {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
     }
 
     .custom-color-input {
-      width: 100%;
+      flex: 1;
       height: 40px;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(148, 163, 184, 0.3);
       border-radius: 8px;
       cursor: pointer;
+      background: transparent;
     }
 
     /* Brush Size */
-    .size-control {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
+    .size-section {
+      margin-bottom: 12px;
+    }
+
+    .size-label {
+      color: #818cf8;
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+      display: block;
     }
 
     .size-slider {
       width: 100%;
       height: 6px;
       border-radius: 3px;
-      background: var(--surface-3);
+      background: rgba(51, 65, 85, 0.6);
       -webkit-appearance: none;
       appearance: none;
       outline: none;
+      margin-bottom: 8px;
     }
 
     .size-slider::-webkit-slider-thumb {
@@ -260,7 +290,7 @@
       width: 18px;
       height: 18px;
       border-radius: 50%;
-      background: var(--accent);
+      background: #6366f1;
       cursor: pointer;
     }
 
@@ -268,7 +298,7 @@
       width: 18px;
       height: 18px;
       border-radius: 50%;
-      background: var(--accent);
+      background: #6366f1;
       cursor: pointer;
       border: none;
     }
@@ -277,7 +307,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 60px;
+      height: 50px;
       background: white;
       border-radius: 8px;
     }
@@ -288,54 +318,56 @@
       transition: all 0.2s;
     }
 
-    /* Shapes Panel */
+    /* Shapes Grid */
     .shapes-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 0.5rem;
+      gap: 6px;
     }
 
     .shape-btn {
       aspect-ratio: 1;
-      background: var(--surface-3);
+      background: rgba(51, 65, 85, 0.6);
       border: 2px solid transparent;
       border-radius: 8px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.5rem;
+      font-size: 1.4rem;
       transition: all 0.2s;
     }
 
     .shape-btn:hover {
-      background: var(--surface-1);
-      border-color: var(--accent-light);
+      background: rgba(51, 65, 85, 0.9);
+      border-color: #818cf8;
     }
 
-    .shape-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-    }
-
-    /* Bottom Toolbar */
-    .toolbar-bottom {
-      background: var(--surface-1);
-      border-top: 1px solid var(--border);
-      padding: 0.8rem 1.2rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 1rem;
+    /* Bottom Status Bar - minimal */
+    .status-bar {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.75);
       backdrop-filter: blur(10px);
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 0.75rem;
+      color: rgba(248, 250, 252, 0.8);
+      z-index: 1000;
+      display: flex;
+      gap: 12px;
+      align-items: center;
     }
 
-    .status-text {
-      font-size: 0.85rem;
-      color: var(--text-muted);
+    .status-divider {
+      width: 1px;
+      height: 12px;
+      background: rgba(148, 163, 184, 0.3);
     }
 
-    /* Modal */
+    /* Modals */
     .modal {
       display: none;
       position: fixed;
@@ -346,7 +378,7 @@
       background: rgba(0, 0, 0, 0.7);
       align-items: center;
       justify-content: center;
-      z-index: 1000;
+      z-index: 2000;
       backdrop-filter: blur(5px);
     }
 
@@ -355,12 +387,12 @@
     }
 
     .modal-content {
-      background: var(--surface-1);
+      background: rgba(15, 23, 42, 0.98);
       border-radius: 16px;
-      padding: 2rem;
+      padding: 24px;
       max-width: 500px;
       width: 90%;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(148, 163, 184, 0.2);
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
       max-height: 90vh;
       overflow-y: auto;
@@ -369,75 +401,93 @@
     .modal-header {
       font-size: 1.3rem;
       font-weight: 700;
-      margin-bottom: 1.5rem;
-      color: var(--accent-light);
+      margin-bottom: 20px;
+      color: #818cf8;
     }
 
     .form-group {
-      margin-bottom: 1rem;
+      margin-bottom: 16px;
     }
 
     .form-label {
       display: block;
-      margin-bottom: 0.5rem;
+      margin-bottom: 6px;
       font-size: 0.9rem;
-      color: var(--text-muted);
+      color: rgba(248, 250, 252, 0.8);
     }
 
     .form-input {
       width: 100%;
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.7rem;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #f8fafc;
+      padding: 10px;
       border-radius: 8px;
       font-size: 0.9rem;
     }
 
     .form-input:focus {
       outline: none;
-      border-color: var(--accent);
+      border-color: #6366f1;
     }
 
     .modal-actions {
       display: flex;
-      gap: 0.8rem;
-      margin-top: 1.5rem;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      border: none;
+      transition: all 0.2s;
     }
 
     .btn-primary {
-      background: var(--accent);
-      flex: 1;
+      background: #6366f1;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #5558e3;
     }
 
     .btn-secondary {
-      background: var(--surface-2);
-      flex: 1;
+      background: rgba(51, 65, 85, 0.6);
+      color: #f8fafc;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(51, 65, 85, 0.9);
     }
 
     /* Files List */
     .files-list {
-      max-height: 300px;
+      max-height: 400px;
       overflow-y: auto;
-      margin-bottom: 1rem;
+      margin-bottom: 16px;
     }
 
     .file-item {
-      background: var(--surface-2);
-      padding: 0.8rem;
+      background: rgba(30, 41, 59, 0.6);
+      padding: 12px;
       border-radius: 8px;
-      margin-bottom: 0.5rem;
+      margin-bottom: 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(148, 163, 184, 0.2);
       cursor: pointer;
       transition: all 0.2s;
     }
 
     .file-item:hover {
-      border-color: var(--accent-light);
-      background: var(--surface-3);
+      border-color: #818cf8;
+      background: rgba(30, 41, 59, 0.8);
     }
 
     .file-info {
@@ -446,216 +496,180 @@
 
     .file-name {
       font-weight: 600;
-      margin-bottom: 0.2rem;
+      margin-bottom: 4px;
+      color: #f8fafc;
     }
 
     .file-meta {
       font-size: 0.75rem;
-      color: var(--text-muted);
+      color: rgba(148, 163, 184, 0.8);
     }
 
     .file-actions {
       display: flex;
-      gap: 0.5rem;
+      gap: 6px;
     }
 
     .btn-small {
-      padding: 0.3rem 0.6rem;
+      padding: 4px 8px;
       font-size: 0.8rem;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f8fafc;
+      border-radius: 6px;
+      cursor: pointer;
     }
 
-    /* Scrollbar Styling */
+    .btn-small:hover {
+      background: rgba(239, 68, 68, 0.4);
+    }
+
+    /* Scrollbar */
     ::-webkit-scrollbar {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
     }
 
     ::-webkit-scrollbar-track {
-      background: var(--surface-2);
+      background: rgba(30, 41, 59, 0.5);
     }
 
     ::-webkit-scrollbar-thumb {
-      background: var(--surface-3);
-      border-radius: 4px;
+      background: rgba(99, 102, 241, 0.5);
+      border-radius: 3px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: var(--accent);
+      background: #6366f1;
     }
 
-    /* File input hidden */
     #imageUpload {
       display: none;
     }
 
-    .hidden {
-      display: none !important;
+    .section-divider {
+      height: 1px;
+      background: rgba(148, 163, 184, 0.2);
+      margin: 12px 0;
     }
   </style>
 </head>
 <body>
-  <div class="drawing-app">
-    <!-- Top Toolbar -->
-    <div class="toolbar-top">
-      <div class="toolbar-section">
-        <h1 class="app-title">🎨 لوحة الرسم</h1>
-      </div>
+  <!-- Main Canvas - fills entire screen -->
+  <canvas id="drawingCanvas"></canvas>
 
-      <div class="toolbar-section">
-        <button class="btn" onclick="app.undo()">
-          <span>↶</span>
-          <span>تراجع</span>
-        </button>
-        <button class="btn" onclick="app.redo()">
-          <span>↷</span>
-          <span>إعادة</span>
-        </button>
-        <button class="btn" onclick="app.clearCanvas()">
-          <span>🗑️</span>
-          <span>مسح الكل</span>
-        </button>
-      </div>
+  <!-- Floating Top Toolbar -->
+  <div class="floating-toolbar">
+    <button class="toolbar-btn" onclick="app.undo()">
+      <span class="toolbar-btn-icon">↶</span>
+      <span>تراجع</span>
+    </button>
+    <button class="toolbar-btn" onclick="app.redo()">
+      <span class="toolbar-btn-icon">↷</span>
+      <span>إعادة</span>
+    </button>
+    <button class="toolbar-btn" onclick="app.clearCanvas()">
+      <span class="toolbar-btn-icon">🗑️</span>
+    </button>
+    <div style="width: 1px; height: 20px; background: rgba(148, 163, 184, 0.3);"></div>
+    <button class="toolbar-btn" onclick="app.openSaveModal()">
+      <span class="toolbar-btn-icon">💾</span>
+      <span>حفظ</span>
+    </button>
+    <button class="toolbar-btn" onclick="app.openLoadModal()">
+      <span class="toolbar-btn-icon">📁</span>
+    </button>
+    <button class="toolbar-btn" onclick="app.openExportModal()">
+      <span class="toolbar-btn-icon">📤</span>
+    </button>
+  </div>
 
-      <div class="toolbar-section">
-        <button class="btn" onclick="app.openSaveModal()">
-          <span>💾</span>
-          <span>حفظ</span>
-        </button>
-        <button class="btn" onclick="app.openLoadModal()">
-          <span>📁</span>
-          <span>فتح</span>
-        </button>
-        <button class="btn" onclick="app.openExportModal()">
-          <span>📤</span>
-          <span>تصدير</span>
-        </button>
+  <!-- Toggle Buttons -->
+  <button class="toggle-btn" id="toggleTools" onclick="app.togglePanel('tools')">🛠️</button>
+  <button class="toggle-btn" id="toggleColors" onclick="app.togglePanel('colors')">🎨</button>
+
+  <!-- Tools Panel -->
+  <div class="floating-panel" id="toolsPanel">
+    <div class="panel-header">
+      الأدوات
+      <button class="close-panel" onclick="app.closePanel('tools')">×</button>
+    </div>
+    <div class="tools-grid">
+      <div class="tool-item active" onclick="app.setTool('pen')" data-tool="pen">
+        <span class="tool-item-icon">✏️</span>
+        <span>قلم</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('brush')" data-tool="brush">
+        <span class="tool-item-icon">🖌️</span>
+        <span>فرشاة</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('eraser')" data-tool="eraser">
+        <span class="tool-item-icon">🧹</span>
+        <span>ممحاة</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('line')" data-tool="line">
+        <span class="tool-item-icon">📏</span>
+        <span>خط</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('rectangle')" data-tool="rectangle">
+        <span class="tool-item-icon">▭</span>
+        <span>مربع</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('circle')" data-tool="circle">
+        <span class="tool-item-icon">⭕</span>
+        <span>دائرة</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('arrow')" data-tool="arrow">
+        <span class="tool-item-icon">➡️</span>
+        <span>سهم</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('text')" data-tool="text">
+        <span class="tool-item-icon">📝</span>
+        <span>نص</span>
       </div>
     </div>
+    <div class="section-divider"></div>
+    <div class="panel-header" style="margin-top: 12px;">أشكال جاهزة</div>
+    <div class="shapes-grid">
+      <button class="shape-btn" onclick="app.insertShape('star')">⭐</button>
+      <button class="shape-btn" onclick="app.insertShape('heart')">❤️</button>
+      <button class="shape-btn" onclick="app.insertShape('triangle')">🔺</button>
+      <button class="shape-btn" onclick="app.insertShape('hexagon')">⬡</button>
+      <button class="shape-btn" onclick="app.insertShape('pentagon')">⬟</button>
+      <button class="shape-btn" onclick="app.insertShape('diamond')">💎</button>
+    </div>
+    <div class="section-divider"></div>
+    <button class="toolbar-btn" style="width: 100%; justify-content: center; margin-top: 8px;" onclick="app.importImage()">
+      <span class="toolbar-btn-icon">🖼️</span>
+      <span>استيراد صورة</span>
+    </button>
+  </div>
 
-    <!-- Main Canvas Area -->
-    <div class="canvas-container">
-      <!-- Left Sidebar - Tools -->
-      <div class="sidebar-left">
-        <button class="tool-btn active" onclick="app.setTool('pen')" data-tool="pen">
-          <span class="tool-icon">✏️</span>
-          <span>قلم</span>
-        </button>
-
-        <button class="tool-btn" onclick="app.setTool('brush')" data-tool="brush">
-          <span class="tool-icon">🖌️</span>
-          <span>فرشاة</span>
-        </button>
-
-        <button class="tool-btn" onclick="app.setTool('eraser')" data-tool="eraser">
-          <span class="tool-icon">🧹</span>
-          <span>ممحاة</span>
-        </button>
-
-        <button class="tool-btn" onclick="app.setTool('line')" data-tool="line">
-          <span class="tool-icon">📏</span>
-          <span>خط</span>
-        </button>
-
-        <button class="tool-btn" onclick="app.setTool('rectangle')" data-tool="rectangle">
-          <span class="tool-icon">▭</span>
-          <span>مربع</span>
-        </button>
-
-        <button class="tool-btn" onclick="app.setTool('circle')" data-tool="circle">
-          <span class="tool-icon">⭕</span>
-          <span>دائرة</span>
-        </button>
-
-        <button class="tool-btn" onclick="app.setTool('arrow')" data-tool="arrow">
-          <span class="tool-icon">➡️</span>
-          <span>سهم</span>
-        </button>
-
-        <button class="tool-btn" onclick="app.setTool('text')" data-tool="text">
-          <span class="tool-icon">📝</span>
-          <span>نص</span>
-        </button>
-
-        <button class="tool-btn" onclick="app.importImage()">
-          <span class="tool-icon">🖼️</span>
-          <span>صورة</span>
-        </button>
-      </div>
-
-      <!-- Canvas -->
-      <div class="canvas-wrapper">
-        <canvas id="drawingCanvas" width="1200" height="800"></canvas>
-      </div>
-
-      <!-- Right Sidebar - Properties -->
-      <div class="sidebar-right">
-        <!-- Colors Panel -->
-        <div class="panel">
-          <h3 class="panel-title">🎨 الألوان</h3>
-          <div class="color-grid" id="colorGrid"></div>
-          <input
-            type="color"
-            class="custom-color-input"
-            id="customColor"
-            value="#000000"
-          />
-        </div>
-
-        <!-- Brush Size Panel -->
-        <div class="panel">
-          <h3 class="panel-title">📏 حجم الفرشاة: <span id="brushSizeLabel">3</span>px</h3>
-          <div class="size-control">
-            <input
-              type="range"
-              class="size-slider"
-              id="brushSize"
-              min="1"
-              max="50"
-              value="3"
-            />
-            <div class="size-preview">
-              <div id="sizePreviewDot" class="size-preview-dot"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Shapes Panel -->
-        <div class="panel">
-          <h3 class="panel-title">🔶 أشكال جاهزة</h3>
-          <div class="shapes-grid">
-            <button class="shape-btn" onclick="app.insertShape('star')">⭐</button>
-            <button class="shape-btn" onclick="app.insertShape('heart')">❤️</button>
-            <button class="shape-btn" onclick="app.insertShape('triangle')">🔺</button>
-            <button class="shape-btn" onclick="app.insertShape('hexagon')">⬡</button>
-            <button class="shape-btn" onclick="app.insertShape('pentagon')">⬟</button>
-            <button class="shape-btn" onclick="app.insertShape('diamond')">💎</button>
-          </div>
-        </div>
-
-        <!-- History Info -->
-        <div class="panel">
-          <h3 class="panel-title">📊 الإحصائيات</h3>
-          <div style="font-size: 0.85rem; color: var(--text-muted);">
-            <div style="margin-bottom: 0.5rem;">
-              <strong>التاريخ:</strong> <span id="historyInfo">1 / 1</span>
-            </div>
-            <div>
-              <strong>الأداة الحالية:</strong> <span id="currentToolLabel">pen</span>
-            </div>
-          </div>
-        </div>
+  <!-- Colors Panel -->
+  <div class="floating-panel" id="colorsPanel">
+    <div class="panel-header">
+      الألوان والحجم
+      <button class="close-panel" onclick="app.closePanel('colors')">×</button>
+    </div>
+    <div class="color-grid" id="colorGrid"></div>
+    <div class="custom-color-wrapper">
+      <input type="color" class="custom-color-input" id="customColor" value="#000000" />
+    </div>
+    <div class="section-divider"></div>
+    <div class="size-section">
+      <label class="size-label">حجم الفرشاة: <span id="brushSizeLabel">3</span>px</label>
+      <input type="range" class="size-slider" id="brushSize" min="1" max="50" value="3" />
+      <div class="size-preview">
+        <div id="sizePreviewDot" class="size-preview-dot"></div>
       </div>
     </div>
+  </div>
 
-    <!-- Bottom Toolbar -->
-    <div class="toolbar-bottom">
-      <div class="status-text" id="statusLeft">
-        جاهز للرسم | الأداة: <span id="toolStatus">pen</span> | اللون: <span id="colorStatus">#000000</span>
-      </div>
-      <div class="status-text" id="statusRight">
-        آخر حفظ: <span id="lastSaved">لم يتم الحفظ بعد</span>
-      </div>
-    </div>
+  <!-- Status Bar -->
+  <div class="status-bar">
+    <span>الأداة: <span id="toolStatus">pen</span></span>
+    <span class="status-divider"></span>
+    <span id="historyInfo">1 / 1</span>
   </div>
 
   <!-- Save Modal -->
@@ -664,21 +678,11 @@
       <h2 class="modal-header">💾 حفظ الرسمة</h2>
       <div class="form-group">
         <label class="form-label">اسم الرسمة</label>
-        <input
-          type="text"
-          class="form-input"
-          id="saveName"
-          placeholder="أدخل اسم الرسمة..."
-        />
+        <input type="text" class="form-input" id="saveName" placeholder="أدخل اسم الرسمة..." />
       </div>
       <div class="form-group">
-        <label class="form-label">المجلد</label>
-        <input
-          type="text"
-          class="form-input"
-          id="saveFolder"
-          placeholder="اختياري: اسم المجلد"
-        />
+        <label class="form-label">المجلد (اختياري)</label>
+        <input type="text" class="form-input" id="saveFolder" placeholder="مثال: رسوماتي" />
       </div>
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="app.closeSaveModal()">إلغاء</button>
@@ -702,7 +706,7 @@
   <div class="modal" id="exportModal">
     <div class="modal-content">
       <h2 class="modal-header">📤 تصدير الرسمة</h2>
-      <div class="modal-actions" style="flex-direction: column;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
         <button class="btn btn-primary" onclick="app.exportAsPNG()">تصدير كـ PNG</button>
         <button class="btn btn-primary" onclick="app.exportAsJPG()">تصدير كـ JPG</button>
         <button class="btn btn-primary" onclick="app.exportAsPDF()">تصدير كـ PDF</button>
@@ -711,7 +715,7 @@
     </div>
   </div>
 
-  <!-- Hidden file input for image upload -->
+  <!-- Hidden file input -->
   <input type="file" id="imageUpload" accept="image/*" />
 
   <!-- jsPDF for PDF export -->
@@ -720,7 +724,6 @@
   <script>
     // Drawing Application
     const app = {
-      // State
       currentTool: 'pen',
       currentColor: '#000000',
       brushSize: 3,
@@ -731,64 +734,69 @@
       historyIndex: -1,
       lastSaved: null,
 
-      // Available colors
       colors: [
         '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
         '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000', '#800000',
         '#808080', '#C0C0C0', '#FFB6C1', '#87CEEB', '#90EE90', '#DDA0DD'
       ],
 
-      // Initialize
       init() {
         this.canvas = document.getElementById('drawingCanvas');
         this.ctx = this.canvas.getContext('2d');
 
-        // Set up canvas
+        // Set canvas size to window size
+        this.resizeCanvas();
+        window.addEventListener('resize', () => this.resizeCanvas());
+
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
-        this.ctx.fillStyle = 'white';
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Save initial state
         this.saveState();
-
-        // Set up event listeners
         this.setupEventListeners();
-
-        // Render colors
         this.renderColors();
-
-        // Update UI
         this.updateUI();
 
         console.log('🎨 Drawing board ready!');
       },
 
+      resizeCanvas() {
+        const oldData = this.canvas.toDataURL();
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+
+        // Restore content after resize
+        if (oldData) {
+          const img = new Image();
+          img.onload = () => {
+            this.ctx.drawImage(img, 0, 0);
+          };
+          img.src = oldData;
+        } else {
+          this.ctx.fillStyle = 'white';
+          this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+      },
+
       setupEventListeners() {
-        // Canvas events
         this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
         this.canvas.addEventListener('mousemove', (e) => this.draw(e));
         this.canvas.addEventListener('mouseup', (e) => this.stopDrawing(e));
         this.canvas.addEventListener('mouseout', () => this.stopDrawing());
 
-        // Touch events
         this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e, 'start'));
         this.canvas.addEventListener('touchmove', (e) => this.handleTouch(e, 'move'));
         this.canvas.addEventListener('touchend', () => this.stopDrawing());
 
-        // Color picker
         document.getElementById('customColor').addEventListener('input', (e) => {
           this.currentColor = e.target.value;
           this.updateUI();
         });
 
-        // Brush size
         document.getElementById('brushSize').addEventListener('input', (e) => {
           this.brushSize = parseInt(e.target.value);
           this.updateUI();
         });
 
-        // Image upload
         document.getElementById('imageUpload').addEventListener('change', (e) => this.handleImageUpload(e));
 
         // Close modals on outside click
@@ -800,6 +808,22 @@
             }
           });
         });
+      },
+
+      togglePanel(panelName) {
+        const panel = document.getElementById(panelName + 'Panel');
+        const otherPanel = panelName === 'tools' ? document.getElementById('colorsPanel') : document.getElementById('toolsPanel');
+
+        if (panel.classList.contains('show')) {
+          panel.classList.remove('show');
+        } else {
+          otherPanel.classList.remove('show');
+          panel.classList.add('show');
+        }
+      },
+
+      closePanel(panelName) {
+        document.getElementById(panelName + 'Panel').classList.remove('show');
       },
 
       renderColors() {
@@ -821,24 +845,19 @@
       },
 
       updateUI() {
-        // Update labels
         document.getElementById('brushSizeLabel').textContent = this.brushSize;
-        document.getElementById('currentToolLabel').textContent = this.currentTool;
         document.getElementById('toolStatus').textContent = this.currentTool;
-        document.getElementById('colorStatus').textContent = this.currentColor;
         document.getElementById('historyInfo').textContent = `${this.historyIndex + 1} / ${this.history.length}`;
 
-        // Update size preview
         const dot = document.getElementById('sizePreviewDot');
         dot.style.width = this.brushSize + 'px';
         dot.style.height = this.brushSize + 'px';
         dot.style.backgroundColor = this.currentColor;
 
-        // Update tool buttons
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-          btn.classList.remove('active');
-          if (btn.dataset.tool === this.currentTool) {
-            btn.classList.add('active');
+        document.querySelectorAll('.tool-item').forEach(item => {
+          item.classList.remove('active');
+          if (item.dataset.tool === this.currentTool) {
+            item.classList.add('active');
           }
         });
       },
@@ -849,10 +868,7 @@
         if (touch) {
           const mouseEvent = new MouseEvent(
             type === 'start' ? 'mousedown' : 'mousemove',
-            {
-              clientX: touch.clientX,
-              clientY: touch.clientY
-            }
+            { clientX: touch.clientX, clientY: touch.clientY }
           );
           this.canvas.dispatchEvent(mouseEvent);
         }
@@ -884,22 +900,15 @@
 
       draw(e) {
         if (!this.isDrawing) return;
-
         const pos = this.getMousePos(e);
-        const ctx = this.ctx;
 
         if (this.currentTool === 'pen' || this.currentTool === 'brush') {
-          ctx.strokeStyle = this.currentColor;
-          ctx.lineWidth = this.currentTool === 'brush' ? this.brushSize * 2 : this.brushSize;
-          ctx.lineTo(pos.x, pos.y);
-          ctx.stroke();
+          this.ctx.strokeStyle = this.currentColor;
+          this.ctx.lineWidth = this.currentTool === 'brush' ? this.brushSize * 2 : this.brushSize;
+          this.ctx.lineTo(pos.x, pos.y);
+          this.ctx.stroke();
         } else if (this.currentTool === 'eraser') {
-          ctx.clearRect(
-            pos.x - this.brushSize,
-            pos.y - this.brushSize,
-            this.brushSize * 2,
-            this.brushSize * 2
-          );
+          this.ctx.clearRect(pos.x - this.brushSize, pos.y - this.brushSize, this.brushSize * 2, this.brushSize * 2);
         }
       },
 
@@ -908,16 +917,10 @@
 
         if (e) {
           const pos = this.getMousePos(e);
-
-          if (this.currentTool === 'line') {
-            this.drawLine(this.startX, this.startY, pos.x, pos.y);
-          } else if (this.currentTool === 'rectangle') {
-            this.drawRectangle(this.startX, this.startY, pos.x, pos.y);
-          } else if (this.currentTool === 'circle') {
-            this.drawCircle(this.startX, this.startY, pos.x, pos.y);
-          } else if (this.currentTool === 'arrow') {
-            this.drawArrow(this.startX, this.startY, pos.x, pos.y);
-          }
+          if (this.currentTool === 'line') this.drawLine(this.startX, this.startY, pos.x, pos.y);
+          else if (this.currentTool === 'rectangle') this.drawRectangle(this.startX, this.startY, pos.x, pos.y);
+          else if (this.currentTool === 'circle') this.drawCircle(this.startX, this.startY, pos.x, pos.y);
+          else if (this.currentTool === 'arrow') this.drawArrow(this.startX, this.startY, pos.x, pos.y);
         }
 
         this.isDrawing = false;
@@ -925,198 +928,157 @@
       },
 
       drawLine(x1, y1, x2, y2) {
-        const ctx = this.ctx;
-        ctx.strokeStyle = this.currentColor;
-        ctx.lineWidth = this.brushSize;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
+        this.ctx.strokeStyle = this.currentColor;
+        this.ctx.lineWidth = this.brushSize;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
       },
 
       drawRectangle(x1, y1, x2, y2) {
-        const ctx = this.ctx;
-        ctx.strokeStyle = this.currentColor;
-        ctx.lineWidth = this.brushSize;
-        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        this.ctx.strokeStyle = this.currentColor;
+        this.ctx.lineWidth = this.brushSize;
+        this.ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
       },
 
       drawCircle(x1, y1, x2, y2) {
-        const ctx = this.ctx;
         const radius = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-        ctx.strokeStyle = this.currentColor;
-        ctx.lineWidth = this.brushSize;
-        ctx.beginPath();
-        ctx.arc(x1, y1, radius, 0, 2 * Math.PI);
-        ctx.stroke();
+        this.ctx.strokeStyle = this.currentColor;
+        this.ctx.lineWidth = this.brushSize;
+        this.ctx.beginPath();
+        this.ctx.arc(x1, y1, radius, 0, 2 * Math.PI);
+        this.ctx.stroke();
       },
 
       drawArrow(x1, y1, x2, y2) {
-        const ctx = this.ctx;
         const headlen = 15;
         const angle = Math.atan2(y2 - y1, x2 - x1);
+        this.ctx.strokeStyle = this.currentColor;
+        this.ctx.lineWidth = this.brushSize;
 
-        ctx.strokeStyle = this.currentColor;
-        ctx.lineWidth = this.brushSize;
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
 
-        // Draw line
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-
-        // Draw arrow head
-        ctx.beginPath();
-        ctx.moveTo(x2, y2);
-        ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI / 6), y2 - headlen * Math.sin(angle - Math.PI / 6));
-        ctx.moveTo(x2, y2);
-        ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI / 6), y2 - headlen * Math.sin(angle + Math.PI / 6));
-        ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(x2, y2);
+        this.ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI / 6), y2 - headlen * Math.sin(angle - Math.PI / 6));
+        this.ctx.moveTo(x2, y2);
+        this.ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI / 6), y2 - headlen * Math.sin(angle + Math.PI / 6));
+        this.ctx.stroke();
       },
 
       drawText(x, y) {
         const text = prompt('أدخل النص:');
         if (text) {
-          const ctx = this.ctx;
-          ctx.fillStyle = this.currentColor;
-          ctx.font = (this.brushSize * 5) + 'px Arial';
-          ctx.fillText(text, x, y);
+          this.ctx.fillStyle = this.currentColor;
+          this.ctx.font = (this.brushSize * 5) + 'px Arial';
+          this.ctx.fillText(text, x, y);
         }
       },
 
       insertShape(shape) {
-        const ctx = this.ctx;
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
         const size = 50;
 
-        ctx.fillStyle = this.currentColor;
-        ctx.strokeStyle = this.currentColor;
-        ctx.lineWidth = this.brushSize;
+        this.ctx.fillStyle = this.currentColor;
+        this.ctx.strokeStyle = this.currentColor;
+        this.ctx.lineWidth = this.brushSize;
 
         switch(shape) {
-          case 'star':
-            this.drawStar(centerX, centerY, 5, size, size/2);
-            break;
-          case 'heart':
-            this.drawHeart(centerX, centerY, size);
-            break;
-          case 'triangle':
-            this.drawTriangle(centerX, centerY, size);
-            break;
-          case 'hexagon':
-            this.drawPolygon(centerX, centerY, 6, size);
-            break;
-          case 'pentagon':
-            this.drawPolygon(centerX, centerY, 5, size);
-            break;
-          case 'diamond':
-            this.drawDiamond(centerX, centerY, size);
-            break;
+          case 'star': this.drawStar(centerX, centerY, 5, size, size/2); break;
+          case 'heart': this.drawHeart(centerX, centerY, size); break;
+          case 'triangle': this.drawTriangle(centerX, centerY, size); break;
+          case 'hexagon': this.drawPolygon(centerX, centerY, 6, size); break;
+          case 'pentagon': this.drawPolygon(centerX, centerY, 5, size); break;
+          case 'diamond': this.drawDiamond(centerX, centerY, size); break;
         }
 
         this.saveState();
       },
 
       drawStar(cx, cy, spikes, outerRadius, innerRadius) {
-        const ctx = this.ctx;
         let rot = Math.PI / 2 * 3;
-        let x = cx;
-        let y = cy;
         const step = Math.PI / spikes;
-
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - outerRadius);
+        this.ctx.beginPath();
+        this.ctx.moveTo(cx, cy - outerRadius);
 
         for (let i = 0; i < spikes; i++) {
-          x = cx + Math.cos(rot) * outerRadius;
-          y = cy + Math.sin(rot) * outerRadius;
-          ctx.lineTo(x, y);
+          let x = cx + Math.cos(rot) * outerRadius;
+          let y = cy + Math.sin(rot) * outerRadius;
+          this.ctx.lineTo(x, y);
           rot += step;
-
           x = cx + Math.cos(rot) * innerRadius;
           y = cy + Math.sin(rot) * innerRadius;
-          ctx.lineTo(x, y);
+          this.ctx.lineTo(x, y);
           rot += step;
         }
 
-        ctx.lineTo(cx, cy - outerRadius);
-        ctx.closePath();
-        ctx.stroke();
+        this.ctx.lineTo(cx, cy - outerRadius);
+        this.ctx.closePath();
+        this.ctx.stroke();
       },
 
       drawHeart(cx, cy, size) {
-        const ctx = this.ctx;
-        ctx.beginPath();
+        this.ctx.beginPath();
         const topCurveHeight = size * 0.3;
-        ctx.moveTo(cx, cy + topCurveHeight);
-        ctx.bezierCurveTo(cx, cy, cx - size / 2, cy - size / 2, cx - size / 2, cy + topCurveHeight);
-        ctx.bezierCurveTo(cx - size / 2, cy + (size + topCurveHeight) / 2, cx, cy + (size + topCurveHeight) / 2, cx, cy + size);
-        ctx.bezierCurveTo(cx, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + topCurveHeight);
-        ctx.bezierCurveTo(cx + size / 2, cy - size / 2, cx, cy, cx, cy + topCurveHeight);
-        ctx.closePath();
-        ctx.stroke();
+        this.ctx.moveTo(cx, cy + topCurveHeight);
+        this.ctx.bezierCurveTo(cx, cy, cx - size / 2, cy - size / 2, cx - size / 2, cy + topCurveHeight);
+        this.ctx.bezierCurveTo(cx - size / 2, cy + (size + topCurveHeight) / 2, cx, cy + (size + topCurveHeight) / 2, cx, cy + size);
+        this.ctx.bezierCurveTo(cx, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + topCurveHeight);
+        this.ctx.bezierCurveTo(cx + size / 2, cy - size / 2, cx, cy, cx, cy + topCurveHeight);
+        this.ctx.closePath();
+        this.ctx.stroke();
       },
 
       drawTriangle(cx, cy, size) {
-        const ctx = this.ctx;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - size);
-        ctx.lineTo(cx - size, cy + size);
-        ctx.lineTo(cx + size, cy + size);
-        ctx.closePath();
-        ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(cx, cy - size);
+        this.ctx.lineTo(cx - size, cy + size);
+        this.ctx.lineTo(cx + size, cy + size);
+        this.ctx.closePath();
+        this.ctx.stroke();
       },
 
       drawPolygon(cx, cy, sides, size) {
-        const ctx = this.ctx;
-        ctx.beginPath();
+        this.ctx.beginPath();
         for (let i = 0; i < sides; i++) {
           const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
           const x = cx + size * Math.cos(angle);
           const y = cy + size * Math.sin(angle);
-          if (i === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            ctx.lineTo(x, y);
-          }
+          if (i === 0) this.ctx.moveTo(x, y);
+          else this.ctx.lineTo(x, y);
         }
-        ctx.closePath();
-        ctx.stroke();
+        this.ctx.closePath();
+        this.ctx.stroke();
       },
 
       drawDiamond(cx, cy, size) {
-        const ctx = this.ctx;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - size);
-        ctx.lineTo(cx + size, cy);
-        ctx.lineTo(cx, cy + size);
-        ctx.lineTo(cx - size, cy);
-        ctx.closePath();
-        ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(cx, cy - size);
+        this.ctx.lineTo(cx + size, cy);
+        this.ctx.lineTo(cx, cy + size);
+        this.ctx.lineTo(cx - size, cy);
+        this.ctx.closePath();
+        this.ctx.stroke();
       },
 
-      // Tools
       setTool(tool) {
         this.currentTool = tool;
         this.updateUI();
       },
 
-      // History
       saveState() {
-        // Remove any states after current index
         this.history = this.history.slice(0, this.historyIndex + 1);
-
-        // Save current state
         this.history.push(this.canvas.toDataURL());
         this.historyIndex++;
-
-        // Limit history to 50 states
         if (this.history.length > 50) {
           this.history.shift();
           this.historyIndex--;
         }
-
         this.updateUI();
       },
 
@@ -1153,7 +1115,6 @@
         }
       },
 
-      // Image Import
       importImage() {
         document.getElementById('imageUpload').click();
       },
@@ -1174,7 +1135,6 @@
         }
       },
 
-      // Modals
       openSaveModal() {
         document.getElementById('saveModal').classList.add('active');
       },
@@ -1202,7 +1162,6 @@
         document.getElementById('exportModal').classList.remove('active');
       },
 
-      // Save/Load
       saveDrawing() {
         const name = document.getElementById('saveName').value.trim();
         const folder = document.getElementById('saveFolder').value.trim();
@@ -1220,13 +1179,11 @@
           date: new Date().toLocaleDateString('ar-SA')
         };
 
-        // Get existing drawings
         let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
         drawings.push(drawing);
         localStorage.setItem('drawings', JSON.stringify(drawings));
 
         this.lastSaved = drawing.date;
-        document.getElementById('lastSaved').textContent = drawing.date;
         this.closeSaveModal();
         alert('تم الحفظ بنجاح!');
       },
@@ -1236,7 +1193,7 @@
         const list = document.getElementById('filesList');
 
         if (drawings.length === 0) {
-          list.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">لا توجد رسومات محفوظة</div>';
+          list.innerHTML = '<div style="text-align: center; padding: 2rem; color: rgba(148, 163, 184, 0.8);">لا توجد رسومات محفوظة</div>';
           return;
         }
 
@@ -1250,7 +1207,7 @@
               <div class="file-meta">${drawing.folder || 'بدون مجلد'} • ${drawing.date}</div>
             </div>
             <div class="file-actions">
-              <button class="btn btn-small" onclick="app.deleteDrawing(${drawing.id}); event.stopPropagation();">🗑️</button>
+              <button class="btn-small" onclick="app.deleteDrawing(${drawing.id}); event.stopPropagation();">🗑️</button>
             </div>
           `;
           item.addEventListener('click', () => this.loadDrawing(drawing.id));
@@ -1283,7 +1240,6 @@
         }
       },
 
-      // Export
       exportAsPNG() {
         const link = document.createElement('a');
         const name = document.getElementById('saveName').value.trim() || 'drawing';
@@ -1317,7 +1273,6 @@
       }
     };
 
-    // Initialize when DOM is ready
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => app.init());
     } else {
