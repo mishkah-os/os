@@ -21,25 +21,50 @@
 </script>
 <script src="/lib/mishkah.js" data-htmlx data-css="env"></script>
   <script>
-    // Activate template - fw repo has data-htmlx/data-after-mount features, os repo doesn't
+    // Polyfill for data-after-mount (fw repo feature, missing in os repo)
     (function() {
       if (window.MishkahAuto && typeof window.MishkahAuto.ready === 'function') {
         window.MishkahAuto.ready(function(M) {
           if (M && M.app && typeof M.app.make === 'function') {
             var appInstance = M.app.make(); // No empty {} - let it read from template
-            // Wait for app mount, then call quickDashboardMount manually
+
+            // Polyfill: Execute data-after-mount scripts after app mounts
             if (appInstance && typeof appInstance.then === 'function') {
               appInstance.then(function(app) {
-                // Try calling quickDashboardMount with retries (defined in template)
-                var attempts = 0;
-                var tryMount = function() {
-                  if (typeof window.quickDashboardMount === 'function') {
-                    window.quickDashboardMount(app);
-                  } else if (attempts++ < 10) {
-                    setTimeout(tryMount, 50);
+                // Find all scripts with data-after-mount attribute
+                var templates = document.querySelectorAll('template');
+                for (var t = 0; t < templates.length; t++) {
+                  var template = templates[t];
+                  var scripts = template.content ?
+                    template.content.querySelectorAll('script[data-after-mount]') :
+                    [];
+
+                  for (var i = 0; i < scripts.length; i++) {
+                    var script = scripts[i];
+                    var fnName = script.getAttribute('data-after-mount');
+                    var delay = parseInt(script.getAttribute('data-after-delay') || '0', 10);
+
+                    if (fnName && typeof window[fnName] === 'function') {
+                      // Call immediately if function exists
+                      (function(fn, d) {
+                        setTimeout(function() { fn(app); }, d);
+                      })(window[fnName], delay);
+                    } else if (fnName) {
+                      // Retry with exponential backoff if not found
+                      (function(name, maxDelay) {
+                        var attempts = 0;
+                        var tryCall = function() {
+                          if (typeof window[name] === 'function') {
+                            window[name](app);
+                          } else if (attempts++ < 10) {
+                            setTimeout(tryCall, Math.min(maxDelay, 50 * Math.pow(2, attempts)));
+                          }
+                        };
+                        setTimeout(tryCall, maxDelay);
+                      })(fnName, delay);
+                    }
                   }
-                };
-                tryMount();
+                }
               });
             }
           }
