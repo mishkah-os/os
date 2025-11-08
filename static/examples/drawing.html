@@ -165,6 +165,9 @@
         linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px);
       background-size: 20px 20px;
       overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     #drawingCanvas {
@@ -315,36 +318,6 @@
       border-color: var(--accent);
     }
 
-    /* Layers Panel */
-    .layers-list {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-      max-height: 200px;
-      overflow-y: auto;
-    }
-
-    .layer-item {
-      background: var(--surface-3);
-      padding: 0.6rem;
-      border-radius: 6px;
-      border: 1px solid transparent;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      transition: all 0.2s;
-    }
-
-    .layer-item:hover {
-      border-color: var(--accent-light);
-    }
-
-    .layer-item.active {
-      border-color: var(--accent);
-      background: rgba(99, 102, 241, 0.2);
-    }
-
     /* Bottom Toolbar */
     .toolbar-bottom {
       background: var(--surface-1);
@@ -389,6 +362,8 @@
       width: 90%;
       border: 1px solid var(--border);
       box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      max-height: 90vh;
+      overflow-y: auto;
     }
 
     .modal-header {
@@ -489,48 +464,6 @@
       font-size: 0.8rem;
     }
 
-    /* Responsive */
-    @media (max-width: 1024px) {
-      .sidebar-right {
-        width: 240px;
-      }
-
-      .sidebar-left {
-        width: 70px;
-      }
-
-      .tool-btn {
-        width: 56px;
-        height: 56px;
-      }
-    }
-
-    @media (max-width: 768px) {
-      .sidebar-left,
-      .sidebar-right {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        z-index: 100;
-        transform: translateX(-100%);
-        transition: transform 0.3s;
-      }
-
-      .sidebar-left.open {
-        transform: translateX(0);
-      }
-
-      .sidebar-right {
-        left: auto;
-        right: 0;
-        transform: translateX(100%);
-      }
-
-      .sidebar-right.open {
-        transform: translateX(0);
-      }
-    }
-
     /* Scrollbar Styling */
     ::-webkit-scrollbar {
       width: 8px;
@@ -554,851 +487,842 @@
     #imageUpload {
       display: none;
     }
+
+    .hidden {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
-  <div id="app"></div>
-
-  <!-- Main App Template -->
-  <template id="drawing-app">
-    <div class="drawing-app">
-      <!-- Top Toolbar -->
-      <div class="toolbar-top">
-        <div class="toolbar-section">
-          <h1 class="app-title">🎨 لوحة الرسم</h1>
-        </div>
-
-        <div class="toolbar-section">
-          <button class="btn" @click="undo">
-            <span>↶</span>
-            <span>تراجع</span>
-          </button>
-          <button class="btn" @click="redo">
-            <span>↷</span>
-            <span>إعادة</span>
-          </button>
-          <button class="btn" @click="clearCanvas">
-            <span>🗑️</span>
-            <span>مسح الكل</span>
-          </button>
-        </div>
-
-        <div class="toolbar-section">
-          <button class="btn" @click="openSaveModal">
-            <span>💾</span>
-            <span>حفظ</span>
-          </button>
-          <button class="btn" @click="openLoadModal">
-            <span>📁</span>
-            <span>فتح</span>
-          </button>
-          <button class="btn" @click="openExportModal">
-            <span>📤</span>
-            <span>تصدير</span>
-          </button>
-        </div>
+  <div class="drawing-app">
+    <!-- Top Toolbar -->
+    <div class="toolbar-top">
+      <div class="toolbar-section">
+        <h1 class="app-title">🎨 لوحة الرسم</h1>
       </div>
 
-      <!-- Main Canvas Area -->
-      <div class="canvas-container">
-        <!-- Left Sidebar - Tools -->
-        <div class="sidebar-left">
-          <button
-            class="tool-btn"
-            :class="data.currentTool === 'pen' ? 'active' : ''"
-            @click="setTool('pen')"
-          >
-            <span class="tool-icon">✏️</span>
-            <span>قلم</span>
-          </button>
+      <div class="toolbar-section">
+        <button class="btn" onclick="app.undo()">
+          <span>↶</span>
+          <span>تراجع</span>
+        </button>
+        <button class="btn" onclick="app.redo()">
+          <span>↷</span>
+          <span>إعادة</span>
+        </button>
+        <button class="btn" onclick="app.clearCanvas()">
+          <span>🗑️</span>
+          <span>مسح الكل</span>
+        </button>
+      </div>
 
-          <button
-            class="tool-btn"
-            :class="data.currentTool === 'brush' ? 'active' : ''"
-            @click="setTool('brush')"
-          >
-            <span class="tool-icon">🖌️</span>
-            <span>فرشاة</span>
-          </button>
+      <div class="toolbar-section">
+        <button class="btn" onclick="app.openSaveModal()">
+          <span>💾</span>
+          <span>حفظ</span>
+        </button>
+        <button class="btn" onclick="app.openLoadModal()">
+          <span>📁</span>
+          <span>فتح</span>
+        </button>
+        <button class="btn" onclick="app.openExportModal()">
+          <span>📤</span>
+          <span>تصدير</span>
+        </button>
+      </div>
+    </div>
 
-          <button
-            class="tool-btn"
-            :class="data.currentTool === 'eraser' ? 'active' : ''"
-            @click="setTool('eraser')"
-          >
-            <span class="tool-icon">🧹</span>
-            <span>ممحاة</span>
-          </button>
+    <!-- Main Canvas Area -->
+    <div class="canvas-container">
+      <!-- Left Sidebar - Tools -->
+      <div class="sidebar-left">
+        <button class="tool-btn active" onclick="app.setTool('pen')" data-tool="pen">
+          <span class="tool-icon">✏️</span>
+          <span>قلم</span>
+        </button>
 
-          <button
-            class="tool-btn"
-            :class="data.currentTool === 'line' ? 'active' : ''"
-            @click="setTool('line')"
-          >
-            <span class="tool-icon">📏</span>
-            <span>خط</span>
-          </button>
+        <button class="tool-btn" onclick="app.setTool('brush')" data-tool="brush">
+          <span class="tool-icon">🖌️</span>
+          <span>فرشاة</span>
+        </button>
 
-          <button
-            class="tool-btn"
-            :class="data.currentTool === 'rectangle' ? 'active' : ''"
-            @click="setTool('rectangle')"
-          >
-            <span class="tool-icon">▭</span>
-            <span>مربع</span>
-          </button>
+        <button class="tool-btn" onclick="app.setTool('eraser')" data-tool="eraser">
+          <span class="tool-icon">🧹</span>
+          <span>ممحاة</span>
+        </button>
 
-          <button
-            class="tool-btn"
-            :class="data.currentTool === 'circle' ? 'active' : ''"
-            @click="setTool('circle')"
-          >
-            <span class="tool-icon">⭕</span>
-            <span>دائرة</span>
-          </button>
+        <button class="tool-btn" onclick="app.setTool('line')" data-tool="line">
+          <span class="tool-icon">📏</span>
+          <span>خط</span>
+        </button>
 
-          <button
-            class="tool-btn"
-            :class="data.currentTool === 'arrow' ? 'active' : ''"
-            @click="setTool('arrow')"
-          >
-            <span class="tool-icon">➡️</span>
-            <span>سهم</span>
-          </button>
+        <button class="tool-btn" onclick="app.setTool('rectangle')" data-tool="rectangle">
+          <span class="tool-icon">▭</span>
+          <span>مربع</span>
+        </button>
 
-          <button
-            class="tool-btn"
-            :class="data.currentTool === 'text' ? 'active' : ''"
-            @click="setTool('text')"
-          >
-            <span class="tool-icon">📝</span>
-            <span>نص</span>
-          </button>
+        <button class="tool-btn" onclick="app.setTool('circle')" data-tool="circle">
+          <span class="tool-icon">⭕</span>
+          <span>دائرة</span>
+        </button>
 
-          <button
-            class="tool-btn"
-            @click="importImage"
-          >
-            <span class="tool-icon">🖼️</span>
-            <span>صورة</span>
-          </button>
+        <button class="tool-btn" onclick="app.setTool('arrow')" data-tool="arrow">
+          <span class="tool-icon">➡️</span>
+          <span>سهم</span>
+        </button>
+
+        <button class="tool-btn" onclick="app.setTool('text')" data-tool="text">
+          <span class="tool-icon">📝</span>
+          <span>نص</span>
+        </button>
+
+        <button class="tool-btn" onclick="app.importImage()">
+          <span class="tool-icon">🖼️</span>
+          <span>صورة</span>
+        </button>
+      </div>
+
+      <!-- Canvas -->
+      <div class="canvas-wrapper">
+        <canvas id="drawingCanvas" width="1200" height="800"></canvas>
+      </div>
+
+      <!-- Right Sidebar - Properties -->
+      <div class="sidebar-right">
+        <!-- Colors Panel -->
+        <div class="panel">
+          <h3 class="panel-title">🎨 الألوان</h3>
+          <div class="color-grid" id="colorGrid"></div>
+          <input
+            type="color"
+            class="custom-color-input"
+            id="customColor"
+            value="#000000"
+          />
         </div>
 
-        <!-- Canvas -->
-        <div class="canvas-wrapper">
-          <canvas id="drawingCanvas" width="1200" height="800"></canvas>
-        </div>
-
-        <!-- Right Sidebar - Properties -->
-        <div class="sidebar-right">
-          <!-- Colors Panel -->
-          <div class="panel">
-            <h3 class="panel-title">🎨 الألوان</h3>
-            <div class="color-grid">
-              <div
-                x-for="color in data.colors"
-                :key="color"
-                class="color-swatch"
-                :class="data.currentColor === color ? 'active' : ''"
-                :style="'background-color: ' + color"
-                @click="setColor(color)"
-              ></div>
-            </div>
+        <!-- Brush Size Panel -->
+        <div class="panel">
+          <h3 class="panel-title">📏 حجم الفرشاة: <span id="brushSizeLabel">3</span>px</h3>
+          <div class="size-control">
             <input
-              type="color"
-              class="custom-color-input"
-              :value="data.currentColor"
-              @input="setCustomColor"
+              type="range"
+              class="size-slider"
+              id="brushSize"
+              min="1"
+              max="50"
+              value="3"
             />
-          </div>
-
-          <!-- Brush Size Panel -->
-          <div class="panel">
-            <h3 class="panel-title">📏 حجم الفرشاة: {{data.brushSize}}px</h3>
-            <div class="size-control">
-              <input
-                type="range"
-                class="size-slider"
-                min="1"
-                max="50"
-                :value="data.brushSize"
-                @input="setBrushSize"
-              />
-              <div class="size-preview">
-                <div
-                  class="size-preview-dot"
-                  :style="'width: ' + data.brushSize + 'px; height: ' + data.brushSize + 'px; background: ' + data.currentColor"
-                ></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Shapes Panel -->
-          <div class="panel">
-            <h3 class="panel-title">🔶 أشكال جاهزة</h3>
-            <div class="shapes-grid">
-              <button class="shape-btn" @click="insertShape('star')">⭐</button>
-              <button class="shape-btn" @click="insertShape('heart')">❤️</button>
-              <button class="shape-btn" @click="insertShape('triangle')">🔺</button>
-              <button class="shape-btn" @click="insertShape('hexagon')">⬡</button>
-              <button class="shape-btn" @click="insertShape('pentagon')">⬟</button>
-              <button class="shape-btn" @click="insertShape('diamond')">💎</button>
-            </div>
-          </div>
-
-          <!-- History Info -->
-          <div class="panel">
-            <h3 class="panel-title">📊 الإحصائيات</h3>
-            <div style="font-size: 0.85rem; color: var(--text-muted);">
-              <div style="margin-bottom: 0.5rem;">
-                <strong>التاريخ:</strong> {{data.historyIndex + 1}} / {{data.history.length}}
-              </div>
-              <div>
-                <strong>الأداة الحالية:</strong> {{data.currentTool}}
-              </div>
+            <div class="size-preview">
+              <div id="sizePreviewDot" class="size-preview-dot"></div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Bottom Toolbar -->
-      <div class="toolbar-bottom">
-        <div class="status-text">
-          جاهز للرسم | الأداة: {{data.currentTool}} | اللون: {{data.currentColor}}
+        <!-- Shapes Panel -->
+        <div class="panel">
+          <h3 class="panel-title">🔶 أشكال جاهزة</h3>
+          <div class="shapes-grid">
+            <button class="shape-btn" onclick="app.insertShape('star')">⭐</button>
+            <button class="shape-btn" onclick="app.insertShape('heart')">❤️</button>
+            <button class="shape-btn" onclick="app.insertShape('triangle')">🔺</button>
+            <button class="shape-btn" onclick="app.insertShape('hexagon')">⬡</button>
+            <button class="shape-btn" onclick="app.insertShape('pentagon')">⬟</button>
+            <button class="shape-btn" onclick="app.insertShape('diamond')">💎</button>
+          </div>
         </div>
-        <div class="status-text">
-          آخر حفظ: {{data.lastSaved || 'لم يتم الحفظ بعد'}}
+
+        <!-- History Info -->
+        <div class="panel">
+          <h3 class="panel-title">📊 الإحصائيات</h3>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">
+            <div style="margin-bottom: 0.5rem;">
+              <strong>التاريخ:</strong> <span id="historyInfo">1 / 1</span>
+            </div>
+            <div>
+              <strong>الأداة الحالية:</strong> <span id="currentToolLabel">pen</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Save Modal -->
-    <div class="modal" :class="data.showSaveModal ? 'active' : ''">
-      <div class="modal-content">
-        <h2 class="modal-header">💾 حفظ الرسمة</h2>
-        <div class="form-group">
-          <label class="form-label">اسم الرسمة</label>
-          <input
-            type="text"
-            class="form-input"
-            :value="data.saveName"
-            @input="updateSaveName"
-            placeholder="أدخل اسم الرسمة..."
-          />
-        </div>
-        <div class="form-group">
-          <label class="form-label">المجلد</label>
-          <input
-            type="text"
-            class="form-input"
-            :value="data.saveFolder"
-            @input="updateSaveFolder"
-            placeholder="اختياري: اسم المجلد"
-          />
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary" @click="closeSaveModal">إلغاء</button>
-          <button class="btn btn-primary" @click="saveDrawing">حفظ</button>
-        </div>
+    <!-- Bottom Toolbar -->
+    <div class="toolbar-bottom">
+      <div class="status-text" id="statusLeft">
+        جاهز للرسم | الأداة: <span id="toolStatus">pen</span> | اللون: <span id="colorStatus">#000000</span>
+      </div>
+      <div class="status-text" id="statusRight">
+        آخر حفظ: <span id="lastSaved">لم يتم الحفظ بعد</span>
       </div>
     </div>
+  </div>
 
-    <!-- Load Modal -->
-    <div class="modal" :class="data.showLoadModal ? 'active' : ''">
-      <div class="modal-content">
-        <h2 class="modal-header">📁 فتح رسمة</h2>
-        <div class="files-list">
-          <div
-            x-for="file in data.savedFiles"
-            :key="file.id"
-            class="file-item"
-            @click="loadDrawing(file.id)"
-          >
-            <div class="file-info">
-              <div class="file-name">{{file.name}}</div>
-              <div class="file-meta">
-                {{file.folder || 'بدون مجلد'}} • {{file.date}}
-              </div>
-            </div>
-            <div class="file-actions">
-              <button class="btn btn-small" @click.stop="deleteDrawing(file.id)">🗑️</button>
-            </div>
-          </div>
-          <div x-if="data.savedFiles.length === 0" style="text-align: center; padding: 2rem; color: var(--text-muted);">
-            لا توجد رسومات محفوظة
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary" @click="closeLoadModal">إغلاق</button>
-        </div>
+  <!-- Save Modal -->
+  <div class="modal" id="saveModal">
+    <div class="modal-content">
+      <h2 class="modal-header">💾 حفظ الرسمة</h2>
+      <div class="form-group">
+        <label class="form-label">اسم الرسمة</label>
+        <input
+          type="text"
+          class="form-input"
+          id="saveName"
+          placeholder="أدخل اسم الرسمة..."
+        />
+      </div>
+      <div class="form-group">
+        <label class="form-label">المجلد</label>
+        <input
+          type="text"
+          class="form-input"
+          id="saveFolder"
+          placeholder="اختياري: اسم المجلد"
+        />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="app.closeSaveModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="app.saveDrawing()">حفظ</button>
       </div>
     </div>
+  </div>
 
-    <!-- Export Modal -->
-    <div class="modal" :class="data.showExportModal ? 'active' : ''">
-      <div class="modal-content">
-        <h2 class="modal-header">📤 تصدير الرسمة</h2>
-        <div class="modal-actions" style="flex-direction: column;">
-          <button class="btn btn-primary" @click="exportAsPNG">تصدير كـ PNG</button>
-          <button class="btn btn-primary" @click="exportAsJPG">تصدير كـ JPG</button>
-          <button class="btn btn-primary" @click="exportAsPDF">تصدير كـ PDF</button>
-          <button class="btn btn-secondary" @click="closeExportModal">إلغاء</button>
-        </div>
+  <!-- Load Modal -->
+  <div class="modal" id="loadModal">
+    <div class="modal-content">
+      <h2 class="modal-header">📁 فتح رسمة</h2>
+      <div class="files-list" id="filesList"></div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="app.closeLoadModal()">إغلاق</button>
       </div>
     </div>
-  </template>
+  </div>
+
+  <!-- Export Modal -->
+  <div class="modal" id="exportModal">
+    <div class="modal-content">
+      <h2 class="modal-header">📤 تصدير الرسمة</h2>
+      <div class="modal-actions" style="flex-direction: column;">
+        <button class="btn btn-primary" onclick="app.exportAsPNG()">تصدير كـ PNG</button>
+        <button class="btn btn-primary" onclick="app.exportAsJPG()">تصدير كـ JPG</button>
+        <button class="btn btn-primary" onclick="app.exportAsPDF()">تصدير كـ PDF</button>
+        <button class="btn btn-secondary" onclick="app.closeExportModal()">إلغاء</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Hidden file input for image upload -->
   <input type="file" id="imageUpload" accept="image/*" />
-
-  <!-- Load Mishkah Libraries -->
-  <script src="../lib/mishkah.js"></script>
-  <script src="../lib/mishkah-htmlx.js"></script>
-  <script src="../lib/mishkah-indexeddb.js"></script>
 
   <!-- jsPDF for PDF export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
   <script>
-    console.log('%c🎨 Mishkah Drawing Board', 'font-size: 20px; font-weight: bold; color: #6366f1;');
+    // Drawing Application
+    const app = {
+      // State
+      currentTool: 'pen',
+      currentColor: '#000000',
+      brushSize: 3,
+      isDrawing: false,
+      startX: 0,
+      startY: 0,
+      history: [],
+      historyIndex: -1,
+      lastSaved: null,
 
-    // Initialize Drawing App
-    const drawingApp = M.htmlx.mount('#drawing-app', '#app', {
-      data: {
-        // Canvas state
-        currentTool: 'pen',
-        currentColor: '#000000',
-        brushSize: 3,
+      // Available colors
+      colors: [
+        '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
+        '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000', '#800000',
+        '#808080', '#C0C0C0', '#FFB6C1', '#87CEEB', '#90EE90', '#DDA0DD'
+      ],
 
-        // Available colors
-        colors: [
-          '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
-          '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000', '#800000',
-          '#808080', '#C0C0C0', '#FFB6C1', '#87CEEB', '#90EE90', '#DDA0DD'
-        ],
+      // Initialize
+      init() {
+        this.canvas = document.getElementById('drawingCanvas');
+        this.ctx = this.canvas.getContext('2d');
 
-        // History for undo/redo
-        history: [],
-        historyIndex: -1,
+        // Set up canvas
+        this.ctx.lineCap = 'round';
+        this.ctx.lineJoin = 'round';
+        this.ctx.fillStyle = 'white';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Drawing state
-        isDrawing: false,
-        startX: 0,
-        startY: 0,
+        // Save initial state
+        this.saveState();
 
-        // Modals
-        showSaveModal: false,
-        showLoadModal: false,
-        showExportModal: false,
+        // Set up event listeners
+        this.setupEventListeners();
 
-        // Save data
-        saveName: '',
-        saveFolder: '',
-        savedFiles: [],
-        lastSaved: null
+        // Render colors
+        this.renderColors();
+
+        // Update UI
+        this.updateUI();
+
+        console.log('🎨 Drawing board ready!');
       },
 
-      methods: {
-        // Initialize canvas
-        init: function() {
-          const canvas = document.getElementById('drawingCanvas');
-          const ctx = canvas.getContext('2d');
+      setupEventListeners() {
+        // Canvas events
+        this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
+        this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+        this.canvas.addEventListener('mouseup', (e) => this.stopDrawing(e));
+        this.canvas.addEventListener('mouseout', () => this.stopDrawing());
 
-          // Store references
-          this.canvas = canvas;
-          this.ctx = ctx;
+        // Touch events
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e, 'start'));
+        this.canvas.addEventListener('touchmove', (e) => this.handleTouch(e, 'move'));
+        this.canvas.addEventListener('touchend', () => this.stopDrawing());
 
-          // Set up canvas
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Color picker
+        document.getElementById('customColor').addEventListener('input', (e) => {
+          this.currentColor = e.target.value;
+          this.updateUI();
+        });
 
-          // Save initial state
-          this.saveState();
+        // Brush size
+        document.getElementById('brushSize').addEventListener('input', (e) => {
+          this.brushSize = parseInt(e.target.value);
+          this.updateUI();
+        });
 
-          // Set up event listeners
-          this.setupEventListeners();
+        // Image upload
+        document.getElementById('imageUpload').addEventListener('change', (e) => this.handleImageUpload(e));
 
-          // Load saved files
-          this.loadSavedFiles();
-
-          // Set up image upload
-          const imageUpload = document.getElementById('imageUpload');
-          imageUpload.addEventListener('change', this.handleImageUpload.bind(this));
-        },
-
-        setupEventListeners: function() {
-          const canvas = this.canvas;
-
-          // Mouse events
-          canvas.addEventListener('mousedown', this.startDrawing.bind(this));
-          canvas.addEventListener('mousemove', this.draw.bind(this));
-          canvas.addEventListener('mouseup', this.stopDrawing.bind(this));
-          canvas.addEventListener('mouseout', this.stopDrawing.bind(this));
-
-          // Touch events
-          canvas.addEventListener('touchstart', this.handleTouch.bind(this));
-          canvas.addEventListener('touchmove', this.handleTouch.bind(this));
-          canvas.addEventListener('touchend', this.stopDrawing.bind(this));
-        },
-
-        handleTouch: function(e) {
-          e.preventDefault();
-          const touch = e.touches[0];
-          const mouseEvent = new MouseEvent(e.type === 'touchstart' ? 'mousedown' : 'mousemove', {
-            clientX: touch.clientX,
-            clientY: touch.clientY
-          });
-          this.canvas.dispatchEvent(mouseEvent);
-        },
-
-        getMousePos: function(e) {
-          const rect = this.canvas.getBoundingClientRect();
-          return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-          };
-        },
-
-        startDrawing: function(e) {
-          this.data.isDrawing = true;
-          const pos = this.getMousePos(e);
-          this.data.startX = pos.x;
-          this.data.startY = pos.y;
-
-          if (this.data.currentTool === 'pen' || this.data.currentTool === 'brush') {
-            this.ctx.beginPath();
-            this.ctx.moveTo(pos.x, pos.y);
-          } else if (this.data.currentTool === 'text') {
-            this.drawText(pos.x, pos.y);
-            this.data.isDrawing = false;
-            this.saveState();
-          }
-        },
-
-        draw: function(e) {
-          if (!this.data.isDrawing) return;
-
-          const pos = this.getMousePos(e);
-          const ctx = this.ctx;
-
-          if (this.data.currentTool === 'pen' || this.data.currentTool === 'brush') {
-            ctx.strokeStyle = this.data.currentColor;
-            ctx.lineWidth = this.data.currentTool === 'brush' ? this.data.brushSize * 2 : this.data.brushSize;
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
-          } else if (this.data.currentTool === 'eraser') {
-            ctx.clearRect(pos.x - this.data.brushSize / 2, pos.y - this.data.brushSize / 2,
-                         this.data.brushSize * 2, this.data.brushSize * 2);
-          }
-        },
-
-        stopDrawing: function(e) {
-          if (!this.data.isDrawing) return;
-
-          const pos = this.getMousePos(e);
-
-          if (this.data.currentTool === 'line') {
-            this.drawLine(this.data.startX, this.data.startY, pos.x, pos.y);
-          } else if (this.data.currentTool === 'rectangle') {
-            this.drawRectangle(this.data.startX, this.data.startY, pos.x, pos.y);
-          } else if (this.data.currentTool === 'circle') {
-            this.drawCircle(this.data.startX, this.data.startY, pos.x, pos.y);
-          } else if (this.data.currentTool === 'arrow') {
-            this.drawArrow(this.data.startX, this.data.startY, pos.x, pos.y);
-          }
-
-          this.data.isDrawing = false;
-          this.saveState();
-        },
-
-        drawLine: function(x1, y1, x2, y2) {
-          const ctx = this.ctx;
-          ctx.strokeStyle = this.data.currentColor;
-          ctx.lineWidth = this.data.brushSize;
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.stroke();
-        },
-
-        drawRectangle: function(x1, y1, x2, y2) {
-          const ctx = this.ctx;
-          ctx.strokeStyle = this.data.currentColor;
-          ctx.lineWidth = this.data.brushSize;
-          ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-        },
-
-        drawCircle: function(x1, y1, x2, y2) {
-          const ctx = this.ctx;
-          const radius = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-          ctx.strokeStyle = this.data.currentColor;
-          ctx.lineWidth = this.data.brushSize;
-          ctx.beginPath();
-          ctx.arc(x1, y1, radius, 0, 2 * Math.PI);
-          ctx.stroke();
-        },
-
-        drawArrow: function(x1, y1, x2, y2) {
-          const ctx = this.ctx;
-          const headlen = 15;
-          const angle = Math.atan2(y2 - y1, x2 - x1);
-
-          ctx.strokeStyle = this.data.currentColor;
-          ctx.lineWidth = this.data.brushSize;
-
-          // Draw line
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.stroke();
-
-          // Draw arrow head
-          ctx.beginPath();
-          ctx.moveTo(x2, y2);
-          ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI / 6), y2 - headlen * Math.sin(angle - Math.PI / 6));
-          ctx.moveTo(x2, y2);
-          ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI / 6), y2 - headlen * Math.sin(angle + Math.PI / 6));
-          ctx.stroke();
-        },
-
-        drawText: function(x, y) {
-          const text = prompt('أدخل النص:');
-          if (text) {
-            const ctx = this.ctx;
-            ctx.fillStyle = this.data.currentColor;
-            ctx.font = (this.data.brushSize * 5) + 'px Arial';
-            ctx.fillText(text, x, y);
-          }
-        },
-
-        insertShape: function(shape) {
-          const ctx = this.ctx;
-          const centerX = this.canvas.width / 2;
-          const centerY = this.canvas.height / 2;
-          const size = 50;
-
-          ctx.fillStyle = this.data.currentColor;
-          ctx.strokeStyle = this.data.currentColor;
-          ctx.lineWidth = this.data.brushSize;
-
-          switch(shape) {
-            case 'star':
-              this.drawStar(centerX, centerY, 5, size, size/2);
-              break;
-            case 'heart':
-              this.drawHeart(centerX, centerY, size);
-              break;
-            case 'triangle':
-              this.drawTriangle(centerX, centerY, size);
-              break;
-            case 'hexagon':
-              this.drawPolygon(centerX, centerY, 6, size);
-              break;
-            case 'pentagon':
-              this.drawPolygon(centerX, centerY, 5, size);
-              break;
-            case 'diamond':
-              this.drawDiamond(centerX, centerY, size);
-              break;
-          }
-
-          this.saveState();
-        },
-
-        drawStar: function(cx, cy, spikes, outerRadius, innerRadius) {
-          const ctx = this.ctx;
-          let rot = Math.PI / 2 * 3;
-          let x = cx;
-          let y = cy;
-          const step = Math.PI / spikes;
-
-          ctx.beginPath();
-          ctx.moveTo(cx, cy - outerRadius);
-
-          for (let i = 0; i < spikes; i++) {
-            x = cx + Math.cos(rot) * outerRadius;
-            y = cy + Math.sin(rot) * outerRadius;
-            ctx.lineTo(x, y);
-            rot += step;
-
-            x = cx + Math.cos(rot) * innerRadius;
-            y = cy + Math.sin(rot) * innerRadius;
-            ctx.lineTo(x, y);
-            rot += step;
-          }
-
-          ctx.lineTo(cx, cy - outerRadius);
-          ctx.closePath();
-          ctx.stroke();
-        },
-
-        drawHeart: function(cx, cy, size) {
-          const ctx = this.ctx;
-          ctx.beginPath();
-          const topCurveHeight = size * 0.3;
-          ctx.moveTo(cx, cy + topCurveHeight);
-          ctx.bezierCurveTo(cx, cy, cx - size / 2, cy - size / 2, cx - size / 2, cy + topCurveHeight);
-          ctx.bezierCurveTo(cx - size / 2, cy + (size + topCurveHeight) / 2, cx, cy + (size + topCurveHeight) / 2, cx, cy + size);
-          ctx.bezierCurveTo(cx, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + topCurveHeight);
-          ctx.bezierCurveTo(cx + size / 2, cy - size / 2, cx, cy, cx, cy + topCurveHeight);
-          ctx.closePath();
-          ctx.stroke();
-        },
-
-        drawTriangle: function(cx, cy, size) {
-          const ctx = this.ctx;
-          ctx.beginPath();
-          ctx.moveTo(cx, cy - size);
-          ctx.lineTo(cx - size, cy + size);
-          ctx.lineTo(cx + size, cy + size);
-          ctx.closePath();
-          ctx.stroke();
-        },
-
-        drawPolygon: function(cx, cy, sides, size) {
-          const ctx = this.ctx;
-          ctx.beginPath();
-          for (let i = 0; i < sides; i++) {
-            const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
-            const x = cx + size * Math.cos(angle);
-            const y = cy + size * Math.sin(angle);
-            if (i === 0) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
+        // Close modals on outside click
+        ['saveModal', 'loadModal', 'exportModal'].forEach(id => {
+          const modal = document.getElementById(id);
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+              modal.classList.remove('active');
             }
-          }
-          ctx.closePath();
-          ctx.stroke();
-        },
+          });
+        });
+      },
 
-        drawDiamond: function(cx, cy, size) {
+      renderColors() {
+        const grid = document.getElementById('colorGrid');
+        grid.innerHTML = '';
+        this.colors.forEach(color => {
+          const swatch = document.createElement('div');
+          swatch.className = 'color-swatch';
+          swatch.style.backgroundColor = color;
+          if (color === this.currentColor) swatch.classList.add('active');
+          swatch.addEventListener('click', () => {
+            this.currentColor = color;
+            document.getElementById('customColor').value = color;
+            this.updateUI();
+            this.renderColors();
+          });
+          grid.appendChild(swatch);
+        });
+      },
+
+      updateUI() {
+        // Update labels
+        document.getElementById('brushSizeLabel').textContent = this.brushSize;
+        document.getElementById('currentToolLabel').textContent = this.currentTool;
+        document.getElementById('toolStatus').textContent = this.currentTool;
+        document.getElementById('colorStatus').textContent = this.currentColor;
+        document.getElementById('historyInfo').textContent = `${this.historyIndex + 1} / ${this.history.length}`;
+
+        // Update size preview
+        const dot = document.getElementById('sizePreviewDot');
+        dot.style.width = this.brushSize + 'px';
+        dot.style.height = this.brushSize + 'px';
+        dot.style.backgroundColor = this.currentColor;
+
+        // Update tool buttons
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+          btn.classList.remove('active');
+          if (btn.dataset.tool === this.currentTool) {
+            btn.classList.add('active');
+          }
+        });
+      },
+
+      handleTouch(e, type) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        if (touch) {
+          const mouseEvent = new MouseEvent(
+            type === 'start' ? 'mousedown' : 'mousemove',
+            {
+              clientX: touch.clientX,
+              clientY: touch.clientY
+            }
+          );
+          this.canvas.dispatchEvent(mouseEvent);
+        }
+      },
+
+      getMousePos(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        };
+      },
+
+      startDrawing(e) {
+        this.isDrawing = true;
+        const pos = this.getMousePos(e);
+        this.startX = pos.x;
+        this.startY = pos.y;
+
+        if (this.currentTool === 'pen' || this.currentTool === 'brush') {
+          this.ctx.beginPath();
+          this.ctx.moveTo(pos.x, pos.y);
+        } else if (this.currentTool === 'text') {
+          this.drawText(pos.x, pos.y);
+          this.isDrawing = false;
+          this.saveState();
+        }
+      },
+
+      draw(e) {
+        if (!this.isDrawing) return;
+
+        const pos = this.getMousePos(e);
+        const ctx = this.ctx;
+
+        if (this.currentTool === 'pen' || this.currentTool === 'brush') {
+          ctx.strokeStyle = this.currentColor;
+          ctx.lineWidth = this.currentTool === 'brush' ? this.brushSize * 2 : this.brushSize;
+          ctx.lineTo(pos.x, pos.y);
+          ctx.stroke();
+        } else if (this.currentTool === 'eraser') {
+          ctx.clearRect(
+            pos.x - this.brushSize,
+            pos.y - this.brushSize,
+            this.brushSize * 2,
+            this.brushSize * 2
+          );
+        }
+      },
+
+      stopDrawing(e) {
+        if (!this.isDrawing) return;
+
+        if (e) {
+          const pos = this.getMousePos(e);
+
+          if (this.currentTool === 'line') {
+            this.drawLine(this.startX, this.startY, pos.x, pos.y);
+          } else if (this.currentTool === 'rectangle') {
+            this.drawRectangle(this.startX, this.startY, pos.x, pos.y);
+          } else if (this.currentTool === 'circle') {
+            this.drawCircle(this.startX, this.startY, pos.x, pos.y);
+          } else if (this.currentTool === 'arrow') {
+            this.drawArrow(this.startX, this.startY, pos.x, pos.y);
+          }
+        }
+
+        this.isDrawing = false;
+        this.saveState();
+      },
+
+      drawLine(x1, y1, x2, y2) {
+        const ctx = this.ctx;
+        ctx.strokeStyle = this.currentColor;
+        ctx.lineWidth = this.brushSize;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      },
+
+      drawRectangle(x1, y1, x2, y2) {
+        const ctx = this.ctx;
+        ctx.strokeStyle = this.currentColor;
+        ctx.lineWidth = this.brushSize;
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      },
+
+      drawCircle(x1, y1, x2, y2) {
+        const ctx = this.ctx;
+        const radius = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+        ctx.strokeStyle = this.currentColor;
+        ctx.lineWidth = this.brushSize;
+        ctx.beginPath();
+        ctx.arc(x1, y1, radius, 0, 2 * Math.PI);
+        ctx.stroke();
+      },
+
+      drawArrow(x1, y1, x2, y2) {
+        const ctx = this.ctx;
+        const headlen = 15;
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+
+        ctx.strokeStyle = this.currentColor;
+        ctx.lineWidth = this.brushSize;
+
+        // Draw line
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        // Draw arrow head
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI / 6), y2 - headlen * Math.sin(angle - Math.PI / 6));
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI / 6), y2 - headlen * Math.sin(angle + Math.PI / 6));
+        ctx.stroke();
+      },
+
+      drawText(x, y) {
+        const text = prompt('أدخل النص:');
+        if (text) {
           const ctx = this.ctx;
-          ctx.beginPath();
-          ctx.moveTo(cx, cy - size);
-          ctx.lineTo(cx + size, cy);
-          ctx.lineTo(cx, cy + size);
-          ctx.lineTo(cx - size, cy);
-          ctx.closePath();
-          ctx.stroke();
-        },
+          ctx.fillStyle = this.currentColor;
+          ctx.font = (this.brushSize * 5) + 'px Arial';
+          ctx.fillText(text, x, y);
+        }
+      },
 
-        // Tools
-        setTool: function(tool) {
-          this.data.currentTool = tool;
-        },
+      insertShape(shape) {
+        const ctx = this.ctx;
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        const size = 50;
 
-        setColor: function(color) {
-          this.data.currentColor = color;
-        },
+        ctx.fillStyle = this.currentColor;
+        ctx.strokeStyle = this.currentColor;
+        ctx.lineWidth = this.brushSize;
 
-        setCustomColor: function(e) {
-          this.data.currentColor = e.target.value;
-        },
+        switch(shape) {
+          case 'star':
+            this.drawStar(centerX, centerY, 5, size, size/2);
+            break;
+          case 'heart':
+            this.drawHeart(centerX, centerY, size);
+            break;
+          case 'triangle':
+            this.drawTriangle(centerX, centerY, size);
+            break;
+          case 'hexagon':
+            this.drawPolygon(centerX, centerY, 6, size);
+            break;
+          case 'pentagon':
+            this.drawPolygon(centerX, centerY, 5, size);
+            break;
+          case 'diamond':
+            this.drawDiamond(centerX, centerY, size);
+            break;
+        }
 
-        setBrushSize: function(e) {
-          this.data.brushSize = parseInt(e.target.value);
-        },
+        this.saveState();
+      },
 
-        // History
-        saveState: function() {
-          // Remove any states after current index
-          this.data.history = this.data.history.slice(0, this.data.historyIndex + 1);
+      drawStar(cx, cy, spikes, outerRadius, innerRadius) {
+        const ctx = this.ctx;
+        let rot = Math.PI / 2 * 3;
+        let x = cx;
+        let y = cy;
+        const step = Math.PI / spikes;
 
-          // Save current state
-          this.data.history.push(this.canvas.toDataURL());
-          this.data.historyIndex++;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outerRadius);
 
-          // Limit history to 50 states
-          if (this.data.history.length > 50) {
-            this.data.history.shift();
-            this.data.historyIndex--;
+        for (let i = 0; i < spikes; i++) {
+          x = cx + Math.cos(rot) * outerRadius;
+          y = cy + Math.sin(rot) * outerRadius;
+          ctx.lineTo(x, y);
+          rot += step;
+
+          x = cx + Math.cos(rot) * innerRadius;
+          y = cy + Math.sin(rot) * innerRadius;
+          ctx.lineTo(x, y);
+          rot += step;
+        }
+
+        ctx.lineTo(cx, cy - outerRadius);
+        ctx.closePath();
+        ctx.stroke();
+      },
+
+      drawHeart(cx, cy, size) {
+        const ctx = this.ctx;
+        ctx.beginPath();
+        const topCurveHeight = size * 0.3;
+        ctx.moveTo(cx, cy + topCurveHeight);
+        ctx.bezierCurveTo(cx, cy, cx - size / 2, cy - size / 2, cx - size / 2, cy + topCurveHeight);
+        ctx.bezierCurveTo(cx - size / 2, cy + (size + topCurveHeight) / 2, cx, cy + (size + topCurveHeight) / 2, cx, cy + size);
+        ctx.bezierCurveTo(cx, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + topCurveHeight);
+        ctx.bezierCurveTo(cx + size / 2, cy - size / 2, cx, cy, cx, cy + topCurveHeight);
+        ctx.closePath();
+        ctx.stroke();
+      },
+
+      drawTriangle(cx, cy, size) {
+        const ctx = this.ctx;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - size);
+        ctx.lineTo(cx - size, cy + size);
+        ctx.lineTo(cx + size, cy + size);
+        ctx.closePath();
+        ctx.stroke();
+      },
+
+      drawPolygon(cx, cy, sides, size) {
+        const ctx = this.ctx;
+        ctx.beginPath();
+        for (let i = 0; i < sides; i++) {
+          const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+          const x = cx + size * Math.cos(angle);
+          const y = cy + size * Math.sin(angle);
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
           }
-        },
+        }
+        ctx.closePath();
+        ctx.stroke();
+      },
 
-        restoreState: function(index) {
+      drawDiamond(cx, cy, size) {
+        const ctx = this.ctx;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - size);
+        ctx.lineTo(cx + size, cy);
+        ctx.lineTo(cx, cy + size);
+        ctx.lineTo(cx - size, cy);
+        ctx.closePath();
+        ctx.stroke();
+      },
+
+      // Tools
+      setTool(tool) {
+        this.currentTool = tool;
+        this.updateUI();
+      },
+
+      // History
+      saveState() {
+        // Remove any states after current index
+        this.history = this.history.slice(0, this.historyIndex + 1);
+
+        // Save current state
+        this.history.push(this.canvas.toDataURL());
+        this.historyIndex++;
+
+        // Limit history to 50 states
+        if (this.history.length > 50) {
+          this.history.shift();
+          this.historyIndex--;
+        }
+
+        this.updateUI();
+      },
+
+      restoreState(index) {
+        const img = new Image();
+        img.src = this.history[index];
+        img.onload = () => {
+          this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+          this.ctx.drawImage(img, 0, 0);
+        };
+      },
+
+      undo() {
+        if (this.historyIndex > 0) {
+          this.historyIndex--;
+          this.restoreState(this.historyIndex);
+          this.updateUI();
+        }
+      },
+
+      redo() {
+        if (this.historyIndex < this.history.length - 1) {
+          this.historyIndex++;
+          this.restoreState(this.historyIndex);
+          this.updateUI();
+        }
+      },
+
+      clearCanvas() {
+        if (confirm('هل أنت متأكد من مسح اللوحة؟')) {
+          this.ctx.fillStyle = 'white';
+          this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+          this.saveState();
+        }
+      },
+
+      // Image Import
+      importImage() {
+        document.getElementById('imageUpload').click();
+      },
+
+      handleImageUpload(e) {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              this.ctx.drawImage(img, 0, 0);
+              this.saveState();
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+      },
+
+      // Modals
+      openSaveModal() {
+        document.getElementById('saveModal').classList.add('active');
+      },
+
+      closeSaveModal() {
+        document.getElementById('saveModal').classList.remove('active');
+        document.getElementById('saveName').value = '';
+        document.getElementById('saveFolder').value = '';
+      },
+
+      openLoadModal() {
+        document.getElementById('loadModal').classList.add('active');
+        this.loadSavedFiles();
+      },
+
+      closeLoadModal() {
+        document.getElementById('loadModal').classList.remove('active');
+      },
+
+      openExportModal() {
+        document.getElementById('exportModal').classList.add('active');
+      },
+
+      closeExportModal() {
+        document.getElementById('exportModal').classList.remove('active');
+      },
+
+      // Save/Load
+      saveDrawing() {
+        const name = document.getElementById('saveName').value.trim();
+        const folder = document.getElementById('saveFolder').value.trim();
+
+        if (!name) {
+          alert('الرجاء إدخال اسم للرسمة');
+          return;
+        }
+
+        const drawing = {
+          id: Date.now(),
+          name: name,
+          folder: folder,
+          data: this.canvas.toDataURL(),
+          date: new Date().toLocaleDateString('ar-SA')
+        };
+
+        // Get existing drawings
+        let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+        drawings.push(drawing);
+        localStorage.setItem('drawings', JSON.stringify(drawings));
+
+        this.lastSaved = drawing.date;
+        document.getElementById('lastSaved').textContent = drawing.date;
+        this.closeSaveModal();
+        alert('تم الحفظ بنجاح!');
+      },
+
+      loadSavedFiles() {
+        const drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+        const list = document.getElementById('filesList');
+
+        if (drawings.length === 0) {
+          list.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">لا توجد رسومات محفوظة</div>';
+          return;
+        }
+
+        list.innerHTML = '';
+        drawings.reverse().forEach(drawing => {
+          const item = document.createElement('div');
+          item.className = 'file-item';
+          item.innerHTML = `
+            <div class="file-info">
+              <div class="file-name">${drawing.name}</div>
+              <div class="file-meta">${drawing.folder || 'بدون مجلد'} • ${drawing.date}</div>
+            </div>
+            <div class="file-actions">
+              <button class="btn btn-small" onclick="app.deleteDrawing(${drawing.id}); event.stopPropagation();">🗑️</button>
+            </div>
+          `;
+          item.addEventListener('click', () => this.loadDrawing(drawing.id));
+          list.appendChild(item);
+        });
+      },
+
+      loadDrawing(id) {
+        const drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+        const drawing = drawings.find(d => d.id === id);
+
+        if (drawing) {
           const img = new Image();
-          img.src = this.data.history[index];
           img.onload = () => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             this.ctx.drawImage(img, 0, 0);
-          };
-        },
-
-        undo: function() {
-          if (this.data.historyIndex > 0) {
-            this.data.historyIndex--;
-            this.restoreState(this.data.historyIndex);
-          }
-        },
-
-        redo: function() {
-          if (this.data.historyIndex < this.data.history.length - 1) {
-            this.data.historyIndex++;
-            this.restoreState(this.data.historyIndex);
-          }
-        },
-
-        clearCanvas: function() {
-          if (confirm('هل أنت متأكد من مسح اللوحة؟')) {
-            this.ctx.fillStyle = 'white';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
             this.saveState();
-          }
-        },
-
-        // Image Import
-        importImage: function() {
-          document.getElementById('imageUpload').click();
-        },
-
-        handleImageUpload: function(e) {
-          const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              const img = new Image();
-              img.onload = () => {
-                this.ctx.drawImage(img, 0, 0);
-                this.saveState();
-              };
-              img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-          }
-        },
-
-        // Modals
-        openSaveModal: function() {
-          this.data.showSaveModal = true;
-        },
-
-        closeSaveModal: function() {
-          this.data.showSaveModal = false;
-          this.data.saveName = '';
-          this.data.saveFolder = '';
-        },
-
-        openLoadModal: function() {
-          this.data.showLoadModal = true;
-          this.loadSavedFiles();
-        },
-
-        closeLoadModal: function() {
-          this.data.showLoadModal = false;
-        },
-
-        openExportModal: function() {
-          this.data.showExportModal = true;
-        },
-
-        closeExportModal: function() {
-          this.data.showExportModal = false;
-        },
-
-        updateSaveName: function(e) {
-          this.data.saveName = e.target.value;
-        },
-
-        updateSaveFolder: function(e) {
-          this.data.saveFolder = e.target.value;
-        },
-
-        // Save/Load
-        saveDrawing: function() {
-          if (!this.data.saveName.trim()) {
-            alert('الرجاء إدخال اسم للرسمة');
-            return;
-          }
-
-          const drawing = {
-            id: Date.now(),
-            name: this.data.saveName,
-            folder: this.data.saveFolder,
-            data: this.canvas.toDataURL(),
-            date: new Date().toLocaleDateString('ar-SA')
+            this.closeLoadModal();
           };
-
-          // Get existing drawings
-          let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
-          drawings.push(drawing);
-          localStorage.setItem('drawings', JSON.stringify(drawings));
-
-          this.data.lastSaved = drawing.date;
-          this.closeSaveModal();
-          alert('تم الحفظ بنجاح!');
-          this.loadSavedFiles();
-        },
-
-        loadSavedFiles: function() {
-          const drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
-          this.data.savedFiles = drawings.reverse();
-        },
-
-        loadDrawing: function(id) {
-          const drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
-          const drawing = drawings.find(d => d.id === id);
-
-          if (drawing) {
-            const img = new Image();
-            img.onload = () => {
-              this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-              this.ctx.drawImage(img, 0, 0);
-              this.saveState();
-              this.closeLoadModal();
-            };
-            img.src = drawing.data;
-          }
-        },
-
-        deleteDrawing: function(id) {
-          if (confirm('هل أنت متأكد من حذف هذه الرسمة؟')) {
-            let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
-            drawings = drawings.filter(d => d.id !== id);
-            localStorage.setItem('drawings', JSON.stringify(drawings));
-            this.loadSavedFiles();
-          }
-        },
-
-        // Export
-        exportAsPNG: function() {
-          const link = document.createElement('a');
-          link.download = (this.data.saveName || 'drawing') + '.png';
-          link.href = this.canvas.toDataURL();
-          link.click();
-          this.closeExportModal();
-        },
-
-        exportAsJPG: function() {
-          const link = document.createElement('a');
-          link.download = (this.data.saveName || 'drawing') + '.jpg';
-          link.href = this.canvas.toDataURL('image/jpeg');
-          link.click();
-          this.closeExportModal();
-        },
-
-        exportAsPDF: function() {
-          const { jsPDF } = window.jspdf;
-          const pdf = new jsPDF({
-            orientation: 'landscape',
-            unit: 'px',
-            format: [this.canvas.width, this.canvas.height]
-          });
-
-          pdf.addImage(this.canvas.toDataURL(), 'PNG', 0, 0, this.canvas.width, this.canvas.height);
-          pdf.save((this.data.saveName || 'drawing') + '.pdf');
-          this.closeExportModal();
+          img.src = drawing.data;
         }
-      }
-    });
+      },
 
-    // Initialize when ready
-    setTimeout(() => {
-      drawingApp.methods.init();
-      console.log('%c✅ Drawing board ready!', 'color: #10b981; font-weight: bold;');
-    }, 100);
+      deleteDrawing(id) {
+        if (confirm('هل أنت متأكد من حذف هذه الرسمة؟')) {
+          let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+          drawings = drawings.filter(d => d.id !== id);
+          localStorage.setItem('drawings', JSON.stringify(drawings));
+          this.loadSavedFiles();
+        }
+      },
+
+      // Export
+      exportAsPNG() {
+        const link = document.createElement('a');
+        const name = document.getElementById('saveName').value.trim() || 'drawing';
+        link.download = name + '.png';
+        link.href = this.canvas.toDataURL();
+        link.click();
+        this.closeExportModal();
+      },
+
+      exportAsJPG() {
+        const link = document.createElement('a');
+        const name = document.getElementById('saveName').value.trim() || 'drawing';
+        link.download = name + '.jpg';
+        link.href = this.canvas.toDataURL('image/jpeg');
+        link.click();
+        this.closeExportModal();
+      },
+
+      exportAsPDF() {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'px',
+          format: [this.canvas.width, this.canvas.height]
+        });
+
+        const name = document.getElementById('saveName').value.trim() || 'drawing';
+        pdf.addImage(this.canvas.toDataURL(), 'PNG', 0, 0, this.canvas.width, this.canvas.height);
+        pdf.save(name + '.pdf');
+        this.closeExportModal();
+      }
+    };
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => app.init());
+    } else {
+      app.init();
+    }
   </script>
 </body>
 </html>
