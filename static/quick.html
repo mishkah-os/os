@@ -21,12 +21,27 @@
 </script>
 <script src="/lib/mishkah.js" data-htmlx data-css="env"></script>
   <script>
-    // Activate template - system doesn't auto-init
+    // Activate template - fw repo has data-htmlx/data-after-mount features, os repo doesn't
     (function() {
       if (window.MishkahAuto && typeof window.MishkahAuto.ready === 'function') {
         window.MishkahAuto.ready(function(M) {
           if (M && M.app && typeof M.app.make === 'function') {
-            M.app.make(); // No empty {} - let it read from template
+            var appInstance = M.app.make(); // No empty {} - let it read from template
+            // Wait for app mount, then call quickDashboardMount manually
+            if (appInstance && typeof appInstance.then === 'function') {
+              appInstance.then(function(app) {
+                // Try calling quickDashboardMount with retries (defined in template)
+                var attempts = 0;
+                var tryMount = function() {
+                  if (typeof window.quickDashboardMount === 'function') {
+                    window.quickDashboardMount(app);
+                  } else if (attempts++ < 10) {
+                    setTimeout(tryMount, 50);
+                  }
+                };
+                tryMount();
+              });
+            }
           }
         });
       }
