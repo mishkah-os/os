@@ -20,26 +20,14 @@
 </script>
 <script src="/lib/mishkah.js" data-htmlx data-css="env"></script>
   <script>
-    // Activate template when Mishkah is ready
+    // Activate template - system doesn't auto-init
     (function() {
-      function activateQuickDashboard() {
-        if (window.MishkahAuto && typeof window.MishkahAuto.ready === 'function') {
-          window.MishkahAuto.ready(function(M) {
-            if (M && M.app && typeof M.app.make === 'function') {
-              M.app.make({});
-            }
-          });
-        } else if (window.Mishkah && window.Mishkah.app && typeof window.Mishkah.app.make === 'function') {
-          window.Mishkah.app.make({});
-        } else {
-          // Retry after delay
-          setTimeout(activateQuickDashboard, 100);
-        }
-      }
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', activateQuickDashboard);
-      } else {
-        activateQuickDashboard();
+      if (window.MishkahAuto && typeof window.MishkahAuto.ready === 'function') {
+        window.MishkahAuto.ready(function(M) {
+          if (M && M.app && typeof M.app.make === 'function') {
+            M.app.make(); // No empty {} - let it read from template
+          }
+        });
       }
     })();
   </script>
