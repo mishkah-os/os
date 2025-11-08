@@ -19,8 +19,33 @@
   };
 </script>
 <script src="/lib/mishkah.js" data-htmlx data-css="env"></script>
+  <script>
+    // Activate template when Mishkah is ready
+    (function() {
+      function activateQuickDashboard() {
+        if (window.MishkahAuto && typeof window.MishkahAuto.ready === 'function') {
+          window.MishkahAuto.ready(function(M) {
+            if (M && M.app && typeof M.app.make === 'function') {
+              M.app.make({});
+            }
+          });
+        } else if (window.Mishkah && window.Mishkah.app && typeof window.Mishkah.app.make === 'function') {
+          window.Mishkah.app.make({});
+        } else {
+          // Retry after delay
+          setTimeout(activateQuickDashboard, 100);
+        }
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', activateQuickDashboard);
+      } else {
+        activateQuickDashboard();
+      }
+    })();
+  </script>
   </head>
   <body class="bg-[var(--background)] text-[var(--foreground)]">
+    <template id="quick-dashboard">
       <script type="application/json" data-path="env">
         {
           "theme": "dark",
@@ -1292,5 +1317,6 @@
         }
       </script>
       <script data-after-mount="quickDashboardMount" data-after-delay="16"></script>
+    </template>
   </body>
 </html>
