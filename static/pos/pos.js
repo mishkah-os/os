@@ -1627,6 +1627,7 @@
             data = JSON.parse(text);
           }
         } catch(_err){
+          console.warn('[postJson] JSON parse error:', _err.message, 'Response text:', text.substring(0, 100));
           data = null;
         }
         if(!response.ok){
@@ -1643,7 +1644,7 @@
           throw error;
         }
         if(data !== null) return data;
-        return text ? JSON.parse(text) : {};
+        return {};
       }
 
       async function getJson(url){
