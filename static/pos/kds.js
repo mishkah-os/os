@@ -1090,7 +1090,7 @@
   };
 
   const logDebugGroup = (label, details)=>{
-    if(typeof console === 'undefined') return;
+    if(typeof console === 'undefined' || 1==1) return;
     try{
       if(typeof console.groupCollapsed === 'function'){
         console.groupCollapsed(label);
@@ -1850,9 +1850,8 @@
       const deliveriesState = db.data.deliveries || {};
       const settlements = deliveriesState.settlements || {};
       const prepCount = prepOrders.filter(order=> {
-        if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return true;
-        const settlement = settlements[order.orderId];
-        return !settlement || settlement.status !== 'settled';
+        const status = order.handoffStatus;
+      return status !== 'assembled' && status !== 'served' && status !== 'delivered' && status !== 'settled';
       }).length;
 
       tabs.push({ id:'prep', label:t.tabs.prep, count: prepCount });
@@ -2269,7 +2268,8 @@
       const status = order.handoffStatus;
       // ✅ Show: pending (preparing), ready (waiting for assembly)
       // ❌ Hide: assembled, served, delivered (moved to handoff/done)
-      if(status === 'assembled' || status === 'served' || status === 'delivered') return false;
+    //  console.log(" ❌ Hide : order",order);
+      if(status === 'assembled' || status === 'served' || status === 'delivered' || status =='settled') return false;
 
       // ✅ Also hide settled delivery orders
       if((order.serviceMode || 'dine_in').toLowerCase() === 'delivery') {
@@ -3342,7 +3342,7 @@
         payload: payloadSummary,
         state: stateSummary
       };
-      logDebugGroup(label, lastStateSnapshot);
+     logDebugGroup(label, lastStateSnapshot);
       return nextState;
     });
   };
@@ -3418,12 +3418,12 @@
     const snapshot = nodes.map(describeInteractiveNode).filter(Boolean);
     if(typeof console !== 'undefined'){
       if(typeof console.groupCollapsed === 'function'){
-        console.groupCollapsed(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`);
+      //  console.groupCollapsed(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`);
         if(typeof console.table === 'function') console.table(snapshot);
         else console.log(snapshot);
         console.groupEnd();
       } else {
-        console.log(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`, snapshot);
+       // console.log(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`, snapshot);
       }
     }
     return snapshot;
