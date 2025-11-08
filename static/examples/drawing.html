@@ -1,0 +1,1404 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>لوحة الرسم — Mishkah Drawing Board</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface-1: rgba(15, 23, 42, 0.95);
+      --surface-2: rgba(30, 41, 59, 0.8);
+      --surface-3: rgba(51, 65, 85, 0.6);
+      --border: rgba(148, 163, 184, 0.2);
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --text: #f8fafc;
+      --text-muted: rgba(148, 163, 184, 0.8);
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: radial-gradient(circle at top, rgba(99, 102, 241, 0.1), transparent 60%), var(--bg);
+      color: var(--text);
+      font-family: "Inter", "Tajawal", system-ui, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    /* Main Layout */
+    .drawing-app {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      height: 100vh;
+      gap: 0;
+    }
+
+    /* Top Toolbar */
+    .toolbar-top {
+      background: var(--surface-1);
+      border-bottom: 1px solid var(--border);
+      padding: 0.8rem 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      backdrop-filter: blur(10px);
+    }
+
+    .toolbar-section {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .app-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: var(--surface-3);
+      border-color: var(--accent);
+    }
+
+    .btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      padding: 0.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Main Canvas Area */
+    .canvas-container {
+      position: relative;
+      display: flex;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    /* Left Sidebar - Tools */
+    .sidebar-left {
+      width: 80px;
+      background: var(--surface-1);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 1rem 0.5rem;
+      overflow-y: auto;
+    }
+
+    .tool-btn {
+      width: 64px;
+      height: 64px;
+      background: var(--surface-2);
+      border: 2px solid transparent;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+    }
+
+    .tool-btn:hover {
+      background: var(--surface-3);
+      border-color: var(--accent-light);
+    }
+
+    .tool-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .tool-icon {
+      font-size: 1.8rem;
+    }
+
+    /* Canvas Wrapper */
+    .canvas-wrapper {
+      flex: 1;
+      position: relative;
+      background:
+        linear-gradient(90deg, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+        linear-gradient(rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+      background-size: 20px 20px;
+      overflow: auto;
+    }
+
+    #drawingCanvas {
+      display: block;
+      cursor: crosshair;
+      background: white;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Right Sidebar - Properties */
+    .sidebar-right {
+      width: 280px;
+      background: var(--surface-1);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+
+    .panel {
+      background: var(--surface-2);
+      border-radius: 12px;
+      padding: 1rem;
+      border: 1px solid var(--border);
+    }
+
+    .panel-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 0.8rem;
+      color: var(--accent-light);
+    }
+
+    /* Color Picker */
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0.4rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .color-swatch {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .color-swatch:hover {
+      transform: scale(1.1);
+    }
+
+    .color-swatch.active {
+      border-color: white;
+      box-shadow: 0 0 0 2px var(--accent);
+    }
+
+    .custom-color-input {
+      width: 100%;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* Brush Size */
+    .size-control {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .size-slider {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--surface-3);
+      -webkit-appearance: none;
+      appearance: none;
+      outline: none;
+    }
+
+    .size-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+    }
+
+    .size-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+    }
+
+    .size-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 60px;
+      background: white;
+      border-radius: 8px;
+    }
+
+    .size-preview-dot {
+      background: currentColor;
+      border-radius: 50%;
+      transition: all 0.2s;
+    }
+
+    /* Shapes Panel */
+    .shapes-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+    }
+
+    .shape-btn {
+      aspect-ratio: 1;
+      background: var(--surface-3);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      transition: all 0.2s;
+    }
+
+    .shape-btn:hover {
+      background: var(--surface-1);
+      border-color: var(--accent-light);
+    }
+
+    .shape-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* Layers Panel */
+    .layers-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .layer-item {
+      background: var(--surface-3);
+      padding: 0.6rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s;
+    }
+
+    .layer-item:hover {
+      border-color: var(--accent-light);
+    }
+
+    .layer-item.active {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.2);
+    }
+
+    /* Bottom Toolbar */
+    .toolbar-bottom {
+      background: var(--surface-1);
+      border-top: 1px solid var(--border);
+      padding: 0.8rem 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .status-text {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(5px);
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: var(--surface-1);
+      border-radius: 16px;
+      padding: 2rem;
+      max-width: 500px;
+      width: 90%;
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      color: var(--accent-light);
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.7rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.8rem;
+      margin-top: 1.5rem;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      flex: 1;
+    }
+
+    .btn-secondary {
+      background: var(--surface-2);
+      flex: 1;
+    }
+
+    /* Files List */
+    .files-list {
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+    }
+
+    .file-item {
+      background: var(--surface-2);
+      padding: 0.8rem;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .file-item:hover {
+      border-color: var(--accent-light);
+      background: var(--surface-3);
+    }
+
+    .file-info {
+      flex: 1;
+    }
+
+    .file-name {
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+    }
+
+    .file-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .file-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .btn-small {
+      padding: 0.3rem 0.6rem;
+      font-size: 0.8rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .sidebar-right {
+        width: 240px;
+      }
+
+      .sidebar-left {
+        width: 70px;
+      }
+
+      .tool-btn {
+        width: 56px;
+        height: 56px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .sidebar-left,
+      .sidebar-right {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        z-index: 100;
+        transform: translateX(-100%);
+        transition: transform 0.3s;
+      }
+
+      .sidebar-left.open {
+        transform: translateX(0);
+      }
+
+      .sidebar-right {
+        left: auto;
+        right: 0;
+        transform: translateX(100%);
+      }
+
+      .sidebar-right.open {
+        transform: translateX(0);
+      }
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--surface-2);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--surface-3);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    /* File input hidden */
+    #imageUpload {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Main App Template -->
+  <template id="drawing-app">
+    <div class="drawing-app">
+      <!-- Top Toolbar -->
+      <div class="toolbar-top">
+        <div class="toolbar-section">
+          <h1 class="app-title">🎨 لوحة الرسم</h1>
+        </div>
+
+        <div class="toolbar-section">
+          <button class="btn" @click="undo">
+            <span>↶</span>
+            <span>تراجع</span>
+          </button>
+          <button class="btn" @click="redo">
+            <span>↷</span>
+            <span>إعادة</span>
+          </button>
+          <button class="btn" @click="clearCanvas">
+            <span>🗑️</span>
+            <span>مسح الكل</span>
+          </button>
+        </div>
+
+        <div class="toolbar-section">
+          <button class="btn" @click="openSaveModal">
+            <span>💾</span>
+            <span>حفظ</span>
+          </button>
+          <button class="btn" @click="openLoadModal">
+            <span>📁</span>
+            <span>فتح</span>
+          </button>
+          <button class="btn" @click="openExportModal">
+            <span>📤</span>
+            <span>تصدير</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Canvas Area -->
+      <div class="canvas-container">
+        <!-- Left Sidebar - Tools -->
+        <div class="sidebar-left">
+          <button
+            class="tool-btn"
+            :class="data.currentTool === 'pen' ? 'active' : ''"
+            @click="setTool('pen')"
+          >
+            <span class="tool-icon">✏️</span>
+            <span>قلم</span>
+          </button>
+
+          <button
+            class="tool-btn"
+            :class="data.currentTool === 'brush' ? 'active' : ''"
+            @click="setTool('brush')"
+          >
+            <span class="tool-icon">🖌️</span>
+            <span>فرشاة</span>
+          </button>
+
+          <button
+            class="tool-btn"
+            :class="data.currentTool === 'eraser' ? 'active' : ''"
+            @click="setTool('eraser')"
+          >
+            <span class="tool-icon">🧹</span>
+            <span>ممحاة</span>
+          </button>
+
+          <button
+            class="tool-btn"
+            :class="data.currentTool === 'line' ? 'active' : ''"
+            @click="setTool('line')"
+          >
+            <span class="tool-icon">📏</span>
+            <span>خط</span>
+          </button>
+
+          <button
+            class="tool-btn"
+            :class="data.currentTool === 'rectangle' ? 'active' : ''"
+            @click="setTool('rectangle')"
+          >
+            <span class="tool-icon">▭</span>
+            <span>مربع</span>
+          </button>
+
+          <button
+            class="tool-btn"
+            :class="data.currentTool === 'circle' ? 'active' : ''"
+            @click="setTool('circle')"
+          >
+            <span class="tool-icon">⭕</span>
+            <span>دائرة</span>
+          </button>
+
+          <button
+            class="tool-btn"
+            :class="data.currentTool === 'arrow' ? 'active' : ''"
+            @click="setTool('arrow')"
+          >
+            <span class="tool-icon">➡️</span>
+            <span>سهم</span>
+          </button>
+
+          <button
+            class="tool-btn"
+            :class="data.currentTool === 'text' ? 'active' : ''"
+            @click="setTool('text')"
+          >
+            <span class="tool-icon">📝</span>
+            <span>نص</span>
+          </button>
+
+          <button
+            class="tool-btn"
+            @click="importImage"
+          >
+            <span class="tool-icon">🖼️</span>
+            <span>صورة</span>
+          </button>
+        </div>
+
+        <!-- Canvas -->
+        <div class="canvas-wrapper">
+          <canvas id="drawingCanvas" width="1200" height="800"></canvas>
+        </div>
+
+        <!-- Right Sidebar - Properties -->
+        <div class="sidebar-right">
+          <!-- Colors Panel -->
+          <div class="panel">
+            <h3 class="panel-title">🎨 الألوان</h3>
+            <div class="color-grid">
+              <div
+                x-for="color in data.colors"
+                :key="color"
+                class="color-swatch"
+                :class="data.currentColor === color ? 'active' : ''"
+                :style="'background-color: ' + color"
+                @click="setColor(color)"
+              ></div>
+            </div>
+            <input
+              type="color"
+              class="custom-color-input"
+              :value="data.currentColor"
+              @input="setCustomColor"
+            />
+          </div>
+
+          <!-- Brush Size Panel -->
+          <div class="panel">
+            <h3 class="panel-title">📏 حجم الفرشاة: {{data.brushSize}}px</h3>
+            <div class="size-control">
+              <input
+                type="range"
+                class="size-slider"
+                min="1"
+                max="50"
+                :value="data.brushSize"
+                @input="setBrushSize"
+              />
+              <div class="size-preview">
+                <div
+                  class="size-preview-dot"
+                  :style="'width: ' + data.brushSize + 'px; height: ' + data.brushSize + 'px; background: ' + data.currentColor"
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Shapes Panel -->
+          <div class="panel">
+            <h3 class="panel-title">🔶 أشكال جاهزة</h3>
+            <div class="shapes-grid">
+              <button class="shape-btn" @click="insertShape('star')">⭐</button>
+              <button class="shape-btn" @click="insertShape('heart')">❤️</button>
+              <button class="shape-btn" @click="insertShape('triangle')">🔺</button>
+              <button class="shape-btn" @click="insertShape('hexagon')">⬡</button>
+              <button class="shape-btn" @click="insertShape('pentagon')">⬟</button>
+              <button class="shape-btn" @click="insertShape('diamond')">💎</button>
+            </div>
+          </div>
+
+          <!-- History Info -->
+          <div class="panel">
+            <h3 class="panel-title">📊 الإحصائيات</h3>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              <div style="margin-bottom: 0.5rem;">
+                <strong>التاريخ:</strong> {{data.historyIndex + 1}} / {{data.history.length}}
+              </div>
+              <div>
+                <strong>الأداة الحالية:</strong> {{data.currentTool}}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Toolbar -->
+      <div class="toolbar-bottom">
+        <div class="status-text">
+          جاهز للرسم | الأداة: {{data.currentTool}} | اللون: {{data.currentColor}}
+        </div>
+        <div class="status-text">
+          آخر حفظ: {{data.lastSaved || 'لم يتم الحفظ بعد'}}
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Modal -->
+    <div class="modal" :class="data.showSaveModal ? 'active' : ''">
+      <div class="modal-content">
+        <h2 class="modal-header">💾 حفظ الرسمة</h2>
+        <div class="form-group">
+          <label class="form-label">اسم الرسمة</label>
+          <input
+            type="text"
+            class="form-input"
+            :value="data.saveName"
+            @input="updateSaveName"
+            placeholder="أدخل اسم الرسمة..."
+          />
+        </div>
+        <div class="form-group">
+          <label class="form-label">المجلد</label>
+          <input
+            type="text"
+            class="form-input"
+            :value="data.saveFolder"
+            @input="updateSaveFolder"
+            placeholder="اختياري: اسم المجلد"
+          />
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="closeSaveModal">إلغاء</button>
+          <button class="btn btn-primary" @click="saveDrawing">حفظ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load Modal -->
+    <div class="modal" :class="data.showLoadModal ? 'active' : ''">
+      <div class="modal-content">
+        <h2 class="modal-header">📁 فتح رسمة</h2>
+        <div class="files-list">
+          <div
+            x-for="file in data.savedFiles"
+            :key="file.id"
+            class="file-item"
+            @click="loadDrawing(file.id)"
+          >
+            <div class="file-info">
+              <div class="file-name">{{file.name}}</div>
+              <div class="file-meta">
+                {{file.folder || 'بدون مجلد'}} • {{file.date}}
+              </div>
+            </div>
+            <div class="file-actions">
+              <button class="btn btn-small" @click.stop="deleteDrawing(file.id)">🗑️</button>
+            </div>
+          </div>
+          <div x-if="data.savedFiles.length === 0" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+            لا توجد رسومات محفوظة
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="closeLoadModal">إغلاق</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div class="modal" :class="data.showExportModal ? 'active' : ''">
+      <div class="modal-content">
+        <h2 class="modal-header">📤 تصدير الرسمة</h2>
+        <div class="modal-actions" style="flex-direction: column;">
+          <button class="btn btn-primary" @click="exportAsPNG">تصدير كـ PNG</button>
+          <button class="btn btn-primary" @click="exportAsJPG">تصدير كـ JPG</button>
+          <button class="btn btn-primary" @click="exportAsPDF">تصدير كـ PDF</button>
+          <button class="btn btn-secondary" @click="closeExportModal">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Hidden file input for image upload -->
+  <input type="file" id="imageUpload" accept="image/*" />
+
+  <!-- Load Mishkah Libraries -->
+  <script src="../lib/mishkah.js"></script>
+  <script src="../lib/mishkah-htmlx.js"></script>
+  <script src="../lib/mishkah-indexeddb.js"></script>
+
+  <!-- jsPDF for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    console.log('%c🎨 Mishkah Drawing Board', 'font-size: 20px; font-weight: bold; color: #6366f1;');
+
+    // Initialize Drawing App
+    const drawingApp = M.htmlx.mount('#drawing-app', '#app', {
+      data: {
+        // Canvas state
+        currentTool: 'pen',
+        currentColor: '#000000',
+        brushSize: 3,
+
+        // Available colors
+        colors: [
+          '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
+          '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000', '#800000',
+          '#808080', '#C0C0C0', '#FFB6C1', '#87CEEB', '#90EE90', '#DDA0DD'
+        ],
+
+        // History for undo/redo
+        history: [],
+        historyIndex: -1,
+
+        // Drawing state
+        isDrawing: false,
+        startX: 0,
+        startY: 0,
+
+        // Modals
+        showSaveModal: false,
+        showLoadModal: false,
+        showExportModal: false,
+
+        // Save data
+        saveName: '',
+        saveFolder: '',
+        savedFiles: [],
+        lastSaved: null
+      },
+
+      methods: {
+        // Initialize canvas
+        init: function() {
+          const canvas = document.getElementById('drawingCanvas');
+          const ctx = canvas.getContext('2d');
+
+          // Store references
+          this.canvas = canvas;
+          this.ctx = ctx;
+
+          // Set up canvas
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.fillStyle = 'white';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Save initial state
+          this.saveState();
+
+          // Set up event listeners
+          this.setupEventListeners();
+
+          // Load saved files
+          this.loadSavedFiles();
+
+          // Set up image upload
+          const imageUpload = document.getElementById('imageUpload');
+          imageUpload.addEventListener('change', this.handleImageUpload.bind(this));
+        },
+
+        setupEventListeners: function() {
+          const canvas = this.canvas;
+
+          // Mouse events
+          canvas.addEventListener('mousedown', this.startDrawing.bind(this));
+          canvas.addEventListener('mousemove', this.draw.bind(this));
+          canvas.addEventListener('mouseup', this.stopDrawing.bind(this));
+          canvas.addEventListener('mouseout', this.stopDrawing.bind(this));
+
+          // Touch events
+          canvas.addEventListener('touchstart', this.handleTouch.bind(this));
+          canvas.addEventListener('touchmove', this.handleTouch.bind(this));
+          canvas.addEventListener('touchend', this.stopDrawing.bind(this));
+        },
+
+        handleTouch: function(e) {
+          e.preventDefault();
+          const touch = e.touches[0];
+          const mouseEvent = new MouseEvent(e.type === 'touchstart' ? 'mousedown' : 'mousemove', {
+            clientX: touch.clientX,
+            clientY: touch.clientY
+          });
+          this.canvas.dispatchEvent(mouseEvent);
+        },
+
+        getMousePos: function(e) {
+          const rect = this.canvas.getBoundingClientRect();
+          return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+          };
+        },
+
+        startDrawing: function(e) {
+          this.data.isDrawing = true;
+          const pos = this.getMousePos(e);
+          this.data.startX = pos.x;
+          this.data.startY = pos.y;
+
+          if (this.data.currentTool === 'pen' || this.data.currentTool === 'brush') {
+            this.ctx.beginPath();
+            this.ctx.moveTo(pos.x, pos.y);
+          } else if (this.data.currentTool === 'text') {
+            this.drawText(pos.x, pos.y);
+            this.data.isDrawing = false;
+            this.saveState();
+          }
+        },
+
+        draw: function(e) {
+          if (!this.data.isDrawing) return;
+
+          const pos = this.getMousePos(e);
+          const ctx = this.ctx;
+
+          if (this.data.currentTool === 'pen' || this.data.currentTool === 'brush') {
+            ctx.strokeStyle = this.data.currentColor;
+            ctx.lineWidth = this.data.currentTool === 'brush' ? this.data.brushSize * 2 : this.data.brushSize;
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+          } else if (this.data.currentTool === 'eraser') {
+            ctx.clearRect(pos.x - this.data.brushSize / 2, pos.y - this.data.brushSize / 2,
+                         this.data.brushSize * 2, this.data.brushSize * 2);
+          }
+        },
+
+        stopDrawing: function(e) {
+          if (!this.data.isDrawing) return;
+
+          const pos = this.getMousePos(e);
+
+          if (this.data.currentTool === 'line') {
+            this.drawLine(this.data.startX, this.data.startY, pos.x, pos.y);
+          } else if (this.data.currentTool === 'rectangle') {
+            this.drawRectangle(this.data.startX, this.data.startY, pos.x, pos.y);
+          } else if (this.data.currentTool === 'circle') {
+            this.drawCircle(this.data.startX, this.data.startY, pos.x, pos.y);
+          } else if (this.data.currentTool === 'arrow') {
+            this.drawArrow(this.data.startX, this.data.startY, pos.x, pos.y);
+          }
+
+          this.data.isDrawing = false;
+          this.saveState();
+        },
+
+        drawLine: function(x1, y1, x2, y2) {
+          const ctx = this.ctx;
+          ctx.strokeStyle = this.data.currentColor;
+          ctx.lineWidth = this.data.brushSize;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        },
+
+        drawRectangle: function(x1, y1, x2, y2) {
+          const ctx = this.ctx;
+          ctx.strokeStyle = this.data.currentColor;
+          ctx.lineWidth = this.data.brushSize;
+          ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        },
+
+        drawCircle: function(x1, y1, x2, y2) {
+          const ctx = this.ctx;
+          const radius = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+          ctx.strokeStyle = this.data.currentColor;
+          ctx.lineWidth = this.data.brushSize;
+          ctx.beginPath();
+          ctx.arc(x1, y1, radius, 0, 2 * Math.PI);
+          ctx.stroke();
+        },
+
+        drawArrow: function(x1, y1, x2, y2) {
+          const ctx = this.ctx;
+          const headlen = 15;
+          const angle = Math.atan2(y2 - y1, x2 - x1);
+
+          ctx.strokeStyle = this.data.currentColor;
+          ctx.lineWidth = this.data.brushSize;
+
+          // Draw line
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+
+          // Draw arrow head
+          ctx.beginPath();
+          ctx.moveTo(x2, y2);
+          ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI / 6), y2 - headlen * Math.sin(angle - Math.PI / 6));
+          ctx.moveTo(x2, y2);
+          ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI / 6), y2 - headlen * Math.sin(angle + Math.PI / 6));
+          ctx.stroke();
+        },
+
+        drawText: function(x, y) {
+          const text = prompt('أدخل النص:');
+          if (text) {
+            const ctx = this.ctx;
+            ctx.fillStyle = this.data.currentColor;
+            ctx.font = (this.data.brushSize * 5) + 'px Arial';
+            ctx.fillText(text, x, y);
+          }
+        },
+
+        insertShape: function(shape) {
+          const ctx = this.ctx;
+          const centerX = this.canvas.width / 2;
+          const centerY = this.canvas.height / 2;
+          const size = 50;
+
+          ctx.fillStyle = this.data.currentColor;
+          ctx.strokeStyle = this.data.currentColor;
+          ctx.lineWidth = this.data.brushSize;
+
+          switch(shape) {
+            case 'star':
+              this.drawStar(centerX, centerY, 5, size, size/2);
+              break;
+            case 'heart':
+              this.drawHeart(centerX, centerY, size);
+              break;
+            case 'triangle':
+              this.drawTriangle(centerX, centerY, size);
+              break;
+            case 'hexagon':
+              this.drawPolygon(centerX, centerY, 6, size);
+              break;
+            case 'pentagon':
+              this.drawPolygon(centerX, centerY, 5, size);
+              break;
+            case 'diamond':
+              this.drawDiamond(centerX, centerY, size);
+              break;
+          }
+
+          this.saveState();
+        },
+
+        drawStar: function(cx, cy, spikes, outerRadius, innerRadius) {
+          const ctx = this.ctx;
+          let rot = Math.PI / 2 * 3;
+          let x = cx;
+          let y = cy;
+          const step = Math.PI / spikes;
+
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - outerRadius);
+
+          for (let i = 0; i < spikes; i++) {
+            x = cx + Math.cos(rot) * outerRadius;
+            y = cy + Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+
+            x = cx + Math.cos(rot) * innerRadius;
+            y = cy + Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+          }
+
+          ctx.lineTo(cx, cy - outerRadius);
+          ctx.closePath();
+          ctx.stroke();
+        },
+
+        drawHeart: function(cx, cy, size) {
+          const ctx = this.ctx;
+          ctx.beginPath();
+          const topCurveHeight = size * 0.3;
+          ctx.moveTo(cx, cy + topCurveHeight);
+          ctx.bezierCurveTo(cx, cy, cx - size / 2, cy - size / 2, cx - size / 2, cy + topCurveHeight);
+          ctx.bezierCurveTo(cx - size / 2, cy + (size + topCurveHeight) / 2, cx, cy + (size + topCurveHeight) / 2, cx, cy + size);
+          ctx.bezierCurveTo(cx, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + topCurveHeight);
+          ctx.bezierCurveTo(cx + size / 2, cy - size / 2, cx, cy, cx, cy + topCurveHeight);
+          ctx.closePath();
+          ctx.stroke();
+        },
+
+        drawTriangle: function(cx, cy, size) {
+          const ctx = this.ctx;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - size);
+          ctx.lineTo(cx - size, cy + size);
+          ctx.lineTo(cx + size, cy + size);
+          ctx.closePath();
+          ctx.stroke();
+        },
+
+        drawPolygon: function(cx, cy, sides, size) {
+          const ctx = this.ctx;
+          ctx.beginPath();
+          for (let i = 0; i < sides; i++) {
+            const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+            const x = cx + size * Math.cos(angle);
+            const y = cy + size * Math.sin(angle);
+            if (i === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+          ctx.closePath();
+          ctx.stroke();
+        },
+
+        drawDiamond: function(cx, cy, size) {
+          const ctx = this.ctx;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - size);
+          ctx.lineTo(cx + size, cy);
+          ctx.lineTo(cx, cy + size);
+          ctx.lineTo(cx - size, cy);
+          ctx.closePath();
+          ctx.stroke();
+        },
+
+        // Tools
+        setTool: function(tool) {
+          this.data.currentTool = tool;
+        },
+
+        setColor: function(color) {
+          this.data.currentColor = color;
+        },
+
+        setCustomColor: function(e) {
+          this.data.currentColor = e.target.value;
+        },
+
+        setBrushSize: function(e) {
+          this.data.brushSize = parseInt(e.target.value);
+        },
+
+        // History
+        saveState: function() {
+          // Remove any states after current index
+          this.data.history = this.data.history.slice(0, this.data.historyIndex + 1);
+
+          // Save current state
+          this.data.history.push(this.canvas.toDataURL());
+          this.data.historyIndex++;
+
+          // Limit history to 50 states
+          if (this.data.history.length > 50) {
+            this.data.history.shift();
+            this.data.historyIndex--;
+          }
+        },
+
+        restoreState: function(index) {
+          const img = new Image();
+          img.src = this.data.history[index];
+          img.onload = () => {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.drawImage(img, 0, 0);
+          };
+        },
+
+        undo: function() {
+          if (this.data.historyIndex > 0) {
+            this.data.historyIndex--;
+            this.restoreState(this.data.historyIndex);
+          }
+        },
+
+        redo: function() {
+          if (this.data.historyIndex < this.data.history.length - 1) {
+            this.data.historyIndex++;
+            this.restoreState(this.data.historyIndex);
+          }
+        },
+
+        clearCanvas: function() {
+          if (confirm('هل أنت متأكد من مسح اللوحة؟')) {
+            this.ctx.fillStyle = 'white';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.saveState();
+          }
+        },
+
+        // Image Import
+        importImage: function() {
+          document.getElementById('imageUpload').click();
+        },
+
+        handleImageUpload: function(e) {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                this.ctx.drawImage(img, 0, 0);
+                this.saveState();
+              };
+              img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+          }
+        },
+
+        // Modals
+        openSaveModal: function() {
+          this.data.showSaveModal = true;
+        },
+
+        closeSaveModal: function() {
+          this.data.showSaveModal = false;
+          this.data.saveName = '';
+          this.data.saveFolder = '';
+        },
+
+        openLoadModal: function() {
+          this.data.showLoadModal = true;
+          this.loadSavedFiles();
+        },
+
+        closeLoadModal: function() {
+          this.data.showLoadModal = false;
+        },
+
+        openExportModal: function() {
+          this.data.showExportModal = true;
+        },
+
+        closeExportModal: function() {
+          this.data.showExportModal = false;
+        },
+
+        updateSaveName: function(e) {
+          this.data.saveName = e.target.value;
+        },
+
+        updateSaveFolder: function(e) {
+          this.data.saveFolder = e.target.value;
+        },
+
+        // Save/Load
+        saveDrawing: function() {
+          if (!this.data.saveName.trim()) {
+            alert('الرجاء إدخال اسم للرسمة');
+            return;
+          }
+
+          const drawing = {
+            id: Date.now(),
+            name: this.data.saveName,
+            folder: this.data.saveFolder,
+            data: this.canvas.toDataURL(),
+            date: new Date().toLocaleDateString('ar-SA')
+          };
+
+          // Get existing drawings
+          let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+          drawings.push(drawing);
+          localStorage.setItem('drawings', JSON.stringify(drawings));
+
+          this.data.lastSaved = drawing.date;
+          this.closeSaveModal();
+          alert('تم الحفظ بنجاح!');
+          this.loadSavedFiles();
+        },
+
+        loadSavedFiles: function() {
+          const drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+          this.data.savedFiles = drawings.reverse();
+        },
+
+        loadDrawing: function(id) {
+          const drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+          const drawing = drawings.find(d => d.id === id);
+
+          if (drawing) {
+            const img = new Image();
+            img.onload = () => {
+              this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+              this.ctx.drawImage(img, 0, 0);
+              this.saveState();
+              this.closeLoadModal();
+            };
+            img.src = drawing.data;
+          }
+        },
+
+        deleteDrawing: function(id) {
+          if (confirm('هل أنت متأكد من حذف هذه الرسمة؟')) {
+            let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+            drawings = drawings.filter(d => d.id !== id);
+            localStorage.setItem('drawings', JSON.stringify(drawings));
+            this.loadSavedFiles();
+          }
+        },
+
+        // Export
+        exportAsPNG: function() {
+          const link = document.createElement('a');
+          link.download = (this.data.saveName || 'drawing') + '.png';
+          link.href = this.canvas.toDataURL();
+          link.click();
+          this.closeExportModal();
+        },
+
+        exportAsJPG: function() {
+          const link = document.createElement('a');
+          link.download = (this.data.saveName || 'drawing') + '.jpg';
+          link.href = this.canvas.toDataURL('image/jpeg');
+          link.click();
+          this.closeExportModal();
+        },
+
+        exportAsPDF: function() {
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF({
+            orientation: 'landscape',
+            unit: 'px',
+            format: [this.canvas.width, this.canvas.height]
+          });
+
+          pdf.addImage(this.canvas.toDataURL(), 'PNG', 0, 0, this.canvas.width, this.canvas.height);
+          pdf.save((this.data.saveName || 'drawing') + '.pdf');
+          this.closeExportModal();
+        }
+      }
+    });
+
+    // Initialize when ready
+    setTimeout(() => {
+      drawingApp.methods.init();
+      console.log('%c✅ Drawing board ready!', 'color: #10b981; font-weight: bold;');
+    }, 100);
+  </script>
+</body>
+</html>
