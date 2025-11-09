@@ -583,6 +583,7 @@
       align-items: center;
       z-index: 1000;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      display: none; /* Hidden by default */
     }
 
     .pdf-navigation.active {
@@ -954,7 +955,7 @@
     /* Zoom Controls */
     .zoom-controls {
       position: fixed;
-      bottom: 80px;
+      bottom: 20px;
       right: 10px;
       background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(10px);
@@ -1102,7 +1103,7 @@
 
     #toggleLayers {
       right: 10px;
-      bottom: 90px;
+      bottom: 170px;
     }
 
     .layers-list {
@@ -1950,26 +1951,35 @@
         });
         this.canvas.addEventListener('mousemove', (e) => {
           this.draw(e);
-          this.handleLayerDrag(e);
         });
         this.canvas.addEventListener('mouseup', (e) => {
           this.stopDrawing(e);
-          this.stopLayerDrag();
         });
         this.canvas.addEventListener('mouseout', () => {
           this.stopDrawing();
-          this.stopLayerDrag();
         });
 
         this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e, 'start'), { passive: false });
         this.canvas.addEventListener('touchmove', (e) => {
           this.handleTouch(e, 'move');
-          this.handleLayerDrag(e);
         }, { passive: false });
         this.canvas.addEventListener('touchend', () => {
           this.stopDrawing();
-          this.stopLayerDrag();
         }, { passive: true });
+
+        // Layer drag events on document for global coverage
+        document.addEventListener('mousemove', (e) => {
+          this.handleLayerDrag(e);
+        });
+        document.addEventListener('mouseup', () => {
+          this.stopLayerDrag();
+        });
+        document.addEventListener('touchmove', (e) => {
+          this.handleLayerDrag(e);
+        }, { passive: false });
+        document.addEventListener('touchend', () => {
+          this.stopLayerDrag();
+        });
 
         document.getElementById('customColor').addEventListener('input', (e) => {
           this.currentColor = e.target.value;
@@ -2809,8 +2819,12 @@
               this.currentPageIndex = drawing.pdfData.currentPageIndex || 0;
               this.pageAnnotations = drawing.pdfData.pageAnnotations || {};
 
-              // Show PDF navigation
-              document.querySelector('.pdf-navigation').style.display = 'flex';
+              // Show PDF navigation (use multiple methods for compatibility)
+              const pdfNav = document.getElementById('pdfNavigation');
+              if (pdfNav) {
+                pdfNav.style.display = 'flex';
+                pdfNav.style.visibility = 'visible';
+              }
               this.updatePdfNavigation();
 
               // Note: We can't restore pdfDoc without the original PDF file
@@ -2821,7 +2835,10 @@
               this.pdfPages = [];
               this.currentPageIndex = 0;
               this.pageAnnotations = {};
-              document.querySelector('.pdf-navigation').style.display = 'none';
+              const pdfNav = document.getElementById('pdfNavigation');
+              if (pdfNav) {
+                pdfNav.style.display = 'none';
+              }
             }
 
             // Load layers if they exist
@@ -4169,12 +4186,29 @@
         if (layer.locked) return;
 
         this.isDraggingLayer = true;
-        const pos = this.getMousePos(e);
-        this.dragStartX = pos.x - layer.x;
-        this.dragStartY = pos.y - layer.y;
+
+        // Get position relative to canvas container
+        const container = document.getElementById('canvasContainer');
+        const rect = container.getBoundingClientRect();
+
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+
+        const x = clientX - rect.left + container.scrollLeft;
+        const y = clientY - rect.top + container.scrollTop;
+
+        this.dragStartX = x - layer.x;
+        this.dragStartY = y - layer.y;
         this.layerStartRect = { x: layer.x, y: layer.y };
 
         e.preventDefault();
+        e.stopPropagation();
       },
 
       // Handle layer drag
@@ -4184,9 +4218,24 @@
         const layer = this.layers.find(l => l.id === this.selectedLayer);
         if (!layer || layer.locked) return;
 
-        const pos = this.getMousePos(e);
-        layer.x = pos.x - this.dragStartX;
-        layer.y = pos.y - this.dragStartY;
+        // Get position relative to canvas container
+        const container = document.getElementById('canvasContainer');
+        const rect = container.getBoundingClientRect();
+
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+
+        const x = clientX - rect.left + container.scrollLeft;
+        const y = clientY - rect.top + container.scrollTop;
+
+        layer.x = x - this.dragStartX;
+        layer.y = y - this.dragStartY;
 
         const element = document.getElementById('layer-' + layer.id);
         if (element) {
