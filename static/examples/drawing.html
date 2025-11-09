@@ -2859,11 +2859,15 @@
             }
           }
 
-          // Clear localStorage except language preference
+          // Clear localStorage EXCEPT language preference AND drawings (user data)
           const lang = localStorage.getItem('drawing_lang');
+          const drawings = localStorage.getItem('drawings');
           localStorage.clear();
           if (lang) {
             localStorage.setItem('drawing_lang', lang);
+          }
+          if (drawings) {
+            localStorage.setItem('drawings', drawings);
           }
 
           // Force reload with cache bypass
