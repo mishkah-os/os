@@ -187,10 +187,10 @@
               <button
                 data-m-gkey="toggle-live-data"
                 class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
+                style="min-width: 120px;"
               >
                 <span class="select-none">{trans('quick.sales.randomize')}</span>
-                <span x-if="state.data.liveData && state.data.liveData.enabled" class="text-[10px] text-green-500 font-bold">● LIVE</span>
-                <span x-if="!(state.data.liveData && state.data.liveData.enabled)" class="text-[10px] text-[var(--muted-foreground)]">○ OFF</span>
+                <span class="text-[10px] font-bold" data-live-status="indicator">○ OFF</span>
               </button>
             </div>
           </header>
@@ -1307,23 +1307,56 @@
             }
           }, function (latest) {
             console.log('[DEBUG] Toggle commit completed, latest state:', latest);
-            if (latest && latest.data && latest.data.liveData && latest.data.liveData.enabled) {
+            var enabled = latest && latest.data && latest.data.liveData && latest.data.liveData.enabled;
+            updateLiveDataIndicator(enabled);
+            if (enabled) {
               console.log('[DEBUG] Triggering initial randomize...');
               randomizeSalesReport(null, context, { force: true, reusePrevious: false });
             }
           });
         }
 
+        function updateLiveDataIndicator(enabled) {
+          var indicators = document.querySelectorAll('[data-live-status="indicator"]');
+          console.log('[DEBUG] Updating', indicators.length, 'indicators, enabled:', enabled);
+          for (var i = 0; i < indicators.length; i++) {
+            var indicator = indicators[i];
+            if (enabled) {
+              indicator.textContent = '● LIVE';
+              indicator.style.color = '#22c55e'; // green-500
+            } else {
+              indicator.textContent = '○ OFF';
+              indicator.style.color = '#9ca3af'; // gray-400
+            }
+          }
+        }
+
         function registerLiveDataOrder(ctx) {
-          console.log('[DEBUG] Registering live data order handler');
+          console.log('[DEBUG] Registering live data order handler, ctx:', ctx);
           var context = ctx || window.MishkahAuto || null;
           if (!context) {
             console.error('[DEBUG] No context for order registration');
             return;
           }
 
-          // Register order for toggle-live-data gkey
-          if (context.order && typeof context.order === 'function') {
+          console.log('[DEBUG] Context has:', {
+            order: typeof context.order,
+            setOrders: typeof context.setOrders,
+            getOrders: typeof context.getOrders
+          });
+
+          // Try using setOrders
+          if (context.setOrders && typeof context.setOrders === 'function') {
+            console.log('[DEBUG] Registering order via ctx.setOrders');
+            var orders = context.getOrders ? context.getOrders() : {};
+            orders.click = orders.click || {};
+            orders.click['toggle-live-data'] = function(detail) {
+              console.log('[DEBUG] Live data toggle clicked via setOrders!', detail);
+              toggleLiveData(detail.event, context);
+            };
+            context.setOrders(orders);
+            console.log('[DEBUG] Orders registered successfully');
+          } else if (context.order && typeof context.order === 'function') {
             console.log('[DEBUG] Registering order via ctx.order');
             context.order('click', { gkey: 'toggle-live-data' }, function(detail) {
               console.log('[DEBUG] Live data toggle clicked via order!', detail);
@@ -1357,6 +1390,12 @@
           registerLiveDataOrder(ctx || auto);
 
           var initial = resolveAutoState(ctx);
+
+          // Update initial indicator state
+          setTimeout(function() {
+            var enabled = initial && initial.data && initial.data.liveData && initial.data.liveData.enabled;
+            updateLiveDataIndicator(enabled || false);
+          }, 100);
           if (!initial && ctx && typeof ctx.getState === 'function') {
             try {
               initial = ctx.getState();
