@@ -583,7 +583,6 @@
       align-items: center;
       z-index: 1000;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-      display: none; /* Hidden by default */
     }
 
     .pdf-navigation.active {
@@ -1103,7 +1102,7 @@
 
     #toggleLayers {
       right: 10px;
-      bottom: 170px;
+      top: calc(50% + 60px);
     }
 
     .layers-list {
@@ -4130,11 +4129,11 @@
             break;
 
           case 'star':
-            this.drawStar(cx, cy, 5, size, size / 2);
+            this.drawStarToContext(ctx, cx, cy, 5, size, size / 2);
             break;
 
           case 'heart':
-            this.drawHeart(cx, cy, size);
+            this.drawHeartToContext(ctx, cx, cy, size);
             break;
 
           case 'triangle':
@@ -4145,11 +4144,11 @@
             break;
 
           case 'hexagon':
-            this.drawPolygon(cx, cy, 6, size);
+            this.drawPolygonToContext(ctx, cx, cy, 6, size);
             break;
 
           case 'pentagon':
-            this.drawPolygon(cx, cy, 5, size);
+            this.drawPolygonToContext(ctx, cx, cy, 5, size);
             break;
 
           case 'diamond':
@@ -4162,6 +4161,54 @@
         }
 
         ctx.stroke();
+      },
+
+      // Helper functions for rendering to specific context
+      drawStarToContext(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+        let rot = Math.PI / 2 * 3;
+        const step = Math.PI / spikes;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outerRadius);
+
+        for (let i = 0; i < spikes; i++) {
+          let x = cx + Math.cos(rot) * outerRadius;
+          let y = cy + Math.sin(rot) * outerRadius;
+          ctx.lineTo(x, y);
+          rot += step;
+          x = cx + Math.cos(rot) * innerRadius;
+          y = cy + Math.sin(rot) * innerRadius;
+          ctx.lineTo(x, y);
+          rot += step;
+        }
+
+        ctx.lineTo(cx, cy - outerRadius);
+        ctx.closePath();
+      },
+
+      drawHeartToContext(ctx, cx, cy, size) {
+        ctx.beginPath();
+        const topCurveHeight = size * 0.3;
+        ctx.moveTo(cx, cy + topCurveHeight);
+        ctx.bezierCurveTo(cx, cy, cx - size / 2, cy - size / 2, cx - size / 2, cy + topCurveHeight);
+        ctx.bezierCurveTo(cx - size / 2, cy + (size + topCurveHeight) / 2, cx, cy + (size + topCurveHeight) / 2, cx, cy + size);
+        ctx.bezierCurveTo(cx, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + (size + topCurveHeight) / 2, cx + size / 2, cy + topCurveHeight);
+        ctx.bezierCurveTo(cx + size / 2, cy - size / 2, cx, cy, cx, cy + topCurveHeight);
+        ctx.closePath();
+      },
+
+      drawPolygonToContext(ctx, cx, cy, sides, radius) {
+        ctx.beginPath();
+        for (let i = 0; i < sides; i++) {
+          const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
+          const x = cx + radius * Math.cos(angle);
+          const y = cy + radius * Math.sin(angle);
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        ctx.closePath();
       },
 
       // Clear all layers
