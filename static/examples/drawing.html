@@ -579,7 +579,6 @@
       backdrop-filter: blur(10px);
       border-radius: 12px;
       padding: 8px 12px;
-      display: none;
       gap: 8px;
       align-items: center;
       z-index: 1000;
@@ -1007,10 +1006,7 @@
   </div>
 
   <!-- Hard Reload Button -->
-  <button class="reload-btn" onclick="app.hardReload()" title="تحديث قوي - Hard Reload">
-    <span>🔄</span>
-    <span class="reload-text" data-i18n="reload">تحديث</span>
-  </button>
+
 
   <!-- Language Switcher -->
   <div class="lang-switcher">
@@ -1051,6 +1047,10 @@
 
   <!-- Floating Top Toolbar -->
   <div class="floating-toolbar">
+    <button class="reload-btn toolbar-btn" onclick="app.hardReload()" title="تحديث قوي - Hard Reload">
+      <span>🔄</span>
+      <span class="reload-text" data-i18n="reload">تحديث</span>
+    </button>
     <button class="toolbar-btn" onclick="app.undo()">
       <span class="toolbar-btn-icon">↶</span>
       <span data-i18n="undo">تراجع</span>
