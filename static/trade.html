@@ -184,14 +184,19 @@
               <span class="text-xs text-[var(--muted-foreground)]">
                 {trans(state.data.analytics.unitLabelKey || 'quick.sales.unit')}
               </span>
-              <label class="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer">
-                <input
-                  type="checkbox"
-                  id="live-data-toggle"
-                  class="w-4 h-4 cursor-pointer accent-green-500"
-                />
+              <label class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer">
                 <span class="select-none">{trans('quick.sales.randomize')}</span>
-                <span id="live-indicator" class="text-[10px] text-green-500" style="display: none;">●</span>
+                <!-- Toggle Switch -->
+                <div class="relative inline-block w-11 h-6">
+                  <input
+                    type="checkbox"
+                    id="live-data-toggle"
+                    class="hidden"
+                  />
+                  <div id="toggle-bg" class="w-11 h-6 rounded-full transition-colors duration-200" style="background-color: #9ca3af;"></div>
+                  <div id="toggle-dot" class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200" style="transform: translateX(0);"></div>
+                </div>
+                <span id="live-indicator" class="text-[10px] text-green-500 font-bold" style="display: none;">LIVE</span>
               </label>
             </div>
           </header>
@@ -1025,16 +1030,23 @@
 
         function ensureCountdownLoop(state) {
           var node = document.querySelector('[data-countdown]');
-          if (!node) return;
+          console.log('[DEBUG] ensureCountdownLoop called, node:', node);
+          if (!node) {
+            console.warn('[DEBUG] Countdown node not found!');
+            return;
+          }
           var seconds = state && state.data && state.data.timer ? Number(state.data.timer.seconds) : NaN;
           if (!Number.isFinite(seconds) || seconds <= 0) seconds = 270;
+          console.log('[DEBUG] Countdown seconds:', seconds);
           if (state && state.data && state.data.ui && state.data.ui.countdownTemplate) {
             node.setAttribute('data-countdown-template', state.data.ui.countdownTemplate);
           }
           node.dataset.countdownBaseline = String(seconds);
           if (!node.__mkCountdownLoop) {
+            console.log('[DEBUG] Setting up countdown loop listener');
             node.__mkCountdownLoop = true;
             node.addEventListener('countdown:finished', function () {
+              console.log('[DEBUG] Countdown finished, restarting...');
               var baseline = Number(node.dataset.countdownBaseline);
               if (!Number.isFinite(baseline) || baseline <= 0) baseline = seconds;
               window.requestAnimationFrame(function () {
@@ -1043,6 +1055,7 @@
             });
           }
           var current = Number(node.getAttribute('data-countdown'));
+          console.log('[DEBUG] Current countdown value:', current, 'Setting to:', seconds);
           if (!Number.isFinite(current) || Math.abs(current - seconds) > 0.5) {
             node.setAttribute('data-countdown', seconds);
           }
@@ -1268,12 +1281,17 @@
         }
 
         function toggleLiveData(event, ctx) {
+          console.log('[DEBUG] toggleLiveData called, event:', event, 'ctx:', ctx);
           if (event && typeof event.preventDefault === 'function') {
             event.preventDefault();
           }
           var context = ctx || window.MishkahAuto || null;
-          if (!context) return;
+          if (!context) {
+            console.error('[DEBUG] No context available for toggleLiveData!');
+            return;
+          }
 
+          console.log('[DEBUG] Committing live data toggle...');
           commit(context, function (next, prev) {
             next.data = next.data || {};
             next.data.liveData = next.data.liveData || { enabled: false, interval: null };
@@ -1281,17 +1299,25 @@
             var wasEnabled = prev.data && prev.data.liveData && prev.data.liveData.enabled;
             next.data.liveData.enabled = !wasEnabled;
 
+            console.log('[DEBUG] Toggle state - was enabled:', wasEnabled, 'now enabled:', next.data.liveData.enabled);
+
             if (next.data.liveData.enabled && !next.data.liveData.interval) {
+              console.log('[DEBUG] Starting live data interval...');
               var intervalId = window.setInterval(function() {
+                console.log('[DEBUG] Live data interval tick...');
                 randomizeSalesReport(null, context, { force: true, reusePrevious: false });
               }, 1000);
               next.data.liveData.interval = intervalId;
+              console.log('[DEBUG] Interval ID:', intervalId);
             } else if (!next.data.liveData.enabled && next.data.liveData.interval) {
+              console.log('[DEBUG] Stopping live data interval:', next.data.liveData.interval);
               window.clearInterval(next.data.liveData.interval);
               next.data.liveData.interval = null;
             }
           }, function (latest) {
+            console.log('[DEBUG] Toggle commit completed, latest state:', latest);
             if (latest && latest.data && latest.data.liveData && latest.data.liveData.enabled) {
+              console.log('[DEBUG] Triggering initial randomize...');
               randomizeSalesReport(null, context, { force: true, reusePrevious: false });
             }
           });
@@ -1300,30 +1326,60 @@
         function syncLiveDataUI(state) {
           var checkbox = document.getElementById('live-data-toggle');
           var indicator = document.getElementById('live-indicator');
-          if (!checkbox || !indicator) return;
+          var toggleBg = document.getElementById('toggle-bg');
+          var toggleDot = document.getElementById('toggle-dot');
+
+          console.log('[DEBUG] syncLiveDataUI called, checkbox:', checkbox, 'indicator:', indicator);
+          if (!checkbox || !indicator) {
+            console.warn('[DEBUG] Checkbox or indicator not found!');
+            return;
+          }
 
           var enabled = state && state.data && state.data.liveData && state.data.liveData.enabled;
+          console.log('[DEBUG] Live data enabled:', enabled);
+
           checkbox.checked = !!enabled;
           indicator.style.display = enabled ? 'inline' : 'none';
+
+          // Update toggle switch visual state
+          if (toggleBg && toggleDot) {
+            if (enabled) {
+              toggleBg.style.backgroundColor = '#22c55e'; // green-500
+              toggleDot.style.transform = 'translateX(20px)';
+            } else {
+              toggleBg.style.backgroundColor = '#9ca3af'; // gray-400
+              toggleDot.style.transform = 'translateX(0)';
+            }
+          }
         }
 
         function quickDashboardMount(app, helpers) {
+          console.log('[DEBUG] quickDashboardMount called, app:', app, 'helpers:', helpers);
           var ctx = app || (helpers && helpers.app) || window.MishkahAuto || null;
           if (ctx) {
+            console.log('[DEBUG] Connecting auto state for ctx');
             connectAutoState(ctx);
           }
           var auto = window.MishkahAuto || null;
           if (auto && auto !== ctx) {
+            console.log('[DEBUG] Connecting auto state for MishkahAuto');
             connectAutoState(auto);
           }
 
           // Attach live data toggle event listener
           var checkbox = document.getElementById('live-data-toggle');
+          console.log('[DEBUG] Looking for live-data-toggle checkbox:', checkbox);
           if (checkbox && !checkbox.__mkLiveDataBound) {
+            console.log('[DEBUG] Attaching change event listener to checkbox');
             checkbox.__mkLiveDataBound = true;
             checkbox.addEventListener('change', function(event) {
+              console.log('[DEBUG] Checkbox changed, event:', event);
               toggleLiveData(event, ctx || auto);
             });
+          } else if (checkbox) {
+            console.log('[DEBUG] Checkbox already bound');
+          } else {
+            console.warn('[DEBUG] Checkbox not found!');
           }
 
           var initial = resolveAutoState(ctx);
