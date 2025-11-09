@@ -746,6 +746,51 @@
     }
 
     /* Language Switcher */
+    /* Reload Button */
+    .reload-btn {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #f8fafc;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .reload-btn:hover {
+      background: #6366f1;
+      border-color: #6366f1;
+    }
+
+    .reload-btn:hover span:first-child {
+      display: inline-block;
+      animation: rotate 0.6s ease-in-out;
+    }
+
+    @keyframes rotate {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .reload-text {
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
     .lang-switcher {
       position: fixed;
       top: 70px;
@@ -876,6 +921,7 @@
     body.zen-mode .floating-toolbar,
     body.zen-mode .toggle-btn,
     body.zen-mode .lang-switcher,
+    body.zen-mode .reload-btn,
     body.zen-mode .status-bar,
     body.zen-mode .install-prompt,
     body.zen-mode .zoom-controls {
@@ -959,6 +1005,12 @@
     <!-- Main Canvas - fills entire screen -->
     <canvas id="drawingCanvas"></canvas>
   </div>
+
+  <!-- Hard Reload Button -->
+  <button class="reload-btn" onclick="app.hardReload()" title="تحديث قوي - Hard Reload">
+    <span>🔄</span>
+    <span class="reload-text" data-i18n="reload">تحديث</span>
+  </button>
 
   <!-- Language Switcher -->
   <div class="lang-switcher">
@@ -1356,7 +1408,8 @@
           page_range_placeholder: '1-10, 15, 20-25',
           page_range_help: 'مثال: 1-10 (من 1 إلى 10)، 15,20,25 (صفحات محددة)، أو الكل',
           loading_pages: 'جاري تحميل الصفحات...',
-          page_x_of_y: 'صفحة {0} من {1}'
+          page_x_of_y: 'صفحة {0} من {1}',
+          reload: 'تحديث'
         },
         en: {
           // Install prompt
@@ -1422,7 +1475,8 @@
           page_range_placeholder: '1-10, 15, 20-25',
           page_range_help: 'Example: 1-10 (pages 1 to 10), 15,20,25 (specific pages), or all',
           loading_pages: 'Loading pages...',
-          page_x_of_y: 'Page {0} of {1}'
+          page_x_of_y: 'Page {0} of {1}',
+          reload: 'Reload'
         }
       },
 
@@ -2477,6 +2531,48 @@
       dismissInstall() {
         document.getElementById('installPrompt').classList.remove('active');
         localStorage.setItem('install_dismissed', 'true');
+      },
+
+      // Hard Reload - Clear cache and force update
+      async hardReload() {
+        try {
+          // Show loading indicator
+          this.showLoading(this.currentLang === 'ar' ? 'جاري تحديث التطبيق...' : 'Updating app...');
+
+          // Unregister all service workers
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (let registration of registrations) {
+              await registration.unregister();
+              console.log('Service worker unregistered');
+            }
+          }
+
+          // Clear all caches
+          if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            for (let cacheName of cacheNames) {
+              await caches.delete(cacheName);
+              console.log(`Cache ${cacheName} deleted`);
+            }
+          }
+
+          // Clear localStorage except language preference
+          const lang = localStorage.getItem('drawing_lang');
+          localStorage.clear();
+          if (lang) {
+            localStorage.setItem('drawing_lang', lang);
+          }
+
+          // Force reload with cache bypass
+          setTimeout(() => {
+            window.location.reload(true);
+          }, 500);
+        } catch (error) {
+          console.error('Hard reload error:', error);
+          // Force reload anyway
+          window.location.reload(true);
+        }
       },
 
       // Zoom Functions
