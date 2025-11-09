@@ -552,7 +552,102 @@
       background: rgba(148, 163, 184, 0.2);
       margin: 12px 0;
     }
+
+    /* PDF Navigation */
+    .pdf-navigation {
+      position: fixed;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 8px 12px;
+      display: none;
+      gap: 8px;
+      align-items: center;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .pdf-navigation.active {
+      display: flex;
+    }
+
+    .pdf-nav-btn {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #f8fafc;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .pdf-nav-btn:hover:not(:disabled) {
+      background: rgba(99, 102, 241, 0.4);
+      border-color: #6366f1;
+    }
+
+    .pdf-nav-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pdf-page-info {
+      color: #f8fafc;
+      font-size: 0.9rem;
+      padding: 0 8px;
+    }
+
+    /* Page Selector */
+    .page-selector {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 10px;
+      max-height: 400px;
+      overflow-y: auto;
+      margin: 20px 0;
+    }
+
+    .page-item {
+      background: rgba(30, 41, 59, 0.6);
+      border: 2px solid rgba(148, 163, 184, 0.3);
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .page-item:hover {
+      border-color: #6366f1;
+    }
+
+    .page-item.selected {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.2);
+    }
+
+    .page-preview {
+      width: 100%;
+      height: 120px;
+      background: white;
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+
+    .page-label {
+      color: #f8fafc;
+      font-size: 0.85rem;
+    }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Configure PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
 </head>
 <body>
   <!-- Main Canvas - fills entire screen -->
@@ -582,6 +677,18 @@
     <button class="toolbar-btn" onclick="app.openExportModal()">
       <span class="toolbar-btn-icon">📤</span>
     </button>
+    <div style="width: 1px; height: 20px; background: rgba(148, 163, 184, 0.3);"></div>
+    <button class="toolbar-btn" onclick="document.getElementById('pdfUpload').click()">
+      <span class="toolbar-btn-icon">📄</span>
+      <span>PDF</span>
+    </button>
+  </div>
+
+  <!-- PDF Navigation Bar -->
+  <div class="pdf-navigation" id="pdfNavigation">
+    <button class="pdf-nav-btn" id="prevPageBtn" onclick="app.previousPage()">← السابق</button>
+    <span class="pdf-page-info" id="pageInfo">صفحة 1 من 1</span>
+    <button class="pdf-nav-btn" id="nextPageBtn" onclick="app.nextPage()">التالي →</button>
   </div>
 
   <!-- Toggle Buttons -->
@@ -715,8 +822,24 @@
     </div>
   </div>
 
-  <!-- Hidden file input -->
+  <!-- PDF Page Selector Modal -->
+  <div class="modal" id="pdfPageModal">
+    <div class="modal-content" style="max-width: 800px;">
+      <h2 class="modal-header">📄 اختيار صفحات PDF</h2>
+      <p style="color: rgba(248, 250, 252, 0.7); margin-bottom: 10px; font-size: 0.9rem;">
+        اضغط على الصفحات التي تريد استيرادها (يمكنك اختيار عدة صفحات)
+      </p>
+      <div class="page-selector" id="pdfPageSelector"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="app.importSelectedPages()">استيراد الصفحات المحددة</button>
+        <button class="btn btn-secondary" onclick="app.closePdfModal()">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file inputs -->
   <input type="file" id="imageUpload" accept="image/*" />
+  <input type="file" id="pdfUpload" accept="application/pdf" style="display: none;" />
 
   <!-- jsPDF for PDF export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -733,6 +856,14 @@
       history: [],
       historyIndex: -1,
       lastSaved: null,
+
+      // PDF-related properties
+      pdfDoc: null,
+      pdfPages: [],
+      currentPageIndex: 0,
+      selectedPdfPages: new Set(),
+      pdfMode: false,
+      pageAnnotations: {}, // Store annotations for each page
 
       colors: [
         '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
@@ -798,9 +929,10 @@
         });
 
         document.getElementById('imageUpload').addEventListener('change', (e) => this.handleImageUpload(e));
+        document.getElementById('pdfUpload').addEventListener('change', (e) => this.handlePdfUpload(e));
 
         // Close modals on outside click
-        ['saveModal', 'loadModal', 'exportModal'].forEach(id => {
+        ['saveModal', 'loadModal', 'exportModal', 'pdfPageModal'].forEach(id => {
           const modal = document.getElementById(id);
           modal.addEventListener('click', (e) => {
             if (e.target === modal) {
@@ -876,9 +1008,12 @@
 
       getMousePos(e) {
         const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+
         return {
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
+          x: (e.clientX - rect.left) * scaleX,
+          y: (e.clientY - rect.top) * scaleY
         };
       },
 
@@ -1258,18 +1393,244 @@
         this.closeExportModal();
       },
 
-      exportAsPDF() {
+      async exportAsPDF() {
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF({
-          orientation: 'landscape',
-          unit: 'px',
-          format: [this.canvas.width, this.canvas.height]
-        });
-
         const name = document.getElementById('saveName').value.trim() || 'drawing';
-        pdf.addImage(this.canvas.toDataURL(), 'PNG', 0, 0, this.canvas.width, this.canvas.height);
-        pdf.save(name + '.pdf');
+
+        // If in PDF mode with multiple pages, export all annotated pages
+        if (this.pdfMode && this.pdfPages.length > 0) {
+          // Save current page annotations before export
+          this.saveCurrentPageAnnotations();
+
+          const pdf = new jsPDF({
+            orientation: 'landscape',
+            unit: 'px',
+            format: [this.canvas.width, this.canvas.height]
+          });
+
+          const currentPageIndex = this.currentPageIndex;
+
+          // Add all pages with annotations
+          for (let i = 0; i < this.pdfPages.length; i++) {
+            if (i > 0) {
+              pdf.addPage([this.canvas.width, this.canvas.height], 'landscape');
+            }
+
+            const pageNum = this.pdfPages[i];
+
+            // Use saved annotations if available, otherwise load fresh
+            if (this.pageAnnotations[pageNum]) {
+              // Use the saved annotated version
+              await new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                  this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                  this.ctx.drawImage(img, 0, 0);
+                  pdf.addImage(this.canvas.toDataURL(), 'PNG', 0, 0, this.canvas.width, this.canvas.height);
+                  resolve();
+                };
+                img.src = this.pageAnnotations[pageNum];
+              });
+            } else {
+              // Load the page without annotations
+              await this.loadPdfPage(pageNum, false);
+              pdf.addImage(this.canvas.toDataURL(), 'PNG', 0, 0, this.canvas.width, this.canvas.height);
+            }
+          }
+
+          // Restore current page view
+          this.currentPageIndex = currentPageIndex;
+          await this.loadPdfPage(this.pdfPages[this.currentPageIndex]);
+
+          pdf.save(name + '_annotated.pdf');
+        } else {
+          // Single page export
+          const pdf = new jsPDF({
+            orientation: 'landscape',
+            unit: 'px',
+            format: [this.canvas.width, this.canvas.height]
+          });
+
+          pdf.addImage(this.canvas.toDataURL(), 'PNG', 0, 0, this.canvas.width, this.canvas.height);
+          pdf.save(name + '.pdf');
+        }
+
         this.closeExportModal();
+      },
+
+      // PDF Import Functions
+      async handlePdfUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          this.pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+          // Show page selector modal
+          await this.showPdfPageSelector();
+        } catch (error) {
+          alert('خطأ في فتح ملف PDF: ' + error.message);
+        }
+
+        // Reset file input
+        e.target.value = '';
+      },
+
+      async showPdfPageSelector() {
+        const modal = document.getElementById('pdfPageModal');
+        const selector = document.getElementById('pdfPageSelector');
+        selector.innerHTML = '';
+        this.selectedPdfPages.clear();
+
+        const numPages = this.pdfDoc.numPages;
+
+        for (let i = 1; i <= numPages; i++) {
+          const page = await this.pdfDoc.getPage(i);
+          const viewport = page.getViewport({ scale: 0.3 });
+
+          const canvas = document.createElement('canvas');
+          canvas.className = 'page-preview';
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+          const pageItem = document.createElement('div');
+          pageItem.className = 'page-item';
+          pageItem.dataset.pageNum = i;
+          pageItem.innerHTML = `
+            ${canvas.outerHTML}
+            <div class="page-label">صفحة ${i}</div>
+          `;
+
+          pageItem.addEventListener('click', () => {
+            pageItem.classList.toggle('selected');
+            if (pageItem.classList.contains('selected')) {
+              this.selectedPdfPages.add(i);
+            } else {
+              this.selectedPdfPages.delete(i);
+            }
+          });
+
+          selector.appendChild(pageItem);
+        }
+
+        modal.classList.add('active');
+      },
+
+      async importSelectedPages() {
+        if (this.selectedPdfPages.size === 0) {
+          alert('الرجاء اختيار صفحة واحدة على الأقل');
+          return;
+        }
+
+        // Convert selected pages to sorted array
+        this.pdfPages = Array.from(this.selectedPdfPages).sort((a, b) => a - b);
+        this.currentPageIndex = 0;
+        this.pdfMode = true;
+
+        // Load first page
+        await this.loadPdfPage(this.pdfPages[0]);
+
+        // Show PDF navigation
+        document.getElementById('pdfNavigation').classList.add('active');
+        this.updatePdfNavigation();
+
+        this.closePdfModal();
+      },
+
+      async loadPdfPage(pageNum, restoreAnnotations = true) {
+        try {
+          const page = await this.pdfDoc.getPage(pageNum);
+
+          // Calculate scale to fit canvas
+          const viewport = page.getViewport({ scale: 1 });
+          const scaleX = this.canvas.width / viewport.width;
+          const scaleY = this.canvas.height / viewport.height;
+          const scale = Math.min(scaleX, scaleY) * 0.9; // 90% of canvas size
+
+          const scaledViewport = page.getViewport({ scale: scale });
+
+          // Create temporary canvas for PDF rendering
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = scaledViewport.width;
+          tempCanvas.height = scaledViewport.height;
+          const tempCtx = tempCanvas.getContext('2d');
+
+          // Render PDF page
+          await page.render({
+            canvasContext: tempCtx,
+            viewport: scaledViewport
+          }).promise;
+
+          // Clear main canvas and draw PDF page centered
+          this.ctx.fillStyle = 'white';
+          this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+          const x = (this.canvas.width - scaledViewport.width) / 2;
+          const y = (this.canvas.height - scaledViewport.height) / 2;
+          this.ctx.drawImage(tempCanvas, x, y);
+
+          // Restore annotations if available
+          if (restoreAnnotations && this.pageAnnotations[pageNum]) {
+            const img = new Image();
+            img.onload = () => {
+              this.ctx.drawImage(img, 0, 0);
+              this.saveToHistory();
+            };
+            img.src = this.pageAnnotations[pageNum];
+          } else {
+            // Save to history
+            this.saveToHistory();
+          }
+        } catch (error) {
+          alert('خطأ في تحميل الصفحة: ' + error.message);
+        }
+      },
+
+      saveCurrentPageAnnotations() {
+        if (this.pdfMode && this.pdfPages.length > 0) {
+          const currentPage = this.pdfPages[this.currentPageIndex];
+          this.pageAnnotations[currentPage] = this.canvas.toDataURL();
+        }
+      },
+
+      previousPage() {
+        if (this.currentPageIndex > 0) {
+          // Save current page annotations
+          this.saveCurrentPageAnnotations();
+
+          this.currentPageIndex--;
+          this.loadPdfPage(this.pdfPages[this.currentPageIndex]);
+          this.updatePdfNavigation();
+        }
+      },
+
+      nextPage() {
+        if (this.currentPageIndex < this.pdfPages.length - 1) {
+          // Save current page annotations
+          this.saveCurrentPageAnnotations();
+
+          this.currentPageIndex++;
+          this.loadPdfPage(this.pdfPages[this.currentPageIndex]);
+          this.updatePdfNavigation();
+        }
+      },
+
+      updatePdfNavigation() {
+        const pageInfo = document.getElementById('pageInfo');
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+
+        pageInfo.textContent = `صفحة ${this.currentPageIndex + 1} من ${this.pdfPages.length}`;
+        prevBtn.disabled = this.currentPageIndex === 0;
+        nextBtn.disabled = this.currentPageIndex === this.pdfPages.length - 1;
+      },
+
+      closePdfModal() {
+        document.getElementById('pdfPageModal').classList.remove('active');
       }
     };
 
