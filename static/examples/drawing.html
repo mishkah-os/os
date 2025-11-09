@@ -3,6 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="description" content="Professional drawing and PDF annotation tool for tablets and devices" />
+  <meta name="theme-color" content="#6366f1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Drawing Board" />
+  <link rel="manifest" href="/static/examples/manifest.json" />
   <title>لوحة الرسم — Mishkah Drawing Board</title>
   <style>
     * {
@@ -642,6 +648,129 @@
       color: #f8fafc;
       font-size: 0.85rem;
     }
+
+    /* Install Prompt */
+    .install-prompt {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.4);
+      display: none;
+      align-items: center;
+      gap: 12px;
+      z-index: 10000;
+      max-width: 90%;
+      animation: slideUp 0.3s ease-out;
+    }
+
+    .install-prompt.active {
+      display: flex;
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translateX(-50%) translateY(100px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .install-prompt-icon {
+      font-size: 2rem;
+    }
+
+    .install-prompt-content {
+      flex: 1;
+    }
+
+    .install-prompt-title {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .install-prompt-text {
+      font-size: 0.85rem;
+      opacity: 0.9;
+    }
+
+    .install-prompt-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .install-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .install-btn-primary {
+      background: white;
+      color: #6366f1;
+    }
+
+    .install-btn-primary:hover {
+      transform: scale(1.05);
+    }
+
+    .install-btn-secondary {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+
+    .install-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    /* Language Switcher */
+    .lang-switcher {
+      position: fixed;
+      top: 70px;
+      right: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 8px;
+      padding: 4px;
+      display: flex;
+      gap: 4px;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .lang-btn {
+      background: transparent;
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #f8fafc;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+      font-weight: 600;
+    }
+
+    .lang-btn.active {
+      background: #6366f1;
+      border-color: #6366f1;
+    }
+
+    .lang-btn:hover:not(.active) {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: #6366f1;
+    }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
@@ -653,15 +782,34 @@
   <!-- Main Canvas - fills entire screen -->
   <canvas id="drawingCanvas"></canvas>
 
+  <!-- Language Switcher -->
+  <div class="lang-switcher">
+    <button class="lang-btn active" data-lang="ar" onclick="app.switchLanguage('ar')">ع</button>
+    <button class="lang-btn" data-lang="en" onclick="app.switchLanguage('en')">EN</button>
+  </div>
+
+  <!-- Install Prompt -->
+  <div class="install-prompt" id="installPrompt">
+    <div class="install-prompt-icon">📲</div>
+    <div class="install-prompt-content">
+      <div class="install-prompt-title" data-i18n="install_title">ثبّت التطبيق</div>
+      <div class="install-prompt-text" data-i18n="install_text">للحصول على تجربة أفضل واستخدام التطبيق بدون اتصال بالإنترنت</div>
+    </div>
+    <div class="install-prompt-actions">
+      <button class="install-btn install-btn-primary" onclick="app.installApp()" data-i18n="install_btn">تثبيت</button>
+      <button class="install-btn install-btn-secondary" onclick="app.dismissInstall()" data-i18n="later_btn">لاحقاً</button>
+    </div>
+  </div>
+
   <!-- Floating Top Toolbar -->
   <div class="floating-toolbar">
     <button class="toolbar-btn" onclick="app.undo()">
       <span class="toolbar-btn-icon">↶</span>
-      <span>تراجع</span>
+      <span data-i18n="undo">تراجع</span>
     </button>
     <button class="toolbar-btn" onclick="app.redo()">
       <span class="toolbar-btn-icon">↷</span>
-      <span>إعادة</span>
+      <span data-i18n="redo">إعادة</span>
     </button>
     <button class="toolbar-btn" onclick="app.clearCanvas()">
       <span class="toolbar-btn-icon">🗑️</span>
@@ -669,7 +817,7 @@
     <div style="width: 1px; height: 20px; background: rgba(148, 163, 184, 0.3);"></div>
     <button class="toolbar-btn" onclick="app.openSaveModal()">
       <span class="toolbar-btn-icon">💾</span>
-      <span>حفظ</span>
+      <span data-i18n="save">حفظ</span>
     </button>
     <button class="toolbar-btn" onclick="app.openLoadModal()">
       <span class="toolbar-btn-icon">📁</span>
@@ -686,9 +834,13 @@
 
   <!-- PDF Navigation Bar -->
   <div class="pdf-navigation" id="pdfNavigation">
-    <button class="pdf-nav-btn" id="prevPageBtn" onclick="app.previousPage()">← السابق</button>
+    <button class="pdf-nav-btn" id="prevPageBtn" onclick="app.previousPage()">
+      <span>←</span> <span data-i18n="previous">السابق</span>
+    </button>
     <span class="pdf-page-info" id="pageInfo">صفحة 1 من 1</span>
-    <button class="pdf-nav-btn" id="nextPageBtn" onclick="app.nextPage()">التالي →</button>
+    <button class="pdf-nav-btn" id="nextPageBtn" onclick="app.nextPage()">
+      <span data-i18n="next">التالي</span> <span>→</span>
+    </button>
   </div>
 
   <!-- Toggle Buttons -->
@@ -865,13 +1017,128 @@
       pdfMode: false,
       pageAnnotations: {}, // Store annotations for each page
 
+      // PWA properties
+      currentLang: 'ar',
+      deferredPrompt: null,
+      db: null,
+
       colors: [
         '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
         '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000', '#800000',
         '#808080', '#C0C0C0', '#FFB6C1', '#87CEEB', '#90EE90', '#DDA0DD'
       ],
 
-      init() {
+      // Translations
+      translations: {
+        ar: {
+          // Install prompt
+          install_title: 'ثبّت التطبيق',
+          install_text: 'للحصول على تجربة أفضل واستخدام التطبيق بدون اتصال بالإنترنت',
+          install_btn: 'تثبيت',
+          later_btn: 'لاحقاً',
+
+          // Toolbar
+          undo: 'تراجع',
+          redo: 'إعادة',
+          save: 'حفظ',
+
+          // PDF Navigation
+          previous: 'السابق',
+          next: 'التالي',
+          page: 'صفحة',
+          of: 'من',
+
+          // Tools
+          pen: 'قلم',
+          brush: 'فرشاة',
+          eraser: 'ممحاة',
+          line: 'خط',
+          rectangle: 'مربع',
+          circle: 'دائرة',
+          arrow: 'سهم',
+          text: 'نص',
+
+          // Modals
+          save_drawing: 'حفظ الرسمة',
+          drawing_name: 'اسم الرسمة',
+          cancel: 'إلغاء',
+          open_drawing: 'فتح رسمة',
+          close: 'إغلاق',
+          export_drawing: 'تصدير الرسمة',
+          export_png: 'تصدير كـ PNG',
+          export_jpg: 'تصدير كـ JPG',
+          export_pdf: 'تصدير كـ PDF',
+
+          // PDF
+          select_pdf_pages: 'اختيار صفحات PDF',
+          select_pages_text: 'اضغط على الصفحات التي تريد استيرادها (يمكنك اختيار عدة صفحات)',
+          import_selected: 'استيراد الصفحات المحددة',
+
+          // Messages
+          clear_confirm: 'هل أنت متأكد من مسح اللوحة؟',
+          delete_confirm: 'هل أنت متأكد من حذف هذه الرسمة؟',
+          select_one_page: 'الرجاء اختيار صفحة واحدة على الأقل',
+          pdf_load_error: 'خطأ في فتح ملف PDF',
+          page_load_error: 'خطأ في تحميل الصفحة',
+          enter_name: 'الرجاء إدخال اسم للرسمة',
+          saved_success: 'تم الحفظ بنجاح!'
+        },
+        en: {
+          // Install prompt
+          install_title: 'Install App',
+          install_text: 'For a better experience and offline usage',
+          install_btn: 'Install',
+          later_btn: 'Later',
+
+          // Toolbar
+          undo: 'Undo',
+          redo: 'Redo',
+          save: 'Save',
+
+          // PDF Navigation
+          previous: 'Previous',
+          next: 'Next',
+          page: 'Page',
+          of: 'of',
+
+          // Tools
+          pen: 'Pen',
+          brush: 'Brush',
+          eraser: 'Eraser',
+          line: 'Line',
+          rectangle: 'Rectangle',
+          circle: 'Circle',
+          arrow: 'Arrow',
+          text: 'Text',
+
+          // Modals
+          save_drawing: 'Save Drawing',
+          drawing_name: 'Drawing Name',
+          cancel: 'Cancel',
+          open_drawing: 'Open Drawing',
+          close: 'Close',
+          export_drawing: 'Export Drawing',
+          export_png: 'Export as PNG',
+          export_jpg: 'Export as JPG',
+          export_pdf: 'Export as PDF',
+
+          // PDF
+          select_pdf_pages: 'Select PDF Pages',
+          select_pages_text: 'Click on the pages you want to import (you can select multiple pages)',
+          import_selected: 'Import Selected Pages',
+
+          // Messages
+          clear_confirm: 'Are you sure you want to clear the canvas?',
+          delete_confirm: 'Are you sure you want to delete this drawing?',
+          select_one_page: 'Please select at least one page',
+          pdf_load_error: 'Error opening PDF file',
+          page_load_error: 'Error loading page',
+          enter_name: 'Please enter a name for the drawing',
+          saved_success: 'Saved successfully!'
+        }
+      },
+
+      async init() {
         this.canvas = document.getElementById('drawingCanvas');
         this.ctx = this.canvas.getContext('2d');
 
@@ -882,12 +1149,89 @@
         this.ctx.lineCap = 'round';
         this.ctx.lineJoin = 'round';
 
+        // Initialize PWA features
+        await this.initPWA();
+
+        // Load saved language
+        this.currentLang = localStorage.getItem('drawing_lang') || 'ar';
+        this.applyLanguage();
+
         this.saveState();
         this.setupEventListeners();
         this.renderColors();
         this.updateUI();
 
         console.log('🎨 Drawing board ready!');
+      },
+
+      // PWA Initialization
+      async initPWA() {
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+          try {
+            const registration = await navigator.serviceWorker.register('/static/examples/sw.js');
+            console.log('✅ Service Worker registered:', registration.scope);
+          } catch (error) {
+            console.error('❌ Service Worker registration failed:', error);
+          }
+        }
+
+        // Initialize IndexedDB
+        await this.initDB();
+
+        // Setup install prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          this.deferredPrompt = e;
+
+          // Check if user hasn't dismissed the prompt before
+          const dismissed = localStorage.getItem('install_dismissed');
+          const installed = window.matchMedia('(display-mode: standalone)').matches;
+
+          if (!dismissed && !installed) {
+            // Show install prompt after 3 seconds
+            setTimeout(() => {
+              document.getElementById('installPrompt').classList.add('active');
+            }, 3000);
+          }
+        });
+
+        // Detect if already installed
+        window.addEventListener('appinstalled', () => {
+          console.log('✅ App installed successfully!');
+          this.deferredPrompt = null;
+          document.getElementById('installPrompt').classList.remove('active');
+        });
+      },
+
+      // IndexedDB Initialization
+      async initDB() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open('MishkahDrawingDB', 1);
+
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            this.db = request.result;
+            console.log('✅ IndexedDB initialized');
+            resolve();
+          };
+
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+
+            // Create object stores
+            if (!db.objectStoreNames.contains('drawings')) {
+              const drawingStore = db.createObjectStore('drawings', { keyPath: 'id', autoIncrement: true });
+              drawingStore.createIndex('name', 'name', { unique: false });
+              drawingStore.createIndex('timestamp', 'timestamp', { unique: false });
+            }
+
+            if (!db.objectStoreNames.contains('history')) {
+              const historyStore = db.createObjectStore('history', { keyPath: 'id', autoIncrement: true });
+              historyStore.createIndex('timestamp', 'timestamp', { unique: false });
+            }
+          };
+        });
       },
 
       resizeCanvas() {
@@ -1243,7 +1587,7 @@
       },
 
       clearCanvas() {
-        if (confirm('هل أنت متأكد من مسح اللوحة؟')) {
+        if (confirm(this.t('clear_confirm'))) {
           this.ctx.fillStyle = 'white';
           this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
           this.saveState();
@@ -1302,7 +1646,7 @@
         const folder = document.getElementById('saveFolder').value.trim();
 
         if (!name) {
-          alert('الرجاء إدخال اسم للرسمة');
+          alert(this.t('enter_name'));
           return;
         }
 
@@ -1320,7 +1664,7 @@
 
         this.lastSaved = drawing.date;
         this.closeSaveModal();
-        alert('تم الحفظ بنجاح!');
+        alert(this.t('saved_success'));
       },
 
       loadSavedFiles() {
@@ -1367,7 +1711,7 @@
       },
 
       deleteDrawing(id) {
-        if (confirm('هل أنت متأكد من حذف هذه الرسمة؟')) {
+        if (confirm(this.t('delete_confirm'))) {
           let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
           drawings = drawings.filter(d => d.id !== id);
           localStorage.setItem('drawings', JSON.stringify(drawings));
@@ -1470,7 +1814,7 @@
           // Show page selector modal
           await this.showPdfPageSelector();
         } catch (error) {
-          alert('خطأ في فتح ملف PDF: ' + error.message);
+          alert(this.t('pdf_load_error') + ': ' + error.message);
         }
 
         // Reset file input
@@ -1522,7 +1866,7 @@
 
       async importSelectedPages() {
         if (this.selectedPdfPages.size === 0) {
-          alert('الرجاء اختيار صفحة واحدة على الأقل');
+          alert(this.t('select_one_page'));
           return;
         }
 
@@ -1578,15 +1922,15 @@
             const img = new Image();
             img.onload = () => {
               this.ctx.drawImage(img, 0, 0);
-              this.saveToHistory();
+              this.saveState();
             };
             img.src = this.pageAnnotations[pageNum];
           } else {
             // Save to history
-            this.saveToHistory();
+            this.saveState();
           }
         } catch (error) {
-          alert('خطأ في تحميل الصفحة: ' + error.message);
+          alert(this.t('page_load_error') + ': ' + error.message);
         }
       },
 
@@ -1624,13 +1968,76 @@
         const prevBtn = document.getElementById('prevPageBtn');
         const nextBtn = document.getElementById('nextPageBtn');
 
-        pageInfo.textContent = `صفحة ${this.currentPageIndex + 1} من ${this.pdfPages.length}`;
+        pageInfo.textContent = `${this.t('page')} ${this.currentPageIndex + 1} ${this.t('of')} ${this.pdfPages.length}`;
         prevBtn.disabled = this.currentPageIndex === 0;
         nextBtn.disabled = this.currentPageIndex === this.pdfPages.length - 1;
       },
 
       closePdfModal() {
         document.getElementById('pdfPageModal').classList.remove('active');
+      },
+
+      // Language Management
+      switchLanguage(lang) {
+        this.currentLang = lang;
+        localStorage.setItem('drawing_lang', lang);
+        this.applyLanguage();
+
+        // Update HTML attributes
+        document.documentElement.lang = lang;
+        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+
+        // Update active button
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.lang === lang);
+        });
+      },
+
+      applyLanguage() {
+        const translations = this.translations[this.currentLang];
+
+        // Update all elements with data-i18n attribute
+        document.querySelectorAll('[data-i18n]').forEach(element => {
+          const key = element.getAttribute('data-i18n');
+          if (translations[key]) {
+            element.textContent = translations[key];
+          }
+        });
+
+        // Update title
+        document.title = this.currentLang === 'ar'
+          ? 'لوحة الرسم — Mishkah Drawing Board'
+          : 'Mishkah Drawing Board';
+      },
+
+      t(key) {
+        return this.translations[this.currentLang][key] || key;
+      },
+
+      // PWA Install Functions
+      async installApp() {
+        if (!this.deferredPrompt) {
+          console.log('Install prompt not available');
+          return;
+        }
+
+        // Show the install prompt
+        this.deferredPrompt.prompt();
+
+        // Wait for the user to respond
+        const { outcome } = await this.deferredPrompt.userChoice;
+        console.log(`User response: ${outcome}`);
+
+        // Clear the deferred prompt
+        this.deferredPrompt = null;
+
+        // Hide the install prompt
+        document.getElementById('installPrompt').classList.remove('active');
+      },
+
+      dismissInstall() {
+        document.getElementById('installPrompt').classList.remove('active');
+        localStorage.setItem('install_dismissed', 'true');
       }
     };
 
