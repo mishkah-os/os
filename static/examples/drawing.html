@@ -41,11 +41,10 @@
     /* Canvas fills entire screen */
     #drawingCanvas {
       display: block;
-      min-width: 100vw;
-      min-height: 100vh;
       background: white;
       cursor: crosshair;
-      transform-origin: center center;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
     }
 
     /* Floating Top Toolbar - minimal and transparent */
@@ -873,11 +872,10 @@
       border-color: #6366f1;
     }
 
-    /* Hide All UI Mode */
+    /* Hide All UI Mode - Keep PDF navigation and hide zoom controls */
     body.zen-mode .floating-toolbar,
     body.zen-mode .toggle-btn,
     body.zen-mode .lang-switcher,
-    body.zen-mode .pdf-navigation,
     body.zen-mode .status-bar,
     body.zen-mode .install-prompt,
     body.zen-mode .zoom-controls {
@@ -2498,19 +2496,16 @@
       },
 
       applyZoom() {
-        this.canvas.style.transform = `scale(${this.zoomLevel})`;
-        this.canvas.style.transformOrigin = 'top left';
+        // Remove transform and use direct sizing for better scroll support
+        // Set canvas visual size based on zoom level
+        const baseWidth = window.innerWidth;
+        const baseHeight = window.innerHeight;
 
-        // Update canvas dimensions to enable scrolling when zoomed
-        const container = document.getElementById('canvasContainer');
-        if (this.zoomLevel > 1) {
-          this.canvas.style.minWidth = `${100 * this.zoomLevel}vw`;
-          this.canvas.style.minHeight = `${100 * this.zoomLevel}vh`;
-        } else {
-          this.canvas.style.minWidth = '100vw';
-          this.canvas.style.minHeight = '100vh';
-        }
+        this.canvas.style.width = `${baseWidth * this.zoomLevel}px`;
+        this.canvas.style.height = `${baseHeight * this.zoomLevel}px`;
+        this.canvas.style.transform = 'none';
 
+        // Update zoom level display
         document.getElementById('zoomLevel').textContent = Math.round(this.zoomLevel * 100) + '%';
       },
 
