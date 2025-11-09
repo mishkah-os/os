@@ -27,15 +27,25 @@
       background: #0f172a;
     }
 
-    /* Canvas fills entire screen */
-    #drawingCanvas {
+    /* Canvas Container - enables scrolling when zoomed */
+    .canvas-container {
       position: absolute;
       top: 0;
       left: 0;
       width: 100vw;
       height: 100vh;
+      overflow: auto;
+      background: #0f172a;
+    }
+
+    /* Canvas fills entire screen */
+    #drawingCanvas {
+      display: block;
+      min-width: 100vw;
+      min-height: 100vh;
       background: white;
       cursor: crosshair;
+      transform-origin: center center;
     }
 
     /* Floating Top Toolbar - minimal and transparent */
@@ -869,7 +879,8 @@
     body.zen-mode .lang-switcher,
     body.zen-mode .pdf-navigation,
     body.zen-mode .status-bar,
-    body.zen-mode .install-prompt {
+    body.zen-mode .install-prompt,
+    body.zen-mode .zoom-controls {
       display: none !important;
     }
 
@@ -945,8 +956,11 @@
   </script>
 </head>
 <body>
-  <!-- Main Canvas - fills entire screen -->
-  <canvas id="drawingCanvas"></canvas>
+  <!-- Canvas Container - enables scrolling when zoomed -->
+  <div id="canvasContainer" class="canvas-container">
+    <!-- Main Canvas - fills entire screen -->
+    <canvas id="drawingCanvas"></canvas>
+  </div>
 
   <!-- Language Switcher -->
   <div class="lang-switcher">
@@ -1194,6 +1208,41 @@
       <div class="modal-actions">
         <button class="btn btn-primary" onclick="app.importSelectedPages()" data-i18n="import_selected">استيراد الصفحات المحددة</button>
         <button class="btn btn-secondary" onclick="app.closePdfModal()" data-i18n="cancel">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Pages Selector Modal -->
+  <div class="modal" id="exportPagesModal">
+    <div class="modal-content" style="max-width: 800px;">
+      <h2 class="modal-header">📤 اختيار الصفحات للتصدير</h2>
+
+      <!-- Page Range Input -->
+      <input
+        type="text"
+        class="page-range-input"
+        id="exportPageRangeInput"
+        placeholder="1-10, 15, 20-25"
+        data-i18n-placeholder="page_range_placeholder"
+      />
+      <div class="page-range-help" data-i18n="page_range_help">
+        مثال: 1-10 (من 1 إلى 10)، 15,20,25 (صفحات محددة)، أو الكل
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="page-selector-header">
+        <button class="page-selector-btn" onclick="app.selectAllExportPages()" data-i18n="select_all">تحديد الكل</button>
+        <button class="page-selector-btn" onclick="app.deselectAllExportPages()" data-i18n="deselect_all">إلغاء الكل</button>
+        <button class="page-selector-btn" onclick="app.applyExportPageRange()" data-i18n="apply_range">تطبيق النطاق</button>
+      </div>
+
+      <p style="color: rgba(248, 250, 252, 0.7); margin-bottom: 10px; font-size: 0.9rem;">
+        اضغط على الصفحات التي تريد تصديرها (يمكنك اختيار عدة صفحات)
+      </p>
+      <div class="page-selector" id="exportPageSelector"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" onclick="app.confirmExportPages()">تصدير الصفحات المحددة</button>
+        <button class="btn btn-secondary" onclick="app.closeExportPagesModal()">إلغاء</button>
       </div>
     </div>
   </div>
@@ -2018,13 +2067,86 @@
       },
 
       async exportAsPDF() {
+        // If in PDF mode with multiple pages, show page selector
+        if (this.pdfMode && this.pdfPages.length > 1) {
+          this.closeExportModal();
+          await this.showExportPagesSelector();
+        } else {
+          // Single page export
+          await this.performPDFExport();
+        }
+      },
+
+      async showExportPagesSelector() {
+        const modal = document.getElementById('exportPagesModal');
+        const selector = document.getElementById('exportPageSelector');
+        selector.innerHTML = '';
+
+        // Initialize selectedExportPages if not exists
+        if (!this.selectedExportPages) {
+          this.selectedExportPages = new Set();
+        }
+        this.selectedExportPages.clear();
+
+        // Select all pages by default
+        for (let i = 0; i < this.pdfPages.length; i++) {
+          this.selectedExportPages.add(i);
+        }
+
+        // Create preview for each page
+        for (let i = 0; i < this.pdfPages.length; i++) {
+          const pageNum = this.pdfPages[i];
+          const pageItem = document.createElement('div');
+          pageItem.className = 'page-item selected';
+          pageItem.dataset.pageIndex = i;
+          pageItem.innerHTML = `
+            <div style="width: 150px; height: 100px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+              <div style="font-size: 2rem;">📄</div>
+            </div>
+            <div class="page-label">${this.t('page')} ${i + 1}</div>
+          `;
+
+          pageItem.addEventListener('click', () => {
+            pageItem.classList.toggle('selected');
+            if (pageItem.classList.contains('selected')) {
+              this.selectedExportPages.add(i);
+            } else {
+              this.selectedExportPages.delete(i);
+            }
+          });
+
+          selector.appendChild(pageItem);
+        }
+
+        modal.classList.add('active');
+      },
+
+      async confirmExportPages() {
+        if (!this.selectedExportPages || this.selectedExportPages.size === 0) {
+          alert(this.t('select_one_page') || 'الرجاء تحديد صفحة واحدة على الأقل');
+          return;
+        }
+
+        this.closeExportPagesModal();
+        await this.performPDFExport();
+      },
+
+      async performPDFExport() {
         const { jsPDF } = window.jspdf;
         const name = document.getElementById('saveName').value.trim() || 'drawing';
 
-        // If in PDF mode with multiple pages, export all annotated pages
+        // If in PDF mode with multiple pages
         if (this.pdfMode && this.pdfPages.length > 0) {
           // Save current page annotations before export
           this.saveCurrentPageAnnotations();
+
+          // Determine which pages to export
+          const pagesToExport = this.selectedExportPages && this.selectedExportPages.size > 0
+            ? Array.from(this.selectedExportPages).sort((a, b) => a - b)
+            : this.pdfPages.map((_, i) => i);
+
+          // Show loading with progress
+          this.showLoading(this.currentLang === 'ar' ? 'جاري التصدير...' : 'Exporting...');
 
           const pdf = new jsPDF({
             orientation: 'landscape',
@@ -2034,13 +2156,17 @@
 
           const currentPageIndex = this.currentPageIndex;
 
-          // Add all pages with annotations
-          for (let i = 0; i < this.pdfPages.length; i++) {
+          // Add selected pages with annotations
+          for (let i = 0; i < pagesToExport.length; i++) {
+            const pageIndex = pagesToExport[i];
+            const pageNum = this.pdfPages[pageIndex];
+
+            // Update progress
+            this.updateLoadingProgress(i + 1, pagesToExport.length);
+
             if (i > 0) {
               pdf.addPage([this.canvas.width, this.canvas.height], 'landscape');
             }
-
-            const pageNum = this.pdfPages[i];
 
             // Use saved annotations if available, otherwise load fresh
             if (this.pageAnnotations[pageNum]) {
@@ -2066,9 +2192,12 @@
           this.currentPageIndex = currentPageIndex;
           await this.loadPdfPage(this.pdfPages[this.currentPageIndex]);
 
+          this.hideLoading();
           pdf.save(name + '_annotated.pdf');
         } else {
           // Single page export
+          this.showLoading(this.currentLang === 'ar' ? 'جاري التصدير...' : 'Exporting...');
+
           const pdf = new jsPDF({
             orientation: 'landscape',
             unit: 'px',
@@ -2076,6 +2205,8 @@
           });
 
           pdf.addImage(this.canvas.toDataURL(), 'PNG', 0, 0, this.canvas.width, this.canvas.height);
+
+          this.hideLoading();
           pdf.save(name + '.pdf');
         }
 
@@ -2368,7 +2499,18 @@
 
       applyZoom() {
         this.canvas.style.transform = `scale(${this.zoomLevel})`;
-        this.canvas.style.transformOrigin = 'center center';
+        this.canvas.style.transformOrigin = 'top left';
+
+        // Update canvas dimensions to enable scrolling when zoomed
+        const container = document.getElementById('canvasContainer');
+        if (this.zoomLevel > 1) {
+          this.canvas.style.minWidth = `${100 * this.zoomLevel}vw`;
+          this.canvas.style.minHeight = `${100 * this.zoomLevel}vh`;
+        } else {
+          this.canvas.style.minWidth = '100vw';
+          this.canvas.style.minHeight = '100vh';
+        }
+
         document.getElementById('zoomLevel').textContent = Math.round(this.zoomLevel * 100) + '%';
       },
 
@@ -2529,6 +2671,101 @@
         }
 
         this.hideLoading();
+      },
+
+      // Export Pages Modal Functions
+      closeExportPagesModal() {
+        document.getElementById('exportPagesModal').classList.remove('active');
+      },
+
+      selectAllExportPages() {
+        if (!this.selectedExportPages) {
+          this.selectedExportPages = new Set();
+        }
+        this.selectedExportPages.clear();
+
+        for (let i = 0; i < this.pdfPages.length; i++) {
+          this.selectedExportPages.add(i);
+        }
+
+        // Update UI
+        document.querySelectorAll('#exportPageSelector .page-item').forEach(item => {
+          item.classList.add('selected');
+        });
+      },
+
+      deselectAllExportPages() {
+        if (!this.selectedExportPages) {
+          this.selectedExportPages = new Set();
+        }
+        this.selectedExportPages.clear();
+
+        // Update UI
+        document.querySelectorAll('#exportPageSelector .page-item').forEach(item => {
+          item.classList.remove('selected');
+        });
+      },
+
+      applyExportPageRange() {
+        const input = document.getElementById('exportPageRangeInput').value.trim();
+        if (!input) return;
+
+        const pages = this.parseExportPageRange(input, this.pdfPages.length);
+        if (pages.length === 0) {
+          alert(this.t('select_one_page') || 'الرجاء تحديد صفحة واحدة على الأقل');
+          return;
+        }
+
+        if (!this.selectedExportPages) {
+          this.selectedExportPages = new Set();
+        }
+        this.selectedExportPages.clear();
+        pages.forEach(page => this.selectedExportPages.add(page));
+
+        // Update UI
+        document.querySelectorAll('#exportPageSelector .page-item').forEach(item => {
+          const pageIndex = parseInt(item.dataset.pageIndex);
+          item.classList.toggle('selected', this.selectedExportPages.has(pageIndex));
+        });
+      },
+
+      parseExportPageRange(input, maxPages) {
+        const pages = new Set();
+
+        // Handle "all" or "الكل"
+        if (input.toLowerCase() === 'all' || input === 'الكل') {
+          for (let i = 0; i < maxPages; i++) {
+            pages.add(i);
+          }
+          return Array.from(pages).sort((a, b) => a - b);
+        }
+
+        const parts = input.split(',');
+
+        for (let part of parts) {
+          part = part.trim();
+
+          // Handle range (e.g., "1-10")
+          if (part.includes('-')) {
+            const [start, end] = part.split('-').map(n => parseInt(n.trim()));
+            if (!isNaN(start) && !isNaN(end)) {
+              // Convert from 1-based to 0-based indexing
+              for (let i = Math.min(start, end) - 1; i < Math.max(start, end); i++) {
+                if (i >= 0 && i < maxPages) {
+                  pages.add(i);
+                }
+              }
+            }
+          } else {
+            // Handle single page (convert from 1-based to 0-based)
+            const page = parseInt(part) - 1;
+            if (!isNaN(page) && page >= 0 && page < maxPages) {
+              pages.add(page);
+            }
+          }
+        }
+
+        return Array.from(pages).sort((a, b) => a - b);
       },
 
       // Save last PDF position
