@@ -1331,6 +1331,34 @@
           }
         }
 
+        function injectButtonContent() {
+          var buttons = document.querySelectorAll('[data-m-gkey="toggle-live-data"]');
+          console.log('[DEBUG] Found', buttons.length, 'toggle buttons to inject content');
+
+          for (var i = 0; i < buttons.length; i++) {
+            var button = buttons[i];
+            if (button.__contentInjected) continue;
+
+            button.innerHTML = '';
+
+            var labelSpan = document.createElement('span');
+            labelSpan.className = 'select-none';
+            labelSpan.textContent = 'بيانات حية'; // Will be replaced by trans if needed
+
+            var indicatorSpan = document.createElement('span');
+            indicatorSpan.className = 'text-[10px] font-bold';
+            indicatorSpan.setAttribute('data-live-status', 'indicator');
+            indicatorSpan.textContent = '○ OFF';
+            indicatorSpan.style.color = '#9ca3af';
+
+            button.appendChild(labelSpan);
+            button.appendChild(indicatorSpan);
+            button.__contentInjected = true;
+
+            console.log('[DEBUG] Injected content into button', i);
+          }
+        }
+
         function registerLiveDataOrder(ctx) {
           console.log('[DEBUG] Registering live data order handler, ctx:', ctx);
           var context = ctx || window.MishkahAuto || null;
@@ -1385,6 +1413,11 @@
             console.log('[DEBUG] Connecting auto state for MishkahAuto');
             connectAutoState(auto);
           }
+
+          // Inject button content (HTMLx bug workaround)
+          setTimeout(function() {
+            injectButtonContent();
+          }, 50);
 
           // Register live data toggle order handler
           registerLiveDataOrder(ctx || auto);
