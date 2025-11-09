@@ -2,13 +2,14 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=3.0, user-scalable=yes" />
   <meta name="description" content="Professional drawing and PDF annotation tool for tablets and devices" />
   <meta name="theme-color" content="#6366f1" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Drawing Board" />
-  <link rel="manifest" href="/static/examples/manifest.json" />
+  <link rel="manifest" href="manifest.json" />
   <title>لوحة الرسم — Mishkah Drawing Board</title>
   <style>
     * {
@@ -771,6 +772,171 @@
       background: rgba(99, 102, 241, 0.2);
       border-color: #6366f1;
     }
+
+    /* Loading Overlay */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.95);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 100000;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .loading-overlay.active {
+      display: flex;
+    }
+
+    .loading-spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba(99, 102, 241, 0.3);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: #f8fafc;
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .loading-progress {
+      color: rgba(248, 250, 252, 0.7);
+      font-size: 0.9rem;
+    }
+
+    /* Page Range Input */
+    .page-range-input {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #f8fafc;
+      padding: 10px;
+      border-radius: 8px;
+      width: 100%;
+      font-size: 0.9rem;
+      margin-bottom: 10px;
+    }
+
+    .page-range-input:focus {
+      outline: none;
+      border-color: #6366f1;
+    }
+
+    .page-range-help {
+      color: rgba(248, 250, 252, 0.6);
+      font-size: 0.8rem;
+      margin-bottom: 10px;
+    }
+
+    .page-selector-header {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    .page-selector-btn {
+      padding: 6px 12px;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #f8fafc;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+
+    .page-selector-btn:hover {
+      background: rgba(99, 102, 241, 0.4);
+      border-color: #6366f1;
+    }
+
+    /* Hide All UI Mode */
+    body.zen-mode .floating-toolbar,
+    body.zen-mode .toggle-btn,
+    body.zen-mode .lang-switcher,
+    body.zen-mode .pdf-navigation,
+    body.zen-mode .status-bar,
+    body.zen-mode .install-prompt {
+      display: none !important;
+    }
+
+    .zen-mode-toggle {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(148, 163, 184, 0.3);
+      color: #f8fafc;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      z-index: 10001;
+      transition: all 0.2s;
+    }
+
+    body.zen-mode .zen-mode-toggle {
+      background: #6366f1;
+      border-color: #6366f1;
+    }
+
+    .zen-mode-toggle:hover {
+      background: rgba(99, 102, 241, 0.4);
+      border-color: #6366f1;
+    }
+
+    /* Zoom Controls */
+    .zoom-controls {
+      position: fixed;
+      bottom: 80px;
+      right: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .zoom-btn {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #f8fafc;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+
+    .zoom-btn:hover {
+      background: rgba(99, 102, 241, 0.4);
+      border-color: #6366f1;
+    }
+
+    .zoom-level {
+      color: #f8fafc;
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 4px;
+    }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
@@ -799,6 +965,24 @@
       <button class="install-btn install-btn-primary" onclick="app.installApp()" data-i18n="install_btn">تثبيت</button>
       <button class="install-btn install-btn-secondary" onclick="app.dismissInstall()" data-i18n="later_btn">لاحقاً</button>
     </div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" data-i18n="loading">جاري التحميل...</div>
+    <div class="loading-progress" id="loadingProgress"></div>
+  </div>
+
+  <!-- Zen Mode Toggle -->
+  <button class="zen-mode-toggle" onclick="app.toggleZenMode()" data-i18n="zen_mode">📖</button>
+
+  <!-- Zoom Controls -->
+  <div class="zoom-controls">
+    <button class="zoom-btn" onclick="app.zoomIn()">+</button>
+    <div class="zoom-level" id="zoomLevel">100%</div>
+    <button class="zoom-btn" onclick="app.zoomOut()">−</button>
+    <button class="zoom-btn" onclick="app.resetZoom()">⟲</button>
   </div>
 
   <!-- Floating Top Toolbar -->
@@ -884,7 +1068,11 @@
       </div>
       <div class="tool-item" onclick="app.setTool('text')" data-tool="text">
         <span class="tool-item-icon">📝</span>
-        <span>نص</span>
+        <span data-i18n="text">نص</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('pan')" data-tool="pan">
+        <span class="tool-item-icon">✋</span>
+        <span data-i18n="pan">تحريك/تكبير</span>
       </div>
     </div>
     <div class="section-divider"></div>
@@ -977,14 +1165,35 @@
   <!-- PDF Page Selector Modal -->
   <div class="modal" id="pdfPageModal">
     <div class="modal-content" style="max-width: 800px;">
-      <h2 class="modal-header">📄 اختيار صفحات PDF</h2>
-      <p style="color: rgba(248, 250, 252, 0.7); margin-bottom: 10px; font-size: 0.9rem;">
+      <h2 class="modal-header" data-i18n="select_pdf_pages">📄 اختيار صفحات PDF</h2>
+
+      <!-- Page Range Input -->
+      <input
+        type="text"
+        class="page-range-input"
+        id="pageRangeInput"
+        placeholder="1-10, 15, 20-25"
+        data-i18n-placeholder="page_range_placeholder"
+      />
+      <div class="page-range-help" data-i18n="page_range_help">
+        مثال: 1-10 (من 1 إلى 10)، 15,20,25 (صفحات محددة)، أو الكل
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="page-selector-header">
+        <button class="page-selector-btn" onclick="app.selectAllPages()" data-i18n="select_all">تحديد الكل</button>
+        <button class="page-selector-btn" onclick="app.deselectAllPages()" data-i18n="deselect_all">إلغاء الكل</button>
+        <button class="page-selector-btn" onclick="app.applyPageRange()" data-i18n="apply_range">تطبيق النطاق</button>
+        <button class="page-selector-btn" onclick="app.previewRange()" data-i18n="preview_range">معاينة النطاق</button>
+      </div>
+
+      <p style="color: rgba(248, 250, 252, 0.7); margin-bottom: 10px; font-size: 0.9rem;" data-i18n="select_pages_text">
         اضغط على الصفحات التي تريد استيرادها (يمكنك اختيار عدة صفحات)
       </p>
       <div class="page-selector" id="pdfPageSelector"></div>
       <div class="modal-actions">
-        <button class="btn btn-primary" onclick="app.importSelectedPages()">استيراد الصفحات المحددة</button>
-        <button class="btn btn-secondary" onclick="app.closePdfModal()">إلغاء</button>
+        <button class="btn btn-primary" onclick="app.importSelectedPages()" data-i18n="import_selected">استيراد الصفحات المحددة</button>
+        <button class="btn btn-secondary" onclick="app.closePdfModal()" data-i18n="cancel">إلغاء</button>
       </div>
     </div>
   </div>
@@ -1022,6 +1231,12 @@
       deferredPrompt: null,
       db: null,
 
+      // Zoom and UI properties
+      zoomLevel: 1,
+      zenMode: false,
+      pinchStartDistance: 0,
+      isPinching: false,
+
       colors: [
         '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00',
         '#FF00FF', '#00FFFF', '#FFA500', '#800080', '#008000', '#800000',
@@ -1057,6 +1272,7 @@
           circle: 'دائرة',
           arrow: 'سهم',
           text: 'نص',
+          pan: 'تحريك/تكبير',
 
           // Modals
           save_drawing: 'حفظ الرسمة',
@@ -1081,7 +1297,19 @@
           pdf_load_error: 'خطأ في فتح ملف PDF',
           page_load_error: 'خطأ في تحميل الصفحة',
           enter_name: 'الرجاء إدخال اسم للرسمة',
-          saved_success: 'تم الحفظ بنجاح!'
+          saved_success: 'تم الحفظ بنجاح!',
+
+          // New features
+          loading: 'جاري التحميل...',
+          zen_mode: '📖',
+          select_all: 'تحديد الكل',
+          deselect_all: 'إلغاء الكل',
+          apply_range: 'تطبيق النطاق',
+          preview_range: 'معاينة النطاق',
+          page_range_placeholder: '1-10, 15, 20-25',
+          page_range_help: 'مثال: 1-10 (من 1 إلى 10)، 15,20,25 (صفحات محددة)، أو الكل',
+          loading_pages: 'جاري تحميل الصفحات...',
+          page_x_of_y: 'صفحة {0} من {1}'
         },
         en: {
           // Install prompt
@@ -1110,6 +1338,7 @@
           circle: 'Circle',
           arrow: 'Arrow',
           text: 'Text',
+          pan: 'Pan/Zoom',
 
           // Modals
           save_drawing: 'Save Drawing',
@@ -1134,7 +1363,19 @@
           pdf_load_error: 'Error opening PDF file',
           page_load_error: 'Error loading page',
           enter_name: 'Please enter a name for the drawing',
-          saved_success: 'Saved successfully!'
+          saved_success: 'Saved successfully!',
+
+          // New features
+          loading: 'Loading...',
+          zen_mode: '📖',
+          select_all: 'Select All',
+          deselect_all: 'Deselect All',
+          apply_range: 'Apply Range',
+          preview_range: 'Preview Range',
+          page_range_placeholder: '1-10, 15, 20-25',
+          page_range_help: 'Example: 1-10 (pages 1 to 10), 15,20,25 (specific pages), or all',
+          loading_pages: 'Loading pages...',
+          page_x_of_y: 'Page {0} of {1}'
         }
       },
 
@@ -1169,7 +1410,7 @@
         // Register Service Worker
         if ('serviceWorker' in navigator) {
           try {
-            const registration = await navigator.serviceWorker.register('/static/examples/sw.js');
+            const registration = await navigator.serviceWorker.register('./sw.js');
             console.log('✅ Service Worker registered:', registration.scope);
           } catch (error) {
             console.error('❌ Service Worker registration failed:', error);
@@ -1258,9 +1499,9 @@
         this.canvas.addEventListener('mouseup', (e) => this.stopDrawing(e));
         this.canvas.addEventListener('mouseout', () => this.stopDrawing());
 
-        this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e, 'start'));
-        this.canvas.addEventListener('touchmove', (e) => this.handleTouch(e, 'move'));
-        this.canvas.addEventListener('touchend', () => this.stopDrawing());
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e, 'start'), { passive: false });
+        this.canvas.addEventListener('touchmove', (e) => this.handleTouch(e, 'move'), { passive: false });
+        this.canvas.addEventListener('touchend', () => this.stopDrawing(), { passive: true });
 
         document.getElementById('customColor').addEventListener('input', (e) => {
           this.currentColor = e.target.value;
@@ -1339,6 +1580,45 @@
       },
 
       handleTouch(e, type) {
+        // Handle pinch to zoom
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          this.isPinching = true;
+
+          const touch1 = e.touches[0];
+          const touch2 = e.touches[1];
+          const distance = Math.hypot(
+            touch2.clientX - touch1.clientX,
+            touch2.clientY - touch1.clientY
+          );
+
+          if (type === 'start') {
+            this.pinchStartDistance = distance;
+          } else if (type === 'move' && this.pinchStartDistance > 0) {
+            const scale = distance / this.pinchStartDistance;
+            const newZoom = Math.max(0.5, Math.min(3, this.zoomLevel * scale));
+
+            if (Math.abs(newZoom - this.zoomLevel) > 0.01) {
+              this.zoomLevel = newZoom;
+              this.applyZoom();
+              this.pinchStartDistance = distance;
+            }
+          }
+          return;
+        }
+
+        // Normal drawing
+        if (this.isPinching) {
+          this.isPinching = false;
+          this.pinchStartDistance = 0;
+          return;
+        }
+
+        if (this.currentTool === 'pan') {
+          // Pan tool doesn't draw, just allows scrolling/zooming
+          return;
+        }
+
         e.preventDefault();
         const touch = e.touches[0];
         if (touch) {
@@ -1822,6 +2102,8 @@
       },
 
       async showPdfPageSelector() {
+        this.showLoading(this.t('loading_pages'));
+
         const modal = document.getElementById('pdfPageModal');
         const selector = document.getElementById('pdfPageSelector');
         selector.innerHTML = '';
@@ -1829,7 +2111,17 @@
 
         const numPages = this.pdfDoc.numPages;
 
+        // Select all pages by default
         for (let i = 1; i <= numPages; i++) {
+          this.selectedPdfPages.add(i);
+        }
+
+        // Limit preview to first 50 pages for performance
+        const previewLimit = Math.min(numPages, 50);
+
+        for (let i = 1; i <= previewLimit; i++) {
+          this.updateLoadingProgress(i, previewLimit);
+
           const page = await this.pdfDoc.getPage(i);
           const viewport = page.getViewport({ scale: 0.3 });
 
@@ -1842,11 +2134,11 @@
           await page.render({ canvasContext: ctx, viewport: viewport }).promise;
 
           const pageItem = document.createElement('div');
-          pageItem.className = 'page-item';
+          pageItem.className = 'page-item selected';
           pageItem.dataset.pageNum = i;
           pageItem.innerHTML = `
             ${canvas.outerHTML}
-            <div class="page-label">صفحة ${i}</div>
+            <div class="page-label">${this.t('page')} ${i}</div>
           `;
 
           pageItem.addEventListener('click', () => {
@@ -1861,7 +2153,19 @@
           selector.appendChild(pageItem);
         }
 
+        // If there are more pages, show a message
+        if (numPages > previewLimit) {
+          const messageEl = document.createElement('div');
+          messageEl.style.cssText = 'grid-column: 1 / -1; text-align: center; padding: 20px; color: #f8fafc;';
+          messageEl.textContent = `${this.t('loading_pages')}... (${previewLimit}/${numPages}). ${this.t('page_range_help')}`;
+          selector.appendChild(messageEl);
+        }
+
+        this.hideLoading();
         modal.classList.add('active');
+
+        // Set page range input to "all"
+        document.getElementById('pageRangeInput').value = numPages <= 50 ? '' : this.currentLang === 'ar' ? 'الكل' : 'all';
       },
 
       async importSelectedPages() {
@@ -1949,6 +2253,9 @@
           this.currentPageIndex--;
           this.loadPdfPage(this.pdfPages[this.currentPageIndex]);
           this.updatePdfNavigation();
+
+          // Save last position
+          this.saveLastPdfPosition();
         }
       },
 
@@ -1960,6 +2267,9 @@
           this.currentPageIndex++;
           this.loadPdfPage(this.pdfPages[this.currentPageIndex]);
           this.updatePdfNavigation();
+
+          // Save last position
+          this.saveLastPdfPosition();
         }
       },
 
@@ -2038,6 +2348,206 @@
       dismissInstall() {
         document.getElementById('installPrompt').classList.remove('active');
         localStorage.setItem('install_dismissed', 'true');
+      },
+
+      // Zoom Functions
+      zoomIn() {
+        this.zoomLevel = Math.min(3, this.zoomLevel + 0.1);
+        this.applyZoom();
+      },
+
+      zoomOut() {
+        this.zoomLevel = Math.max(0.5, this.zoomLevel - 0.1);
+        this.applyZoom();
+      },
+
+      resetZoom() {
+        this.zoomLevel = 1;
+        this.applyZoom();
+      },
+
+      applyZoom() {
+        this.canvas.style.transform = `scale(${this.zoomLevel})`;
+        this.canvas.style.transformOrigin = 'center center';
+        document.getElementById('zoomLevel').textContent = Math.round(this.zoomLevel * 100) + '%';
+      },
+
+      // Zen Mode
+      toggleZenMode() {
+        this.zenMode = !this.zenMode;
+        document.body.classList.toggle('zen-mode', this.zenMode);
+      },
+
+      // Loading Functions
+      showLoading(text = null) {
+        const overlay = document.getElementById('loadingOverlay');
+        const progressEl = document.getElementById('loadingProgress');
+        overlay.classList.add('active');
+        if (text) {
+          progressEl.textContent = text;
+        }
+      },
+
+      hideLoading() {
+        document.getElementById('loadingOverlay').classList.remove('active');
+      },
+
+      updateLoadingProgress(current, total) {
+        const progressEl = document.getElementById('loadingProgress');
+        progressEl.textContent = this.t('page_x_of_y').replace('{0}', current).replace('{1}', total);
+      },
+
+      // Smart Page Selector Functions
+      selectAllPages() {
+        if (!this.pdfDoc) return;
+
+        this.selectedPdfPages.clear();
+        for (let i = 1; i <= this.pdfDoc.numPages; i++) {
+          this.selectedPdfPages.add(i);
+        }
+
+        // Update UI
+        document.querySelectorAll('.page-item').forEach(item => {
+          item.classList.add('selected');
+        });
+      },
+
+      deselectAllPages() {
+        this.selectedPdfPages.clear();
+
+        // Update UI
+        document.querySelectorAll('.page-item').forEach(item => {
+          item.classList.remove('selected');
+        });
+      },
+
+      applyPageRange() {
+        const input = document.getElementById('pageRangeInput').value.trim();
+        if (!input || !this.pdfDoc) return;
+
+        const pages = this.parsePageRange(input, this.pdfDoc.numPages);
+        if (pages.length === 0) {
+          alert(this.t('select_one_page'));
+          return;
+        }
+
+        this.selectedPdfPages.clear();
+        pages.forEach(page => this.selectedPdfPages.add(page));
+
+        // Update UI
+        document.querySelectorAll('.page-item').forEach(item => {
+          const pageNum = parseInt(item.dataset.pageNum);
+          item.classList.toggle('selected', this.selectedPdfPages.has(pageNum));
+        });
+      },
+
+      parsePageRange(input, maxPages) {
+        const pages = new Set();
+
+        // Handle "all" or "الكل"
+        if (input.toLowerCase() === 'all' || input === 'الكل') {
+          for (let i = 1; i <= maxPages; i++) {
+            pages.add(i);
+          }
+          return Array.from(pages).sort((a, b) => a - b);
+        }
+
+        const parts = input.split(',');
+
+        for (let part of parts) {
+          part = part.trim();
+
+          // Handle range (e.g., "1-10")
+          if (part.includes('-')) {
+            const [start, end] = part.split('-').map(n => parseInt(n.trim()));
+            if (!isNaN(start) && !isNaN(end)) {
+              for (let i = Math.min(start, end); i <= Math.max(start, end); i++) {
+                if (i >= 1 && i <= maxPages) {
+                  pages.add(i);
+                }
+              }
+            }
+          } else {
+            // Handle single page
+            const page = parseInt(part);
+            if (!isNaN(page) && page >= 1 && page <= maxPages) {
+              pages.add(page);
+            }
+          }
+        }
+
+        return Array.from(pages).sort((a, b) => a - b);
+      },
+
+      async previewRange() {
+        const input = document.getElementById('pageRangeInput').value.trim();
+        if (!input || !this.pdfDoc) return;
+
+        const pages = this.parsePageRange(input, this.pdfDoc.numPages);
+        if (pages.length === 0) {
+          alert(this.t('select_one_page'));
+          return;
+        }
+
+        // Show only selected pages in preview
+        this.showLoading(this.t('loading_pages'));
+
+        const selector = document.getElementById('pdfPageSelector');
+        selector.innerHTML = '';
+
+        for (let pageNum of pages) {
+          const page = await this.pdfDoc.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 0.3 });
+
+          const canvas = document.createElement('canvas');
+          canvas.className = 'page-preview';
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+          const pageItem = document.createElement('div');
+          pageItem.className = 'page-item selected';
+          pageItem.dataset.pageNum = pageNum;
+          pageItem.innerHTML = `
+            ${canvas.outerHTML}
+            <div class="page-label">${this.t('page')} ${pageNum}</div>
+          `;
+
+          pageItem.addEventListener('click', () => {
+            pageItem.classList.toggle('selected');
+            if (pageItem.classList.contains('selected')) {
+              this.selectedPdfPages.add(pageNum);
+            } else {
+              this.selectedPdfPages.delete(pageNum);
+            }
+          });
+
+          selector.appendChild(pageItem);
+          this.selectedPdfPages.add(pageNum);
+        }
+
+        this.hideLoading();
+      },
+
+      // Save last PDF position
+      saveLastPdfPosition() {
+        if (this.pdfMode && this.pdfPages.length > 0) {
+          localStorage.setItem('lastPdfPage', this.currentPageIndex);
+          localStorage.setItem('lastPdfPages', JSON.stringify(this.pdfPages));
+        }
+      },
+
+      loadLastPdfPosition() {
+        const lastPage = localStorage.getItem('lastPdfPage');
+        const lastPages = localStorage.getItem('lastPdfPages');
+
+        if (lastPage && lastPages) {
+          this.currentPageIndex = parseInt(lastPage);
+          return JSON.parse(lastPages);
+        }
+        return null;
       }
     };
 

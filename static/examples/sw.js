@@ -1,8 +1,8 @@
 // Service Worker for Mishkah Drawing Board
 const CACHE_NAME = 'mishkah-drawing-v1';
 const urlsToCache = [
-  '/static/examples/drawing.html',
-  '/static/examples/manifest.json',
+  './drawing.html',
+  './manifest.json',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
