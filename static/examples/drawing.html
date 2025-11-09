@@ -1394,11 +1394,11 @@
         <span data-i18n="pan">تحريك/تكبير</span>
       </div>
       <div class="tool-item" onclick="app.setTool('bucket')" data-tool="bucket">
-        <span class="tool-item-icon">🪣</span>
+        <span class="tool-item-icon">🎨</span>
         <span data-i18n="bucket">دلو الطلاء</span>
       </div>
       <div class="tool-item" onclick="app.setTool('wand')" data-tool="wand">
-        <span class="tool-item-icon">🪄</span>
+        <span class="tool-item-icon">✨</span>
         <span data-i18n="wand">العصا السحرية</span>
       </div>
     </div>
@@ -1442,17 +1442,17 @@
   <!-- Layers Panel -->
   <div class="floating-panel" id="layersPanel">
     <div class="panel-header">
-      الطبقات
+      <span data-i18n="layers">الطبقات</span>
       <button class="close-panel" onclick="app.closePanel('layers')">×</button>
     </div>
     <div class="layers-list" id="layersList">
       <div style="text-align: center; padding: 2rem; color: rgba(148, 163, 184, 0.8);">
-        لا توجد طبقات
+        <span data-i18n="no_layers">لا توجد طبقات</span>
       </div>
     </div>
     <div class="layers-controls">
-      <button onclick="app.flattenLayers()" title="دمج الطبقات">⬇️ دمج</button>
-      <button onclick="app.clearAllLayers()" title="حذف جميع الطبقات">🗑️ حذف الكل</button>
+      <button onclick="app.flattenLayers()"><span data-i18n="flatten_layers">⬇️ دمج</span></button>
+      <button onclick="app.clearAllLayers()"><span data-i18n="clear_all_layers">🗑️ حذف الكل</span></button>
     </div>
   </div>
 
@@ -1709,7 +1709,29 @@
           page_range_help: 'مثال: 1-10 (من 1 إلى 10)، 15,20,25 (صفحات محددة)، أو الكل',
           loading_pages: 'جاري تحميل الصفحات...',
           page_x_of_y: 'صفحة {0} من {1}',
-          reload: 'تحديث'
+          reload: 'تحديث',
+
+          // Layers
+          layers: 'الطبقات',
+          no_layers: 'لا توجد طبقات',
+          flatten_layers: 'دمج الطبقات',
+          clear_all_layers: 'حذف جميع الطبقات',
+          layer: 'طبقة',
+          shape: 'شكل',
+          image: 'صورة',
+          duplicate: 'تكرار',
+          delete: 'حذف',
+          flatten_confirm: 'هل تريد دمج جميع الطبقات على اللوحة؟ لا يمكن التراجع عن هذا الإجراء.',
+
+          // Shape names
+          shape_circle: 'دائرة',
+          shape_square: 'مربع',
+          shape_star: 'نجمة',
+          shape_heart: 'قلب',
+          shape_triangle: 'مثلث',
+          shape_hexagon: 'سداسي',
+          shape_pentagon: 'خماسي',
+          shape_diamond: 'معين'
         },
         en: {
           // Install prompt
@@ -1778,7 +1800,29 @@
           page_range_help: 'Example: 1-10 (pages 1 to 10), 15,20,25 (specific pages), or all',
           loading_pages: 'Loading pages...',
           page_x_of_y: 'Page {0} of {1}',
-          reload: 'Reload'
+          reload: 'Reload',
+
+          // Layers
+          layers: 'Layers',
+          no_layers: 'No layers',
+          flatten_layers: 'Flatten Layers',
+          clear_all_layers: 'Clear All Layers',
+          layer: 'Layer',
+          shape: 'Shape',
+          image: 'Image',
+          duplicate: 'Duplicate',
+          delete: 'Delete',
+          flatten_confirm: 'Do you want to flatten all layers onto the canvas? This action cannot be undone.',
+
+          // Shape names
+          shape_circle: 'Circle',
+          shape_square: 'Square',
+          shape_star: 'Star',
+          shape_heart: 'Heart',
+          shape_triangle: 'Triangle',
+          shape_hexagon: 'Hexagon',
+          shape_pentagon: 'Pentagon',
+          shape_diamond: 'Diamond'
         }
       },
 
@@ -2618,11 +2662,24 @@
           return;
         }
 
+        // Save current page annotations if in PDF mode
+        if (this.pdfMode && this.pdfPages.length > 0) {
+          this.saveCurrentPageAnnotations();
+        }
+
         // Create a temporary canvas that combines canvas + layers
         const finalCanvas = this.getFinalCanvasWithLayers();
         const data = finalCanvas.toDataURL();
 
         let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
+
+        // Prepare PDF data if in PDF mode
+        const pdfData = this.pdfMode ? {
+          pdfMode: true,
+          pdfPages: this.pdfPages,
+          currentPageIndex: this.currentPageIndex,
+          pageAnnotations: this.pageAnnotations
+        } : null;
 
         if (this.currentDrawingId) {
           // Update existing drawing
@@ -2634,6 +2691,7 @@
               folder: folder,
               data: data,
               layers: JSON.parse(JSON.stringify(this.layers)), // Save layers data
+              pdfData: pdfData, // Save PDF data
               date: new Date().toLocaleDateString('ar-SA')
             };
           }
@@ -2645,6 +2703,7 @@
             folder: folder,
             data: data,
             layers: JSON.parse(JSON.stringify(this.layers)), // Save layers data
+            pdfData: pdfData, // Save PDF data
             date: new Date().toLocaleDateString('ar-SA')
           };
           drawings.push(drawing);
@@ -2742,6 +2801,28 @@
             this.currentDrawingId = drawing.id;
             this.currentDrawingName = drawing.name;
             this.currentDrawingFolder = drawing.folder || '';
+
+            // Restore PDF mode if it was a PDF
+            if (drawing.pdfData && drawing.pdfData.pdfMode) {
+              this.pdfMode = true;
+              this.pdfPages = drawing.pdfData.pdfPages || [];
+              this.currentPageIndex = drawing.pdfData.currentPageIndex || 0;
+              this.pageAnnotations = drawing.pdfData.pageAnnotations || {};
+
+              // Show PDF navigation
+              document.querySelector('.pdf-navigation').style.display = 'flex';
+              this.updatePdfNavigation();
+
+              // Note: We can't restore pdfDoc without the original PDF file
+              // So we show a simplified navigation using saved annotations
+            } else {
+              // Not a PDF, hide PDF navigation
+              this.pdfMode = false;
+              this.pdfPages = [];
+              this.currentPageIndex = 0;
+              this.pageAnnotations = {};
+              document.querySelector('.pdf-navigation').style.display = 'none';
+            }
 
             // Load layers if they exist
             if (drawing.layers && drawing.layers.length > 0) {
@@ -3129,7 +3210,7 @@
           this.saveCurrentPageAnnotations();
 
           this.currentPageIndex--;
-          this.loadPdfPage(this.pdfPages[this.currentPageIndex]);
+          this.loadSavedPage();
           this.updatePdfNavigation();
 
           // Save last position
@@ -3143,11 +3224,37 @@
           this.saveCurrentPageAnnotations();
 
           this.currentPageIndex++;
-          this.loadPdfPage(this.pdfPages[this.currentPageIndex]);
+          this.loadSavedPage();
           this.updatePdfNavigation();
 
           // Save last position
           this.saveLastPdfPosition();
+        }
+      },
+
+      // Load page from saved annotations or PDF doc
+      loadSavedPage() {
+        const pageNum = this.pdfPages[this.currentPageIndex];
+
+        if (this.pdfDoc) {
+          // We have the original PDF, load from it
+          this.loadPdfPage(pageNum);
+        } else if (this.pageAnnotations[pageNum]) {
+          // No PDF doc, but we have saved annotations - load them
+          this.ctx.fillStyle = 'white';
+          this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+          const img = new Image();
+          img.onload = () => {
+            this.ctx.drawImage(img, 0, 0);
+            this.saveState();
+          };
+          img.src = this.pageAnnotations[pageNum];
+        } else {
+          // No PDF doc and no annotations - show blank page
+          this.ctx.fillStyle = 'white';
+          this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+          this.saveState();
         }
       },
 
@@ -3851,7 +3958,7 @@
         const list = document.getElementById('layersList');
 
         if (this.layers.length === 0) {
-          list.innerHTML = '<div style="text-align: center; padding: 2rem; color: rgba(148, 163, 184, 0.8);">لا توجد طبقات</div>';
+          list.innerHTML = `<div style="text-align: center; padding: 2rem; color: rgba(148, 163, 184, 0.8);">${this.t('no_layers')}</div>`;
           return;
         }
 
@@ -3866,17 +3973,17 @@
           }
 
           const icon = layer.type === 'shape' ? this.getShapeIcon(layer.data.shape) : '🖼️';
-          const name = layer.type === 'shape' ? this.getShapeName(layer.data.shape) : 'صورة';
+          const name = layer.type === 'shape' ? this.getShapeName(layer.data.shape) : this.t('image');
 
           item.innerHTML = `
             <div class="layer-preview">${icon}</div>
             <div class="layer-info">
               <div class="layer-name">${name}</div>
-              <div class="layer-type">${layer.type === 'shape' ? 'شكل' : 'صورة'}</div>
+              <div class="layer-type">${layer.type === 'shape' ? this.t('shape') : this.t('image')}</div>
             </div>
             <div class="layer-actions">
-              <button class="layer-btn" onclick="app.duplicateLayer(${layer.id}); event.stopPropagation();" title="تكرار">📋</button>
-              <button class="layer-btn danger" onclick="app.deleteLayer(${layer.id}); event.stopPropagation();" title="حذف">🗑️</button>
+              <button class="layer-btn" onclick="app.duplicateLayer(${layer.id}); event.stopPropagation();" title="${this.t('duplicate')}">📋</button>
+              <button class="layer-btn danger" onclick="app.deleteLayer(${layer.id}); event.stopPropagation();" title="${this.t('delete')}">🗑️</button>
             </div>
           `;
 
@@ -3902,17 +4009,7 @@
 
       // Get shape name
       getShapeName(shape) {
-        const names = {
-          circle: 'دائرة',
-          square: 'مربع',
-          star: 'نجمة',
-          heart: 'قلب',
-          triangle: 'مثلث',
-          hexagon: 'سداسي',
-          pentagon: 'خماسي',
-          diamond: 'معين'
-        };
-        return names[shape] || shape;
+        return this.t('shape_' + shape) || shape;
       },
 
       // Delete layer
@@ -3953,7 +4050,7 @@
       flattenLayers() {
         if (this.layers.length === 0) return;
 
-        if (!confirm('هل تريد دمج جميع الطبقات على اللوحة؟ لا يمكن التراجع عن هذا الإجراء.')) {
+        if (!confirm(this.t('flatten_confirm'))) {
           return;
         }
 
