@@ -1323,11 +1323,18 @@
           });
         }
 
-        function syncLiveDataUI(state) {
-          var checkbox = document.getElementById('live-data-toggle');
-          var indicator = document.getElementById('live-indicator');
-          var toggleBg = document.getElementById('toggle-bg');
-          var toggleDot = document.getElementById('toggle-dot');
+        function syncLiveDataUI(state, container) {
+          var root = container || document;
+          var checkbox = root.getElementById ? root.getElementById('live-data-toggle') : root.querySelector('#live-data-toggle');
+          var indicator = root.getElementById ? root.getElementById('live-indicator') : root.querySelector('#live-indicator');
+          var toggleBg = root.getElementById ? root.getElementById('toggle-bg') : root.querySelector('#toggle-bg');
+          var toggleDot = root.getElementById ? root.getElementById('toggle-dot') : root.querySelector('#toggle-dot');
+
+          // Fallback to document if container doesn't have the elements
+          if (!checkbox) checkbox = document.getElementById('live-data-toggle') || document.querySelector('#live-data-toggle');
+          if (!indicator) indicator = document.getElementById('live-indicator') || document.querySelector('#live-indicator');
+          if (!toggleBg) toggleBg = document.getElementById('toggle-bg') || document.querySelector('#toggle-bg');
+          if (!toggleDot) toggleDot = document.getElementById('toggle-dot') || document.querySelector('#toggle-dot');
 
           console.log('[DEBUG] syncLiveDataUI called, checkbox:', checkbox, 'indicator:', indicator);
           if (!checkbox || !indicator) {
@@ -1353,6 +1360,39 @@
           }
         }
 
+        function attachLiveDataListener(ctx, auto, attempts) {
+          var maxAttempts = attempts || 50;
+          var currentAttempt = 0;
+
+          function tryAttach() {
+            currentAttempt++;
+            var checkbox = document.getElementById('live-data-toggle') || document.querySelector('#live-data-toggle');
+            console.log('[DEBUG] Attempt', currentAttempt, 'looking for checkbox:', checkbox);
+
+            if (checkbox && !checkbox.__mkLiveDataBound) {
+              console.log('[DEBUG] Checkbox found! Attaching event listener');
+              checkbox.__mkLiveDataBound = true;
+              checkbox.addEventListener('change', function(event) {
+                console.log('[DEBUG] Checkbox changed, event:', event);
+                toggleLiveData(event, ctx || auto);
+              });
+              return true;
+            } else if (checkbox) {
+              console.log('[DEBUG] Checkbox already bound');
+              return true;
+            } else if (currentAttempt < maxAttempts) {
+              console.log('[DEBUG] Checkbox not found, retrying in 100ms...');
+              setTimeout(tryAttach, 100);
+              return false;
+            } else {
+              console.error('[DEBUG] Failed to find checkbox after', maxAttempts, 'attempts');
+              return false;
+            }
+          }
+
+          return tryAttach();
+        }
+
         function quickDashboardMount(app, helpers) {
           console.log('[DEBUG] quickDashboardMount called, app:', app, 'helpers:', helpers);
           var ctx = app || (helpers && helpers.app) || window.MishkahAuto || null;
@@ -1366,21 +1406,8 @@
             connectAutoState(auto);
           }
 
-          // Attach live data toggle event listener
-          var checkbox = document.getElementById('live-data-toggle');
-          console.log('[DEBUG] Looking for live-data-toggle checkbox:', checkbox);
-          if (checkbox && !checkbox.__mkLiveDataBound) {
-            console.log('[DEBUG] Attaching change event listener to checkbox');
-            checkbox.__mkLiveDataBound = true;
-            checkbox.addEventListener('change', function(event) {
-              console.log('[DEBUG] Checkbox changed, event:', event);
-              toggleLiveData(event, ctx || auto);
-            });
-          } else if (checkbox) {
-            console.log('[DEBUG] Checkbox already bound');
-          } else {
-            console.warn('[DEBUG] Checkbox not found!');
-          }
+          // Attach live data toggle event listener with retry mechanism
+          attachLiveDataListener(ctx, auto, 50);
 
           var initial = resolveAutoState(ctx);
           if (!initial && ctx && typeof ctx.getState === 'function') {
