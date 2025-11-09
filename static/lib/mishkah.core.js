@@ -35,12 +35,17 @@
     }
     return target;
   }
-  function flat(input){
+  function flat(input, depth){
+    if (depth == null) depth = 1000;
+    if (depth <= 0) {
+      if (M && M.Auditor && M.Auditor.warn) M.Auditor.warn('W-FLAT', 'Max nesting depth reached in flat()', {depth: depth});
+      return toArr(input);
+    }
     if (!isArr(input)) return toArr(input);
     var out = [];
     for (var i=0;i<input.length;i++){
       var x = input[i];
-      if (isArr(x)){ var inner = flat(x); for (var j=0;j<inner.length;j++) out.push(inner[j]); }
+      if (isArr(x)){ var inner = flat(x, depth - 1); for (var j=0;j<inner.length;j++) out.push(inner[j]); }
       else if (x!=null) out.push(x);
     }
     return out;
@@ -465,8 +470,11 @@
         return;
       }
       if (name==='style'){ setStyle(el, value); return; }
-      if (name.indexOf('on')===0 && typeof value === 'function'){
-        var ev = name.slice(2).toLowerCase(); if (oldValue) el.removeEventListener(ev, oldValue); el.addEventListener(ev, value, false); return;
+      if (name.indexOf('on')===0){
+        var ev = name.slice(2).toLowerCase();
+        if (oldValue && typeof oldValue === 'function') el.removeEventListener(ev, oldValue);
+        if (typeof value === 'function') el.addEventListener(ev, value, false);
+        return;
       }
       if (value==null || value===false){ el.removeAttribute(name); return; }
       if (typeof value === 'boolean'){ if (value) el.setAttribute(name,''); else el.removeAttribute(name); return; }
@@ -492,7 +500,16 @@
       for (k in next) all[k] = next[k];
       for (k in all){
         if (k==='key' || k==='gkey' || k==='t' || k.indexOf('t:')===0) continue;
-        var n = next[k], p = prev[k]; if (n !== p) setProp(el, k, n, p, db);
+        var n = next[k], p = prev[k];
+        // Special handling for style objects to clean up removed properties
+        if (k === 'style' && isObj(p) && isObj(n)) {
+          for (var sk in p) {
+            if (!(sk in n)) {
+              try { el.style[sk] = ''; } catch(_){}
+            }
+          }
+        }
+        if (n !== p) setProp(el, k, n, p, db);
       }
       applyI18n(el, { props: next, children: [] }, db);
     }
