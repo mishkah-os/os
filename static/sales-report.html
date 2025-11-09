@@ -55,30 +55,30 @@
 
       <script type="application/json" data-m-data data-m-path="i18n.strings">
         {
-          "quick.title": { "ar": "لوحة سريعة", "en": "Quick Dashboard" },
-          "quick.tagline": { "ar": "رصد مباشر لمبيعاتك اليومية", "en": "Live snapshot of your daily sales" },
-          "quick.metrics.revenue": { "ar": "الإيراد", "en": "Revenue" },
-          "quick.metrics.orders": { "ar": "الطلبات", "en": "Orders" },
+          "quick.title": { "ar": "بورصة نيويورك - NYSE", "en": "New York Stock Exchange - NYSE" },
+          "quick.tagline": { "ar": "رصد مباشر لأسعار الأسهم", "en": "Live stock prices monitoring" },
+          "quick.metrics.revenue": { "ar": "القيمة السوقية", "en": "Market Cap" },
+          "quick.metrics.orders": { "ar": "عدد الصفقات", "en": "Trade Volume" },
           "quick.trend": { "ar": "أداء الأسبوع", "en": "Weekly trend" },
-          "quick.sales.title": { "ar": "مبيعات الأصناف", "en": "Product sales" },
+          "quick.sales.title": { "ar": "أسعار الأسهم", "en": "Stock Prices" },
           "quick.sales.subtitle": {
-            "ar": "بالآلاف لكل شهر خلال العام الحالي",
-            "en": "Monthly performance in thousands for the current year"
+            "ar": "بالدولار لكل شهر خلال العام الحالي",
+            "en": "Monthly prices in USD for the current year"
           },
-          "quick.sales.unit": { "ar": "القيم بالألف", "en": "Values in thousands" },
+          "quick.sales.unit": { "ar": "القيم بالدولار", "en": "Values in USD" },
           "quick.sales.latest": { "ar": "آخر شهر", "en": "Last month" },
-          "quick.sales.yearly": { "ar": "إجمالي العام", "en": "Year total" },
-          "quick.sales.legend": { "ar": "يتم عرض الأرقام كآلاف الريالات", "en": "Numbers shown as thousands of SAR" },
-          "quick.sales.randomize": { "ar": "تحديث المبيعات عشوائياً", "en": "Randomize sales report" },
-          "quick.sales.table": { "ar": "جدول المبيعات الشهري", "en": "Monthly sales table" },
-          "quick.sales.product": { "ar": "الصنف", "en": "Product" },
-          "quick.sales.totalRow": { "ar": "إجمالي السنة", "en": "Year total" },
+          "quick.sales.yearly": { "ar": "متوسط العام", "en": "Year average" },
+          "quick.sales.legend": { "ar": "يتم عرض الأرقام كأسعار إغلاق الشهر بالدولار", "en": "Numbers shown as month-end closing prices in USD" },
+          "quick.sales.randomize": { "ar": "بيانات حية", "en": "Live Data" },
+          "quick.sales.table": { "ar": "جدول الأسعار الشهري", "en": "Monthly price table" },
+          "quick.sales.product": { "ar": "السهم", "en": "Stock" },
+          "quick.sales.totalRow": { "ar": "متوسط السنة", "en": "Year average" },
           "quick.timer": { "ar": "الوقت المتبقي", "en": "Time left" },
-          "quick.items.espresso": { "ar": "إسبريسو", "en": "Espresso" },
-          "quick.items.cortado": { "ar": "كورتادو", "en": "Cortado" },
-          "quick.items.flatwhite": { "ar": "فلات وايت", "en": "Flat white" },
-          "quick.items.cheesecake": { "ar": "تشيز كيك بالفراولة", "en": "Strawberry cheesecake" },
-          "quick.items.cinnamon": { "ar": "سينابون دافئ", "en": "Warm cinnamon roll" }
+          "quick.items.espresso": { "ar": "أبل (AAPL)", "en": "Apple Inc (AAPL)" },
+          "quick.items.cortado": { "ar": "مايكروسوفت (MSFT)", "en": "Microsoft (MSFT)" },
+          "quick.items.flatwhite": { "ar": "جوجل (GOOGL)", "en": "Alphabet Inc (GOOGL)" },
+          "quick.items.cheesecake": { "ar": "أمازون (AMZN)", "en": "Amazon (AMZN)" },
+          "quick.items.cinnamon": { "ar": "تيسلا (TSLA)", "en": "Tesla Inc (TSLA)" }
         }
       </script>
 
@@ -86,7 +86,7 @@
         {
           "metrics": { "revenue": 0, "orders": 0 },
           "analytics": {
-            "unit": "K",
+            "unit": "$",
             "unitLabelKey": "quick.sales.unit",
             "months": {
               "ar": [
@@ -131,12 +131,13 @@
           },
           "timer": { "seconds": 270 },
           "catalog": [
-            { "id": "espresso", "nameKey": "quick.items.espresso", "price": 18.5 },
-            { "id": "cortado", "nameKey": "quick.items.cortado", "price": 16 },
-            { "id": "flatwhite", "nameKey": "quick.items.flatwhite", "price": 19 },
-            { "id": "cheesecake", "nameKey": "quick.items.cheesecake", "price": 26.5 },
-            { "id": "cinnamon", "nameKey": "quick.items.cinnamon", "price": 21 }
+            { "id": "espresso", "nameKey": "quick.items.espresso", "price": 185 },
+            { "id": "cortado", "nameKey": "quick.items.cortado", "price": 380 },
+            { "id": "flatwhite", "nameKey": "quick.items.flatwhite", "price": 142 },
+            { "id": "cheesecake", "nameKey": "quick.items.cheesecake", "price": 175 },
+            { "id": "cinnamon", "nameKey": "quick.items.cinnamon", "price": 245 }
           ],
+          "liveData": { "enabled": false, "interval": null },
           "ui": { "countdownTemplate": "⏱️ {{time}}", "salesLegendKey": "quick.sales.legend" }
         }
       </script>
@@ -183,13 +184,16 @@
               <span class="text-xs text-[var(--muted-foreground)]">
                 {trans(state.data.analytics.unitLabelKey || 'quick.sales.unit')}
               </span>
-              <button
-                type="button"
-                class="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:-translate-y-0.5 hover:shadow-lg"
-                onclick="randomizeSalesReport(event, ctx)"
-              >
-                {trans('quick.sales.randomize')}
-              </button>
+              <label class="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer">
+                <input
+                  type="checkbox"
+                  class="w-4 h-4 cursor-pointer accent-green-500"
+                  checked="{state.data.liveData && state.data.liveData.enabled ? 'checked' : ''}"
+                  onclick="toggleLiveData(event, ctx)"
+                />
+                <span class="select-none">{trans('quick.sales.randomize')}</span>
+                <span class="text-[10px] text-[var(--muted-foreground)]" x-if="state.data.liveData && state.data.liveData.enabled">●</span>
+              </label>
             </div>
           </header>
           <canvas
@@ -744,20 +748,20 @@
           var formatted;
           try {
             formatted = new Intl.NumberFormat(safeLang === 'ar' ? 'ar-SA' : 'en-US', {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
             }).format(numeric);
           } catch (err) {
-            formatted = numeric.toFixed(1);
+            formatted = numeric.toFixed(2);
           }
-          var suffix = unit || 'K';
+          var suffix = unit || '$';
           if (suffix && typeof suffix === 'string') {
             var lower = suffix.toLowerCase();
             if (lower === 'k' || lower === 'thousand') {
-              suffix = safeLang === 'ar' ? 'ألف' : 'K';
+              suffix = '$';
             }
           }
-          return formatted + ' ' + (suffix || '');
+          return suffix + formatted;
         }
 
         function ensureHelperBindings(target) {
@@ -1215,10 +1219,21 @@
           }
           if (!fresh) return;
           auto.__mkQuickDashboardConnected = true;
+
+          var prevTheme = null;
           auto.onState(function (snapshot) {
             var resolved = ensureHelperBindings(snapshot || null);
             ensureCountdownLoop(resolved);
-            queueQuickDashboardHydration({ ctx: auto, snapshot: resolved, immediate: true });
+
+            var currentTheme = resolved && resolved.env && resolved.env.theme;
+            if (prevTheme !== null && prevTheme !== currentTheme) {
+              window.setTimeout(function() {
+                queueQuickDashboardHydration({ ctx: auto, snapshot: resolved, immediate: true });
+              }, 50);
+            } else {
+              queueQuickDashboardHydration({ ctx: auto, snapshot: resolved, immediate: true });
+            }
+            prevTheme = currentTheme;
           });
         }
 
@@ -1248,6 +1263,36 @@
             },
             { once: true }
           );
+        }
+
+        function toggleLiveData(event, ctx) {
+          if (event && typeof event.preventDefault === 'function') {
+            event.preventDefault();
+          }
+          var context = ctx || window.MishkahAuto || null;
+          if (!context) return;
+
+          commit(context, function (next, prev) {
+            next.data = next.data || {};
+            next.data.liveData = next.data.liveData || { enabled: false, interval: null };
+
+            var wasEnabled = prev.data && prev.data.liveData && prev.data.liveData.enabled;
+            next.data.liveData.enabled = !wasEnabled;
+
+            if (next.data.liveData.enabled && !next.data.liveData.interval) {
+              var intervalId = window.setInterval(function() {
+                randomizeSalesReport(null, context, { force: true, reusePrevious: false });
+              }, 1000);
+              next.data.liveData.interval = intervalId;
+            } else if (!next.data.liveData.enabled && next.data.liveData.interval) {
+              window.clearInterval(next.data.liveData.interval);
+              next.data.liveData.interval = null;
+            }
+          }, function (latest) {
+            if (latest && latest.data && latest.data.liveData && latest.data.liveData.enabled) {
+              randomizeSalesReport(null, context, { force: true, reusePrevious: false });
+            }
+          });
         }
 
         function quickDashboardMount(app, helpers) {
