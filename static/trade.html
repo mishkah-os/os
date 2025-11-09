@@ -184,20 +184,14 @@
               <span class="text-xs text-[var(--muted-foreground)]">
                 {trans(state.data.analytics.unitLabelKey || 'quick.sales.unit')}
               </span>
-              <label class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer">
+              <button
+                data-m-gkey="toggle-live-data"
+                class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
+              >
                 <span class="select-none">{trans('quick.sales.randomize')}</span>
-                <!-- Toggle Switch -->
-                <div class="relative inline-block w-11 h-6">
-                  <input
-                    type="checkbox"
-                    id="live-data-toggle"
-                    class="hidden"
-                  />
-                  <div id="toggle-bg" class="w-11 h-6 rounded-full transition-colors duration-200" style="background-color: #9ca3af;"></div>
-                  <div id="toggle-dot" class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform duration-200" style="transform: translateX(0);"></div>
-                </div>
-                <span id="live-indicator" class="text-[10px] text-green-500 font-bold" style="display: none;">LIVE</span>
-              </label>
+                <span x-if="state.data.liveData && state.data.liveData.enabled" class="text-[10px] text-green-500 font-bold">● LIVE</span>
+                <span x-if="!(state.data.liveData && state.data.liveData.enabled)" class="text-[10px] text-[var(--muted-foreground)]">○ OFF</span>
+              </button>
             </div>
           </header>
           <canvas
@@ -1237,9 +1231,6 @@
             var resolved = ensureHelperBindings(snapshot || null);
             ensureCountdownLoop(resolved);
 
-            // Sync live data UI
-            syncLiveDataUI(resolved);
-
             var currentTheme = resolved && resolved.env && resolved.env.theme;
             if (prevTheme !== null && prevTheme !== currentTheme) {
               window.setTimeout(function() {
@@ -1323,74 +1314,30 @@
           });
         }
 
-        function syncLiveDataUI(state, container) {
-          var root = container || document;
-          var checkbox = root.getElementById ? root.getElementById('live-data-toggle') : root.querySelector('#live-data-toggle');
-          var indicator = root.getElementById ? root.getElementById('live-indicator') : root.querySelector('#live-indicator');
-          var toggleBg = root.getElementById ? root.getElementById('toggle-bg') : root.querySelector('#toggle-bg');
-          var toggleDot = root.getElementById ? root.getElementById('toggle-dot') : root.querySelector('#toggle-dot');
-
-          // Fallback to document if container doesn't have the elements
-          if (!checkbox) checkbox = document.getElementById('live-data-toggle') || document.querySelector('#live-data-toggle');
-          if (!indicator) indicator = document.getElementById('live-indicator') || document.querySelector('#live-indicator');
-          if (!toggleBg) toggleBg = document.getElementById('toggle-bg') || document.querySelector('#toggle-bg');
-          if (!toggleDot) toggleDot = document.getElementById('toggle-dot') || document.querySelector('#toggle-dot');
-
-          console.log('[DEBUG] syncLiveDataUI called, checkbox:', checkbox, 'indicator:', indicator);
-          if (!checkbox || !indicator) {
-            console.warn('[DEBUG] Checkbox or indicator not found!');
+        function registerLiveDataOrder(ctx) {
+          console.log('[DEBUG] Registering live data order handler');
+          var context = ctx || window.MishkahAuto || null;
+          if (!context) {
+            console.error('[DEBUG] No context for order registration');
             return;
           }
 
-          var enabled = state && state.data && state.data.liveData && state.data.liveData.enabled;
-          console.log('[DEBUG] Live data enabled:', enabled);
-
-          checkbox.checked = !!enabled;
-          indicator.style.display = enabled ? 'inline' : 'none';
-
-          // Update toggle switch visual state
-          if (toggleBg && toggleDot) {
-            if (enabled) {
-              toggleBg.style.backgroundColor = '#22c55e'; // green-500
-              toggleDot.style.transform = 'translateX(20px)';
-            } else {
-              toggleBg.style.backgroundColor = '#9ca3af'; // gray-400
-              toggleDot.style.transform = 'translateX(0)';
-            }
+          // Register order for toggle-live-data gkey
+          if (context.order && typeof context.order === 'function') {
+            console.log('[DEBUG] Registering order via ctx.order');
+            context.order('click', { gkey: 'toggle-live-data' }, function(detail) {
+              console.log('[DEBUG] Live data toggle clicked via order!', detail);
+              toggleLiveData(detail.event, context);
+            });
+          } else if (window.Mishkah && window.Mishkah.orders && typeof window.Mishkah.orders.on === 'function') {
+            console.log('[DEBUG] Registering order via Mishkah.orders.on');
+            window.Mishkah.orders.on('click', { gkey: 'toggle-live-data' }, function(detail) {
+              console.log('[DEBUG] Live data toggle clicked via Mishkah.orders!', detail);
+              toggleLiveData(detail.event, context);
+            });
+          } else {
+            console.error('[DEBUG] No order system available!');
           }
-        }
-
-        function attachLiveDataListener(ctx, auto, attempts) {
-          var maxAttempts = attempts || 50;
-          var currentAttempt = 0;
-
-          function tryAttach() {
-            currentAttempt++;
-            var checkbox = document.getElementById('live-data-toggle') || document.querySelector('#live-data-toggle');
-            console.log('[DEBUG] Attempt', currentAttempt, 'looking for checkbox:', checkbox);
-
-            if (checkbox && !checkbox.__mkLiveDataBound) {
-              console.log('[DEBUG] Checkbox found! Attaching event listener');
-              checkbox.__mkLiveDataBound = true;
-              checkbox.addEventListener('change', function(event) {
-                console.log('[DEBUG] Checkbox changed, event:', event);
-                toggleLiveData(event, ctx || auto);
-              });
-              return true;
-            } else if (checkbox) {
-              console.log('[DEBUG] Checkbox already bound');
-              return true;
-            } else if (currentAttempt < maxAttempts) {
-              console.log('[DEBUG] Checkbox not found, retrying in 100ms...');
-              setTimeout(tryAttach, 100);
-              return false;
-            } else {
-              console.error('[DEBUG] Failed to find checkbox after', maxAttempts, 'attempts');
-              return false;
-            }
-          }
-
-          return tryAttach();
         }
 
         function quickDashboardMount(app, helpers) {
@@ -1406,8 +1353,8 @@
             connectAutoState(auto);
           }
 
-          // Attach live data toggle event listener with retry mechanism
-          attachLiveDataListener(ctx, auto, 50);
+          // Register live data toggle order handler
+          registerLiveDataOrder(ctx || auto);
 
           var initial = resolveAutoState(ctx);
           if (!initial && ctx && typeof ctx.getState === 'function') {
@@ -1425,9 +1372,6 @@
             }
           }
           initial = ensureHelperBindings(initial || null);
-
-          // Sync initial UI state
-          syncLiveDataUI(initial);
 
           var seeded = randomizeSalesReport(null, ctx || auto, { snapshot: initial || null, bootstrap: true });
           if (!seeded) {
