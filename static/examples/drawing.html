@@ -319,6 +319,39 @@
       border: none;
     }
 
+    .size-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .size-btn {
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #f8fafc;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1.2rem;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .size-btn:hover {
+      background: rgba(99, 102, 241, 0.4);
+      border-color: #6366f1;
+    }
+
+    .size-btn:active {
+      transform: scale(0.95);
+    }
+
     .size-preview {
       display: flex;
       align-items: center;
@@ -1432,9 +1465,25 @@
     <div class="section-divider"></div>
     <div class="size-section">
       <label class="size-label">حجم الفرشاة: <span id="brushSizeLabel">3</span>px</label>
-      <input type="range" class="size-slider" id="brushSize" min="1" max="50" value="3" />
+      <div class="size-controls">
+        <button class="size-btn" onclick="app.decreaseBrushSize()">-</button>
+        <input type="range" class="size-slider" id="brushSize" min="1" max="50" value="3" />
+        <button class="size-btn" onclick="app.increaseBrushSize()">+</button>
+      </div>
       <div class="size-preview">
         <div id="sizePreviewDot" class="size-preview-dot"></div>
+      </div>
+    </div>
+    <div class="section-divider"></div>
+    <div class="size-section">
+      <label class="size-label">حساسية الألوان: <span id="toleranceLabel">30</span></label>
+      <div class="size-controls">
+        <button class="size-btn" onclick="app.decreaseTolerance()">-</button>
+        <input type="range" class="size-slider" id="toleranceSlider" min="0" max="100" value="30" />
+        <button class="size-btn" onclick="app.increaseTolerance()">+</button>
+      </div>
+      <div style="color: rgba(148, 163, 184, 0.7); font-size: 0.7rem; margin-top: 4px;">
+        للدلو والعصا السحرية
       </div>
     </div>
   </div>
@@ -1590,6 +1639,7 @@
       currentTool: 'pen',
       currentColor: '#000000',
       brushSize: 3,
+      colorTolerance: 30,
       isDrawing: false,
       startX: 0,
       startY: 0,
@@ -1990,6 +2040,11 @@
           this.updateUI();
         });
 
+        document.getElementById('toleranceSlider').addEventListener('input', (e) => {
+          this.colorTolerance = parseInt(e.target.value);
+          document.getElementById('toleranceLabel').textContent = this.colorTolerance;
+        });
+
         document.getElementById('imageUpload').addEventListener('change', (e) => this.handleImageUpload(e));
         document.getElementById('pdfUpload').addEventListener('change', (e) => this.handlePdfUpload(e));
 
@@ -2078,6 +2133,38 @@
             item.classList.add('active');
           }
         });
+      },
+
+      increaseBrushSize() {
+        if (this.brushSize < 50) {
+          this.brushSize++;
+          document.getElementById('brushSize').value = this.brushSize;
+          this.updateUI();
+        }
+      },
+
+      decreaseBrushSize() {
+        if (this.brushSize > 1) {
+          this.brushSize--;
+          document.getElementById('brushSize').value = this.brushSize;
+          this.updateUI();
+        }
+      },
+
+      increaseTolerance() {
+        if (this.colorTolerance < 100) {
+          this.colorTolerance++;
+          document.getElementById('toleranceSlider').value = this.colorTolerance;
+          document.getElementById('toleranceLabel').textContent = this.colorTolerance;
+        }
+      },
+
+      decreaseTolerance() {
+        if (this.colorTolerance > 0) {
+          this.colorTolerance--;
+          document.getElementById('toleranceSlider').value = this.colorTolerance;
+          document.getElementById('toleranceLabel').textContent = this.colorTolerance;
+        }
       },
 
       handleTouch(e, type) {
@@ -2190,10 +2277,18 @@
 
         if (e) {
           const pos = this.getMousePos(e);
-          if (this.currentTool === 'line') this.drawLine(this.startX, this.startY, pos.x, pos.y);
-          else if (this.currentTool === 'rectangle') this.drawRectangle(this.startX, this.startY, pos.x, pos.y);
-          else if (this.currentTool === 'circle') this.drawCircle(this.startX, this.startY, pos.x, pos.y);
-          else if (this.currentTool === 'arrow') this.drawArrow(this.startX, this.startY, pos.x, pos.y);
+          if (this.currentTool === 'line') {
+            // Create line as a layer instead of drawing directly
+            this.createLineLayer(this.startX, this.startY, pos.x, pos.y);
+          } else if (this.currentTool === 'rectangle') {
+            this.drawRectangle(this.startX, this.startY, pos.x, pos.y);
+          } else if (this.currentTool === 'circle') {
+            // Create circle as a layer instead of drawing directly
+            this.createCircleLayer(this.startX, this.startY, pos.x, pos.y);
+          } else if (this.currentTool === 'arrow') {
+            // Create arrow as a layer instead of drawing directly
+            this.createArrowLayer(this.startX, this.startY, pos.x, pos.y);
+          }
         }
 
         this.isDrawing = false;
@@ -2246,9 +2341,8 @@
       drawText(x, y) {
         const text = prompt('أدخل النص:');
         if (text) {
-          this.ctx.fillStyle = this.currentColor;
-          this.ctx.font = (this.brushSize * 5) + 'px Arial';
-          this.ctx.fillText(text, x, y);
+          // Create text as a layer instead of drawing directly
+          this.createTextLayer(x, y, text);
         }
       },
 
@@ -2266,6 +2360,87 @@
           y: posY - size / 2,
           width: size,
           height: size
+        });
+
+        this.addLayer(layer);
+      },
+
+      createLineLayer(x1, y1, x2, y2) {
+        const minX = Math.min(x1, x2);
+        const minY = Math.min(y1, y2);
+        const width = Math.abs(x2 - x1);
+        const height = Math.abs(y2 - y1);
+
+        const layer = this.createLayer('line', {
+          x1: x1 - minX,
+          y1: y1 - minY,
+          x2: x2 - minX,
+          y2: y2 - minY,
+          color: this.currentColor,
+          lineWidth: this.brushSize,
+          x: minX,
+          y: minY,
+          width: width || 1,
+          height: height || 1
+        });
+
+        this.addLayer(layer);
+      },
+
+      createCircleLayer(centerX, centerY, x2, y2) {
+        const radius = Math.sqrt(Math.pow(x2 - centerX, 2) + Math.pow(y2 - centerY, 2));
+        const size = radius * 2;
+
+        const layer = this.createLayer('circle', {
+          radius: radius,
+          color: this.currentColor,
+          lineWidth: this.brushSize,
+          x: centerX - radius,
+          y: centerY - radius,
+          width: size,
+          height: size
+        });
+
+        this.addLayer(layer);
+      },
+
+      createArrowLayer(x1, y1, x2, y2) {
+        const minX = Math.min(x1, x2) - 20;
+        const minY = Math.min(y1, y2) - 20;
+        const width = Math.abs(x2 - x1) + 40;
+        const height = Math.abs(y2 - y1) + 40;
+
+        const layer = this.createLayer('arrow', {
+          x1: x1 - minX,
+          y1: y1 - minY,
+          x2: x2 - minX,
+          y2: y2 - minY,
+          color: this.currentColor,
+          lineWidth: this.brushSize,
+          x: minX,
+          y: minY,
+          width: width,
+          height: height
+        });
+
+        this.addLayer(layer);
+      },
+
+      createTextLayer(x, y, text) {
+        const fontSize = this.brushSize * 5;
+        // Estimate text dimensions
+        this.ctx.font = fontSize + 'px Arial';
+        const textWidth = this.ctx.measureText(text).width;
+        const textHeight = fontSize;
+
+        const layer = this.createLayer('text', {
+          text: text,
+          fontSize: fontSize,
+          color: this.currentColor,
+          x: x,
+          y: y - textHeight,
+          width: textWidth + 20,
+          height: textHeight + 20
         });
 
         this.addLayer(layer);
@@ -2352,12 +2527,13 @@
         const targetColor = this.getPixelColor(pixels, x, y, width);
 
         // If target color is the same as fill color, do nothing
-        if (this.colorsMatch(targetColor, {r, g, b})) {
+        if (this.colorsMatch(targetColor, {r, g, b}, 0)) {
           return;
         }
 
         const stack = [[x, y]];
         const visited = new Set();
+        const tolerance = this.colorTolerance; // Use user-defined tolerance
 
         while (stack.length > 0) {
           const [currentX, currentY] = stack.pop();
@@ -2367,7 +2543,7 @@
           if (currentX < 0 || currentX >= width || currentY < 0 || currentY >= height) continue;
 
           const currentColor = this.getPixelColor(pixels, currentX, currentY, width);
-          if (!this.colorsMatch(currentColor, targetColor)) continue;
+          if (!this.colorsMatch(currentColor, targetColor, tolerance)) continue;
 
           visited.add(key);
 
@@ -2416,7 +2592,7 @@
         const height = this.canvas.height;
 
         const targetColor = this.getPixelColor(pixels, x, y, width);
-        const tolerance = 30; // Color tolerance for selection
+        const tolerance = this.colorTolerance; // Use user-defined tolerance
 
         const stack = [[x, y]];
         const visited = new Set();
@@ -3746,6 +3922,18 @@
           img.style.height = '100%';
           img.style.objectFit = 'contain';
           layerElement.appendChild(img);
+        } else if (layer.type === 'line') {
+          const svg = this.createLineSVG(layer.data, layer.width, layer.height);
+          layerElement.innerHTML = svg;
+        } else if (layer.type === 'circle') {
+          const svg = this.createCircleSVG(layer.data, layer.width, layer.height);
+          layerElement.innerHTML = svg;
+        } else if (layer.type === 'arrow') {
+          const svg = this.createArrowSVG(layer.data, layer.width, layer.height);
+          layerElement.innerHTML = svg;
+        } else if (layer.type === 'text') {
+          const textDiv = this.createTextElement(layer.data);
+          layerElement.appendChild(textDiv);
         }
 
         // Add click handler to select layer
@@ -3905,6 +4093,106 @@
           points += `${x},${y} `;
         }
         return points.trim();
+      },
+
+      // Create SVG for line
+      createLineSVG(data, width, height) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', data.x1);
+        line.setAttribute('y1', data.y1);
+        line.setAttribute('x2', data.x2);
+        line.setAttribute('y2', data.y2);
+        line.setAttribute('stroke', data.color);
+        line.setAttribute('stroke-width', data.lineWidth);
+        line.setAttribute('stroke-linecap', 'round');
+
+        svg.appendChild(line);
+        return svg.outerHTML;
+      },
+
+      // Create SVG for circle
+      createCircleSVG(data, width, height) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', width / 2);
+        circle.setAttribute('cy', height / 2);
+        circle.setAttribute('r', data.radius);
+        circle.setAttribute('stroke', data.color);
+        circle.setAttribute('stroke-width', data.lineWidth);
+        circle.setAttribute('fill', 'none');
+
+        svg.appendChild(circle);
+        return svg.outerHTML;
+      },
+
+      // Create SVG for arrow
+      createArrowSVG(data, width, height) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+        const headlen = 15;
+        const angle = Math.atan2(data.y2 - data.y1, data.x2 - data.x1);
+
+        // Main line
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', data.x1);
+        line.setAttribute('y1', data.y1);
+        line.setAttribute('x2', data.x2);
+        line.setAttribute('y2', data.y2);
+        line.setAttribute('stroke', data.color);
+        line.setAttribute('stroke-width', data.lineWidth);
+        line.setAttribute('stroke-linecap', 'round');
+
+        // Arrow head - left side
+        const arrowLeft = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        arrowLeft.setAttribute('x1', data.x2);
+        arrowLeft.setAttribute('y1', data.y2);
+        arrowLeft.setAttribute('x2', data.x2 - headlen * Math.cos(angle - Math.PI / 6));
+        arrowLeft.setAttribute('y2', data.y2 - headlen * Math.sin(angle - Math.PI / 6));
+        arrowLeft.setAttribute('stroke', data.color);
+        arrowLeft.setAttribute('stroke-width', data.lineWidth);
+        arrowLeft.setAttribute('stroke-linecap', 'round');
+
+        // Arrow head - right side
+        const arrowRight = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        arrowRight.setAttribute('x1', data.x2);
+        arrowRight.setAttribute('y1', data.y2);
+        arrowRight.setAttribute('x2', data.x2 - headlen * Math.cos(angle + Math.PI / 6));
+        arrowRight.setAttribute('y2', data.y2 - headlen * Math.sin(angle + Math.PI / 6));
+        arrowRight.setAttribute('stroke', data.color);
+        arrowRight.setAttribute('stroke-width', data.lineWidth);
+        arrowRight.setAttribute('stroke-linecap', 'round');
+
+        svg.appendChild(line);
+        svg.appendChild(arrowLeft);
+        svg.appendChild(arrowRight);
+        return svg.outerHTML;
+      },
+
+      // Create element for text
+      createTextElement(data) {
+        const textDiv = document.createElement('div');
+        textDiv.style.cssText = `
+          color: ${data.color};
+          font-size: ${data.fontSize}px;
+          font-family: Arial, sans-serif;
+          white-space: nowrap;
+          padding: 10px;
+          pointer-events: none;
+        `;
+        textDiv.textContent = data.text;
+        return textDiv;
       },
 
       // Select a layer
@@ -4107,60 +4395,101 @@
         this.clearAllLayers();
       },
 
-      // Render shape to canvas
+      // Render layer to canvas (for flattening)
       renderShapeToCanvas(ctx, layer) {
-        ctx.strokeStyle = layer.data.color;
-        ctx.lineWidth = 3;
-        ctx.fillStyle = 'transparent';
+        if (layer.type === 'shape') {
+          ctx.strokeStyle = layer.data.color;
+          ctx.lineWidth = 3;
+          ctx.fillStyle = 'transparent';
 
-        const cx = layer.width / 2;
-        const cy = layer.height / 2;
-        const size = Math.min(layer.width, layer.height) / 2 - 5;
+          const cx = layer.width / 2;
+          const cy = layer.height / 2;
+          const size = Math.min(layer.width, layer.height) / 2 - 5;
 
-        ctx.beginPath();
+          ctx.beginPath();
 
-        switch(layer.data.shape) {
-          case 'circle':
-            ctx.arc(cx, cy, size, 0, Math.PI * 2);
-            break;
+          switch(layer.data.shape) {
+            case 'circle':
+              ctx.arc(cx, cy, size, 0, Math.PI * 2);
+              break;
 
-          case 'square':
-            ctx.rect(10, 10, layer.width - 20, layer.height - 20);
-            break;
+            case 'square':
+              ctx.rect(10, 10, layer.width - 20, layer.height - 20);
+              break;
 
-          case 'star':
-            this.drawStarToContext(ctx, cx, cy, 5, size, size / 2);
-            break;
+            case 'star':
+              this.drawStarToContext(ctx, cx, cy, 5, size, size / 2);
+              break;
 
-          case 'heart':
-            this.drawHeartToContext(ctx, cx, cy, size);
-            break;
+            case 'heart':
+              this.drawHeartToContext(ctx, cx, cy, size);
+              break;
 
-          case 'triangle':
-            ctx.moveTo(cx, 10);
-            ctx.lineTo(10, layer.height - 10);
-            ctx.lineTo(layer.width - 10, layer.height - 10);
-            ctx.closePath();
-            break;
+            case 'triangle':
+              ctx.moveTo(cx, 10);
+              ctx.lineTo(10, layer.height - 10);
+              ctx.lineTo(layer.width - 10, layer.height - 10);
+              ctx.closePath();
+              break;
 
-          case 'hexagon':
-            this.drawPolygonToContext(ctx, cx, cy, 6, size);
-            break;
+            case 'hexagon':
+              this.drawPolygonToContext(ctx, cx, cy, 6, size);
+              break;
 
-          case 'pentagon':
-            this.drawPolygonToContext(ctx, cx, cy, 5, size);
-            break;
+            case 'pentagon':
+              this.drawPolygonToContext(ctx, cx, cy, 5, size);
+              break;
 
-          case 'diamond':
-            ctx.moveTo(cx, 10);
-            ctx.lineTo(10, cy);
-            ctx.lineTo(cx, layer.height - 10);
-            ctx.lineTo(layer.width - 10, cy);
-            ctx.closePath();
-            break;
+            case 'diamond':
+              ctx.moveTo(cx, 10);
+              ctx.lineTo(10, cy);
+              ctx.lineTo(cx, layer.height - 10);
+              ctx.lineTo(layer.width - 10, cy);
+              ctx.closePath();
+              break;
+          }
+
+          ctx.stroke();
+        } else if (layer.type === 'line') {
+          ctx.strokeStyle = layer.data.color;
+          ctx.lineWidth = layer.data.lineWidth;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(layer.data.x1, layer.data.y1);
+          ctx.lineTo(layer.data.x2, layer.data.y2);
+          ctx.stroke();
+        } else if (layer.type === 'circle') {
+          ctx.strokeStyle = layer.data.color;
+          ctx.lineWidth = layer.data.lineWidth;
+          ctx.beginPath();
+          ctx.arc(layer.width / 2, layer.height / 2, layer.data.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (layer.type === 'arrow') {
+          const headlen = 15;
+          const angle = Math.atan2(layer.data.y2 - layer.data.y1, layer.data.x2 - layer.data.x1);
+
+          ctx.strokeStyle = layer.data.color;
+          ctx.lineWidth = layer.data.lineWidth;
+          ctx.lineCap = 'round';
+
+          // Main line
+          ctx.beginPath();
+          ctx.moveTo(layer.data.x1, layer.data.y1);
+          ctx.lineTo(layer.data.x2, layer.data.y2);
+          ctx.stroke();
+
+          // Arrow head
+          ctx.beginPath();
+          ctx.moveTo(layer.data.x2, layer.data.y2);
+          ctx.lineTo(layer.data.x2 - headlen * Math.cos(angle - Math.PI / 6), layer.data.y2 - headlen * Math.sin(angle - Math.PI / 6));
+          ctx.moveTo(layer.data.x2, layer.data.y2);
+          ctx.lineTo(layer.data.x2 - headlen * Math.cos(angle + Math.PI / 6), layer.data.y2 - headlen * Math.sin(angle + Math.PI / 6));
+          ctx.stroke();
+        } else if (layer.type === 'text') {
+          ctx.fillStyle = layer.data.color;
+          ctx.font = layer.data.fontSize + 'px Arial';
+          ctx.fillText(layer.data.text, 10, layer.data.fontSize + 10);
         }
-
-        ctx.stroke();
       },
 
       // Helper functions for rendering to specific context
