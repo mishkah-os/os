@@ -296,7 +296,16 @@
     for (var i=0;i<tags.length;i++){
       (function(tag){
         var C = tag.charAt(0).toUpperCase() + tag.slice(1);
-        o[C] = function(config){ var children = []; for (var a=1;a<arguments.length;a++) children.push(arguments[a]); return VDOM.h(tag, category, config, children); };
+        o[C] = function(config){
+          var children = [];
+          // Flatten children: if single array argument, use it directly; otherwise collect all arguments
+          if (arguments.length === 2 && Array.isArray(arguments[1])) {
+            children = arguments[1];
+          } else {
+            for (var a=1;a<arguments.length;a++) children.push(arguments[a]);
+          }
+          return VDOM.h(tag, category, config, children);
+        };
       })(tags[i]);
     }
     return o;
