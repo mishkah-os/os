@@ -1,5 +1,5 @@
 // Service Worker for Mishkah Drawing Board
-const CACHE_NAME = 'mishkah-drawing-v1';
+const CACHE_NAME = 'mishkah-drawing-v3';
 const urlsToCache = [
   './drawing.html',
   './manifest.json',
@@ -36,43 +36,57 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - Network First for HTML, Cache First for others
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return response
-        if (response) {
+  const url = new URL(event.request.url);
+
+  // Network First strategy for HTML files to ensure fresh content
+  if (event.request.headers.get('accept').includes('text/html') || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Clone and cache the response
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
           return response;
-        }
-
-        // Clone the request
-        const fetchRequest = event.request.clone();
-
-        return fetch(fetchRequest).then((response) => {
-          // Check if valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
+        })
+        .catch(() => {
+          // Fallback to cache if network fails
+          return caches.match(event.request);
+        })
+    );
+  } else {
+    // Cache First strategy for other resources (CSS, JS, images)
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => {
+          if (response) {
             return response;
           }
 
-          // Clone the response
-          const responseToCache = response.clone();
+          const fetchRequest = event.request.clone();
+          return fetch(fetchRequest).then((response) => {
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
 
-          caches.open(CACHE_NAME)
-            .then((cache) => {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
               cache.put(event.request, responseToCache);
             });
 
-          return response;
-        }).catch(() => {
-          // If both cache and network fail, show offline page
-          return new Response(
-            '<h1>Offline</h1><p>You are currently offline. Please check your internet connection.</p>',
-            { headers: { 'Content-Type': 'text/html' } }
-          );
-        });
-      })
-  );
+            return response;
+          }).catch(() => {
+            return new Response(
+              '<h1>Offline</h1><p>You are currently offline. Please check your internet connection.</p>',
+              { headers: { 'Content-Type': 'text/html' } }
+            );
+          });
+        })
+    );
+  }
 });
 
 // Background sync for saving drawings
