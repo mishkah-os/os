@@ -920,7 +920,8 @@
     body.zen-mode .reload-btn,
     body.zen-mode .status-bar,
     body.zen-mode .install-prompt,
-    body.zen-mode .zoom-controls {
+    body.zen-mode .zoom-controls,
+    body.zen-mode #selectionActions {
       display: none !important;
     }
 
@@ -1135,6 +1136,14 @@
         <span class="tool-item-icon">✋</span>
         <span data-i18n="pan">تحريك/تكبير</span>
       </div>
+      <div class="tool-item" onclick="app.setTool('bucket')" data-tool="bucket">
+        <span class="tool-item-icon">🪣</span>
+        <span data-i18n="bucket">دلو الطلاء</span>
+      </div>
+      <div class="tool-item" onclick="app.setTool('wand')" data-tool="wand">
+        <span class="tool-item-icon">🪄</span>
+        <span data-i18n="wand">العصا السحرية</span>
+      </div>
     </div>
     <div class="section-divider"></div>
     <div class="panel-header" style="margin-top: 12px;">أشكال جاهزة</div>
@@ -1313,6 +1322,12 @@
       history: [],
       historyIndex: -1,
       lastSaved: null,
+      currentDrawingId: null,
+      currentDrawingName: '',
+      currentDrawingFolder: '',
+      lastCursorX: 0,
+      lastCursorY: 0,
+      currentSelection: null,
 
       // PDF-related properties
       pdfDoc: null,
@@ -1369,6 +1384,8 @@
           arrow: 'سهم',
           text: 'نص',
           pan: 'تحريك/تكبير',
+          bucket: 'دلو الطلاء',
+          wand: 'العصا السحرية',
 
           // Modals
           save_drawing: 'حفظ الرسمة',
@@ -1436,6 +1453,8 @@
           arrow: 'Arrow',
           text: 'Text',
           pan: 'Pan/Zoom',
+          bucket: 'Paint Bucket',
+          wand: 'Magic Wand',
 
           // Modals
           save_drawing: 'Save Drawing',
@@ -1733,10 +1752,16 @@
         const scaleX = this.canvas.width / rect.width;
         const scaleY = this.canvas.height / rect.height;
 
-        return {
+        const pos = {
           x: (e.clientX - rect.left) * scaleX,
           y: (e.clientY - rect.top) * scaleY
         };
+
+        // Track last cursor position
+        this.lastCursorX = pos.x;
+        this.lastCursorY = pos.y;
+
+        return pos;
       },
 
       startDrawing(e) {
@@ -1752,6 +1777,13 @@
           this.drawText(pos.x, pos.y);
           this.isDrawing = false;
           this.saveState();
+        } else if (this.currentTool === 'bucket') {
+          this.floodFill(Math.floor(pos.x), Math.floor(pos.y), this.currentColor);
+          this.isDrawing = false;
+          this.saveState();
+        } else if (this.currentTool === 'wand') {
+          this.magicWandSelect(Math.floor(pos.x), Math.floor(pos.y));
+          this.isDrawing = false;
         }
       },
 
@@ -1837,8 +1869,9 @@
       },
 
       insertShape(shape) {
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
+        // Use last cursor position if available, otherwise use center
+        const posX = this.lastCursorX || this.canvas.width / 2;
+        const posY = this.lastCursorY || this.canvas.height / 2;
         const size = 50;
 
         this.ctx.fillStyle = this.currentColor;
@@ -1846,12 +1879,12 @@
         this.ctx.lineWidth = this.brushSize;
 
         switch(shape) {
-          case 'star': this.drawStar(centerX, centerY, 5, size, size/2); break;
-          case 'heart': this.drawHeart(centerX, centerY, size); break;
-          case 'triangle': this.drawTriangle(centerX, centerY, size); break;
-          case 'hexagon': this.drawPolygon(centerX, centerY, 6, size); break;
-          case 'pentagon': this.drawPolygon(centerX, centerY, 5, size); break;
-          case 'diamond': this.drawDiamond(centerX, centerY, size); break;
+          case 'star': this.drawStar(posX, posY, 5, size, size/2); break;
+          case 'heart': this.drawHeart(posX, posY, size); break;
+          case 'triangle': this.drawTriangle(posX, posY, size); break;
+          case 'hexagon': this.drawPolygon(posX, posY, 6, size); break;
+          case 'pentagon': this.drawPolygon(posX, posY, 5, size); break;
+          case 'diamond': this.drawDiamond(posX, posY, size); break;
         }
 
         this.saveState();
@@ -1923,6 +1956,217 @@
         this.ctx.stroke();
       },
 
+      // Flood Fill (Paint Bucket)
+      floodFill(x, y, fillColor) {
+        const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        const pixels = imageData.data;
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+
+        // Convert hex color to RGB
+        const r = parseInt(fillColor.substr(1, 2), 16);
+        const g = parseInt(fillColor.substr(3, 2), 16);
+        const b = parseInt(fillColor.substr(5, 2), 16);
+
+        const targetColor = this.getPixelColor(pixels, x, y, width);
+
+        // If target color is the same as fill color, do nothing
+        if (this.colorsMatch(targetColor, {r, g, b})) {
+          return;
+        }
+
+        const stack = [[x, y]];
+        const visited = new Set();
+
+        while (stack.length > 0) {
+          const [currentX, currentY] = stack.pop();
+          const key = `${currentX},${currentY}`;
+
+          if (visited.has(key)) continue;
+          if (currentX < 0 || currentX >= width || currentY < 0 || currentY >= height) continue;
+
+          const currentColor = this.getPixelColor(pixels, currentX, currentY, width);
+          if (!this.colorsMatch(currentColor, targetColor)) continue;
+
+          visited.add(key);
+
+          // Fill this pixel
+          this.setPixelColor(pixels, currentX, currentY, width, r, g, b);
+
+          // Add neighbors to stack
+          stack.push([currentX + 1, currentY]);
+          stack.push([currentX - 1, currentY]);
+          stack.push([currentX, currentY + 1]);
+          stack.push([currentX, currentY - 1]);
+        }
+
+        this.ctx.putImageData(imageData, 0, 0);
+      },
+
+      getPixelColor(pixels, x, y, width) {
+        const index = (y * width + x) * 4;
+        return {
+          r: pixels[index],
+          g: pixels[index + 1],
+          b: pixels[index + 2],
+          a: pixels[index + 3]
+        };
+      },
+
+      setPixelColor(pixels, x, y, width, r, g, b) {
+        const index = (y * width + x) * 4;
+        pixels[index] = r;
+        pixels[index + 1] = g;
+        pixels[index + 2] = b;
+        pixels[index + 3] = 255; // Full opacity
+      },
+
+      colorsMatch(color1, color2, tolerance = 0) {
+        return Math.abs(color1.r - color2.r) <= tolerance &&
+               Math.abs(color1.g - color2.g) <= tolerance &&
+               Math.abs(color1.b - color2.b) <= tolerance;
+      },
+
+      // Magic Wand Selection
+      magicWandSelect(x, y) {
+        const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        const pixels = imageData.data;
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+
+        const targetColor = this.getPixelColor(pixels, x, y, width);
+        const tolerance = 30; // Color tolerance for selection
+
+        const stack = [[x, y]];
+        const visited = new Set();
+        const selected = [];
+
+        while (stack.length > 0) {
+          const [currentX, currentY] = stack.pop();
+          const key = `${currentX},${currentY}`;
+
+          if (visited.has(key)) continue;
+          if (currentX < 0 || currentX >= width || currentY < 0 || currentY >= height) continue;
+
+          const currentColor = this.getPixelColor(pixels, currentX, currentY, width);
+          if (!this.colorsMatch(currentColor, targetColor, tolerance)) continue;
+
+          visited.add(key);
+          selected.push([currentX, currentY]);
+
+          // Add neighbors to stack
+          stack.push([currentX + 1, currentY]);
+          stack.push([currentX - 1, currentY]);
+          stack.push([currentX, currentY + 1]);
+          stack.push([currentX, currentY - 1]);
+        }
+
+        // Highlight selected area with semi-transparent overlay
+        this.ctx.save();
+        this.ctx.fillStyle = 'rgba(99, 102, 241, 0.3)';
+        selected.forEach(([px, py]) => {
+          this.ctx.fillRect(px, py, 1, 1);
+        });
+        this.ctx.restore();
+
+        // Store selection for later use (fill or delete)
+        this.currentSelection = { pixels: selected, imageData: imageData };
+
+        // Show action buttons
+        this.showSelectionActions();
+      },
+
+      showSelectionActions() {
+        // Create floating action buttons for selection
+        let actionsDiv = document.getElementById('selectionActions');
+        if (!actionsDiv) {
+          actionsDiv = document.createElement('div');
+          actionsDiv.id = 'selectionActions';
+          actionsDiv.style.cssText = `
+            position: fixed;
+            bottom: 150px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(15px);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            gap: 8px;
+            z-index: 1001;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+          `;
+          actionsDiv.innerHTML = `
+            <button onclick="app.fillSelection()" class="toolbar-btn">
+              <span>🎨</span> <span>تلوين</span>
+            </button>
+            <button onclick="app.deleteSelection()" class="toolbar-btn">
+              <span>🗑️</span> <span>حذف</span>
+            </button>
+            <button onclick="app.cancelSelection()" class="toolbar-btn">
+              <span>✖️</span> <span>إلغاء</span>
+            </button>
+          `;
+          document.body.appendChild(actionsDiv);
+        }
+        actionsDiv.style.display = 'flex';
+      },
+
+      hideSelectionActions() {
+        const actionsDiv = document.getElementById('selectionActions');
+        if (actionsDiv) {
+          actionsDiv.style.display = 'none';
+        }
+      },
+
+      fillSelection() {
+        if (!this.currentSelection) return;
+
+        const imageData = this.currentSelection.imageData;
+        const pixels = imageData.data;
+        const width = this.canvas.width;
+
+        // Convert current color to RGB
+        const r = parseInt(this.currentColor.substr(1, 2), 16);
+        const g = parseInt(this.currentColor.substr(3, 2), 16);
+        const b = parseInt(this.currentColor.substr(5, 2), 16);
+
+        // Fill all selected pixels
+        this.currentSelection.pixels.forEach(([x, y]) => {
+          this.setPixelColor(pixels, x, y, width, r, g, b);
+        });
+
+        this.ctx.putImageData(imageData, 0, 0);
+        this.cancelSelection();
+        this.saveState();
+      },
+
+      deleteSelection() {
+        if (!this.currentSelection) return;
+
+        const imageData = this.currentSelection.imageData;
+        const pixels = imageData.data;
+        const width = this.canvas.width;
+
+        // Delete all selected pixels (set to white)
+        this.currentSelection.pixels.forEach(([x, y]) => {
+          this.setPixelColor(pixels, x, y, width, 255, 255, 255);
+        });
+
+        this.ctx.putImageData(imageData, 0, 0);
+        this.cancelSelection();
+        this.saveState();
+      },
+
+      cancelSelection() {
+        // Restore original canvas without selection overlay
+        if (this.currentSelection) {
+          this.ctx.putImageData(this.currentSelection.imageData, 0, 0);
+          this.currentSelection = null;
+        }
+        this.hideSelectionActions();
+      },
+
       setTool(tool) {
         this.currentTool = tool;
         this.updateUI();
@@ -1968,6 +2212,12 @@
         if (confirm(this.t('clear_confirm'))) {
           this.ctx.fillStyle = 'white';
           this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+          // Reset current drawing (this is a new canvas)
+          this.currentDrawingId = null;
+          this.currentDrawingName = '';
+          this.currentDrawingFolder = '';
+
           this.saveState();
         }
       },
@@ -1993,7 +2243,19 @@
       },
 
       openSaveModal() {
-        document.getElementById('saveModal').classList.add('active');
+        const modal = document.getElementById('saveModal');
+        const nameInput = document.getElementById('saveName');
+        const folderInput = document.getElementById('saveFolder');
+
+        // Pre-fill if we have a current drawing open
+        if (this.currentDrawingId) {
+          nameInput.value = this.currentDrawingName;
+          folderInput.value = this.currentDrawingFolder;
+        }
+
+        modal.classList.add('active');
+        nameInput.focus();
+        nameInput.select();
       },
 
       closeSaveModal() {
@@ -2028,19 +2290,44 @@
           return;
         }
 
-        const drawing = {
-          id: Date.now(),
-          name: name,
-          folder: folder,
-          data: this.canvas.toDataURL(),
-          date: new Date().toLocaleDateString('ar-SA')
-        };
-
         let drawings = JSON.parse(localStorage.getItem('drawings') || '[]');
-        drawings.push(drawing);
+
+        if (this.currentDrawingId) {
+          // Update existing drawing
+          const index = drawings.findIndex(d => d.id === this.currentDrawingId);
+          if (index !== -1) {
+            drawings[index] = {
+              ...drawings[index],
+              name: name,
+              folder: folder,
+              data: this.canvas.toDataURL(),
+              date: new Date().toLocaleDateString('ar-SA')
+            };
+          }
+        } else {
+          // Create new drawing
+          const drawing = {
+            id: Date.now(),
+            name: name,
+            folder: folder,
+            data: this.canvas.toDataURL(),
+            date: new Date().toLocaleDateString('ar-SA')
+          };
+          drawings.push(drawing);
+
+          // Set as current drawing
+          this.currentDrawingId = drawing.id;
+          this.currentDrawingName = name;
+          this.currentDrawingFolder = folder;
+        }
+
         localStorage.setItem('drawings', JSON.stringify(drawings));
 
-        this.lastSaved = drawing.date;
+        // Update current drawing info
+        this.currentDrawingName = name;
+        this.currentDrawingFolder = folder;
+
+        this.lastSaved = new Date().toLocaleDateString('ar-SA');
         this.closeSaveModal();
         alert(this.t('saved_success'));
       },
@@ -2081,6 +2368,12 @@
           img.onload = () => {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             this.ctx.drawImage(img, 0, 0);
+
+            // Set current drawing info for update instead of new save
+            this.currentDrawingId = drawing.id;
+            this.currentDrawingName = drawing.name;
+            this.currentDrawingFolder = drawing.folder || '';
+
             this.saveState();
             this.closeLoadModal();
           };
@@ -2098,21 +2391,33 @@
       },
 
       exportAsPNG() {
-        const link = document.createElement('a');
-        const name = document.getElementById('saveName').value.trim() || 'drawing';
-        link.download = name + '.png';
-        link.href = this.canvas.toDataURL();
-        link.click();
-        this.closeExportModal();
+        this.showLoading(this.currentLang === 'ar' ? 'جاري التصدير...' : 'Exporting...');
+
+        setTimeout(() => {
+          const link = document.createElement('a');
+          const name = document.getElementById('saveName').value.trim() || 'drawing';
+          link.download = name + '.png';
+          link.href = this.canvas.toDataURL();
+          link.click();
+
+          this.hideLoading();
+          this.closeExportModal();
+        }, 100);
       },
 
       exportAsJPG() {
-        const link = document.createElement('a');
-        const name = document.getElementById('saveName').value.trim() || 'drawing';
-        link.download = name + '.jpg';
-        link.href = this.canvas.toDataURL('image/jpeg');
-        link.click();
-        this.closeExportModal();
+        this.showLoading(this.currentLang === 'ar' ? 'جاري التصدير...' : 'Exporting...');
+
+        setTimeout(() => {
+          const link = document.createElement('a');
+          const name = document.getElementById('saveName').value.trim() || 'drawing';
+          link.download = name + '.jpg';
+          link.href = this.canvas.toDataURL('image/jpeg');
+          link.click();
+
+          this.hideLoading();
+          this.closeExportModal();
+        }, 100);
       },
 
       async exportAsPDF() {
