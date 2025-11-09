@@ -4068,6 +4068,15 @@
       await runLifecycle(optionSequence, app, 'init', { app: app });
     }
 
+    // Remove template elements from DOM after build is complete
+    // Templates are only for storing markup and should be removed after processing
+    for (var ri = 0; ri < templates.length; ri += 1) {
+      var templateEl = templates[ri];
+      if (templateEl && templateEl.parentNode) {
+        templateEl.parentNode.removeChild(templateEl);
+      }
+    }
+
     return { app: app, compiled: compiled, renderers: rendererList };
   }
 

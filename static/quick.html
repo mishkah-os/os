@@ -36,7 +36,7 @@
   </head>
   <body class="bg-[var(--background)] text-[var(--foreground)]">
     <template id="quick-dashboard">
-      <script type="application/json" data-path="env">
+      <script type="application/json" data-m-env data-m-path="env">
         {
           "theme": "dark",
           "lang": "ar",
@@ -53,7 +53,7 @@
         }
       </script>
 
-      <script type="application/json" data-path="i18n.strings">
+      <script type="application/json" data-m-data data-m-path="i18n.strings">
         {
           "quick.title": { "ar": "لوحة سريعة", "en": "Quick Dashboard" },
           "quick.tagline": { "ar": "رصد مباشر لمبيعاتك اليومية", "en": "Live snapshot of your daily sales" },
@@ -82,7 +82,7 @@
         }
       </script>
 
-      <script type="application/json" data-path="data">
+      <script type="application/json" data-m-data data-m-path="data">
         {
           "metrics": { "revenue": 0, "orders": 0 },
           "analytics": {
