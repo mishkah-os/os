@@ -8332,15 +8332,8 @@
 
       const lang = db.env.lang || 'ar';
 
-      // ✅ Try store.listTable() first, fallback to window.database
-      const store = window.__POS_DB__;
-      const useStoreAPI = store && typeof store.listTable === 'function';
-
-      if(useStoreAPI){
-        console.log('✅ [view-jobs MODAL] Using store.listTable() API');
-      } else {
-        console.log('⚠️ [view-jobs MODAL] Fallback to window.database');
-      }
+      // ✅ Read from window.database (same as KDS for compatibility!)
+      const database = typeof window !== 'undefined' ? (window.database || {}) : {};
 
       // ✅ Helper function: Normalize field names (support both camelCase and snake_case)
       const normalizeHeader = (header) => ({
@@ -8379,27 +8372,20 @@
         prepNotes: detail.prepNotes || detail.prep_notes
       });
 
-      // ✅ Read data: store.listTable() or window.database fallback
-      const allHeaders = useStoreAPI
-        ? (store.listTable('job_order_header') || [])
-        : ((window.database || {}).job_order_header || []);
-
+      // ✅ Read from window.database (same as KDS!)
+      const allHeaders = database.job_order_header || [];
       const headersRaw = allHeaders.filter(header=> String(header.orderId || header.order_id) === String(orderId));
       const headers = headersRaw.map(normalizeHeader);
 
-      const allDetails = useStoreAPI
-        ? (store.listTable('job_order_detail') || [])
-        : ((window.database || {}).job_order_detail || []);
-
+      const allDetails = database.job_order_detail || [];
       const details = allDetails.map(normalizeDetail);
 
-      console.log('🔍 [view-jobs MODAL] Data source:', useStoreAPI ? 'store.listTable()' : 'window.database');
-      console.log('🔍 [view-jobs MODAL] Results:', {
-        totalHeaders: allHeaders.length,
-        filteredHeaders: headers.length,
-        totalDetails: allDetails.length,
-        sampleHeader: headers[0]
-      });
+      console.log('🔍 [view-jobs MODAL] window.database.job_order_header:', allHeaders.length);
+      console.log('🔍 [view-jobs MODAL] Filtered for orderId', orderId, ':', headers.length);
+      console.log('🔍 [view-jobs MODAL] window.database.job_order_detail:', allDetails.length);
+      if(headers.length > 0){
+        console.log('🔍 [view-jobs MODAL] Sample header:', headers[0]);
+      }
 
       const detailMap = new Map();
       details.forEach(detail=>{
@@ -8409,10 +8395,8 @@
         detailMap.set(detail.jobOrderId, list);
       });
 
-      // ✅ Read kitchen_sections with fallback
-      const kitchenSections = useStoreAPI
-        ? (store.listTable('kitchen_sections') || [])
-        : ((window.database || {}).kitchen_sections || []);
+      // ✅ Read kitchen_sections from window.database
+      const kitchenSections = database.kitchen_sections || [];
       const stationsIndex = new Map(kitchenSections.map(section=> [section.id, section]));
       const sectionIndex = new Map((Array.isArray(db.data.kitchenSections) ? db.data.kitchenSections : []).map(section=> [section.id, section]));
       const findOrder = ()=>{
