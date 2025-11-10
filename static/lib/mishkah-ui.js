@@ -422,12 +422,59 @@ const ChartBridge = (() => {
     const ctx = node.getContext ? node.getContext('2d') : null;
     if (!ctx) return null;
     const current = registry.get(node);
+
+    // If signature matches exactly, return existing instance (no changes needed)
     if (current && current.signature === signature) {
       return current.instance;
     }
-    if (current && current.instance && typeof current.instance.destroy === 'function') {
+
+    // If chart exists but signature differs, try to UPDATE instead of recreating
+    if (current && current.instance && typeof current.instance.update === 'function') {
+      const existingType = current.instance.config && current.instance.config.type;
+      const newType = payload.type;
+
+      // Only update if chart type is the same (can't change type without recreating)
+      if (existingType === newType) {
+        try {
+          // Update chart data and options using Chart.js update API
+          const newData = clone(payload.data);
+          const newOptions = clone(payload.options);
+          reviveScriptables(newData);
+          reviveScriptables(newOptions);
+
+          // Update data (labels and datasets)
+          if (newData.labels) {
+            current.instance.data.labels = newData.labels;
+          }
+          if (Array.isArray(newData.datasets)) {
+            current.instance.data.datasets = newData.datasets;
+          }
+
+          // Update options (merge with existing)
+          if (newOptions && typeof newOptions === 'object') {
+            Object.assign(current.instance.options, newOptions);
+          }
+
+          // Trigger Chart.js update with animation
+          current.instance.update('active');
+
+          // Update signature in registry
+          registry.set(node, { instance: current.instance, signature });
+
+          return current.instance;
+        } catch (updateErr) {
+          // If update fails, fall through to destroy and recreate
+          if (M.Auditor && typeof M.Auditor.warn === 'function') {
+            M.Auditor.warn('W-CHART', 'فشل تحديث الرسم البياني، سيتم إعادة الإنشاء', { error: String(updateErr) });
+          }
+        }
+      }
+
+      // Chart type changed or update failed - destroy and recreate
       try { current.instance.destroy(); } catch (_err) { /* ignore */ }
     }
+
+    // Create new chart instance
     try {
       const config = {
         type: payload.type,
