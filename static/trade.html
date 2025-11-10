@@ -1470,63 +1470,15 @@
           });
         }
 
-        // Fix: Manually inject button content (HTMLx bug workaround)
-        function fixButtonContent() {
-          var buttons = document.querySelectorAll('[data-m-gkey="toggle-live-data"]');
-          console.log('[FIX] Fixing', buttons.length, 'empty button(s)...');
-
-          buttons.forEach(function(btn) {
-            // Check if button is empty
-            if (btn.childNodes.length === 0) {
-              console.log('[FIX] Button is empty, injecting content...');
-
-              // Create label span
-              var label = document.createElement('span');
-              label.className = 'select-none';
-              label.textContent = 'بيانات حية'; // "Live Data" in Arabic
-
-              // Create indicator span
-              var indicator = document.createElement('span');
-              indicator.className = 'text-[10px] font-bold';
-              indicator.setAttribute('data-live-status', 'indicator');
-              indicator.textContent = '○ OFF';
-              indicator.style.color = '#9ca3af'; // gray-400
-
-              // Append to button
-              btn.appendChild(label);
-              btn.appendChild(indicator);
-
-              console.log('[✓] Button content injected successfully!');
-            } else {
-              console.log('[✓] Button already has content');
-            }
-
-            // Add direct click handler (Orders system backup)
-            if (!btn.__clickHandlerAdded) {
-              btn.__clickHandlerAdded = true;
-              btn.addEventListener('click', function(e) {
-                console.log('[CLICK] Button clicked directly!');
-                var ctx = window.MishkahAuto || null;
-                if (ctx) {
-                  toggleLiveData(e, ctx);
-                } else {
-                  console.error('[CLICK] No context available!');
-                }
-              });
-              console.log('[✓] Direct click handler added to button');
-            }
-          });
-        }
+        // Note: fixButtonContent removed - Flatten Children fix in mishkah.core.js resolves nested array bug
+        // Button children now render correctly via HTMLx without manual DOM manipulation
 
         // __init__ hook - called automatically by HTMLx after mount
         function __init__(app, helpers) {
           setTimeout(function() {
             quickDashboardMount(app, helpers);
 
-            // Fix empty button content (HTMLx bug workaround)
-            setTimeout(fixButtonContent, 100);
-
-            // Initialize countdown directives (waits for visibility)
+            // Initialize countdown directives
             setTimeout(initCountdownDirectives, 100);
           }, 16);
         }
