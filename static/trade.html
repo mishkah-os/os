@@ -1430,89 +1430,84 @@
             }
             element.__countdownInit = true;
 
-            // Log element visibility
-            console.log('[DEBUG] Element:', element);
-            console.log('[DEBUG] Element visible?', element.offsetWidth > 0 && element.offsetHeight > 0);
-            console.log('[DEBUG] Element.innerHTML:', element.innerHTML);
+            // Wait until element is visible before starting countdown
+            function waitForVisibility(callback) {
+              if (element.offsetWidth > 0 && element.offsetHeight > 0) {
+                console.log('[✓] Element is visible, starting countdown');
+                callback();
+              } else {
+                console.log('[⏳] Element not visible yet, waiting...');
+                setTimeout(function() { waitForVisibility(callback); }, 50);
+              }
+            }
 
-            // Watch for VDOM interference
-            var mutationCount = 0;
-            var observer = new MutationObserver(function(mutations) {
-              mutationCount++;
-              console.warn('[🔴 VDOM INTERFERENCE #' + mutationCount + '] Element modified externally!');
-              console.warn('New textContent:', element.textContent);
+            waitForVisibility(function() {
+              // Get initial values from data attributes
+              var initialSeconds = Number(element.getAttribute('data-countdown')) || 270;
+              var baseline = Number(element.dataset.countdownBaseline) || initialSeconds;
+              var template = element.getAttribute('data-countdown-template') || '{{time}}';
+
+              console.log('[DEBUG] Initializing countdown: initial=' + initialSeconds + ', baseline=' + baseline);
+
+              // Use internal state
+              var currentSeconds = initialSeconds;
+
+              var updateCountdown = function() {
+                if (currentSeconds <= 0) {
+                  currentSeconds = baseline;
+                  element.dispatchEvent(new CustomEvent('countdown:finished'));
+                }
+
+                // Update display
+                var minutes = Math.floor(currentSeconds / 60);
+                var seconds = currentSeconds % 60;
+                var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+                var displayText = template.replace('{{time}}', timeStr);
+
+                element.textContent = displayText;
+                currentSeconds--;
+              };
+
+              // Initial render
+              updateCountdown();
+
+              // Start interval
+              element.__countdownInterval = setInterval(updateCountdown, 1000);
+              console.log('[✓] Countdown started successfully!');
             });
-            observer.observe(element, { childList: true, characterData: true, subtree: true });
-
-            // Get initial values from data attributes
-            var initialSeconds = Number(element.getAttribute('data-countdown')) || 270;
-            var baseline = Number(element.dataset.countdownBaseline) || initialSeconds;
-            var template = element.getAttribute('data-countdown-template') || '{{time}}';
-
-            console.log('[DEBUG] Initializing countdown: initial=' + initialSeconds + ', baseline=' + baseline);
-
-            // Use internal state
-            var currentSeconds = initialSeconds;
-            var tickCount = 0;
-
-            var updateCountdown = function() {
-              tickCount++;
-
-              if (currentSeconds <= 0) {
-                currentSeconds = baseline;
-                element.dispatchEvent(new CustomEvent('countdown:finished'));
-                console.log('[DEBUG] Countdown finished, restarting');
-              }
-
-              // Update display
-              var minutes = Math.floor(currentSeconds / 60);
-              var seconds = currentSeconds % 60;
-              var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
-              var displayText = template.replace('{{time}}', timeStr);
-
-              // Log only every 10 ticks to reduce noise
-              if (tickCount === 1 || tickCount % 10 === 0) {
-                console.log('[DEBUG] Tick #' + tickCount + ': Setting "' + displayText + '"');
-                console.log('[DEBUG] Element still visible?', element.offsetWidth > 0);
-                console.log('[DEBUG] Element still in DOM?', document.contains(element));
-              }
-
-              element.textContent = displayText;
-              currentSeconds--;
-            };
-
-            // Initial render
-            updateCountdown();
-
-            // Start interval
-            element.__countdownInterval = setInterval(updateCountdown, 1000);
-            console.log('[DEBUG] Countdown started, interval ID:', element.__countdownInterval);
           });
         }
 
-        // Debug: Check button content after mount
-        function debugButtonContent() {
-          console.log('[DEBUG BUTTON] Checking button content...');
+        // Fix: Manually inject button content (HTMLx bug workaround)
+        function fixButtonContent() {
           var buttons = document.querySelectorAll('[data-m-gkey="toggle-live-data"]');
-          console.log('[DEBUG BUTTON] Found', buttons.length, 'button(s)');
+          console.log('[FIX] Fixing', buttons.length, 'empty button(s)...');
 
-          buttons.forEach(function(btn, idx) {
-            console.log('[DEBUG BUTTON #' + idx + ']:', btn);
-            console.log('[DEBUG BUTTON #' + idx + '] innerHTML:', btn.innerHTML);
-            console.log('[DEBUG BUTTON #' + idx + '] textContent:', btn.textContent);
-            console.log('[DEBUG BUTTON #' + idx + '] childNodes:', btn.childNodes);
-            console.log('[DEBUG BUTTON #' + idx + '] children:', btn.children);
-            console.log('[DEBUG BUTTON #' + idx + '] visible?', btn.offsetWidth > 0);
-          });
+          buttons.forEach(function(btn) {
+            // Check if button is empty
+            if (btn.childNodes.length === 0) {
+              console.log('[FIX] Button is empty, injecting content...');
 
-          // Check countdown elements
-          var countdowns = document.querySelectorAll('[data-countdown]');
-          console.log('[DEBUG COUNTDOWN] Found', countdowns.length, 'countdown element(s)');
-          countdowns.forEach(function(el, idx) {
-            console.log('[DEBUG COUNTDOWN #' + idx + ']:', el);
-            console.log('[DEBUG COUNTDOWN #' + idx + '] innerHTML:', el.innerHTML);
-            console.log('[DEBUG COUNTDOWN #' + idx + '] textContent:', el.textContent);
-            console.log('[DEBUG COUNTDOWN #' + idx + '] visible?', el.offsetWidth > 0);
+              // Create label span
+              var label = document.createElement('span');
+              label.className = 'select-none';
+              label.textContent = 'بيانات حية'; // "Live Data" in Arabic
+
+              // Create indicator span
+              var indicator = document.createElement('span');
+              indicator.className = 'text-[10px] font-bold';
+              indicator.setAttribute('data-live-status', 'indicator');
+              indicator.textContent = '○ OFF';
+              indicator.style.color = '#9ca3af'; // gray-400
+
+              // Append to button
+              btn.appendChild(label);
+              btn.appendChild(indicator);
+
+              console.log('[✓] Button content injected successfully!');
+            } else {
+              console.log('[✓] Button already has content');
+            }
           });
         }
 
@@ -1520,12 +1515,12 @@
         function __init__(app, helpers) {
           setTimeout(function() {
             quickDashboardMount(app, helpers);
-            // Debug after mount
-            setTimeout(debugButtonContent, 50);
-            // Initialize countdown directives after mount
+
+            // Fix empty button content (HTMLx bug workaround)
+            setTimeout(fixButtonContent, 100);
+
+            // Initialize countdown directives (waits for visibility)
             setTimeout(initCountdownDirectives, 100);
-            // Debug again after countdown init
-            setTimeout(debugButtonContent, 200);
           }, 16);
         }
       </script>
