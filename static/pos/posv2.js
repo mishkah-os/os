@@ -5106,7 +5106,15 @@
       if(!order || typeof order !== 'object') return order;
       const next = { ...order };
       if(Array.isArray(order.lines)){
-        next.lines = order.lines.map(enrichOrderLineWithMenu);
+        next.lines = order.lines.map(line => {
+          const enriched = enrichOrderLineWithMenu(line);
+          // ✅ Mark lines from persisted orders as persisted
+          // This is crucial for INSERT-ONLY architecture
+          if(order.isPersisted && !enriched.isPersisted){
+            return { ...enriched, isPersisted: true };
+          }
+          return enriched;
+        });
       }
       if(next.paymentsLocked === undefined){
         next.paymentsLocked = isPaymentsLocked(next);
@@ -6041,7 +6049,7 @@
         }));
         return { status:'error', reason:'shift' };
       }
-      const order = state.data.order || {};
+      let order = state.data.order || {}; // ✅ Changed from const to let (to allow reassignment for INSERT-ONLY logic)
       console.log('[Mishkah][POS] persistOrderFlow START', {
         orderId: order.id,
         isPersisted: order.isPersisted,
@@ -13243,7 +13251,8 @@
                 },
                 order:{
                   ...order,
-                  paymentState: paymentSnapshot.state
+                  paymentState: paymentSnapshot.state,
+                  dirty: true  // ✅ Mark order as dirty when payment is added
                 }
               },
               ui:{
