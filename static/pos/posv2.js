@@ -8343,18 +8343,30 @@
       // ✅ Read from window.database (same as KDS for compatibility!)
       let database = typeof window !== 'undefined' ? (window.database || {}) : {};
 
-      // ✅ WORKAROUND: If window.database empty, read from store.state directly
+      // ✅ ENHANCED: Always merge with store.state to catch freshly saved data
+      // (watchers update window.database async, but store.state is immediate)
       const store = window.__POS_DB__;
-      if(store && (!database.job_order_header || database.job_order_header.length === 0)){
-        const storeState = store.store?.state?.modules?.pos?.tables || {};
-        if(storeState.job_order_header && storeState.job_order_header.length > 0){
-          console.log('⚠️ [view-jobs MODAL] window.database empty - using store.state directly!');
-          console.log('⚠️ [view-jobs MODAL] Found', storeState.job_order_header.length, 'headers in store.state');
+      if(store && store.store?.state?.modules?.pos?.tables){
+        const storeState = store.store.state.modules.pos.tables;
+
+        // Use store.state if it has MORE data than window.database (fresher)
+        const storeHeaderCount = (storeState.job_order_header || []).length;
+        const windowHeaderCount = (database.job_order_header || []).length;
+        const storeDetailCount = (storeState.job_order_detail || []).length;
+        const windowDetailCount = (database.job_order_detail || []).length;
+
+        if(storeHeaderCount > windowHeaderCount || storeDetailCount > windowDetailCount){
+          console.log('⚡ [view-jobs MODAL] store.state has fresher data - using it!');
+          console.log('   Headers: store='+storeHeaderCount+' vs window='+windowHeaderCount);
+          console.log('   Details: store='+storeDetailCount+' vs window='+windowDetailCount);
+
+          // Use store.state as source of truth (fresher data)
           database = {
             ...database,
-            job_order_header: storeState.job_order_header || [],
-            job_order_detail: storeState.job_order_detail || [],
-            kitchen_sections: storeState.kitchen_sections || []
+            job_order_header: storeState.job_order_header || database.job_order_header || [],
+            job_order_detail: storeState.job_order_detail || database.job_order_detail || [],
+            job_order_detail_modifier: storeState.job_order_detail_modifier || database.job_order_detail_modifier || [],
+            kitchen_sections: storeState.kitchen_sections || database.kitchen_sections || []
           };
         }
       }
