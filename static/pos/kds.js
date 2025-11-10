@@ -2392,6 +2392,13 @@
     const statusLabel = t.labels.deliveryStatus[statusKey] || statusKey;
     const driverName = assignment?.driverName || t.labels.notAssigned;
     const driverPhone = assignment?.driverPhone || '—';
+    const isPendingSettlement = options.focusSettlement || statusKey === 'delivered';
+
+    // ✅ حساب المبلغ المدفوع والمتبقي
+    const totalAmount = order.totalAmount || order.total || order.totalDue || 0;
+    const paidAmount = order.totalPaid || 0;
+    const remainingAmount = Math.max(0, totalAmount - paidAmount);
+
     return D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
         D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber}`]),
@@ -2399,21 +2406,51 @@
       ]),
       order.handoffStatus ? createBadge(t.labels.handoffStatus[order.handoffStatus] || order.handoffStatus, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
       order.tableLabel ? D.Text.P({ attrs:{ class: tw`text-sm text-slate-300` }}, [`${t.labels.table}: ${order.tableLabel}`]) : null,
+
+      // ✅ بيانات السائق (دائمًا ظاهرة)
       D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3 text-sm text-slate-300` }}, [
         D.Text.Span(null, [`${t.labels.driver}: ${driverName}`]),
         D.Text.Span(null, [`${t.labels.driverPhone}: ${driverPhone}`]),
         assignment?.vehicleId ? D.Text.Span(null, [`🚗 ${assignment.vehicleId}`]) : null
       ].filter(Boolean)),
+
+      // ✅ عرض المبلغ المحصل في معلقات الدليفري
+      isPendingSettlement && totalAmount > 0
+        ? D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2 rounded-2xl border border-amber-700/60 bg-amber-900/20 p-3 text-sm` }}, [
+            D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between` }}, [
+              D.Text.Span({ attrs:{ class: tw`text-slate-300` }}, [lang === 'ar' ? 'الإجمالي' : 'Total']),
+              D.Text.Strong({ attrs:{ class: tw`text-lg text-amber-400` }}, [`${totalAmount.toFixed(2)} ${lang === 'ar' ? 'ج.م' : 'EGP'}`])
+            ]),
+            paidAmount > 0
+              ? D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between` }}, [
+                  D.Text.Span({ attrs:{ class: tw`text-slate-300` }}, [lang === 'ar' ? 'المحصل' : 'Paid']),
+                  D.Text.Strong({ attrs:{ class: tw`text-emerald-400` }}, [`${paidAmount.toFixed(2)} ${lang === 'ar' ? 'ج.م' : 'EGP'}`])
+                ])
+              : null,
+            remainingAmount > 0
+              ? D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between` }}, [
+                  D.Text.Span({ attrs:{ class: tw`text-slate-300` }}, [lang === 'ar' ? 'المتبقي' : 'Remaining']),
+                  D.Text.Strong({ attrs:{ class: tw`text-red-400` }}, [`${remainingAmount.toFixed(2)} ${lang === 'ar' ? 'ج.م' : 'EGP'}`])
+                ])
+              : null
+          ].filter(Boolean))
+        : null,
+
       // ✅ order.jobs might be undefined if using buildOrdersFromHeaders
       (order.jobs && order.jobs.length > 0)
         ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, order.jobs.map(job=> createBadge(`${job.stationCode || job.stationId}: ${t.labels.jobStatus[job.status] || job.status}`, STATUS_CLASS[job.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)))
         : null,
+
+      // ✅ الأزرار: إخفاء زر تعيين السائق في معلقات الدليفري
       D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2 pt-2` }}, [
-        D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:assign', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-sky-400/60 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/20` }}, [t.actions.assignDriver]),
-        statusKey !== 'delivered' && statusKey !== 'settled'
+        // ❌ إخفاء زر تعيين السائق في معلقات الدليفري
+        !isPendingSettlement
+          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:assign', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-sky-400/60 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/20` }}, [t.actions.assignDriver])
+          : null,
+        statusKey !== 'delivered' && statusKey !== 'settled' && !isPendingSettlement
           ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:complete', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20` }}, [t.actions.delivered])
           : null,
-        statusKey === 'delivered' || options.focusSettlement
+        isPendingSettlement
           ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:settle', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20` }}, [t.actions.settle])
           : null
       ].filter(Boolean))
