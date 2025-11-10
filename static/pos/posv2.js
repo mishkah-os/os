@@ -761,6 +761,10 @@
           orders_queue_open:'فتح الطلب', orders_queue_status_open:'مفتوح', orders_queue_status_held:'معلّق',
           orders_view_jobs:'تفاصيل التحضير', orders_jobs_title:'حالة الطلب في المطبخ', orders_jobs_description:'عرض حالة الأصناف والمحطات المرتبطة بالطلب.',
           orders_jobs_empty:'لا توجد بيانات تحضير بعد', orders_jobs_station:'قسم المطبخ', orders_jobs_status:'الحالة', orders_jobs_items:'الأصناف', orders_jobs_updated:'آخر تحديث',
+          // ✅ Job status translations (from KDS)
+          job_status_draft:'مسودة', job_status_queued:'بانتظار', job_status_awaiting:'بانتظار', job_status_accepted:'تم القبول',
+          job_status_preparing:'جاري التحضير', job_status_in_progress:'قيد التحضير', job_status_cooking:'قيد التحضير',
+          job_status_ready:'جاهز', job_status_completed:'مكتمل', job_status_served:'مُقدّم', job_status_cancelled:'ملغي', job_status_paused:'متوقف',
           orders_tab_all:'كل الطلبات', orders_tab_dine_in:'طلبات الصالة', orders_tab_delivery:'طلبات الدليفري', orders_tab_takeaway:'طلبات التيك أواي',
           orders_stage:'المرحلة', orders_status:'الحالة', orders_type:'نوع الطلب', orders_total:'الإجمالي', orders_updated:'آخر تحديث',
           orders_payment:'حالة الدفع', orders_line_count:'عدد الأصناف', orders_notes:'ملاحظات', orders_search_placeholder:'ابحث برقم الطلب أو الطاولة أو القسم',
@@ -900,6 +904,10 @@
           orders_queue_open:'Open order', orders_queue_status_open:'Open', orders_queue_status_held:'Held',
           orders_view_jobs:'Kitchen status', orders_jobs_title:'Kitchen production status', orders_jobs_description:'Review item progress across kitchen stations.',
           orders_jobs_empty:'No prep data yet', orders_jobs_station:'Station', orders_jobs_status:'Status', orders_jobs_items:'Items', orders_jobs_updated:'Updated at',
+          // ✅ Job status translations (from KDS)
+          job_status_draft:'Draft', job_status_queued:'Queued', job_status_awaiting:'Awaiting', job_status_accepted:'Accepted',
+          job_status_preparing:'Preparing', job_status_in_progress:'Preparing', job_status_cooking:'Preparing',
+          job_status_ready:'Ready', job_status_completed:'Completed', job_status_served:'Served', job_status_cancelled:'Cancelled', job_status_paused:'Paused',
           orders_tab_all:'All orders', orders_tab_dine_in:'Dining room', orders_tab_delivery:'Delivery', orders_tab_takeaway:'Takeaway',
           orders_stage:'Stage', orders_status:'Status', orders_type:'Order type', orders_total:'Total due', orders_updated:'Last update',
           orders_payment:'Payment state', orders_line_count:'Line items', orders_notes:'Notes', orders_search_placeholder:'Search by order, table or section',
@@ -8335,6 +8343,13 @@
       // ✅ Read from window.database (same as KDS for compatibility!)
       const database = typeof window !== 'undefined' ? (window.database || {}) : {};
 
+      // ✅ Helper function: Translate job status to current language
+      const translateJobStatus = (status) => {
+        if(!status) return '';
+        const key = `job_status_${status}`;
+        return t.ui[key] || status;
+      };
+
       // ✅ Helper function: Normalize field names (support both camelCase and snake_case)
       const normalizeHeader = (header) => ({
         ...header,
@@ -8384,7 +8399,19 @@
       console.log('🔍 [view-jobs MODAL] Filtered for orderId', orderId, ':', headers.length);
       console.log('🔍 [view-jobs MODAL] window.database.job_order_detail:', allDetails.length);
       if(headers.length > 0){
-        console.log('🔍 [view-jobs MODAL] Sample header:', headers[0]);
+        console.log('🔍 [view-jobs MODAL] Sample header:', {
+          id: headers[0].id,
+          status: headers[0].status,
+          progressState: headers[0].progressState,
+          acceptedAt: headers[0].acceptedAt,
+          startedAt: headers[0].startedAt,
+          readyAt: headers[0].readyAt
+        });
+      }
+      if(allDetails.length > 0){
+        console.log('🔍 [view-jobs MODAL] Sample detail statuses:',
+          allDetails.slice(0, 5).map(d => ({ id: d.id, status: d.status }))
+        );
       }
 
       const detailMap = new Map();
@@ -8425,13 +8452,17 @@
         const stationLabel = lang === 'ar'
           ? (station.nameAr || station.section_name?.ar || station.name || header.stationId || '—')
           : (station.nameEn || station.section_name?.en || station.name || header.stationId || '—');
-        const statusLabel = header.status || header.progressState || 'queued';
+        // ✅ Translate status to current language
+        const rawStatus = header.status || header.progressState || 'queued';
+        const statusLabel = translateJobStatus(rawStatus);
         const progress = `${Number(header.completedItems || 0)} / ${Number(header.totalItems || header.jobs?.length || 0)}`;
         const itemRows = (detailMap.get(header.id) || []).map(detail=>{
           const itemLabel = lang === 'ar'
             ? (detail.itemNameAr || detail.itemNameEn || detail.itemCode || detail.id)
             : (detail.itemNameEn || detail.itemNameAr || detail.itemCode || detail.id);
-          const detailStatus = detail.status || 'queued';
+          // ✅ Translate detail status to current language
+          const rawDetailStatus = detail.status || 'queued';
+          const detailStatus = translateJobStatus(rawDetailStatus);
           return D.Containers.Div({ attrs:{ class: tw`flex items-center justify-between rounded bg-[var(--surface-2)] px-3 py-2 text-sm` }}, [
             D.Text.Span({}, [`${itemLabel} × ${Number(detail.quantity || 1)}`]),
             UI.Badge({ text: detailStatus, variant:'badge/ghost' })
