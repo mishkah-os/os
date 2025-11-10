@@ -6139,6 +6139,68 @@
         await refreshFromRemote(null, 'order_conflict_blocked');
         return { status:'error', reason:'stale-version' };
       }
+
+      // ✅ 🔥 CRITICAL RULES: INSERT-ONLY ARCHITECTURE
+      // 1. منع UPDATE/DELETE للـ lines القديمة
+      // 2. منع التعديل على orders منتهية (delivery/takeaway)
+      // 3. السماح بإضافة lines جديدة فقط لـ dine_in
+      if(order.isPersisted){
+        console.log('🔥 [POS V2] Persisted order - checking modification rules...', {
+          orderId: order.id,
+          orderType,
+          finalize,
+          linesCount: (order.lines || []).length
+        });
+
+        // القاعدة #1: delivery/takeaway منتهي = ممنوع أي تعديل
+        if((orderType === 'delivery' || orderType === 'takeaway') && finalize){
+          console.error('❌ [POS V2] Cannot modify finalized delivery/takeaway order');
+          UI.pushToast(ctx, {
+            title: t.toast.cannot_modify_finalized || 'لا يمكن تعديل طلب منتهي',
+            subtitle: 'طلبات الدليفري والتيك أواي لا يمكن تعديلها بعد الإنهاء',
+            icon:'🔒'
+          });
+          return { status:'error', reason:'order-finalized' };
+        }
+
+        // القاعدة #2: dine_in = فقط إضافة lines جديدة (لا UPDATE ولا DELETE)
+        if(orderType === 'dine_in'){
+          const currentLines = order.lines || [];
+          const newLinesOnly = currentLines.filter(line => {
+            // سطر جديد: لا يوجد له isPersisted أو id يبدأ بـ ln- أو temp-
+            const isNew = !line.isPersisted ||
+                         (line.id && (line.id.startsWith('ln-') || line.id.startsWith('temp-')));
+            return isNew;
+          });
+
+          console.log('[POS V2] 🔍 Lines analysis:', {
+            total: currentLines.length,
+            newLines: newLinesOnly.length,
+            persistedLines: currentLines.length - newLinesOnly.length
+          });
+
+          // ✅ فقط الأسطر الجديدة ستُحفظ
+          if(newLinesOnly.length === 0 && !finalize){
+            console.warn('[POS V2] ⚠️ No new lines to save for persisted dine_in order');
+            // ❌ لا نحفظ - لا توجد تغييرات
+            UI.pushToast(ctx, {
+              title: t.toast.no_new_lines || 'لا توجد أصناف جديدة',
+              subtitle: 'لم يتم إضافة أصناف جديدة للطلب',
+              icon:'ℹ️'
+            });
+            return { status:'no-changes', reason:'no-new-lines' };
+          }
+
+          // ✅ تحديث order.lines ليحتوي فقط على الأسطر الجديدة للحفظ
+          // CRITICAL: هذا سيمنع إرسال lines قديمة للـ backend
+          console.log('[POS V2] ✅ Filtering to new lines only:', newLinesOnly.length);
+          order = {
+            ...order,
+            lines: newLinesOnly  // ← فقط الجديدة!
+          };
+        }
+      }
+
       const now = Date.now();
       let missingItemLine = null;
       let missingKitchenLine = null;
