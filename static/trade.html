@@ -185,6 +185,13 @@
               <span class="text-xs text-[var(--muted-foreground)]">
                 {trans(state.data.analytics.unitLabelKey || 'quick.sales.unit')}
               </span>
+              <!-- TEST BUTTON: Direct randomize for debugging -->
+              <button
+                data-m-gkey="test-randomize"
+                class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
+              >
+                <span class="select-none">🧪 TEST</span>
+              </button>
               <button
                 data-m-gkey="toggle-live-data"
                 class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
@@ -918,31 +925,57 @@
         }
 
         function syncSalesChart(state, ctx) {
+          console.log('[SYNC-CHART] ========== syncSalesChart START ==========');
+          console.log('[SYNC-CHART] State:', state);
+          console.log('[SYNC-CHART] Context:', ctx);
+
           var context = ctx || window.MishkahAuto || null;
           if (!state && context && typeof context.getState === 'function') {
             try {
               state = context.getState();
+              console.log('[SYNC-CHART] Got state from context.getState()');
             } catch (err) {
               state = null;
+              console.error('[SYNC-CHART] Failed to get state:', err);
             }
           }
           if (!state && context && context.state) {
             state = context.state;
+            console.log('[SYNC-CHART] Got state from context.state');
           }
+
           var analytics = resolveAnalytics(state);
-          if (!analytics) return false;
+          console.log('[SYNC-CHART] Analytics:', analytics);
+          if (!analytics) {
+            console.warn('[SYNC-CHART] No analytics, returning false');
+            return false;
+          }
+
           var canvas = document.getElementById('quick-sales-chart');
-          if (!canvas) return false;
+          console.log('[SYNC-CHART] Canvas element:', canvas);
+          if (!canvas) {
+            console.error('[SYNC-CHART] Canvas not found!');
+            return false;
+          }
+
           var host = window.Mishkah || window.Mishka || null;
           var chartApi = host && host.UI ? host.UI.Chart : null;
+          console.log('[SYNC-CHART] Chart API:', chartApi);
+
           applyLegendSwatches(state);
           if (!chartApi) {
+            console.error('[SYNC-CHART] Chart API not available!');
             return false;
           }
 
           var months = resolveMonths(state, analytics);
           var datasets = buildSalesDatasets(analytics.series || [], months, context, state);
-          if (!datasets.length) return false;
+          console.log('[SYNC-CHART] Months:', months);
+          console.log('[SYNC-CHART] Datasets:', datasets);
+          if (!datasets.length) {
+            console.warn('[SYNC-CHART] No datasets, returning false');
+            return false;
+          }
 
           if (typeof toCsv === 'function') {
             canvas.setAttribute('data-chart-labels', toCsv(months));
@@ -997,29 +1030,41 @@
           var encoded = typeof chartApi.encodePayload === 'function'
             ? chartApi.encodePayload(payload)
             : JSON.stringify(payload);
+
+          console.log('[SYNC-CHART] Setting data-m-chart attribute...');
+          console.log('[SYNC-CHART] Payload:', payload);
+          console.log('[SYNC-CHART] Encoded length:', encoded.length);
           canvas.setAttribute('data-m-chart', encoded);
 
           var ensured = null;
           if (typeof chartApi.ensureLibrary === 'function') {
             try {
               ensured = chartApi.ensureLibrary();
+              console.log('[SYNC-CHART] Chart library ensured');
             } catch (_errEnsure) {
               ensured = null;
+              console.error('[SYNC-CHART] Failed to ensure library:', _errEnsure);
             }
           }
           var hydrate = function () {
+            console.log('[SYNC-CHART] Calling chartApi.hydrate...');
             if (typeof chartApi.hydrate === 'function') {
               chartApi.hydrate(canvas.parentNode || document);
+              console.log('[SYNC-CHART] Hydrate called');
             }
             if (typeof chartApi.freeze === 'function') {
               chartApi.freeze(canvas.parentNode || canvas);
+              console.log('[SYNC-CHART] Freeze called');
             }
           };
           if (ensured && typeof ensured.then === 'function') {
             ensured.then(hydrate).catch(hydrate);
+            console.log('[SYNC-CHART] Hydrate scheduled (promise)');
             return true;
           }
           hydrate();
+          console.log('[SYNC-CHART] Hydrate called immediately');
+          console.log('[SYNC-CHART] ========== syncSalesChart END ==========');
           return true;
         }
 
@@ -1333,13 +1378,21 @@
               console.log('[DEBUG] Live data toggle clicked via setOrders!', detail);
               toggleLiveData(detail.event, context);
             };
+            orders.click['test-randomize'] = function(detail) {
+              console.log('[DEBUG] Test randomize clicked via setOrders!', detail);
+              testRandomize(detail.event, context);
+            };
             context.setOrders(orders);
-            console.log('[DEBUG] Orders registered successfully');
+            console.log('[DEBUG] Orders registered successfully (toggle + test)');
           } else if (context.order && typeof context.order === 'function') {
             console.log('[DEBUG] Registering order via ctx.order');
             context.order('click', { gkey: 'toggle-live-data' }, function(detail) {
               console.log('[DEBUG] Live data toggle clicked via order!', detail);
               toggleLiveData(detail.event, context);
+            });
+            context.order('click', { gkey: 'test-randomize' }, function(detail) {
+              console.log('[DEBUG] Test randomize clicked via order!', detail);
+              testRandomize(detail.event, context);
             });
           } else if (window.Mishkah && window.Mishkah.orders && typeof window.Mishkah.orders.on === 'function') {
             console.log('[DEBUG] Registering order via Mishkah.orders.on');
@@ -1347,9 +1400,35 @@
               console.log('[DEBUG] Live data toggle clicked via Mishkah.orders!', detail);
               toggleLiveData(detail.event, context);
             });
+            window.Mishkah.orders.on('click', { gkey: 'test-randomize' }, function(detail) {
+              console.log('[DEBUG] Test randomize clicked via Mishkah.orders!', detail);
+              testRandomize(detail.event, context);
+            });
           } else {
             console.error('[DEBUG] No order system available!');
           }
+        }
+
+        // TEST: Direct randomize function
+        function testRandomize(event, ctx) {
+          console.log('[TEST] ========== TEST RANDOMIZE CLICKED ==========');
+          var context = ctx || window.MishkahAuto || null;
+          if (!context) {
+            console.error('[TEST] No context available!');
+            return;
+          }
+
+          console.log('[TEST] Calling randomizeSalesReport with force=true...');
+          var result = randomizeSalesReport(event, context, { force: true, reusePrevious: false });
+          console.log('[TEST] randomizeSalesReport returned:', result);
+
+          // Force a manual sync
+          console.log('[TEST] Manually calling syncSalesChart...');
+          var state = context.getState ? context.getState() : context.state;
+          var syncResult = syncSalesChart(state, context);
+          console.log('[TEST] syncSalesChart returned:', syncResult);
+
+          console.log('[TEST] ========== TEST RANDOMIZE END ==========');
         }
 
         function quickDashboardMount(app, helpers) {

@@ -418,13 +418,26 @@ const ChartBridge = (() => {
   }
 
   function instantiate(node, signature, payload, ChartLib) {
-    if (!node || !ChartLib) return null;
+    console.log('[INSTANTIATE] ========== Chart instantiate START ==========');
+    console.log('[INSTANTIATE] Node:', node);
+    console.log('[INSTANTIATE] Signature:', signature.substring(0, 100) + '...');
+    console.log('[INSTANTIATE] Payload type:', payload.type);
+
+    if (!node || !ChartLib) {
+      console.error('[INSTANTIATE] Missing node or ChartLib!');
+      return null;
+    }
     const ctx = node.getContext ? node.getContext('2d') : null;
-    if (!ctx) return null;
+    if (!ctx) {
+      console.error('[INSTANTIATE] Failed to get 2d context!');
+      return null;
+    }
     const current = registry.get(node);
+    console.log('[INSTANTIATE] Current registry entry:', current ? 'EXISTS' : 'NULL');
 
     // If signature matches exactly, return existing instance (no changes needed)
     if (current && current.signature === signature) {
+      console.log('[INSTANTIATE] Signature matches, returning existing instance');
       return current.instance;
     }
 
@@ -432,10 +445,12 @@ const ChartBridge = (() => {
     if (current && current.instance && typeof current.instance.update === 'function') {
       const existingType = current.instance.config && current.instance.config.type;
       const newType = payload.type;
+      console.log('[INSTANTIATE] Found existing chart, type:', existingType, '→', newType);
 
       // Only update if chart type is the same (can't change type without recreating)
       if (existingType === newType) {
         try {
+          console.log('[INSTANTIATE] Updating existing chart...');
           // Update chart data and options using Chart.js update API
           const newData = clone(payload.data);
           const newOptions = clone(payload.options);
@@ -445,37 +460,48 @@ const ChartBridge = (() => {
           // Update data (labels and datasets)
           if (newData.labels) {
             current.instance.data.labels = newData.labels;
+            console.log('[INSTANTIATE] Updated labels:', newData.labels.length, 'items');
           }
           if (Array.isArray(newData.datasets)) {
             current.instance.data.datasets = newData.datasets;
+            console.log('[INSTANTIATE] Updated datasets:', newData.datasets.length, 'datasets');
           }
 
           // Update options (merge with existing)
           if (newOptions && typeof newOptions === 'object') {
             Object.assign(current.instance.options, newOptions);
+            console.log('[INSTANTIATE] Updated options');
           }
 
           // Trigger Chart.js update with animation
+          console.log('[INSTANTIATE] Calling chart.update("active")...');
           current.instance.update('active');
+          console.log('[INSTANTIATE] chart.update() completed');
 
           // Update signature in registry
           registry.set(node, { instance: current.instance, signature });
+          console.log('[INSTANTIATE] ✓ Chart updated successfully');
 
           return current.instance;
         } catch (updateErr) {
           // If update fails, fall through to destroy and recreate
+          console.error('[INSTANTIATE] Update failed:', updateErr);
           if (M.Auditor && typeof M.Auditor.warn === 'function') {
             M.Auditor.warn('W-CHART', 'فشل تحديث الرسم البياني، سيتم إعادة الإنشاء', { error: String(updateErr) });
           }
         }
+      } else {
+        console.log('[INSTANTIATE] Chart type changed, will recreate');
       }
 
       // Chart type changed or update failed - destroy and recreate
-      try { current.instance.destroy(); } catch (_err) { /* ignore */ }
+      console.log('[INSTANTIATE] Destroying old chart...');
+      try { current.instance.destroy(); } catch (_err) { console.error('[INSTANTIATE] Destroy error:', _err); }
     }
 
     // Create new chart instance
     try {
+      console.log('[INSTANTIATE] Creating NEW chart instance...');
       const config = {
         type: payload.type,
         data: clone(payload.data),
@@ -485,8 +511,11 @@ const ChartBridge = (() => {
       reviveScriptables(config.options);
       const chart = new ChartLib(ctx, config);
       registry.set(node, { instance: chart, signature });
+      console.log('[INSTANTIATE] ✓ New chart created successfully');
+      console.log('[INSTANTIATE] ========== Chart instantiate END ==========');
       return chart;
     } catch (err) {
+      console.error('[INSTANTIATE] ✗ Failed to create chart:', err);
       if (M.Auditor && typeof M.Auditor.error === 'function') {
         M.Auditor.error('E-CHART', 'فشل إنشاء الرسم البياني', { error: String(err) });
       }
