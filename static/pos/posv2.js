@@ -3995,25 +3995,11 @@
     }
 
 
+    // ❌ REMOVED: updateRealtimeJobOrdersSnapshot
+    // No longer needed - posv2.html watchers update window.database directly (same as KDS!)
     function updateRealtimeJobOrdersSnapshot(){
-      const headers = Array.from(realtimeJobOrders.headers.values()).map(cloneDeep);
-      const details = [];
-      realtimeJobOrders.details.forEach(list=>{
-        list.forEach(detail=> details.push(cloneDeep(detail)));
-      });
-      const modifiers = Array.from(realtimeJobOrders.modifiers.values()).map(cloneDeep);
-      const statusHistory = Array.from(realtimeJobOrders.statusHistory.values()).map(cloneDeep);
-      const expoPassTickets = Array.from(realtimeJobOrders.expoPassTickets.values()).map(cloneDeep);
-      realtimeJobOrders.snapshot = { headers, details, modifiers, statusHistory, expoPassTickets };
-
-      console.log('🔍 [updateRealtimeJobOrdersSnapshot] Snapshot created:', {
-        headersCount: headers.length,
-        detailsCount: details.length,
-        modifiersCount: modifiers.length,
-        source: 'watchers'
-      });
-
-      applyKdsOrderSnapshotNow({ jobOrders: realtimeJobOrders.snapshot }, { source:'indexeddb:job-orders' });
+      // Do nothing - deprecated function
+      console.log('⚠️ [updateRealtimeJobOrdersSnapshot] DEPRECATED - use window.database instead');
     }
 
     function scheduleRealtimeJobOrdersSnapshot(){
@@ -4146,23 +4132,18 @@
       return { next: target, changed };
     }
 
+    // ❌ REMOVED: applyKdsOrderSnapshotNow
+    // No longer needed - we don't use data.kds anymore, we read from window.database (like KDS!)
     function applyKdsOrderSnapshotNow(payload={}, meta={}){
+      // Do nothing - deprecated function
+      console.log('⚠️ [applyKdsOrderSnapshotNow] DEPRECATED - data.kds removed, use window.database instead');
+      console.log('⚠️ [applyKdsOrderSnapshotNow] posv2.html watchers update window.database automatically');
+      return;
+
+      // OLD CODE KEPT FOR REFERENCE (but never executed):
+      /*
       if(!payload || !payload.jobOrders) return;
-
-      console.log('🔍 [applyKdsOrderSnapshotNow] Called with:', {
-        source: meta.source,
-        headersCount: payload.jobOrders?.headers?.length || 0,
-        detailsCount: payload.jobOrders?.details?.length || 0,
-        modifiersCount: payload.jobOrders?.modifiers?.length || 0
-      });
-
       const normalizedOrders = normalizeJobOrdersSnapshot(payload.jobOrders);
-
-      console.log('🔍 [applyKdsOrderSnapshotNow] After normalization:', {
-        headersCount: normalizedOrders.headers?.length || 0,
-        detailsCount: normalizedOrders.details?.length || 0
-      });
-
       const deliveriesPatch = payload.deliveries || {};
       const handoffPatch = payload.handoff || {};
       const driversPatch = Array.isArray(payload.drivers) ? payload.drivers : [];
@@ -4170,19 +4151,7 @@
       const updateState = (state)=>{
         const data = state.data || {};
         const currentKds = data.kds || {};
-
-        console.log('🔍 [applyKdsOrderSnapshotNow] Current state:', {
-          currentHeaders: currentKds.jobOrders?.headers?.length || 0,
-          currentDetails: currentKds.jobOrders?.details?.length || 0
-        });
-
         const mergedOrders = mergeJobOrderCollections(currentKds.jobOrders || {}, normalizedOrders);
-
-        console.log('🔍 [applyKdsOrderSnapshotNow] After merge:', {
-          mergedHeaders: mergedOrders.headers?.length || 0,
-          mergedDetails: mergedOrders.details?.length || 0
-        });
-
         const assignmentsBase = currentKds.deliveries?.assignments || {};
         const settlementsBase = currentKds.deliveries?.settlements || {};
         const assignments = { ...assignmentsBase };
@@ -4204,11 +4173,6 @@
           sync:{ ...(currentKds.sync || {}), ...(payload.sync || {}) },
           lastSyncMeta:{ ...(currentKds.lastSyncMeta || {}), ...meta }
         };
-
-        console.log('🔍 [applyKdsOrderSnapshotNow] Next KDS state:', {
-          nextHeaders: nextKds.jobOrders?.headers?.length || 0,
-          nextDetails: nextKds.jobOrders?.details?.length || 0
-        });
         if(master.channel){
           nextKds.channel = master.channel;
           nextKds.sync = { ...(nextKds.sync || {}), channel: master.channel };
@@ -6657,94 +6621,80 @@
             try { await posDB.deleteTempOrder(previousOrderId); } catch(_tempErr){}
           }
         }
-        // ✅ [POS V2] Save job_order_* tables to database via mishkah-store
-        // This replaces the old WebSocket direct broadcast
-        console.log('🔥 [POS V2] Saving job_order tables to database...');
+        // ✅ [POS V2] Save job_order_* tables via mishkah-store
+        // posv2.html watchers will update window.database automatically (same as KDS)
+        console.log('🔥 [POS V2] Saving job_order tables...');
         const store = window.__POS_DB__;
         if(store && typeof store.insert === 'function'){
-          try {
-            // Generate KDS payload with job_order tables
-            const kdsPayload = serializeOrderForKDS(orderPayload, state);
+          // Generate KDS payload
+          const kdsPayload = serializeOrderForKDS(orderPayload, state);
 
-            if(kdsPayload && kdsPayload.job_order_header){
-              console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
+          if(kdsPayload && kdsPayload.job_order_header){
+            console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
 
-              // Save job_order_header (one per kitchen station)
-              for(const jobHeader of kdsPayload.job_order_header){
-                await store.insert('job_order_header', jobHeader);
-                console.log('[POS V2] ✅ Saved job_order_header:', jobHeader.id);
+            // ✅ Fire-and-forget save (don't await - prevents timeout blocking)
+            // posv2.html watchers will update window.database when ready
+            Promise.all([
+              // Save headers
+              ...kdsPayload.job_order_header.map(jobHeader =>
+                store.insert('job_order_header', jobHeader).catch(err =>
+                  console.error('[POS V2] Failed to save header:', jobHeader.id, err)
+                )
+              ),
+              // Save details
+              ...(kdsPayload.job_order_detail || []).map(jobDetail =>
+                store.insert('job_order_detail', jobDetail).catch(err =>
+                  console.error('[POS V2] Failed to save detail:', jobDetail.id, err)
+                )
+              ),
+              // Save modifiers
+              ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
+                store.insert('job_order_detail_modifier', modifier).catch(err =>
+                  console.error('[POS V2] Failed to save modifier:', modifier.id, err)
+                )
+              )
+            ]).then(() => {
+              console.log('✅ [POS V2] All job_order tables saved!');
+              console.log('📡 [POS V2] posv2.html watchers will update window.database');
+            }).catch(err => {
+              console.error('[POS V2] ❌ Some job_order saves failed:', err);
+            });
+
+          } else {
+            console.warn('[POS V2] ⚠️ No job_order payload generated');
+          }
+
+          // ✅ [POS V2] Save NEW payments via mishkah-store (unified with kds.js)
+          console.log('💰 [POS V2] Saving NEW payments...');
+          if(newPaymentsOnly.length > 0){
+            console.log('[POS V2] New payments to save:', newPaymentsOnly.length);
+            const nowIso = new Date(now).toISOString();
+
+            for(const payment of newPaymentsOnly){
+              const paymentRecord = {
+                id: payment.id || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                orderId: finalOrderId,
+                paymentMethodId: payment.method || 'cash',
+                amount: round(Number(payment.amount) || 0),
+                capturedAt: nowIso,
+                shiftId: currentShift?.id || 'current-shift',
+                reference: payment.reference || null
+              };
+
+              try {
+                await store.insert('order_payment', paymentRecord);
+                console.log('[POS V2] ✅ Saved payment:', paymentRecord.id, 'amount:', paymentRecord.amount);
+              } catch(paymentError){
+                console.error('[POS V2] ❌ Failed to save payment:', paymentError);
+                // Don't fail the entire save - payment is non-critical
               }
-
-              // Save job_order_detail (items per station)
-              if(Array.isArray(kdsPayload.job_order_detail)){
-                console.log('[POS V2] job_order_detail count:', kdsPayload.job_order_detail.length);
-                for(const jobDetail of kdsPayload.job_order_detail){
-                  await store.insert('job_order_detail', jobDetail);
-                }
-                console.log('[POS V2] ✅ Saved all job_order_detail');
-              }
-
-              // Save job_order_detail_modifier (modifiers)
-              if(Array.isArray(kdsPayload.job_order_detail_modifier)){
-                console.log('[POS V2] job_order_detail_modifier count:', kdsPayload.job_order_detail_modifier.length);
-                for(const modifier of kdsPayload.job_order_detail_modifier){
-                  await store.insert('job_order_detail_modifier', modifier);
-                }
-                console.log('[POS V2] ✅ Saved all job_order_detail_modifier');
-              }
-
-              console.log('✅ [POS V2] job_order tables saved successfully!');
-              console.log('📡 [POS V2] mishkah-store will broadcast automatically to KDS');
-              console.log('📡 [POS V2] Watchers will update data.kds.jobOrders automatically');
-
-              // ❌ REMOVED: Direct call to applyKdsOrderSnapshotNow
-              // This was causing a race condition where:
-              // 1. We call applyKdsOrderSnapshotNow with fresh data
-              // 2. Watchers receive data from IndexedDB and call it again
-              // 3. Second call overwrites first call with empty arrays
-              // Solution: Let watchers handle everything (via updateRealtimeJobOrdersSnapshot)
-
-            } else {
-              console.warn('[POS V2] ⚠️ No job_order payload generated');
             }
-
-            // ✅ [POS V2] Save NEW payments via mishkah-store (unified with kds.js)
-            // This ensures real-time payment sync across POS and KDS
-            console.log('💰 [POS V2] Saving NEW payments to database...');
-            if(newPaymentsOnly.length > 0){
-              console.log('[POS V2] New payments to save:', newPaymentsOnly.length);
-              const nowIso = new Date(now).toISOString();
-
-              for(const payment of newPaymentsOnly){
-                const paymentRecord = {
-                  id: payment.id || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  orderId: finalOrderId,
-                  paymentMethodId: payment.method || 'cash',
-                  amount: round(Number(payment.amount) || 0),
-                  capturedAt: nowIso,
-                  shiftId: currentShift?.id || 'current-shift',
-                  reference: payment.reference || null
-                };
-
-                try {
-                  await store.insert('order_payment', paymentRecord);
-                  console.log('[POS V2] ✅ Saved payment:', paymentRecord.id, 'amount:', paymentRecord.amount);
-                } catch(paymentError){
-                  console.error('[POS V2] ❌ Failed to save payment:', paymentError);
-                  // Don't fail the entire save - payment is non-critical
-                }
-              }
-              console.log('✅ [POS V2] Payments saved successfully!');
-              console.log('📡 [POS V2] mishkah-store will broadcast payments to all screens');
-            } else {
-              console.log('[POS V2] No new payments to save');
-            }
-          } catch(jobOrderError){
-            console.error('[POS V2] ❌ Failed to save job_order:', jobOrderError);
-            // Don't fail the entire save - job_order is secondary
+            console.log('✅ [POS V2] Payments saved!');
+          } else {
+            console.log('[POS V2] No new payments to save');
           }
         } else {
-          console.warn('[POS V2] ⚠️ mishkah-store not available - job_order not saved');
+          console.warn('[POS V2] ⚠️ mishkah-store not available');
         }
         await posDB.markSync();
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
@@ -8466,13 +8416,54 @@
 
       const lang = db.env.lang || 'ar';
 
+      // ✅ Helper function: Normalize field names (support both camelCase and snake_case)
+      const normalizeHeader = (header) => ({
+        ...header,
+        orderId: header.orderId || header.order_id,
+        orderNumber: header.orderNumber || header.order_number,
+        stationId: header.stationId || header.station_id,
+        stationCode: header.stationCode || header.station_code,
+        status: header.status,
+        progressState: header.progressState || header.progress_state,
+        totalItems: header.totalItems || header.total_items || 0,
+        completedItems: header.completedItems || header.completed_items || 0,
+        remainingItems: header.remainingItems || header.remaining_items || 0,
+        tableLabel: header.tableLabel || header.table_label,
+        customerName: header.customerName || header.customer_name,
+        acceptedAt: header.acceptedAt || header.accepted_at,
+        startedAt: header.startedAt || header.started_at,
+        readyAt: header.readyAt || header.ready_at,
+        completedAt: header.completedAt || header.completed_at,
+        expoAt: header.expoAt || header.expo_at,
+        updatedAt: header.updatedAt || header.updated_at,
+        createdAt: header.createdAt || header.created_at
+      });
+
+      const normalizeDetail = (detail) => ({
+        ...detail,
+        jobOrderId: detail.jobOrderId || detail.job_order_id,
+        itemId: detail.itemId || detail.item_id || detail.menuItemId || detail.menu_item_id,
+        itemCode: detail.itemCode || detail.item_code || detail.code,
+        quantity: detail.quantity || 0,
+        status: detail.status,
+        startAt: detail.startAt || detail.start_at,
+        finishAt: detail.finishAt || detail.finish_at,
+        itemNameAr: detail.itemNameAr || detail.item_name_ar || detail.nameAr || detail.name_ar || '',
+        itemNameEn: detail.itemNameEn || detail.item_name_en || detail.nameEn || detail.name_en || '',
+        prepNotes: detail.prepNotes || detail.prep_notes
+      });
+
       // ✅ Use flat structure like KDS (read from window.database directly)
-      const headers = Array.isArray(database.job_order_header)
-        ? database.job_order_header.filter(header=> String(header.orderId) === String(orderId))
+      const headersRaw = Array.isArray(database.job_order_header)
+        ? database.job_order_header.filter(header=> String(header.orderId || header.order_id) === String(orderId))
         : [];
-      const details = Array.isArray(database.job_order_detail) ? database.job_order_detail : [];
+      const headers = headersRaw.map(normalizeHeader);
+
+      const detailsRaw = Array.isArray(database.job_order_detail) ? database.job_order_detail : [];
+      const details = detailsRaw.map(normalizeDetail);
 
       console.log('🔍 [view-jobs MODAL] Filtered headers for this order:', headers.length);
+      console.log('🔍 [view-jobs MODAL] Sample header:', headers[0]);
       console.log('🔍 [view-jobs MODAL] All details:', details.length);
       const detailMap = new Map();
       details.forEach(detail=>{
