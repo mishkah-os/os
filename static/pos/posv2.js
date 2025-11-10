@@ -2592,6 +2592,16 @@
           stationId,  // ✅ Add stationId to detail for proper routing
           kitchenSectionId: stationId  // ✅ Also add as kitchenSectionId
         };
+        // 🔍 DEBUG: Log prepNotes to verify conversion
+        if(line.notes){
+          console.log('[POS][serializeOrderForKDS] Line notes:', {
+            lineId: line.id,
+            rawNotes: line.notes,
+            convertedPrepNotes: detail.prepNotes,
+            notesType: typeof line.notes,
+            isArray: Array.isArray(line.notes)
+          });
+        }
         jobDetails.push(detail);
         const modifiers = ensureList(line.modifiers).filter(Boolean);
         modifiers.forEach((mod, idx)=>{
