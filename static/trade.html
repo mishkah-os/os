@@ -1057,6 +1057,7 @@
           if (analyticsState && analyticsState.autoSimulate === false && options.force !== true) {
             if (options.bootstrap && snapshot) {
               ensureCountdownLoop(snapshot);
+              console.log('[CHART-UPDATE] queueQuickDashboardHydration (bootstrap mode)');
               queueQuickDashboardHydration({ ctx: context, snapshot: snapshot, immediate: true });
             }
             return true;
@@ -1076,6 +1077,7 @@
           if (options.bootstrap && hasValues && options.force !== true) {
             if (snapshot) {
               ensureCountdownLoop(snapshot);
+              console.log('[CHART-UPDATE] queueQuickDashboardHydration (has values, bootstrap)');
               queueQuickDashboardHydration({ ctx: context, snapshot: snapshot, immediate: true });
             }
             return true;
@@ -1169,6 +1171,7 @@
               ensureCountdownLoop(nextSnapshot);
             }
             if (performed || (options.bootstrap && nextSnapshot)) {
+              console.log('[CHART-UPDATE] queueQuickDashboardHydration (after data commit, performed=' + performed + ')');
               queueQuickDashboardHydration({ ctx: context, snapshot: nextSnapshot, immediate: true });
             }
           });
@@ -1207,10 +1210,12 @@
 
             var currentTheme = resolved && resolved.env && resolved.env.theme;
             if (prevTheme !== null && prevTheme !== currentTheme) {
+              console.log('[CHART-UPDATE] queueQuickDashboardHydration (theme changed, delayed)');
               window.setTimeout(function() {
                 queueQuickDashboardHydration({ ctx: auto, snapshot: resolved, immediate: true });
               }, 50);
             } else {
+              console.log('[CHART-UPDATE] queueQuickDashboardHydration (state update)');
               queueQuickDashboardHydration({ ctx: auto, snapshot: resolved, immediate: true });
             }
             prevTheme = currentTheme;
