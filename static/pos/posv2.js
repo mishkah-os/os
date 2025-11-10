@@ -8423,11 +8423,22 @@
       const jobState = db.ui.jobStatus || {};
       const orderId = jobState.orderId;
       if(!orderId) return null;
+
+      // ✅ DEBUGGING: Log what data is available
+      console.log('🔍 [view-jobs MODAL] Opening for orderId:', orderId);
+      console.log('🔍 [view-jobs MODAL] db.data.kds:', db.data.kds);
+      console.log('🔍 [view-jobs MODAL] db.data.kds.jobOrders:', db.data.kds?.jobOrders);
+      console.log('🔍 [view-jobs MODAL] db.data.kds.jobOrders.headers:', db.data.kds?.jobOrders?.headers);
+      console.log('🔍 [view-jobs MODAL] db.data.kds.jobOrders.details:', db.data.kds?.jobOrders?.details);
+
       const lang = db.env.lang || 'ar';
       const kdsData = db.data.kds || {};
       const jobOrders = kdsData.jobOrders || {};
       const headers = Array.isArray(jobOrders.headers) ? jobOrders.headers.filter(header=> String(header.orderId) === String(orderId)) : [];
       const details = Array.isArray(jobOrders.details) ? jobOrders.details : [];
+
+      console.log('🔍 [view-jobs MODAL] Filtered headers for this order:', headers);
+      console.log('🔍 [view-jobs MODAL] All details:', details.length);
       const detailMap = new Map();
       details.forEach(detail=>{
         if(!detail || !detail.jobOrderId) return;
