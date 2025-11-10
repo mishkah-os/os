@@ -4698,16 +4698,18 @@
         }
       };
     }
+    // ❌ [POS V2] OLD WebSocket connection DISABLED
+    // We now rely 100% on mishkah-store for real-time sync
+    // The old direct WebSocket caused duplicate broadcasts
     const kdsSyncHandlers = {
       onOrders: handleKdsOrderPayload,
       onJobUpdate: handleKdsJobUpdate,
       onDeliveryUpdate: handleKdsDeliveryUpdate,
       onHandoffUpdate: handleKdsHandoffUpdate
     };
-    const kdsSync = createKDSSync({ endpoint: kdsEndpoint, token: kdsToken, handlers: kdsSyncHandlers, channel: BRANCH_CHANNEL, localEmitter: emitLocalKdsMessage });
-    if(kdsSync && typeof kdsSync.connect === 'function'){
-      kdsSync.connect();
-    }
+    // ❌ DISABLED: const kdsSync = createKDSSync({ endpoint: kdsEndpoint, token: kdsToken, handlers: kdsSyncHandlers, channel: BRANCH_CHANNEL, localEmitter: emitLocalKdsMessage });
+    // ❌ DISABLED: if(kdsSync && typeof kdsSync.connect === 'function'){ kdsSync.connect(); }
+    const kdsSync = null; // ✅ Set to null - mishkah-store handles everything now
 
     let kitchenSections;
     let categorySections;
@@ -6477,11 +6479,58 @@
             try { await posDB.deleteTempOrder(previousOrderId); } catch(_tempErr){}
           }
         }
-        if(kdsSync && typeof kdsSync.publishOrder === 'function'){
-          const publishedPayload = kdsSync.publishOrder(orderPayload, state);
-          if(publishedPayload){
-            applyKdsOrderSnapshotNow(publishedPayload, { source:'pos', local:true });
+        // ✅ [POS V2] Save job_order_* tables to database via mishkah-store
+        // This replaces the old WebSocket direct broadcast
+        console.log('🔥 [POS V2] Saving job_order tables to database...');
+        const store = window.__POS_DB__;
+        if(store && typeof store.insert === 'function'){
+          try {
+            // Generate KDS payload with job_order tables
+            const kdsPayload = serializeOrderForKDS(orderPayload, state);
+
+            if(kdsPayload && kdsPayload.job_order_header){
+              console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
+
+              // Save job_order_header (one per kitchen station)
+              for(const jobHeader of kdsPayload.job_order_header){
+                await store.insert('job_order_header', jobHeader);
+                console.log('[POS V2] ✅ Saved job_order_header:', jobHeader.id);
+              }
+
+              // Save job_order_detail (items per station)
+              if(Array.isArray(kdsPayload.job_order_detail)){
+                console.log('[POS V2] job_order_detail count:', kdsPayload.job_order_detail.length);
+                for(const jobDetail of kdsPayload.job_order_detail){
+                  await store.insert('job_order_detail', jobDetail);
+                }
+                console.log('[POS V2] ✅ Saved all job_order_detail');
+              }
+
+              // Save job_order_detail_modifier (modifiers)
+              if(Array.isArray(kdsPayload.job_order_detail_modifier)){
+                console.log('[POS V2] job_order_detail_modifier count:', kdsPayload.job_order_detail_modifier.length);
+                for(const modifier of kdsPayload.job_order_detail_modifier){
+                  await store.insert('job_order_detail_modifier', modifier);
+                }
+                console.log('[POS V2] ✅ Saved all job_order_detail_modifier');
+              }
+
+              console.log('✅ [POS V2] job_order tables saved successfully!');
+              console.log('📡 [POS V2] mishkah-store will broadcast automatically to KDS');
+
+              // Apply to local state for immediate UI update
+              if(typeof applyKdsOrderSnapshotNow === 'function'){
+                applyKdsOrderSnapshotNow(kdsPayload, { source:'pos', local:true });
+              }
+            } else {
+              console.warn('[POS V2] ⚠️ No job_order payload generated');
+            }
+          } catch(jobOrderError){
+            console.error('[POS V2] ❌ Failed to save job_order:', jobOrderError);
+            // Don't fail the entire save - job_order is secondary
           }
+        } else {
+          console.warn('[POS V2] ⚠️ mishkah-store not available - job_order not saved');
         }
         await posDB.markSync();
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
