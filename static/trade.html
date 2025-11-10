@@ -1430,51 +1430,38 @@
             }
             element.__countdownInit = true;
 
-            // Wait until element is visible before starting countdown
-            function waitForVisibility(callback) {
-              if (element.offsetWidth > 0 && element.offsetHeight > 0) {
-                console.log('[✓] Element is visible, starting countdown');
-                callback();
-              } else {
-                console.log('[⏳] Element not visible yet, waiting...');
-                setTimeout(function() { waitForVisibility(callback); }, 50);
+            // Get initial values from data attributes
+            var initialSeconds = Number(element.getAttribute('data-countdown')) || 270;
+            var baseline = Number(element.dataset.countdownBaseline) || initialSeconds;
+            var template = element.getAttribute('data-countdown-template') || '{{time}}';
+
+            console.log('[DEBUG] Initializing countdown: initial=' + initialSeconds + ', baseline=' + baseline);
+
+            // Use internal state
+            var currentSeconds = initialSeconds;
+
+            var updateCountdown = function() {
+              if (currentSeconds <= 0) {
+                currentSeconds = baseline;
+                element.dispatchEvent(new CustomEvent('countdown:finished'));
               }
-            }
 
-            waitForVisibility(function() {
-              // Get initial values from data attributes
-              var initialSeconds = Number(element.getAttribute('data-countdown')) || 270;
-              var baseline = Number(element.dataset.countdownBaseline) || initialSeconds;
-              var template = element.getAttribute('data-countdown-template') || '{{time}}';
+              // Update display
+              var minutes = Math.floor(currentSeconds / 60);
+              var seconds = currentSeconds % 60;
+              var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+              var displayText = template.replace('{{time}}', timeStr);
 
-              console.log('[DEBUG] Initializing countdown: initial=' + initialSeconds + ', baseline=' + baseline);
+              element.textContent = displayText;
+              currentSeconds--;
+            };
 
-              // Use internal state
-              var currentSeconds = initialSeconds;
+            // Initial render
+            updateCountdown();
 
-              var updateCountdown = function() {
-                if (currentSeconds <= 0) {
-                  currentSeconds = baseline;
-                  element.dispatchEvent(new CustomEvent('countdown:finished'));
-                }
-
-                // Update display
-                var minutes = Math.floor(currentSeconds / 60);
-                var seconds = currentSeconds % 60;
-                var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
-                var displayText = template.replace('{{time}}', timeStr);
-
-                element.textContent = displayText;
-                currentSeconds--;
-              };
-
-              // Initial render
-              updateCountdown();
-
-              // Start interval
-              element.__countdownInterval = setInterval(updateCountdown, 1000);
-              console.log('[✓] Countdown started successfully!');
-            });
+            // Start interval
+            element.__countdownInterval = setInterval(updateCountdown, 1000);
+            console.log('[✓] Countdown started successfully!');
           });
         }
 
@@ -1507,6 +1494,21 @@
               console.log('[✓] Button content injected successfully!');
             } else {
               console.log('[✓] Button already has content');
+            }
+
+            // Add direct click handler (Orders system backup)
+            if (!btn.__clickHandlerAdded) {
+              btn.__clickHandlerAdded = true;
+              btn.addEventListener('click', function(e) {
+                console.log('[CLICK] Button clicked directly!');
+                var ctx = window.MishkahAuto || null;
+                if (ctx) {
+                  toggleLiveData(e, ctx);
+                } else {
+                  console.error('[CLICK] No context available!');
+                }
+              });
+              console.log('[✓] Direct click handler added to button');
             }
           });
         }
