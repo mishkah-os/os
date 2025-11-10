@@ -1130,15 +1130,20 @@
           }
 
           var performed = false;
+          console.log('[RANDOMIZE] ========== randomizeSalesReport commit START ==========');
           commit(context, function (next, prev) {
+            console.log('[RANDOMIZE] Commit function called');
+            console.log('[RANDOMIZE] Previous state analytics:', prev && prev.data && prev.data.analytics);
             next.data = next.data || {};
             var analytics = next.data.analytics && typeof next.data.analytics === 'object' ? next.data.analytics : {};
             next.data.analytics = analytics;
             ensureHelperBindings(next);
 
             if (analytics.autoSimulate === false && options.force !== true) {
+              console.log('[RANDOMIZE] autoSimulate is false and force not set, returning');
               return;
             }
+            console.log('[RANDOMIZE] Proceeding with data generation...');
 
             var prevAnalytics = prev && prev.data && typeof prev.data.analytics === 'object' ? prev.data.analytics : null;
             var reusePrevious = options.reusePrevious === true;
@@ -1210,9 +1215,15 @@
             next.data.metrics.revenue = Math.round(revenue);
             next.data.metrics.orders = Math.max(1, Math.round(orderBase * orderVariance));
 
+            console.log('[RANDOMIZE] Data generated! New series count:', seriesList.length);
+            console.log('[RANDOMIZE] First series values:', seriesList[0] ? seriesList[0].values : 'none');
+            console.log('[RANDOMIZE] State analytics after update:', next.data.analytics);
+
             performed = true;
           }, function (latest) {
+            console.log('[RANDOMIZE] Commit completed! Latest state:', latest);
             var nextSnapshot = ensureHelperBindings(latest || null);
+            console.log('[RANDOMIZE] Next snapshot analytics:', nextSnapshot && nextSnapshot.data && nextSnapshot.data.analytics);
             if (nextSnapshot) {
               ensureCountdownLoop(nextSnapshot);
             }
@@ -1220,6 +1231,7 @@
               console.log('[CHART-UPDATE] queueQuickDashboardHydration (after data commit, performed=' + performed + ')');
               queueQuickDashboardHydration({ ctx: context, snapshot: nextSnapshot, immediate: true });
             }
+            console.log('[RANDOMIZE] ========== randomizeSalesReport commit END ==========');
           });
 
           return performed;
