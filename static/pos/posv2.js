@@ -6248,7 +6248,8 @@
           status: sanitizedLine?.status || 'draft',
           statusId: sanitizedLine?.statusId || sanitizedLine?.status || 'draft',
           status_id: sanitizedLine?.status_id || sanitizedLine?.statusId || sanitizedLine?.status || 'draft',
-          notes: Array.isArray(sanitizedLine?.notes) ? sanitizedLine.notes : (sanitizedLine?.notes ? [sanitizedLine.notes] : []),
+          // ✅ FIXED: Convert notes array to text for backend (order_line.notes is TEXT not JSON)
+          notes: notesToText(sanitizedLine?.notes, ' • '),
           discount: normalizeDiscount(sanitizedLine?.discount),
           updatedAt: now,
           kitchenSection,
