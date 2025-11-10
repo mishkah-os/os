@@ -6059,11 +6059,19 @@
         retryCount
       });
 
-      // ✅ فحص: يوجد سطر واحد على الأقل؟
+      // ✅ CRITICAL: فحص يوجد سطر واحد على الأقل - هذا يمنع حفظ orders فارغة تماماً
       const lines = order.lines || [];
       const validLines = lines.filter(line => !line.cancelled && !line.voided);
+
+      console.log('🔍 [POS V2] EMPTY ORDER CHECK:', {
+        totalLines: lines.length,
+        validLines: validLines.length,
+        isPersisted: order.isPersisted,
+        orderId: order.id
+      });
+
       if(!validLines.length){
-        console.error('[POS] Cannot save empty order');
+        console.error('❌ [POS V2] BLOCKED: Cannot save empty order - no valid lines!');
         UI.pushToast(ctx, {
           title: t.toast.empty_order || 'لا يمكن حفظ طلب فارغ',
           subtitle: 'يجب إضافة صنف واحد على الأقل',
@@ -6605,9 +6613,23 @@
               console.log('✅ [POS V2] job_order tables saved successfully!');
               console.log('📡 [POS V2] mishkah-store will broadcast automatically to KDS');
 
-              // Apply to local state for immediate UI update
+              // ✅ Apply to local state for immediate UI update
+              // IMPORTANT: Convert kdsPayload structure to match applyKdsOrderSnapshotNow expectations
               if(typeof applyKdsOrderSnapshotNow === 'function'){
-                applyKdsOrderSnapshotNow(kdsPayload, { source:'pos', local:true });
+                const snapshotPayload = {
+                  jobOrders: {
+                    headers: kdsPayload.job_order_header || [],
+                    details: kdsPayload.job_order_detail || [],
+                    modifiers: kdsPayload.job_order_detail_modifier || [],
+                    statusHistory: [],
+                    expoPassTickets: []
+                  }
+                };
+                console.log('[POS V2] 📊 Applying job_order snapshot to local state:', {
+                  headersCount: snapshotPayload.jobOrders.headers.length,
+                  detailsCount: snapshotPayload.jobOrders.details.length
+                });
+                applyKdsOrderSnapshotNow(snapshotPayload, { source:'pos', local:true });
               }
             } else {
               console.warn('[POS V2] ⚠️ No job_order payload generated');
