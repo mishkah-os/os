@@ -1024,49 +1024,9 @@
         }
 
         function ensureCountdownLoop(state) {
-          var node = document.querySelector('[data-countdown]');
-          console.log('[DEBUG] ensureCountdownLoop called, node:', node);
-          if (!node) {
-            console.warn('[DEBUG] Countdown node not found!');
-            return;
-          }
-          var seconds = state && state.data && state.data.timer ? Number(state.data.timer.seconds) : NaN;
-          if (!Number.isFinite(seconds) || seconds <= 0) seconds = 270;
-          console.log('[DEBUG] Countdown seconds:', seconds);
-
-          // GUARD: Only update template if it changed (prevents infinite loop)
-          if (state && state.data && state.data.ui && state.data.ui.countdownTemplate) {
-            var currentTemplate = node.getAttribute('data-countdown-template');
-            if (currentTemplate !== state.data.ui.countdownTemplate) {
-              console.log('[DEBUG] Updating countdown template');
-              node.setAttribute('data-countdown-template', state.data.ui.countdownTemplate);
-            }
-          }
-
-          // GUARD: Only update baseline if it changed (prevents infinite loop)
-          var currentBaseline = node.dataset.countdownBaseline;
-          if (currentBaseline !== String(seconds)) {
-            console.log('[DEBUG] Updating countdown baseline to:', seconds);
-            node.dataset.countdownBaseline = String(seconds);
-          }
-
-          if (!node.__mkCountdownLoop) {
-            console.log('[DEBUG] Setting up countdown loop listener');
-            node.__mkCountdownLoop = true;
-            node.addEventListener('countdown:finished', function () {
-              console.log('[DEBUG] Countdown finished, restarting...');
-              var baseline = Number(node.dataset.countdownBaseline);
-              if (!Number.isFinite(baseline) || baseline <= 0) baseline = seconds;
-              window.requestAnimationFrame(function () {
-                node.setAttribute('data-countdown', baseline);
-              });
-            });
-          }
-          var current = Number(node.getAttribute('data-countdown'));
-          console.log('[DEBUG] Current countdown value:', current, 'Setting to:', seconds);
-          if (!Number.isFinite(current) || Math.abs(current - seconds) > 0.5) {
-            node.setAttribute('data-countdown', seconds);
-          }
+          // DEPRECATED: Countdown is now handled by initCountdownDirectives()
+          // This function is kept as a no-op to avoid breaking existing calls
+          return;
         }
 
         function randomizeSalesReport(event, ctx, opts) {
@@ -1464,28 +1424,38 @@
           console.log('[DEBUG] Found', countdownElements.length, 'countdown elements');
 
           countdownElements.forEach(function(element) {
-            if (element.__countdownInit) return; // Already initialized
+            if (element.__countdownInit) {
+              console.log('[DEBUG] Element already initialized, skipping');
+              return; // Already initialized
+            }
             element.__countdownInit = true;
 
+            // Get initial values from data attributes
+            var initialSeconds = Number(element.getAttribute('data-countdown')) || 270;
+            var baseline = Number(element.dataset.countdownBaseline) || initialSeconds;
+            var template = element.getAttribute('data-countdown-template') || '{{time}}';
+
+            console.log('[DEBUG] Initializing countdown: initial=' + initialSeconds + ', baseline=' + baseline);
+
+            // Use internal state instead of DOM attributes (prevents VDOM conflicts)
+            var currentSeconds = initialSeconds;
+
             var updateCountdown = function() {
-              var current = Number(element.getAttribute('data-countdown'));
-              if (!Number.isFinite(current) || current <= 0) {
+              if (currentSeconds <= 0) {
                 // Restart from baseline
-                var baseline = Number(element.dataset.countdownBaseline) || 270;
-                element.setAttribute('data-countdown', baseline);
+                currentSeconds = baseline;
                 element.dispatchEvent(new CustomEvent('countdown:finished'));
-                return;
+                console.log('[DEBUG] Countdown finished, restarting from:', baseline);
               }
 
-              // Update display
-              var template = element.getAttribute('data-countdown-template') || '{{time}}';
-              var minutes = Math.floor(current / 60);
-              var seconds = current % 60;
+              // Update display (textContent is safe - won't trigger VDOM patch)
+              var minutes = Math.floor(currentSeconds / 60);
+              var seconds = currentSeconds % 60;
               var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
               element.textContent = template.replace('{{time}}', timeStr);
 
-              // Decrement
-              element.setAttribute('data-countdown', current - 1);
+              // Decrement internal state
+              currentSeconds--;
             };
 
             // Initial render

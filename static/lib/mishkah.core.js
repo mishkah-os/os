@@ -600,7 +600,18 @@
       for (i=0;i<prevList.length && !hasKeys;i++) if (isKeyed(prevList[i])) hasKeys = true;
 
       if (!hasKeys){
-        // PROTECTION: Don't empty elements that have real DOM children
+        // PROTECTION 1: Skip patching for elements with active directives (countdown, etc.)
+        if (parent && parent.hasAttribute && parent.hasAttribute('data-countdown') && parent.__countdownInit) {
+          if (M.Auditor && M.Auditor.warn) {
+            M.Auditor.warn('W-VDOM-PROTECT-DIRECTIVE', 'Skipped patching element with active countdown directive', {
+              parentTag: parent.tagName,
+              hasCountdown: true
+            });
+          }
+          return; // Don't patch countdown elements - they manage their own content
+        }
+
+        // PROTECTION 2: Don't empty elements that have real DOM children
         // This prevents bugs where post-render hydration empties buttons/elements
         if (nextList.length === 0 && prevList.length > 0 && parent && parent.childNodes && parent.childNodes.length > 0) {
           var hasRealChildren = false;
