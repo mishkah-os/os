@@ -4005,6 +4005,14 @@
       const statusHistory = Array.from(realtimeJobOrders.statusHistory.values()).map(cloneDeep);
       const expoPassTickets = Array.from(realtimeJobOrders.expoPassTickets.values()).map(cloneDeep);
       realtimeJobOrders.snapshot = { headers, details, modifiers, statusHistory, expoPassTickets };
+
+      console.log('🔍 [updateRealtimeJobOrdersSnapshot] Snapshot created:', {
+        headersCount: headers.length,
+        detailsCount: details.length,
+        modifiersCount: modifiers.length,
+        source: 'watchers'
+      });
+
       applyKdsOrderSnapshotNow({ jobOrders: realtimeJobOrders.snapshot }, { source:'indexeddb:job-orders' });
     }
 
@@ -4035,6 +4043,7 @@
         expoTicketTable
       });
       const unsubHeaders = store.watch(jobHeaderTable, (rows)=>{
+        console.log('🔍 [job_order_header WATCHER] Received rows:', rows?.length || 0);
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
         realtimeJobOrders.headers.clear();
         (rows || []).forEach(row=>{
@@ -4042,9 +4051,11 @@
           if(!normalized) return;
           realtimeJobOrders.headers.set(String(normalized.id), normalized);
         });
+        console.log('🔍 [job_order_header WATCHER] Stored in Map:', realtimeJobOrders.headers.size, 'headers');
         scheduleRealtimeJobOrdersSnapshot();
       });
       const unsubDetails = store.watch(jobDetailTable, (rows)=>{
+        console.log('🔍 [job_order_detail WATCHER] Received rows:', rows?.length || 0);
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail', rows, sanitizeJobOrderDetailRow);
         const grouped = new Map();
         (rows || []).forEach(row=>{
@@ -4055,6 +4066,7 @@
           grouped.get(key).push(normalized);
         });
         realtimeJobOrders.details = grouped;
+        console.log('🔍 [job_order_detail WATCHER] Stored in Map:', grouped.size, 'job orders');
         scheduleRealtimeJobOrdersSnapshot();
       });
       const unsubModifiers = store.watch(jobModifierTable, (rows)=>{
@@ -4136,7 +4148,21 @@
 
     function applyKdsOrderSnapshotNow(payload={}, meta={}){
       if(!payload || !payload.jobOrders) return;
+
+      console.log('🔍 [applyKdsOrderSnapshotNow] Called with:', {
+        source: meta.source,
+        headersCount: payload.jobOrders?.headers?.length || 0,
+        detailsCount: payload.jobOrders?.details?.length || 0,
+        modifiersCount: payload.jobOrders?.modifiers?.length || 0
+      });
+
       const normalizedOrders = normalizeJobOrdersSnapshot(payload.jobOrders);
+
+      console.log('🔍 [applyKdsOrderSnapshotNow] After normalization:', {
+        headersCount: normalizedOrders.headers?.length || 0,
+        detailsCount: normalizedOrders.details?.length || 0
+      });
+
       const deliveriesPatch = payload.deliveries || {};
       const handoffPatch = payload.handoff || {};
       const driversPatch = Array.isArray(payload.drivers) ? payload.drivers : [];
@@ -4144,7 +4170,19 @@
       const updateState = (state)=>{
         const data = state.data || {};
         const currentKds = data.kds || {};
+
+        console.log('🔍 [applyKdsOrderSnapshotNow] Current state:', {
+          currentHeaders: currentKds.jobOrders?.headers?.length || 0,
+          currentDetails: currentKds.jobOrders?.details?.length || 0
+        });
+
         const mergedOrders = mergeJobOrderCollections(currentKds.jobOrders || {}, normalizedOrders);
+
+        console.log('🔍 [applyKdsOrderSnapshotNow] After merge:', {
+          mergedHeaders: mergedOrders.headers?.length || 0,
+          mergedDetails: mergedOrders.details?.length || 0
+        });
+
         const assignmentsBase = currentKds.deliveries?.assignments || {};
         const settlementsBase = currentKds.deliveries?.settlements || {};
         const assignments = { ...assignmentsBase };
@@ -4166,6 +4204,11 @@
           sync:{ ...(currentKds.sync || {}), ...(payload.sync || {}) },
           lastSyncMeta:{ ...(currentKds.lastSyncMeta || {}), ...meta }
         };
+
+        console.log('🔍 [applyKdsOrderSnapshotNow] Next KDS state:', {
+          nextHeaders: nextKds.jobOrders?.headers?.length || 0,
+          nextDetails: nextKds.jobOrders?.details?.length || 0
+        });
         if(master.channel){
           nextKds.channel = master.channel;
           nextKds.sync = { ...(nextKds.sync || {}), channel: master.channel };
@@ -6652,25 +6695,15 @@
 
               console.log('✅ [POS V2] job_order tables saved successfully!');
               console.log('📡 [POS V2] mishkah-store will broadcast automatically to KDS');
+              console.log('📡 [POS V2] Watchers will update data.kds.jobOrders automatically');
 
-              // ✅ Apply to local state for immediate UI update
-              // IMPORTANT: Convert kdsPayload structure to match applyKdsOrderSnapshotNow expectations
-              if(typeof applyKdsOrderSnapshotNow === 'function'){
-                const snapshotPayload = {
-                  jobOrders: {
-                    headers: kdsPayload.job_order_header || [],
-                    details: kdsPayload.job_order_detail || [],
-                    modifiers: kdsPayload.job_order_detail_modifier || [],
-                    statusHistory: [],
-                    expoPassTickets: []
-                  }
-                };
-                console.log('[POS V2] 📊 Applying job_order snapshot to local state:', {
-                  headersCount: snapshotPayload.jobOrders.headers.length,
-                  detailsCount: snapshotPayload.jobOrders.details.length
-                });
-                applyKdsOrderSnapshotNow(snapshotPayload, { source:'pos', local:true });
-              }
+              // ❌ REMOVED: Direct call to applyKdsOrderSnapshotNow
+              // This was causing a race condition where:
+              // 1. We call applyKdsOrderSnapshotNow with fresh data
+              // 2. Watchers receive data from IndexedDB and call it again
+              // 3. Second call overwrites first call with empty arrays
+              // Solution: Let watchers handle everything (via updateRealtimeJobOrdersSnapshot)
+
             } else {
               console.warn('[POS V2] ⚠️ No job_order payload generated');
             }
