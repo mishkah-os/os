@@ -4133,90 +4133,11 @@
     }
 
     // ❌ REMOVED: applyKdsOrderSnapshotNow
-    // No longer needed - we don't use data.kds anymore, we read from window.database (like KDS!)
+    // No longer needed - we don't use data.kds anymore, read from store.listTable() instead!
     function applyKdsOrderSnapshotNow(payload={}, meta={}){
       // Do nothing - deprecated function
-      console.log('⚠️ [applyKdsOrderSnapshotNow] DEPRECATED - data.kds removed, use window.database instead');
-      console.log('⚠️ [applyKdsOrderSnapshotNow] posv2.html watchers update window.database automatically');
+      console.log('⚠️ [applyKdsOrderSnapshotNow] DEPRECATED - use store.listTable() instead');
       return;
-
-      // OLD CODE KEPT FOR REFERENCE (but never executed):
-      /*
-      if(!payload || !payload.jobOrders) return;
-      const normalizedOrders = normalizeJobOrdersSnapshot(payload.jobOrders);
-      const deliveriesPatch = payload.deliveries || {};
-      const handoffPatch = payload.handoff || {};
-      const driversPatch = Array.isArray(payload.drivers) ? payload.drivers : [];
-      const master = payload.master || {};
-      const updateState = (state)=>{
-        const data = state.data || {};
-        const currentKds = data.kds || {};
-        const mergedOrders = mergeJobOrderCollections(currentKds.jobOrders || {}, normalizedOrders);
-        const assignmentsBase = currentKds.deliveries?.assignments || {};
-        const settlementsBase = currentKds.deliveries?.settlements || {};
-        const assignments = { ...assignmentsBase };
-        Object.keys(deliveriesPatch.assignments || {}).forEach(orderId=>{
-          assignments[orderId] = { ...(assignments[orderId] || {}), ...deliveriesPatch.assignments[orderId] };
-        });
-        const settlements = { ...settlementsBase };
-        Object.keys(deliveriesPatch.settlements || {}).forEach(orderId=>{
-          settlements[orderId] = { ...(settlements[orderId] || {}), ...deliveriesPatch.settlements[orderId] };
-        });
-        const mergedDrivers = mergeDriversLists(currentKds.drivers || [], driversPatch);
-        const nextKds = {
-          ...currentKds,
-          jobOrders: mergedOrders,
-          deliveries:{ assignments, settlements },
-          handoff:{ ...(currentKds.handoff || {}), ...handoffPatch },
-          drivers: mergedDrivers,
-          metadata:{ ...(currentKds.metadata || {}), ...(payload.metadata || {}) },
-          sync:{ ...(currentKds.sync || {}), ...(payload.sync || {}) },
-          lastSyncMeta:{ ...(currentKds.lastSyncMeta || {}), ...meta }
-        };
-        if(master.channel){
-          nextKds.channel = master.channel;
-          nextKds.sync = { ...(nextKds.sync || {}), channel: master.channel };
-        }
-        if(master.stations){
-          nextKds.stations = master.stations.map(station=> ({ ...station }));
-        }
-        if(master.stationCategoryRoutes){
-          nextKds.stationCategoryRoutes = master.stationCategoryRoutes.map(route=> ({ ...route }));
-        }
-        if(master.metadata){
-          nextKds.metadata = { ...(nextKds.metadata || {}), ...master.metadata };
-        }
-        if(master.sync){
-          nextKds.sync = { ...(nextKds.sync || {}), ...master.sync };
-          if(master.sync.channel){
-            nextKds.channel = master.sync.channel;
-          }
-        }
-        if(master.drivers){
-          nextKds.drivers = mergeDriversLists(nextKds.drivers || [], master.drivers);
-        }
-        const nextData = { ...data, kds: nextKds };
-        if(master.kitchenSections){
-          nextData.kitchenSections = master.kitchenSections.map(section=> ({ ...section }));
-        }
-        if(master.categorySections){
-          nextData.categorySections = master.categorySections.map(entry=> ({ ...entry }));
-        }
-        if(master.categories || master.items){
-          const menuState = nextData.menu || data.menu || {};
-          nextData.menu = {
-            ...menuState,
-            categories: master.categories ? master.categories.map(cat=> ({ ...cat })) : menuState.categories,
-            items: master.items ? master.items.map(item=> ({ ...item })) : menuState.items
-          };
-        }
-        return { ...state, data: nextData };
-      };
-      if(appRef && typeof appRef.setState === 'function'){
-        appRef.setState(updateState);
-      } else {
-        enqueueKdsMessage({ type:'orders', payload, meta });
-      }
     }
 
     function applyKdsJobUpdateNow(jobId, payload={}, meta={}){
