@@ -1032,10 +1032,23 @@
           var seconds = state && state.data && state.data.timer ? Number(state.data.timer.seconds) : NaN;
           if (!Number.isFinite(seconds) || seconds <= 0) seconds = 270;
           console.log('[DEBUG] Countdown seconds:', seconds);
+
+          // GUARD: Only update template if it changed (prevents infinite loop)
           if (state && state.data && state.data.ui && state.data.ui.countdownTemplate) {
-            node.setAttribute('data-countdown-template', state.data.ui.countdownTemplate);
+            var currentTemplate = node.getAttribute('data-countdown-template');
+            if (currentTemplate !== state.data.ui.countdownTemplate) {
+              console.log('[DEBUG] Updating countdown template');
+              node.setAttribute('data-countdown-template', state.data.ui.countdownTemplate);
+            }
           }
-          node.dataset.countdownBaseline = String(seconds);
+
+          // GUARD: Only update baseline if it changed (prevents infinite loop)
+          var currentBaseline = node.dataset.countdownBaseline;
+          if (currentBaseline !== String(seconds)) {
+            console.log('[DEBUG] Updating countdown baseline to:', seconds);
+            node.dataset.countdownBaseline = String(seconds);
+          }
+
           if (!node.__mkCountdownLoop) {
             console.log('[DEBUG] Setting up countdown loop listener');
             node.__mkCountdownLoop = true;
