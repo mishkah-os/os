@@ -4021,11 +4021,19 @@
       if(realtimeJobOrders.installed) return;
       if(!realtimeJobOrders.store) return;
       const store = realtimeJobOrders.store;
-      const jobHeaderTable = POS_TABLE_HANDLES.job_order_header || POS_TABLE_HANDLES.job_orders || 'job_orders';
+      // ✅ [POS V2] Use correct table names matching posv2.html registration
+      const jobHeaderTable = POS_TABLE_HANDLES.job_order_header || 'job_order_header';
       const jobDetailTable = POS_TABLE_HANDLES.job_order_detail || 'job_order_detail';
       const jobModifierTable = POS_TABLE_HANDLES.job_order_detail_modifier || 'job_order_detail_modifier';
       const jobStatusTable = POS_TABLE_HANDLES.job_order_status_history || 'job_order_status_history';
       const expoTicketTable = POS_TABLE_HANDLES.expo_pass_ticket || 'expo_pass_ticket';
+      console.log('📋 [POS V2] Installing job order watchers for tables:', {
+        jobHeaderTable,
+        jobDetailTable,
+        jobModifierTable,
+        jobStatusTable,
+        expoTicketTable
+      });
       const unsubHeaders = store.watch(jobHeaderTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
         realtimeJobOrders.headers.clear();
@@ -5822,6 +5830,15 @@
 
     // Defer installing watchers until after schema fetch attempt
     fetchPosSchemaFromBackend().finally(()=>{
+      // ✅ [POS V2] Ensure stores are set from window.__POS_DB__ before installing watchers
+      if(window.__POS_DB__ && typeof window.__POS_DB__.watch === 'function'){
+        realtimeOrders.store = window.__POS_DB__;
+        realtimeJobOrders.store = window.__POS_DB__;
+        console.log('✅ [POS V2] Set realtimeOrders.store and realtimeJobOrders.store from window.__POS_DB__');
+      } else {
+        console.warn('⚠️ [POS V2] window.__POS_DB__ not available or missing watch function');
+      }
+
       installRealtimeOrderWatchers();
       installRealtimeJobOrderWatchers();
     });
