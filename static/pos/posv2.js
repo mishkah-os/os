@@ -8564,7 +8564,30 @@
         shiftId: order.shiftId || null,
         metadata: order.metadata ? { ...order.metadata } : {}
       };
+      console.log('🔍 [activateOrder] BEFORE enrichment:', {
+        orderId: safeOrder.id,
+        tableIds: safeOrder.tableIds,
+        tableId: safeOrder.tableId,
+        customerId: safeOrder.customerId,
+        customerName: safeOrder.customerName,
+        customerPhone: safeOrder.customerPhone,
+        customerAddress: safeOrder.customerAddress,
+        linesCount: safeOrder.lines?.length
+      });
+
       safeOrder = enrichOrderWithMenu(safeOrder);
+
+      console.log('🔍 [activateOrder] AFTER enrichment:', {
+        orderId: safeOrder.id,
+        tableIds: safeOrder.tableIds,
+        tableId: safeOrder.tableId,
+        customerId: safeOrder.customerId,
+        customerName: safeOrder.customerName,
+        customerPhone: safeOrder.customerPhone,
+        customerAddress: safeOrder.customerAddress,
+        linesCount: safeOrder.lines?.length
+      });
+
       console.log('[Mishkah][POS] activateOrder AFTER enrichment', {
         orderId: safeOrder.id,
         isDraftOrder,
@@ -8595,9 +8618,35 @@
           nextPayments.methods = clonePaymentMethods(PAYMENT_METHODS);
         }
         // Always recalculate totals to ensure current tax/service rates
+        console.log('🔍 [activateOrder] BEFORE calculateTotals:', {
+          linesCount: safeOrder.lines?.length || 0,
+          firstLine: safeOrder.lines?.[0],
+          settings: data.settings,
+          orderType: safeOrder.type,
+          orderDiscount: safeOrder.discount
+        });
+
         const totals = calculateTotals(safeOrder.lines || [], data.settings || {}, safeOrder.type || 'dine_in', { orderDiscount: safeOrder.discount });
+
+        console.log('🔍 [activateOrder] AFTER calculateTotals:', {
+          totals,
+          due: totals.due,
+          subtotal: totals.subtotal,
+          vat: totals.vat,
+          service: totals.service
+        });
+
         const paymentEntries = getActivePaymentEntries({ ...safeOrder, totals }, nextPayments);
         const paymentSnapshot = summarizePayments(totals, paymentEntries);
+
+        console.log('🔍 [activateOrder] PAYMENT SNAPSHOT:', {
+          paymentSnapshot,
+          due: paymentSnapshot.due,
+          paid: paymentSnapshot.paid,
+          remaining: paymentSnapshot.remaining,
+          state: paymentSnapshot.state
+        });
+
         console.log('[Mishkah][POS] activateOrder PAYMENTS STATE', {
           isPersisted: safeOrder.isPersisted,
           orderPayments: safeOrder.payments?.length || 0,
@@ -12788,17 +12837,37 @@
           const state = ctx.getState();
           const t = getTexts(state);
           let order = null;
+
+          console.log('🔍 [open-order HANDLER] Clicked - fetching order:', orderId);
+
           if(posDB.available){
             try{
               order = await posDB.getOrder(orderId);
+              console.log('🔍 [open-order HANDLER] Order fetched from API:', {
+                id: order?.id,
+                type: order?.type,
+                tableIds: order?.tableIds,
+                tableId: order?.tableId,
+                customerId: order?.customerId,
+                customerName: order?.customerName,
+                linesCount: order?.lines?.length,
+                totals: order?.totals,
+                payments: order?.payments?.length || 0
+              });
             } catch(error){
+              console.error('❌ [open-order HANDLER] Failed to fetch order:', error);
               UI.pushToast(ctx, { title:t.toast.orders_failed, message:String(error), icon:'🛑' });
             }
           }
           if(!order){
             order = [state.data.order, ...(state.data.ordersQueue || [])].find(ord=> ord && ord.id === orderId);
+            console.log('🔍 [open-order HANDLER] Order found in local state:', !!order);
           }
-          if(!order) return;
+          if(!order){
+            console.error('❌ [open-order HANDLER] Order not found!');
+            return;
+          }
+          console.log('🔍 [open-order HANDLER] Calling activateOrder...');
           activateOrder(ctx, order, { closeOrdersModal:true, resetOrderNavValue:true });
         }
       },
