@@ -35,17 +35,12 @@
     }
     return target;
   }
-  function flat(input, depth){
-    if (depth == null) depth = 1000;
-    if (depth <= 0) {
-      if (M && M.Auditor && M.Auditor.warn) M.Auditor.warn('W-FLAT', 'Max nesting depth reached in flat()', {depth: depth});
-      return toArr(input);
-    }
+  function flat(input){
     if (!isArr(input)) return toArr(input);
     var out = [];
     for (var i=0;i<input.length;i++){
       var x = input[i];
-      if (isArr(x)){ var inner = flat(x, depth - 1); for (var j=0;j<inner.length;j++) out.push(inner[j]); }
+      if (isArr(x)){ var inner = flat(x); for (var j=0;j<inner.length;j++) out.push(inner[j]); }
       else if (x!=null) out.push(x);
     }
     return out;
@@ -301,16 +296,7 @@
     for (var i=0;i<tags.length;i++){
       (function(tag){
         var C = tag.charAt(0).toUpperCase() + tag.slice(1);
-        o[C] = function(config){
-          var children = [];
-          // Flatten children: if single array argument, use it directly; otherwise collect all arguments
-          if (arguments.length === 2 && Array.isArray(arguments[1])) {
-            children = arguments[1];
-          } else {
-            for (var a=1;a<arguments.length;a++) children.push(arguments[a]);
-          }
-          return VDOM.h(tag, category, config, children);
-        };
+        o[C] = function(config){ var children = []; for (var a=1;a<arguments.length;a++) children.push(arguments[a]); return VDOM.h(tag, category, config, children); };
       })(tags[i]);
     }
     return o;
@@ -470,11 +456,8 @@
         return;
       }
       if (name==='style'){ setStyle(el, value); return; }
-      if (name.indexOf('on')===0){
-        var ev = name.slice(2).toLowerCase();
-        if (oldValue && typeof oldValue === 'function') el.removeEventListener(ev, oldValue);
-        if (typeof value === 'function') el.addEventListener(ev, value, false);
-        return;
+      if (name.indexOf('on')===0 && typeof value === 'function'){
+        var ev = name.slice(2).toLowerCase(); if (oldValue) el.removeEventListener(ev, oldValue); el.addEventListener(ev, value, false); return;
       }
       if (value==null || value===false){ el.removeAttribute(name); return; }
       if (typeof value === 'boolean'){ if (value) el.setAttribute(name,''); else el.removeAttribute(name); return; }
@@ -500,16 +483,7 @@
       for (k in next) all[k] = next[k];
       for (k in all){
         if (k==='key' || k==='gkey' || k==='t' || k.indexOf('t:')===0) continue;
-        var n = next[k], p = prev[k];
-        // Special handling for style objects to clean up removed properties
-        if (k === 'style' && isObj(p) && isObj(n)) {
-          for (var sk in p) {
-            if (!(sk in n)) {
-              try { el.style[sk] = ''; } catch(_){}
-            }
-          }
-        }
-        if (n !== p) setProp(el, k, n, p, db);
+        var n = next[k], p = prev[k]; if (n !== p) setProp(el, k, n, p, db);
       }
       applyI18n(el, { props: next, children: [] }, db);
     }
@@ -600,42 +574,6 @@
       for (i=0;i<prevList.length && !hasKeys;i++) if (isKeyed(prevList[i])) hasKeys = true;
 
       if (!hasKeys){
-        // PROTECTION 1: Skip patching for elements with active directives (countdown, etc.)
-        if (parent && parent.hasAttribute && parent.hasAttribute('data-countdown') && parent.__countdownInit) {
-          if (M.Auditor && M.Auditor.warn) {
-            M.Auditor.warn('W-VDOM-PROTECT-DIRECTIVE', 'Skipped patching element with active countdown directive', {
-              parentTag: parent.tagName,
-              hasCountdown: true
-            });
-          }
-          return; // Don't patch countdown elements - they manage their own content
-        }
-
-        // PROTECTION 2: Don't empty elements that have real DOM children
-        // This prevents bugs where post-render hydration empties buttons/elements
-        if (nextList.length === 0 && prevList.length > 0 && parent && parent.childNodes && parent.childNodes.length > 0) {
-          var hasRealChildren = false;
-          for (var ci = 0; ci < parent.childNodes.length; ci++) {
-            var child = parent.childNodes[ci];
-            // Check if it's a real element or non-empty text node
-            if (child.nodeType === 1 || (child.nodeType === 3 && child.nodeValue && child.nodeValue.trim())) {
-              hasRealChildren = true;
-              break;
-            }
-          }
-          if (hasRealChildren) {
-            if (M.Auditor && M.Auditor.warn) {
-              M.Auditor.warn('W-VDOM-PROTECT', 'Prevented emptying element with real DOM children', {
-                parentTag: parent.tagName,
-                childCount: parent.childNodes.length,
-                nextListLength: nextList.length,
-                prevListLength: prevList.length
-              });
-            }
-            return; // Skip patching to preserve children
-          }
-        }
-
         len = Math.max(nextList.length, prevList.length);
         for (i=0;i<len;i++) patch(parent, nextList[i], prevList[i], db, opts, parentPath);
         return;
