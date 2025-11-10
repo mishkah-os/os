@@ -1584,17 +1584,8 @@
       var buffer = '';
       for (var i = 0; i < parts.length; i += 1) {
         var value = parts[i](scope);
-        if (value == null) {
-          // Debug empty expression evaluation
-          if (node.tokens && node.tokens[i] && node.tokens[i].type === 'expr') {
-            console.warn('[HTMLx] Expression evaluated to null/undefined:', node.tokens[i].code);
-          }
-          continue;
-        }
+        if (value == null) continue;
         buffer += value;
-      }
-      if (buffer === '' && node.tokens && node.tokens.length > 0) {
-        console.warn('[HTMLx] Text node compiled to empty string, tokens:', node.tokens);
       }
       return buffer;
     };
@@ -1663,11 +1654,9 @@
         var out = compiled[i](scope);
         if (Array.isArray(out)) {
           for (var j = 0; j < out.length; j += 1) {
-            // Filter out null, false, and empty strings (prevent invisible nodes)
-            if (out[j] != null && out[j] !== false && out[j] !== '') rendered.push(out[j]);
+            if (out[j] != null && out[j] !== false) rendered.push(out[j]);
           }
-        } else if (out != null && out !== false && out !== '') {
-          // Filter out empty strings from text nodes to prevent invisible content
+        } else if (out != null && out !== false) {
           rendered.push(out);
         }
       }

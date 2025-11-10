@@ -1439,8 +1439,12 @@
 
             // Use internal state instead of DOM attributes (prevents VDOM conflicts)
             var currentSeconds = initialSeconds;
+            var tickCount = 0;
 
             var updateCountdown = function() {
+              tickCount++;
+              console.log('[DEBUG] updateCountdown tick #' + tickCount + ', currentSeconds=' + currentSeconds);
+
               if (currentSeconds <= 0) {
                 // Restart from baseline
                 currentSeconds = baseline;
@@ -1452,7 +1456,11 @@
               var minutes = Math.floor(currentSeconds / 60);
               var seconds = currentSeconds % 60;
               var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
-              element.textContent = template.replace('{{time}}', timeStr);
+              var displayText = template.replace('{{time}}', timeStr);
+
+              console.log('[DEBUG] Setting textContent to:', displayText);
+              element.textContent = displayText;
+              console.log('[DEBUG] After set, textContent is:', element.textContent);
 
               // Decrement internal state
               currentSeconds--;
