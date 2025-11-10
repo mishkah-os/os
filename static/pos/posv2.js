@@ -8328,16 +8328,19 @@
       const orderId = jobState.orderId;
       if(!orderId) return null;
 
-      // ✅ Use mishkah-store API directly (no window.database!)
-      const store = window.__POS_DB__;
-      if(!store || typeof store.listTable !== 'function'){
-        console.error('❌ [view-jobs MODAL] mishkah-store not available');
-        return null;
-      }
-
       console.log('🔍 [view-jobs MODAL] Opening for orderId:', orderId);
 
       const lang = db.env.lang || 'ar';
+
+      // ✅ Try store.listTable() first, fallback to window.database
+      const store = window.__POS_DB__;
+      const useStoreAPI = store && typeof store.listTable === 'function';
+
+      if(useStoreAPI){
+        console.log('✅ [view-jobs MODAL] Using store.listTable() API');
+      } else {
+        console.log('⚠️ [view-jobs MODAL] Fallback to window.database');
+      }
 
       // ✅ Helper function: Normalize field names (support both camelCase and snake_case)
       const normalizeHeader = (header) => ({
@@ -8376,15 +8379,22 @@
         prepNotes: detail.prepNotes || detail.prep_notes
       });
 
-      // ✅ Read from mishkah-store directly (no window.database!)
-      const allHeaders = store.listTable('job_order_header') || [];
+      // ✅ Read data: store.listTable() or window.database fallback
+      const allHeaders = useStoreAPI
+        ? (store.listTable('job_order_header') || [])
+        : ((window.database || {}).job_order_header || []);
+
       const headersRaw = allHeaders.filter(header=> String(header.orderId || header.order_id) === String(orderId));
       const headers = headersRaw.map(normalizeHeader);
 
-      const allDetails = store.listTable('job_order_detail') || [];
+      const allDetails = useStoreAPI
+        ? (store.listTable('job_order_detail') || [])
+        : ((window.database || {}).job_order_detail || []);
+
       const details = allDetails.map(normalizeDetail);
 
-      console.log('🔍 [view-jobs MODAL] store.listTable results:', {
+      console.log('🔍 [view-jobs MODAL] Data source:', useStoreAPI ? 'store.listTable()' : 'window.database');
+      console.log('🔍 [view-jobs MODAL] Results:', {
         totalHeaders: allHeaders.length,
         filteredHeaders: headers.length,
         totalDetails: allDetails.length,
@@ -8399,8 +8409,10 @@
         detailMap.set(detail.jobOrderId, list);
       });
 
-      // ✅ Read kitchen_sections from mishkah-store
-      const kitchenSections = store.listTable('kitchen_sections') || [];
+      // ✅ Read kitchen_sections with fallback
+      const kitchenSections = useStoreAPI
+        ? (store.listTable('kitchen_sections') || [])
+        : ((window.database || {}).kitchen_sections || []);
       const stationsIndex = new Map(kitchenSections.map(section=> [section.id, section]));
       const sectionIndex = new Map((Array.isArray(db.data.kitchenSections) ? db.data.kitchenSections : []).map(section=> [section.id, section]));
       const findOrder = ()=>{
