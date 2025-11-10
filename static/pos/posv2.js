@@ -8457,20 +8457,22 @@
       const orderId = jobState.orderId;
       if(!orderId) return null;
 
-      // ✅ DEBUGGING: Log what data is available
+      // ✅ Read DIRECTLY from window.database (same as KDS!)
+      const database = window.database || {};
+
       console.log('🔍 [view-jobs MODAL] Opening for orderId:', orderId);
-      console.log('🔍 [view-jobs MODAL] db.data.kds:', db.data.kds);
-      console.log('🔍 [view-jobs MODAL] db.data.kds.jobOrders:', db.data.kds?.jobOrders);
-      console.log('🔍 [view-jobs MODAL] db.data.kds.jobOrders.headers:', db.data.kds?.jobOrders?.headers);
-      console.log('🔍 [view-jobs MODAL] db.data.kds.jobOrders.details:', db.data.kds?.jobOrders?.details);
+      console.log('🔍 [view-jobs MODAL] window.database.job_order_header:', database.job_order_header?.length || 0);
+      console.log('🔍 [view-jobs MODAL] window.database.job_order_detail:', database.job_order_detail?.length || 0);
 
       const lang = db.env.lang || 'ar';
-      const kdsData = db.data.kds || {};
-      const jobOrders = kdsData.jobOrders || {};
-      const headers = Array.isArray(jobOrders.headers) ? jobOrders.headers.filter(header=> String(header.orderId) === String(orderId)) : [];
-      const details = Array.isArray(jobOrders.details) ? jobOrders.details : [];
 
-      console.log('🔍 [view-jobs MODAL] Filtered headers for this order:', headers);
+      // ✅ Use flat structure like KDS (read from window.database directly)
+      const headers = Array.isArray(database.job_order_header)
+        ? database.job_order_header.filter(header=> String(header.orderId) === String(orderId))
+        : [];
+      const details = Array.isArray(database.job_order_detail) ? database.job_order_detail : [];
+
+      console.log('🔍 [view-jobs MODAL] Filtered headers for this order:', headers.length);
       console.log('🔍 [view-jobs MODAL] All details:', details.length);
       const detailMap = new Map();
       details.forEach(detail=>{
@@ -8479,7 +8481,10 @@
         list.push(detail);
         detailMap.set(detail.jobOrderId, list);
       });
-      const stationsIndex = new Map((Array.isArray(kdsData.stations) ? kdsData.stations : []).map(station=> [station.id, station]));
+
+      // ✅ Read kitchen_sections directly from database (not from kdsData.stations)
+      const kitchenSections = Array.isArray(database.kitchen_sections) ? database.kitchen_sections : [];
+      const stationsIndex = new Map(kitchenSections.map(section=> [section.id, section]));
       const sectionIndex = new Map((Array.isArray(db.data.kitchenSections) ? db.data.kitchenSections : []).map(section=> [section.id, section]));
       const findOrder = ()=>{
         const candidates = [db.data.order, ...(db.data.ordersQueue || []), ...(db.data.ordersHistory || [])];
