@@ -8341,7 +8341,23 @@
       const lang = db.env.lang || 'ar';
 
       // ✅ Read from window.database (same as KDS for compatibility!)
-      const database = typeof window !== 'undefined' ? (window.database || {}) : {};
+      let database = typeof window !== 'undefined' ? (window.database || {}) : {};
+
+      // ✅ WORKAROUND: If window.database empty, read from store.state directly
+      const store = window.__POS_DB__;
+      if(store && (!database.job_order_header || database.job_order_header.length === 0)){
+        const storeState = store.store?.state?.modules?.pos?.tables || {};
+        if(storeState.job_order_header && storeState.job_order_header.length > 0){
+          console.log('⚠️ [view-jobs MODAL] window.database empty - using store.state directly!');
+          console.log('⚠️ [view-jobs MODAL] Found', storeState.job_order_header.length, 'headers in store.state');
+          database = {
+            ...database,
+            job_order_header: storeState.job_order_header || [],
+            job_order_detail: storeState.job_order_detail || [],
+            kitchen_sections: storeState.kitchen_sections || []
+          };
+        }
+      }
 
       // ✅ Helper function: Translate job status to current language
       const translateJobStatus = (status) => {
