@@ -175,10 +175,10 @@
             });
           });
 
-          // 6. Load posv2.js
+          // 6. Load posv2.js (with cache-busting timestamp)
           console.log('🚀 [POS V2] Loading posv2.js...');
           const script = document.createElement('script');
-          script.src = './posv2.js';
+          script.src = `./posv2.js?v=${Date.now()}`; // ✅ Force reload (bypass cache)
           document.head.appendChild(script);
 
         } catch (error) {

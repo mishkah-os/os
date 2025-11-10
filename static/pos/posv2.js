@@ -6020,14 +6020,12 @@
       console.log('🔥 [CLAUDE FIX v3] persistOrderFlow STARTED');
       console.log('═══════════════════════════════════════════════════════');
 
-      // ✅ CRITICAL FIX: Check IS_SAVING_ORDER at START of function
-      // This prevents recursive calls from bypassing the duplicate save protection
-      const isRetry = options.retryCount > 0;
-      if(IS_SAVING_ORDER && !isRetry){
-        console.error('❌ [CLAUDE FIX v3] BLOCKED: Save already in progress (checked at function start)');
-        console.error('   This indicates multiple simultaneous save attempts!');
-        return { status:'error', reason:'save-in-progress' };
-      }
+      // ✅ NOTE: IS_SAVING_ORDER check is ONLY in button handler (Line 11037-11040)
+      // We don't check here because:
+      // 1. Button handler sets IS_SAVING_ORDER = true BEFORE calling this function
+      // 2. Checking here would block even the first legitimate save attempt
+      // 3. Retry calls (options.retryCount > 0) need to bypass the check anyway
+      // The button handler's check is sufficient to prevent duplicate saves
 
       const state = ctx.getState();
       const t = getTexts(state);
