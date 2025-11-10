@@ -4021,11 +4021,19 @@
       if(realtimeJobOrders.installed) return;
       if(!realtimeJobOrders.store) return;
       const store = realtimeJobOrders.store;
-      const jobHeaderTable = POS_TABLE_HANDLES.job_order_header || POS_TABLE_HANDLES.job_orders || 'job_orders';
+      // ✅ [POS V2] Use correct table names matching posv2.html registration
+      const jobHeaderTable = POS_TABLE_HANDLES.job_order_header || 'job_order_header';
       const jobDetailTable = POS_TABLE_HANDLES.job_order_detail || 'job_order_detail';
       const jobModifierTable = POS_TABLE_HANDLES.job_order_detail_modifier || 'job_order_detail_modifier';
       const jobStatusTable = POS_TABLE_HANDLES.job_order_status_history || 'job_order_status_history';
       const expoTicketTable = POS_TABLE_HANDLES.expo_pass_ticket || 'expo_pass_ticket';
+      console.log('📋 [POS V2] Installing job order watchers for tables:', {
+        jobHeaderTable,
+        jobDetailTable,
+        jobModifierTable,
+        jobStatusTable,
+        expoTicketTable
+      });
       const unsubHeaders = store.watch(jobHeaderTable, (rows)=>{
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_header', rows, sanitizeJobOrderHeaderRow);
         realtimeJobOrders.headers.clear();
@@ -5822,6 +5830,15 @@
 
     // Defer installing watchers until after schema fetch attempt
     fetchPosSchemaFromBackend().finally(()=>{
+      // ✅ [POS V2] Ensure stores are set from window.__POS_DB__ before installing watchers
+      if(window.__POS_DB__ && typeof window.__POS_DB__.watch === 'function'){
+        realtimeOrders.store = window.__POS_DB__;
+        realtimeJobOrders.store = window.__POS_DB__;
+        console.log('✅ [POS V2] Set realtimeOrders.store and realtimeJobOrders.store from window.__POS_DB__');
+      } else {
+        console.warn('⚠️ [POS V2] window.__POS_DB__ not available or missing watch function');
+      }
+
       installRealtimeOrderWatchers();
       installRealtimeJobOrderWatchers();
     });
@@ -6586,6 +6603,38 @@
               }
             } else {
               console.warn('[POS V2] ⚠️ No job_order payload generated');
+            }
+
+            // ✅ [POS V2] Save NEW payments via mishkah-store (unified with kds.js)
+            // This ensures real-time payment sync across POS and KDS
+            console.log('💰 [POS V2] Saving NEW payments to database...');
+            if(newPaymentsOnly.length > 0){
+              console.log('[POS V2] New payments to save:', newPaymentsOnly.length);
+              const nowIso = new Date(now).toISOString();
+
+              for(const payment of newPaymentsOnly){
+                const paymentRecord = {
+                  id: payment.id || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  orderId: finalOrderId,
+                  paymentMethodId: payment.method || 'cash',
+                  amount: round(Number(payment.amount) || 0),
+                  capturedAt: nowIso,
+                  shiftId: currentShift?.id || 'current-shift',
+                  reference: payment.reference || null
+                };
+
+                try {
+                  await store.insert('order_payment', paymentRecord);
+                  console.log('[POS V2] ✅ Saved payment:', paymentRecord.id, 'amount:', paymentRecord.amount);
+                } catch(paymentError){
+                  console.error('[POS V2] ❌ Failed to save payment:', paymentError);
+                  // Don't fail the entire save - payment is non-critical
+                }
+              }
+              console.log('✅ [POS V2] Payments saved successfully!');
+              console.log('📡 [POS V2] mishkah-store will broadcast payments to all screens');
+            } else {
+              console.log('[POS V2] No new payments to save');
             }
           } catch(jobOrderError){
             console.error('[POS V2] ❌ Failed to save job_order:', jobOrderError);
@@ -8117,10 +8166,34 @@
         mergedOrders.push(order);
       });
 
+      // ✅ Helper: Check if order is completed (delivered/closed + fully paid)
+      const isOrderCompleted = (order)=>{
+        const fulfillmentStage = order.fulfillmentStage || 'new';
+        const paymentState = order.paymentState || 'unpaid';
+
+        // ✅ Order is completed if:
+        // 1. Delivered (delivery/takeaway) or Closed (dine_in)
+        // 2. AND fully paid
+        const isDelivered = fulfillmentStage === 'delivered' || fulfillmentStage === 'closed';
+        const isFullyPaid = paymentState === 'paid' || paymentState === 'overpaid';
+
+        return isDelivered && isFullyPaid;
+      };
+
       const matchesTab = (order)=>{
-        if(activeTab === 'all') return true;
+        if(activeTab === 'completed'){
+          // ✅ Show only completed orders (delivered + paid)
+          return isOrderCompleted(order);
+        }
+
+        if(activeTab === 'all'){
+          // ✅ Hide completed orders from "all" tab
+          return !isOrderCompleted(order);
+        }
+
         const typeId = order.type || order.orderType || 'dine_in';
-        return typeId === activeTab;
+        // ✅ For type-specific tabs, also hide completed orders
+        return typeId === activeTab && !isOrderCompleted(order);
       };
 
       const matchesSearch = (order)=>{
@@ -8250,7 +8323,8 @@
         { id:'all', label:t.ui.orders_tab_all },
         { id:'dine_in', label:t.ui.orders_tab_dine_in },
         { id:'delivery', label:t.ui.orders_tab_delivery },
-        { id:'takeaway', label:t.ui.orders_tab_takeaway }
+        { id:'takeaway', label:t.ui.orders_tab_takeaway },
+        { id:'completed', label:t.ui.orders_tab_completed || (db.env.lang === 'ar' ? 'منتهية' : 'Completed') }
       ];
 
       return UI.Modal({
