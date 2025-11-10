@@ -7457,9 +7457,11 @@
       const paymentEntries = getActivePaymentEntries(order, db.data.payments);
       const paymentSnapshot = summarizePayments(order.totals || {}, paymentEntries);
       const outstanding = paymentSnapshot.remaining || 0;
-      const requiresFullPaymentBeforeFinish = isTakeaway; // ✅ FIXED: Takeaway requires full payment before finish
-      const finishDisabled = requiresFullPaymentBeforeFinish && outstanding > 0.0001;
-      const saveDisabled = isTakeaway && outstanding > 0.0001; // ✅ NEW: Takeaway also requires full payment for draft save
+      // ✅ FIXED: For takeaway:
+      //    - Save button is DISABLED (requires payment)
+      //    - Finish button is ENABLED (smart - opens payment modal first)
+      const saveDisabled = isTakeaway && outstanding > 0.0001;
+      const finishDisabled = false; // Finish button always enabled - it will open payment modal if needed
       const canShowSave = !isFinalized && !deliveredStage;
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
@@ -11170,18 +11172,60 @@
         on:['click'],
         gkeys:['pos:order:save'],
         handler: async (e,ctx)=>{
-          console.log('🚀 [CLAUDE FIX v2] Save button clicked - checking if save in progress...');
+          console.log('🚀 [POS SAVE] Save button clicked');
 
           // ✅ STRONG protection against duplicate saves
           if(IS_SAVING_ORDER){
-            console.warn('⚠️ [CLAUDE FIX] Save already in progress - BLOCKING duplicate save attempt');
+            console.warn('⚠️ [POS SAVE] Save already in progress - BLOCKING duplicate save attempt');
+            return;
+          }
+
+          // ✅ PRE-VALIDATION: Check for empty order BEFORE calling persistOrderFlow
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const order = state.data.order || {};
+          const lines = order.lines || [];
+          const validLines = lines.filter(line => {
+            const notCancelled = !line.cancelled && !line.voided;
+            const hasQuantity = Number(line.qty || line.quantity || 0) > 0;
+            return notCancelled && hasQuantity;
+          });
+
+          console.log('🔍 [POS SAVE] Pre-validation check:', {
+            totalLines: lines.length,
+            validLines: validLines.length,
+            orderId: order.id,
+            isPersisted: order.isPersisted
+          });
+
+          if(!validLines.length){
+            console.error('❌ [POS SAVE] BLOCKED: Cannot save empty order - no valid lines!');
+            UI.pushToast(ctx, {
+              title: t.toast.empty_order || 'لا يمكن حفظ طلب فارغ',
+              subtitle: 'يجب إضافة صنف واحد على الأقل',
+              icon:'⚠️'
+            });
+            return;
+          }
+
+          // ✅ Check for zero total
+          const totals = order.totals || calculateTotals(validLines, state.data.settings || {}, order.type || 'dine_in', { orderDiscount: order.discount });
+          console.log('🔍 [POS SAVE] Total check:', { due: totals.due, subtotal: totals.subtotal });
+
+          if(totals.due <= 0 && !order.isPersisted){
+            console.error('❌ [POS SAVE] BLOCKED: Cannot save order with zero or negative total!');
+            UI.pushToast(ctx, {
+              title: t.toast.order_zero_total || 'لا يمكن حفظ طلب بقيمة صفرية',
+              subtitle: 'تأكد من أن جميع الأصناف لها أسعار صحيحة',
+              icon:'⚠️'
+            });
             return;
           }
 
           const trigger = e.target.closest('[data-save-mode]');
           const mode = trigger?.getAttribute('data-save-mode') || 'draft';
 
-          console.log('✅ [CLAUDE FIX] Starting save operation', { mode, timestamp: new Date().toISOString() });
+          console.log('✅ [POS SAVE] Starting save operation', { mode, validLines: validLines.length });
 
           IS_SAVING_ORDER = true;
           ctx.setState(s=>({
@@ -11191,9 +11235,9 @@
 
           try {
             await persistOrderFlow(ctx, mode);
-            console.log('✅ [CLAUDE FIX] Save completed successfully');
+            console.log('✅ [POS SAVE] Save completed successfully');
           } catch(error) {
-            console.error('❌ [CLAUDE FIX] Save failed:', error);
+            console.error('❌ [POS SAVE] Save failed:', error);
             throw error;
           } finally {
             IS_SAVING_ORDER = false;
@@ -11201,7 +11245,7 @@
               ...s,
               ui:{ ...(s.ui || {}), saving:false }
             }));
-            console.log('🔓 [CLAUDE FIX] Save lock released');
+            console.log('🔓 [POS SAVE] Save lock released');
           }
         }
       },
