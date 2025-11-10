@@ -2592,6 +2592,16 @@
           stationId,  // ✅ Add stationId to detail for proper routing
           kitchenSectionId: stationId  // ✅ Also add as kitchenSectionId
         };
+        // 🔍 DEBUG: Log prepNotes to verify conversion
+        if(line.notes){
+          console.log('[POS][serializeOrderForKDS] Line notes:', {
+            lineId: line.id,
+            rawNotes: line.notes,
+            convertedPrepNotes: detail.prepNotes,
+            notesType: typeof line.notes,
+            isArray: Array.isArray(line.notes)
+          });
+        }
         jobDetails.push(detail);
         const modifiers = ensureList(line.modifiers).filter(Boolean);
         modifiers.forEach((mod, idx)=>{
@@ -6048,8 +6058,10 @@
       const previousOrderId = order.id;
       const orderType = order.type || 'dine_in';
       const mode = normalizeSaveMode(rawMode, orderType);
-      const requiresPayment = mode === 'finalize' || mode === 'finalize-print';
-      const finalize = requiresPayment;
+      const finalize = mode === 'finalize' || mode === 'finalize-print';
+      // ✅ FIXED: For takeaway, always require payment (both draft and finalize)
+      // For other types, only require payment when finalizing
+      const requiresPayment = (orderType === 'takeaway') || (mode === 'finalize' || mode === 'finalize-print');
       const openPrint = mode === 'finalize-print';
       const assignedTables = Array.isArray(order.tableIds) ? order.tableIds.filter(Boolean) : [];
       if(orderType === 'dine_in' && assignedTables.length === 0){
@@ -6062,31 +6074,6 @@
         if(!customerId || !addressId){
           UI.pushToast(ctx, { title:t.toast.order_customer_required || t.ui.customer_required_delivery, icon:'⚠️' });
           return { status:'error', reason:'customer-required' };
-        }
-      }
-      // ✅ NEW: Takeaway requires 100% payment before saving (both draft and finalize)
-      if(orderType === 'takeaway'){
-        const paymentEntries = getActivePaymentEntries(order, state.data.payments);
-        const preliminaryTotals = order.totals || calculateTotals(order.lines || [], state.data.settings || {}, orderType, { orderDiscount: order.discount });
-        const paymentSnapshot = summarizePayments(preliminaryTotals, paymentEntries);
-        const outstanding = paymentSnapshot.remaining || 0;
-        if(outstanding > 0.0001 && !options.skipPaymentCheck){
-          console.log('[POS] Takeaway order requires full payment', { outstanding, totals: preliminaryTotals });
-          ctx.setState(s=>({
-            ...s,
-            ui:{
-              ...(s.ui || {}),
-              modals:{ ...(s.ui?.modals || {}), payments:true },
-              paymentDraft:{ ...(s.ui?.paymentDraft || {}), amount: outstanding ? String(outstanding) : '', method: s.data.payments?.activeMethod || 'cash' },
-              pendingAction:{ type:'save-takeaway', mode: rawMode, orderId: order.id, createdAt: Date.now() }
-            }
-          }));
-          UI.pushToast(ctx, {
-            title: t.toast.takeaway_payment_required || 'التيك أواي يتطلب سداد كامل',
-            message: t.ui.balance_due || 'المتبقي غير المسدد',
-            icon:'💳'
-          });
-          return { status:'pending-payment', mode: rawMode };
         }
       }
       const currentVersion = Number(order.currentVersion ?? order.version);
@@ -6780,78 +6767,6 @@
         await refreshPersistentSnapshot({ focusCurrent:true, syncOrders:true });
         const toastKey = finalize ? 'order_finalized' : 'order_saved';
         UI.pushToast(ctx, { title:t.toast[toastKey], icon: finalize ? '✅' : '💾' });
-
-        // ✅ NEW: Auto-clear after successful save to start new order
-        console.log('[POS] Order saved successfully, creating new order...');
-        const newOrderId = await generateOrderId();
-        const currentShift = state.data.shift?.current;
-        if(currentShift){
-          const typeConfig = getOrderTypeConfig(orderType);
-          const emptyTotals = calculateTotals([], state.data.settings || {}, orderType, { orderDiscount: null });
-          ctx.setState(s=>{
-            const data = s.data || {};
-            return {
-              ...s,
-              data:{
-                ...data,
-                order:{
-                  id: newOrderId,
-                  status:'open',
-                  fulfillmentStage:'new',
-                  paymentState:'unpaid',
-                  type: orderType,
-                  lines:[],
-                  notes:[],
-                  discount:null,
-                  totals: emptyTotals,
-                  tableIds:[],
-                  guests: orderType === 'dine_in' ? 0 : 0,
-                  createdAt: Date.now(),
-                  updatedAt: Date.now(),
-                  allowAdditions: !!typeConfig.allowsLineAdditions,
-                  lockLineEdits:false,
-                  isPersisted:false,
-                  shiftId: currentShift.id,
-                  posId: data.pos?.id || POS_INFO.id,
-                  posLabel: data.pos?.label || POS_INFO.label,
-                  posNumber: Number.isFinite(Number(data.pos?.number)) ? Number(data.pos.number) : POS_INFO.number,
-                  payments:[],
-                  returns:[],
-                  customerId:null,
-                  customerAddressId:null,
-                  customerName:'',
-                  customerPhone:'',
-                  customerAddress:'',
-                  customerAreaId:null,
-                  dirty:false,
-                  orderTypeId: orderType,
-                  statusId: 'open',
-                  stageId: 'new',
-                  paymentStateId: 'unpaid',
-                  tableId: null,
-                  subtotal: emptyTotals.subtotal || 0,
-                  discount_amount: emptyTotals.discount || 0,
-                  service_amount: emptyTotals.service || 0,
-                  tax_amount: emptyTotals.vat || 0,
-                  delivery_fee: emptyTotals.deliveryFee || 0,
-                  total: emptyTotals.due || 0,
-                  total_paid: 0,
-                  total_due: emptyTotals.due || 0,
-                  version: 1,
-                  currentVersion: 1,
-                  metadata: {
-                    orderType: orderType,
-                    orderTypeId: orderType,
-                    serviceMode: orderType
-                  }
-                },
-                payments:{ ...(data.payments || {}), split:[] }
-              }
-            };
-          });
-          console.log('[POS] ✅ New order created automatically:', newOrderId);
-        }
-
         return { status:'saved', mode };
       } catch(error){
         UI.pushToast(ctx, { title:t.toast.indexeddb_error, message:String(error), icon:'🛑' });
@@ -7542,9 +7457,11 @@
       const paymentEntries = getActivePaymentEntries(order, db.data.payments);
       const paymentSnapshot = summarizePayments(order.totals || {}, paymentEntries);
       const outstanding = paymentSnapshot.remaining || 0;
-      const requiresFullPaymentBeforeFinish = isTakeaway; // ✅ FIXED: Takeaway requires full payment before finish
-      const finishDisabled = requiresFullPaymentBeforeFinish && outstanding > 0.0001;
-      const saveDisabled = isTakeaway && outstanding > 0.0001; // ✅ NEW: Takeaway also requires full payment for draft save
+      // ✅ FIXED: For takeaway:
+      //    - Save button is DISABLED (requires payment)
+      //    - Finish button is ENABLED (smart - opens payment modal first)
+      const saveDisabled = isTakeaway && outstanding > 0.0001;
+      const finishDisabled = false; // Finish button always enabled - it will open payment modal if needed
       const canShowSave = !isFinalized && !deliveredStage;
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
@@ -11255,18 +11172,60 @@
         on:['click'],
         gkeys:['pos:order:save'],
         handler: async (e,ctx)=>{
-          console.log('🚀 [CLAUDE FIX v2] Save button clicked - checking if save in progress...');
+          console.log('🚀 [POS SAVE] Save button clicked');
 
           // ✅ STRONG protection against duplicate saves
           if(IS_SAVING_ORDER){
-            console.warn('⚠️ [CLAUDE FIX] Save already in progress - BLOCKING duplicate save attempt');
+            console.warn('⚠️ [POS SAVE] Save already in progress - BLOCKING duplicate save attempt');
+            return;
+          }
+
+          // ✅ PRE-VALIDATION: Check for empty order BEFORE calling persistOrderFlow
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const order = state.data.order || {};
+          const lines = order.lines || [];
+          const validLines = lines.filter(line => {
+            const notCancelled = !line.cancelled && !line.voided;
+            const hasQuantity = Number(line.qty || line.quantity || 0) > 0;
+            return notCancelled && hasQuantity;
+          });
+
+          console.log('🔍 [POS SAVE] Pre-validation check:', {
+            totalLines: lines.length,
+            validLines: validLines.length,
+            orderId: order.id,
+            isPersisted: order.isPersisted
+          });
+
+          if(!validLines.length){
+            console.error('❌ [POS SAVE] BLOCKED: Cannot save empty order - no valid lines!');
+            UI.pushToast(ctx, {
+              title: t.toast.empty_order || 'لا يمكن حفظ طلب فارغ',
+              subtitle: 'يجب إضافة صنف واحد على الأقل',
+              icon:'⚠️'
+            });
+            return;
+          }
+
+          // ✅ Check for zero total
+          const totals = order.totals || calculateTotals(validLines, state.data.settings || {}, order.type || 'dine_in', { orderDiscount: order.discount });
+          console.log('🔍 [POS SAVE] Total check:', { due: totals.due, subtotal: totals.subtotal });
+
+          if(totals.due <= 0 && !order.isPersisted){
+            console.error('❌ [POS SAVE] BLOCKED: Cannot save order with zero or negative total!');
+            UI.pushToast(ctx, {
+              title: t.toast.order_zero_total || 'لا يمكن حفظ طلب بقيمة صفرية',
+              subtitle: 'تأكد من أن جميع الأصناف لها أسعار صحيحة',
+              icon:'⚠️'
+            });
             return;
           }
 
           const trigger = e.target.closest('[data-save-mode]');
           const mode = trigger?.getAttribute('data-save-mode') || 'draft';
 
-          console.log('✅ [CLAUDE FIX] Starting save operation', { mode, timestamp: new Date().toISOString() });
+          console.log('✅ [POS SAVE] Starting save operation', { mode, validLines: validLines.length });
 
           IS_SAVING_ORDER = true;
           ctx.setState(s=>({
@@ -11276,9 +11235,9 @@
 
           try {
             await persistOrderFlow(ctx, mode);
-            console.log('✅ [CLAUDE FIX] Save completed successfully');
+            console.log('✅ [POS SAVE] Save completed successfully');
           } catch(error) {
-            console.error('❌ [CLAUDE FIX] Save failed:', error);
+            console.error('❌ [POS SAVE] Save failed:', error);
             throw error;
           } finally {
             IS_SAVING_ORDER = false;
@@ -11286,7 +11245,7 @@
               ...s,
               ui:{ ...(s.ui || {}), saving:false }
             }));
-            console.log('🔓 [CLAUDE FIX] Save lock released');
+            console.log('🔓 [POS SAVE] Save lock released');
           }
         }
       },
