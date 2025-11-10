@@ -1193,7 +1193,23 @@
             itemNameEn: line.name || menuItem?.nameEn || line.itemId || stationLabelEn,
             quantity: Number(line.qty) || 1,
             status: derivedStatus,  // ✅ Use derived status from job_order_detail
-            prepNotes: Array.isArray(line.notes) ? line.notes.join('; ') : '',
+            prepNotes: (() => {
+              // ✅ FIXED: Handle notes properly to avoid [object object]
+              const notes = line.notes;
+              if(!notes) return '';
+              if(Array.isArray(notes)) return notes.filter(Boolean).map(n => {
+                if(typeof n === 'string') return n;
+                if(typeof n === 'object'){
+                  if(n.message) return String(n.message);
+                  if(n.text) return String(n.text);
+                  if(n.note) return String(n.note);
+                  if(n.content) return String(n.content);
+                }
+                return '';
+              }).filter(Boolean).join('; ');
+              if(typeof notes === 'string') return notes;
+              return '';
+            })(),
             modifiers: []
           },
           stationLabelAr,
@@ -5382,14 +5398,29 @@
         status,
         itemNameAr: finalItemNameAr,
         itemNameEn: finalItemNameEn,
-        prepNotes: Array.isArray(line?.notes)
-          ? line.notes.filter(Boolean).join(' • ')
-          :
-            line?.notes ||
-            line?.prepNotes ||
-            metadata?.prepNotes ||
-            metadata?.notes ||
-            ''
+        prepNotes: (() => {
+          // ✅ FIXED: Handle notes properly to avoid [object object]
+          const notes = line?.notes || line?.prepNotes || metadata?.prepNotes || metadata?.notes;
+          if(!notes) return '';
+          if(Array.isArray(notes)) return notes.filter(Boolean).map(n => {
+            if(typeof n === 'string') return n;
+            if(typeof n === 'object'){
+              if(n.message) return String(n.message);
+              if(n.text) return String(n.text);
+              if(n.note) return String(n.note);
+              if(n.content) return String(n.content);
+            }
+            return '';
+          }).filter(Boolean).join(' • ');
+          if(typeof notes === 'string') return notes;
+          if(typeof notes === 'object'){
+            if(notes.message) return String(notes.message);
+            if(notes.text) return String(notes.text);
+            if(notes.note) return String(notes.note);
+            if(notes.content) return String(notes.content);
+          }
+          return '';
+        })()
       });
     });
     orders.forEach((order) => {
