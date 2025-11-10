@@ -35,6 +35,7 @@
   </script>
   </head>
   <body class="bg-[var(--background)] text-[var(--foreground)]">
+    <div id="app"></div>
     <template id="quick-dashboard">
       <script type="application/json" data-m-env data-m-path="env">
         {
@@ -1456,10 +1457,52 @@
           });
         }
 
+        // Countdown directive implementation
+        function initCountdownDirectives() {
+          console.log('[DEBUG] initCountdownDirectives called!');
+          var countdownElements = document.querySelectorAll('[data-countdown]');
+          console.log('[DEBUG] Found', countdownElements.length, 'countdown elements');
+
+          countdownElements.forEach(function(element) {
+            if (element.__countdownInit) return; // Already initialized
+            element.__countdownInit = true;
+
+            var updateCountdown = function() {
+              var current = Number(element.getAttribute('data-countdown'));
+              if (!Number.isFinite(current) || current <= 0) {
+                // Restart from baseline
+                var baseline = Number(element.dataset.countdownBaseline) || 270;
+                element.setAttribute('data-countdown', baseline);
+                element.dispatchEvent(new CustomEvent('countdown:finished'));
+                return;
+              }
+
+              // Update display
+              var template = element.getAttribute('data-countdown-template') || '{{time}}';
+              var minutes = Math.floor(current / 60);
+              var seconds = current % 60;
+              var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+              element.textContent = template.replace('{{time}}', timeStr);
+
+              // Decrement
+              element.setAttribute('data-countdown', current - 1);
+            };
+
+            // Initial render
+            updateCountdown();
+
+            // Start interval
+            element.__countdownInterval = setInterval(updateCountdown, 1000);
+            console.log('[DEBUG] Countdown started for element, interval:', element.__countdownInterval);
+          });
+        }
+
         // __init__ hook - called automatically by HTMLx after mount
         function __init__(app, helpers) {
           setTimeout(function() {
             quickDashboardMount(app, helpers);
+            // Initialize countdown directives after mount
+            setTimeout(initCountdownDirectives, 100);
           }, 16);
         }
       </script>
