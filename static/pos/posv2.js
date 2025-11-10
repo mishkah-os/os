@@ -6017,8 +6017,17 @@
 
     async function persistOrderFlow(ctx, rawMode, options={}){
       console.log('═══════════════════════════════════════════════════════');
-      console.log('🔥 [CLAUDE FIX v2] persistOrderFlow STARTED');
+      console.log('🔥 [CLAUDE FIX v3] persistOrderFlow STARTED');
       console.log('═══════════════════════════════════════════════════════');
+
+      // ✅ CRITICAL FIX: Check IS_SAVING_ORDER at START of function
+      // This prevents recursive calls from bypassing the duplicate save protection
+      const isRetry = options.retryCount > 0;
+      if(IS_SAVING_ORDER && !isRetry){
+        console.error('❌ [CLAUDE FIX v3] BLOCKED: Save already in progress (checked at function start)');
+        console.error('   This indicates multiple simultaneous save attempts!');
+        return { status:'error', reason:'save-in-progress' };
+      }
 
       const state = ctx.getState();
       const t = getTexts(state);
@@ -6311,10 +6320,25 @@
       }
       const totals = calculateTotals(safeLines, state.data.settings || {}, orderType, { orderDiscount: order.discount });
       console.log('[Mishkah][POS] Order totals calculated:', { totals, linesCount: safeLines.length });
-      // CRITICAL: Prevent saving orders with zero total (unless they are already persisted)
-      if(totals.due <= 0 && !order.isPersisted){
-        console.error('[Mishkah][POS] Cannot save new order with zero or negative total', { totals, isPersisted: order.isPersisted });
-        UI.pushToast(ctx, { title:t.toast.order_zero_total || 'لا يمكن حفظ طلب بقيمة صفرية', icon:'⚠️' });
+
+      // ✅ CRITICAL FIX v3: Prevent saving orders with zero total
+      // For NEW orders: block if total is zero
+      // For PERSISTED orders: block if we're adding lines with zero total (not just finalizing)
+      const isAddingNewLines = order.isPersisted && order.lines && order.lines.length > 0;
+      const shouldBlockZeroTotal = totals.due <= 0 && (!order.isPersisted || isAddingNewLines);
+
+      if(shouldBlockZeroTotal){
+        console.error('❌ [CLAUDE FIX v3] BLOCKED: Cannot save order with zero or negative total', {
+          totals,
+          isPersisted: order.isPersisted,
+          isAddingNewLines,
+          newLinesCount: order.lines?.length || 0
+        });
+        UI.pushToast(ctx, {
+          title:t.toast.order_zero_total || 'لا يمكن حفظ طلب بقيمة صفرية',
+          subtitle: 'تأكد من أن جميع الأصناف لها أسعار صحيحة',
+          icon:'⚠️'
+        });
         return { status:'error', reason:'order-zero-total' };
       }
       const paymentSplit = Array.isArray(state.data.payments?.split) ? state.data.payments.split : [];
@@ -6369,38 +6393,53 @@
       let finalOrderId = previousOrderId;
       // Check if current ID is a draft (local-only) ID
       const isDraftId = previousOrderId && String(previousOrderId).startsWith('draft-');
+
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('🔍 [CLAUDE FIX v3] INVOICE ID ALLOCATION DECISION');
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('[ALLOCATION CHECK] Current state:', {
+        isPersisted: order.isPersisted,
+        previousOrderId,
+        isDraftId,
+        retryCount,
+        IS_SAVING_ORDER,
+        timestamp: new Date().toISOString()
+      });
+
+      // ✅ STRENGTHENED GUARD: Only allocate if absolutely necessary
       // Allocate new ID if:
       // 1. Order is not persisted, OR
       // 2. No valid previous ID, OR
       // 3. Previous ID is a draft ID (needs real invoice ID for backend)
-      console.log('[Mishkah][POS] INVOICE ID DECISION', {
-        isPersisted: order.isPersisted,
-        previousOrderId,
-        isDraftId,
-        willAllocateNew: !order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId
-      });
-      if(!order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId){
+      const needsNewId = !order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId;
+
+      console.log('[ALLOCATION CHECK] Decision:', needsNewId ? '🔢 WILL ALLOCATE NEW ID' : '♻️ WILL USE EXISTING ID');
+
+      if(needsNewId){
         console.log('═══════════════════════════════════════════════════════');
-        console.log('🔢 [CLAUDE FIX v2] ALLOCATING NEW INVOICE ID (sequence call)');
+        console.log('🔢 [CLAUDE FIX v3] ALLOCATING NEW INVOICE ID (sequence call)');
+        console.log('⚠️  THIS SHOULD ONLY HAPPEN ONCE PER NEW ORDER!');
         console.log('═══════════════════════════════════════════════════════');
         console.log('[Mishkah][POS] 🆕 Allocating NEW invoice ID', {
           isPersisted: order.isPersisted,
           previousOrderId,
           isDraftId,
           retryCount,
-          reason: isDraftId ? 'draft ID needs real invoice ID' : (!order.isPersisted ? 'order not persisted' : 'no valid previous ID')
+          reason: isDraftId ? 'draft ID needs real invoice ID' : (!order.isPersisted ? 'order not persisted' : 'no valid previous ID'),
+          stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n') // Log call stack
         });
         try {
           finalOrderId = await allocateInvoiceId();
-          console.log('✅ [CLAUDE FIX v2] Invoice ID allocated successfully - THIS SHOULD ONLY HAPPEN ONCE');
-          console.log('[Mishkah][POS] ✅ New invoice ID allocated:', {
+          console.log('✅✅✅ [CLAUDE FIX v3] Invoice ID allocated successfully');
+          console.log('[ALLOCATION SUCCESS] Details:', {
             allocatedId: finalOrderId,
             previousId: previousOrderId,
             retryAttempt: retryCount,
             timestamp: new Date().toISOString()
           });
+          console.log('═══════════════════════════════════════════════════════');
         } catch(allocError){
-          console.error('[Mishkah][POS] ❌ Invoice allocation failed during save', {
+          console.error('❌❌❌ [CLAUDE FIX v3] Invoice allocation FAILED', {
             error: allocError,
             retryCount,
             previousOrderId
@@ -6409,12 +6448,15 @@
           return { status:'error', reason:'invoice' };
         }
       } else {
-        console.log('[Mishkah][POS] ♻️ Using EXISTING order ID:', previousOrderId, {
+        console.log('♻️♻️♻️ [CLAUDE FIX v3] Using EXISTING order ID:', previousOrderId);
+        console.log('[EXISTING ID] Details:', {
           isPersisted: order.isPersisted,
           version: order.version,
           currentVersion: order.currentVersion,
-          expectedVersion: order.expectedVersion
+          expectedVersion: order.expectedVersion,
+          retryCount
         });
+        console.log('═══════════════════════════════════════════════════════');
       }
       const idChanged = previousOrderId !== finalOrderId;
       const primaryTableId = assignedTables.length ? assignedTables[0] : (order.tableId || null);
