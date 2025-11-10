@@ -1430,6 +1430,20 @@
             }
             element.__countdownInit = true;
 
+            // Log element visibility
+            console.log('[DEBUG] Element:', element);
+            console.log('[DEBUG] Element visible?', element.offsetWidth > 0 && element.offsetHeight > 0);
+            console.log('[DEBUG] Element.innerHTML:', element.innerHTML);
+
+            // Watch for VDOM interference
+            var mutationCount = 0;
+            var observer = new MutationObserver(function(mutations) {
+              mutationCount++;
+              console.warn('[🔴 VDOM INTERFERENCE #' + mutationCount + '] Element modified externally!');
+              console.warn('New textContent:', element.textContent);
+            });
+            observer.observe(element, { childList: true, characterData: true, subtree: true });
+
             // Get initial values from data attributes
             var initialSeconds = Number(element.getAttribute('data-countdown')) || 270;
             var baseline = Number(element.dataset.countdownBaseline) || initialSeconds;
@@ -1437,32 +1451,33 @@
 
             console.log('[DEBUG] Initializing countdown: initial=' + initialSeconds + ', baseline=' + baseline);
 
-            // Use internal state instead of DOM attributes (prevents VDOM conflicts)
+            // Use internal state
             var currentSeconds = initialSeconds;
             var tickCount = 0;
 
             var updateCountdown = function() {
               tickCount++;
-              console.log('[DEBUG] updateCountdown tick #' + tickCount + ', currentSeconds=' + currentSeconds);
 
               if (currentSeconds <= 0) {
-                // Restart from baseline
                 currentSeconds = baseline;
                 element.dispatchEvent(new CustomEvent('countdown:finished'));
-                console.log('[DEBUG] Countdown finished, restarting from:', baseline);
+                console.log('[DEBUG] Countdown finished, restarting');
               }
 
-              // Update display (textContent is safe - won't trigger VDOM patch)
+              // Update display
               var minutes = Math.floor(currentSeconds / 60);
               var seconds = currentSeconds % 60;
               var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
               var displayText = template.replace('{{time}}', timeStr);
 
-              console.log('[DEBUG] Setting textContent to:', displayText);
-              element.textContent = displayText;
-              console.log('[DEBUG] After set, textContent is:', element.textContent);
+              // Log only every 10 ticks to reduce noise
+              if (tickCount === 1 || tickCount % 10 === 0) {
+                console.log('[DEBUG] Tick #' + tickCount + ': Setting "' + displayText + '"');
+                console.log('[DEBUG] Element still visible?', element.offsetWidth > 0);
+                console.log('[DEBUG] Element still in DOM?', document.contains(element));
+              }
 
-              // Decrement internal state
+              element.textContent = displayText;
               currentSeconds--;
             };
 
@@ -1471,7 +1486,33 @@
 
             // Start interval
             element.__countdownInterval = setInterval(updateCountdown, 1000);
-            console.log('[DEBUG] Countdown started for element, interval:', element.__countdownInterval);
+            console.log('[DEBUG] Countdown started, interval ID:', element.__countdownInterval);
+          });
+        }
+
+        // Debug: Check button content after mount
+        function debugButtonContent() {
+          console.log('[DEBUG BUTTON] Checking button content...');
+          var buttons = document.querySelectorAll('[data-m-gkey="toggle-live-data"]');
+          console.log('[DEBUG BUTTON] Found', buttons.length, 'button(s)');
+
+          buttons.forEach(function(btn, idx) {
+            console.log('[DEBUG BUTTON #' + idx + ']:', btn);
+            console.log('[DEBUG BUTTON #' + idx + '] innerHTML:', btn.innerHTML);
+            console.log('[DEBUG BUTTON #' + idx + '] textContent:', btn.textContent);
+            console.log('[DEBUG BUTTON #' + idx + '] childNodes:', btn.childNodes);
+            console.log('[DEBUG BUTTON #' + idx + '] children:', btn.children);
+            console.log('[DEBUG BUTTON #' + idx + '] visible?', btn.offsetWidth > 0);
+          });
+
+          // Check countdown elements
+          var countdowns = document.querySelectorAll('[data-countdown]');
+          console.log('[DEBUG COUNTDOWN] Found', countdowns.length, 'countdown element(s)');
+          countdowns.forEach(function(el, idx) {
+            console.log('[DEBUG COUNTDOWN #' + idx + ']:', el);
+            console.log('[DEBUG COUNTDOWN #' + idx + '] innerHTML:', el.innerHTML);
+            console.log('[DEBUG COUNTDOWN #' + idx + '] textContent:', el.textContent);
+            console.log('[DEBUG COUNTDOWN #' + idx + '] visible?', el.offsetWidth > 0);
           });
         }
 
@@ -1479,8 +1520,12 @@
         function __init__(app, helpers) {
           setTimeout(function() {
             quickDashboardMount(app, helpers);
+            // Debug after mount
+            setTimeout(debugButtonContent, 50);
             // Initialize countdown directives after mount
             setTimeout(initCountdownDirectives, 100);
+            // Debug again after countdown init
+            setTimeout(debugButtonContent, 200);
           }, 16);
         }
       </script>
