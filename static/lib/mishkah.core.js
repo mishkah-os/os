@@ -600,6 +600,31 @@
       for (i=0;i<prevList.length && !hasKeys;i++) if (isKeyed(prevList[i])) hasKeys = true;
 
       if (!hasKeys){
+        // PROTECTION: Don't empty elements that have real DOM children
+        // This prevents bugs where post-render hydration empties buttons/elements
+        if (nextList.length === 0 && prevList.length > 0 && parent && parent.childNodes && parent.childNodes.length > 0) {
+          var hasRealChildren = false;
+          for (var ci = 0; ci < parent.childNodes.length; ci++) {
+            var child = parent.childNodes[ci];
+            // Check if it's a real element or non-empty text node
+            if (child.nodeType === 1 || (child.nodeType === 3 && child.nodeValue && child.nodeValue.trim())) {
+              hasRealChildren = true;
+              break;
+            }
+          }
+          if (hasRealChildren) {
+            if (M.Auditor && M.Auditor.warn) {
+              M.Auditor.warn('W-VDOM-PROTECT', 'Prevented emptying element with real DOM children', {
+                parentTag: parent.tagName,
+                childCount: parent.childNodes.length,
+                nextListLength: nextList.length,
+                prevListLength: prevList.length
+              });
+            }
+            return; // Skip patching to preserve children
+          }
+        }
+
         len = Math.max(nextList.length, prevList.length);
         for (i=0;i<len;i++) patch(parent, nextList[i], prevList[i], db, opts, parentPath);
         return;
