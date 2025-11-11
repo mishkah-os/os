@@ -2489,6 +2489,16 @@
       const lines = linesRaw.filter(Boolean);
       if(!lines.length) return null;
 
+      // ✅ CRITICAL: Log notes before serialization
+      console.log('📝📝📝 [KDS NOTES] serializeOrderForKDS notes check:', {
+        orderId: order.id,
+        'order.notes': order.notes,
+        'order.notes type': typeof order.notes,
+        'order.notes isArray': Array.isArray(order.notes),
+        'order.notes.length': order.notes?.length,
+        'notesToText result': notesToText(order.notes, '; ')
+      });
+
       console.log('🔍 [REOPEN DEBUG] serializeOrderForKDS input:', {
         orderId: order.id,
         'order.isPersisted': order.isPersisted,
@@ -6506,6 +6516,16 @@
         : (order.fulfillmentStage || 'new');
       const allowAdditions = finalize ? false : !!typeConfig.allowsLineAdditions;
       const orderNotes = Array.isArray(order.notes) ? order.notes : (order.notes ? [order.notes] : []);
+
+      console.log('📝📝📝 [NOTES CRITICAL] Order notes before save:', {
+        'order.notes': order.notes,
+        'order.notes type': typeof order.notes,
+        'order.notes isArray': Array.isArray(order.notes),
+        'orderNotes': orderNotes,
+        'orderNotes.length': orderNotes.length,
+        'orderNotes[0]': orderNotes[0]
+      });
+
       let finalOrderId = previousOrderId;
       // Check if current ID is a draft (local-only) ID
       const isDraftId = previousOrderId && String(previousOrderId).startsWith('draft-');
@@ -6653,7 +6673,15 @@
         paymentsLocked: finalize ? true : isPaymentsLocked(order),
         allowAdditions,
         lockLineEdits: finalize ? true : (order.lockLineEdits !== undefined ? order.lockLineEdits : false),
-        metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType, tableIds: assignedTables }
+        metadata:{
+          ...(order.metadata || {}),
+          orderType,
+          orderTypeId: orderType,
+          serviceMode: orderType,
+          tableIds: assignedTables,
+          notes: orderNotes,  // ✅ Add notes to metadata as backup
+          notes_json: JSON.stringify(orderNotes)  // ✅ JSON string version for backend
+        }
       };
 
       console.log('🏷️🏷️🏷️ [TABLE CRITICAL] AFTER creating orderPayload:', {
@@ -6661,6 +6689,15 @@
         'orderPayload.table_ids': orderPayload.table_ids,
         'orderPayload.tableId': orderPayload.tableId,
         'orderPayload.metadata.tableIds': orderPayload.metadata.tableIds
+      });
+
+      console.log('📝📝📝 [NOTES CRITICAL] orderPayload notes:', {
+        'orderPayload.notes': orderPayload.notes,
+        'orderPayload.notes type': typeof orderPayload.notes,
+        'orderPayload.notes isArray': Array.isArray(orderPayload.notes),
+        'orderPayload.notes.length': orderPayload.notes?.length,
+        'orderPayload.metadata.notes': orderPayload.metadata.notes,
+        'orderPayload.metadata.notes_json': orderPayload.metadata.notes_json
       });
       if(finalize){
         orderPayload.finalizedAt = now;
@@ -6695,6 +6732,15 @@
             firstLine: savedOrder?.lines?.[0],
             subtotal: savedOrder?.subtotal,
             totalDue: savedOrder?.totalDue
+          });
+
+          console.log('📝📝📝 [NOTES CRITICAL] Backend response notes:', {
+            'savedOrder.notes': savedOrder?.notes,
+            'savedOrder.notes type': typeof savedOrder?.notes,
+            'savedOrder.notes isArray': Array.isArray(savedOrder?.notes),
+            'savedOrder.notes.length': savedOrder?.notes?.length,
+            'savedOrder.metadata?.notes': savedOrder?.metadata?.notes,
+            'savedOrder.metadata?.notes_json': savedOrder?.metadata?.notes_json
           });
         } catch(error){
           console.error('[Mishkah][POS] Error saving order to backend:', {
@@ -6864,12 +6910,14 @@
           }
 
           // ✅ [POS V2] Save NEW payments via mishkah-store (unified with kds.js)
+          // ✅ CRITICAL FIX: Fire-and-forget payments to prevent print delay!
           console.log('💰 [POS V2] Saving NEW payments...');
           if(newPaymentsOnly.length > 0){
             console.log('[POS V2] New payments to save:', newPaymentsOnly.length);
             const nowIso = new Date(now).toISOString();
 
-            for(const payment of newPaymentsOnly){
+            // ✅ CRITICAL: Don't await payment saves - fire and forget!
+            Promise.all(newPaymentsOnly.map(payment => {
               const paymentRecord = {
                 id: payment.id || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 orderId: finalOrderId,
@@ -6880,28 +6928,39 @@
                 reference: payment.reference || null
               };
 
-              try {
-                await store.insert('order_payment', paymentRecord);
-                console.log('[POS V2] ✅ Saved payment:', paymentRecord.id, 'amount:', paymentRecord.amount);
-              } catch(paymentError){
-                console.error('[POS V2] ❌ Failed to save payment:', paymentError);
-                // Don't fail the entire save - payment is non-critical
-              }
-            }
-            console.log('✅ [POS V2] Payments saved!');
+              return store.insert('order_payment', paymentRecord)
+                .then(() => console.log('[POS V2] ✅ Saved payment:', paymentRecord.id, 'amount:', paymentRecord.amount))
+                .catch(paymentError => {
+                  console.error('[POS V2] ❌ Failed to save payment:', paymentError);
+                  // Don't fail the entire save - payment is non-critical
+                });
+            })).then(() => {
+              console.log('✅ [POS V2] All payments saved!');
+            }).catch(err => {
+              console.error('[POS V2] ❌ Some payments failed:', err);
+            });
+            // Don't wait - continue immediately to print
           } else {
             console.log('[POS V2] No new payments to save');
           }
         } else {
           console.warn('[POS V2] ⚠️ mishkah-store not available');
         }
-        await posDB.markSync();
+        // ✅ CRITICAL FIX: Fire-and-forget markSync to prevent print delay!
+        posDB.markSync().catch(err => console.error('[POS V2] markSync failed:', err));
 
         console.log('🏷️ [TABLE DEBUG] BEFORE mergePreferRemote:', {
           orderPayloadTableIds: orderPayload.tableIds,
           savedOrderTableIds: savedOrder?.tableIds,
           savedOrderTableId: savedOrder?.tableId,
           savedOrderTable_ids: savedOrder?.table_ids
+        });
+
+        console.log('📝 [NOTES DEBUG] BEFORE mergePreferRemote:', {
+          orderPayloadNotes: orderPayload.notes,
+          orderPayloadNotesLength: orderPayload.notes?.length,
+          savedOrderNotes: savedOrder?.notes,
+          savedOrderNotesLength: savedOrder?.notes?.length
         });
 
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
@@ -6913,6 +6972,11 @@
           remoteResolvedTableId: remoteResolved.tableId,
           isArray: Array.isArray(remoteResolved.tableIds),
           length: remoteResolved.tableIds?.length
+        });
+
+        console.log('📝 [NOTES DEBUG] AFTER mergePreferRemote:', {
+          remoteResolvedNotes: remoteResolved.notes,
+          remoteResolvedNotesLength: remoteResolved.notes?.length
         });
 
         // ✅ CRITICAL FIX: Preserve tableIds from orderPayload if savedOrder doesn't have them
@@ -6930,17 +6994,34 @@
           console.log('✅ [TABLE DEBUG] tableIds preserved after merge:', remoteResolved.tableIds);
         }
 
+        // ✅ CRITICAL FIX: Preserve notes from orderPayload if savedOrder doesn't have them
+        // Backend may not return notes, causing them to disappear after save
+        if(remoteResolved && (!remoteResolved.notes || remoteResolved.notes.length === 0)) {
+          if(Array.isArray(orderPayload.notes) && orderPayload.notes.length > 0) {
+            console.warn('⚠️⚠️ [NOTES FIX] Backend missing notes - restoring from orderPayload:', orderPayload.notes);
+            remoteResolved.notes = orderPayload.notes.slice();
+          } else if(orderPayload.metadata?.notes && Array.isArray(orderPayload.metadata.notes) && orderPayload.metadata.notes.length > 0) {
+            console.warn('⚠️⚠️ [NOTES FIX] Restoring notes from metadata:', orderPayload.metadata.notes);
+            remoteResolved.notes = orderPayload.metadata.notes.slice();
+          }
+        } else {
+          console.log('✅ [NOTES DEBUG] notes preserved after merge:', remoteResolved.notes);
+        }
+
         console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
           orderId: remoteResolved.id,
           tableIds: remoteResolved.tableIds,
+          notes: remoteResolved.notes,
+          notesLength: remoteResolved.notes?.length,
           totals: remoteResolved.totals,
           linesCount: remoteResolved.lines?.length,
           firstLine: remoteResolved.lines?.[0]
         });
 
-        // ✅ CRITICAL: Store tableIds BEFORE enrichOrderWithMenu (may lose them)
+        // ✅ CRITICAL: Store tableIds AND notes BEFORE enrichOrderWithMenu (may lose them)
         const tableIdsBackup = Array.isArray(remoteResolved.tableIds) ? remoteResolved.tableIds.slice() : [];
         const tableIdBackup = remoteResolved.tableId || (tableIdsBackup.length > 0 ? tableIdsBackup[0] : null);
+        const notesBackup = Array.isArray(remoteResolved.notes) ? remoteResolved.notes.map(n => ({...n})) : [];
 
         const normalizedOrderForState = enrichOrderWithMenu({
           ...remoteResolved,
@@ -6953,6 +7034,12 @@
           console.warn('⚠️⚠️⚠️ [TABLE RESTORE] enrichOrderWithMenu lost tableIds! Restoring:', tableIdsBackup);
           normalizedOrderForState.tableIds = tableIdsBackup;
           normalizedOrderForState.tableId = tableIdBackup;
+        }
+
+        // ✅ RESTORE notes after enrichOrderWithMenu if lost
+        if((!normalizedOrderForState.notes || normalizedOrderForState.notes.length === 0) && notesBackup.length > 0) {
+          console.warn('⚠️⚠️⚠️ [NOTES RESTORE] enrichOrderWithMenu lost notes! Restoring:', notesBackup);
+          normalizedOrderForState.notes = notesBackup;
         }
         console.log('[Mishkah][POS] After enrichOrderWithMenu:', {
           orderId: normalizedOrderForState.id,
@@ -6985,10 +7072,18 @@
           syncedOrderForState.tableId = tableIdBackup;
         }
 
+        // ✅ FINAL BACKUP: Ensure notes survive to the end
+        if((!syncedOrderForState.notes || syncedOrderForState.notes.length === 0) && notesBackup.length > 0) {
+          console.error('❌❌❌ [NOTES RESTORE] syncOrderVersionMetadata lost notes! Restoring:', notesBackup);
+          syncedOrderForState.notes = notesBackup;
+        }
+
         console.log('[Mishkah][POS] Final order for state:', {
           orderId: syncedOrderForState.id,
           tableIds: syncedOrderForState.tableIds,  // ✅ FINAL CHECK: tableIds before setState
           tableId: syncedOrderForState.tableId,
+          notes: syncedOrderForState.notes,  // ✅ FINAL CHECK: notes before setState
+          notesLength: syncedOrderForState.notes?.length,
           totals: syncedOrderForState.totals,
           linesCount: syncedOrderForState.lines?.length,
           firstLine: syncedOrderForState.lines?.[0]
@@ -7084,9 +7179,11 @@
               indexeddb:{ state:'online', lastSync: now }
             }
           };
-          // ✅ CRITICAL: After save/finalize, create new blank order
+          // ✅ CRITICAL: After save/finalize, ALWAYS create new blank order
           // Don't leave saved order in cart - prevents duplicate saves
-          const shouldCreateNewOrder = (openPrint && finalize) || (!finalize && orderType === 'dine_in');
+          // User requirement: "أي عملية حفظ أو انهاء يتبعها clear للأوردر وعمل أوردر جديد"
+          // ALWAYS create new order regardless of type (dine_in, delivery, takeaway)
+          const shouldCreateNewOrder = true;  // ✅ ALWAYS clear after save/finalize!
 
           if(shouldCreateNewOrder){
             const newOrderId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
@@ -7111,17 +7208,14 @@
               paymentsLocked: false
             };
             updatedData.payments = { ...(data.payments || {}), split:[] };
-            console.log('✅ [POS] Created new blank order after save:', {
-              reason: openPrint && finalize ? 'finalize-print' : 'dine-in save',
+            console.log('✅ [POS] Created new blank order after save (ALL order types cleared):', {
+              reason: finalize ? 'finalize' : 'save',
               newOrderId,
-              orderType
+              orderType,
+              openPrint
             });
-          } else if(syncedOrderForState.id === data.order?.id){
-            // ✅ Only for delivery/takeaway draft saves (rare case)
-            updatedData.order = syncedOrderForState;
-            updatedData.payments = { ...(data.payments || {}), split:[] };
-            console.log('⚠️ [POS] Keeping saved order in cart (delivery/takeaway draft)');
           }
+          // ✅ No else case - ALWAYS create new order!
           return {
             ...s,
             data: updatedData,
@@ -8680,7 +8774,36 @@
         const totalDue = Number(totals?.due || 0);
         const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
         const remainingAmount = Math.max(0, round(totalDue - paidAmount));
-        const tableNames = (order.tableIds || []).map(id=> tablesIndex.get(id)?.name || id).join(', ');
+
+        // ✅ CRITICAL FIX: Map tableIds to names, showing tableId if name not found
+        const orderTableIds = order.tableIds || [];
+
+        // ✅ DEBUG: Log order tableIds to see if they're present
+        if(order.type === 'dine_in' && (!orderTableIds || orderTableIds.length === 0)) {
+          console.warn('⚠️ [ORDERS REPORT] Dine-in order missing tableIds!', {
+            orderId: order.id,
+            'order.tableIds': order.tableIds,
+            'order.tableId': order.tableId,
+            'order.table_ids': order.table_ids
+          });
+        }
+
+        const tableNames = orderTableIds
+          .map(id=> {
+            const table = tablesIndex.get(id);
+            const name = table?.name || table?.label || id;
+            // ✅ DEBUG: Log if table not found in index
+            if(!table && id) {
+              console.warn('⚠️ [ORDERS REPORT] Table not found in tablesIndex:', {
+                tableId: id,
+                orderId: order.id,
+                availableTables: Array.from(tablesIndex.keys())
+              });
+            }
+            return name;
+          })
+          .filter(Boolean)
+          .join(', ');
         const updatedStamp = order.updatedAt || order.createdAt;
         return D.Tables.Tr({ attrs:{ key:order.id, class: tw`bg-[var(--surface-1)]` }}, [
           D.Tables.Td({ attrs:{ class: tw`px-3 py-2 text-sm font-semibold` }}, [order.id]),
@@ -9098,6 +9221,9 @@
               paymentState: paymentSnapshot.state,
               allowAdditions: safeOrder.allowAdditions !== undefined ? safeOrder.allowAdditions : !!typeConfig.allowsLineAdditions,
               lockLineEdits: safeOrder.lockLineEdits !== undefined ? safeOrder.lockLineEdits : true,
+              // ✅ CRITICAL FIX: Recalculate paymentsLocked when opening order
+              // This ensures delivery/takeaway orders can accept payments when reopened
+              paymentsLocked: isPaymentsLocked(safeOrder),
               isPersisted: safeOrder.isPersisted
             },
             payments: nextPayments

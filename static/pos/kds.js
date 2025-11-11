@@ -4093,14 +4093,29 @@
         const baseUrl = '/api/v1';
 
         // Update job_order_header
+        // ✅ CRITICAL FIX: Include startedAt, readyAt, completedAt for timer to work!
+        const headerPayload = {
+          status: statusPayload.status,
+          progressState: statusPayload.progressState,
+          updatedAt: statusPayload.updatedAt || new Date().toISOString()
+        };
+        // ✅ Add timestamp fields if present (needed for timer!)
+        if (statusPayload.startedAt) {
+          headerPayload.startedAt = statusPayload.startedAt;
+          headerPayload.started_at = statusPayload.startedAt;  // snake_case for backend
+        }
+        if (statusPayload.readyAt) {
+          headerPayload.readyAt = statusPayload.readyAt;
+          headerPayload.ready_at = statusPayload.readyAt;
+        }
+        if (statusPayload.completedAt) {
+          headerPayload.completedAt = statusPayload.completedAt;
+          headerPayload.completed_at = statusPayload.completedAt;
+        }
         await fetch(`${baseUrl}/job_order_header/${jobId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status: statusPayload.status,
-            progressState: statusPayload.progressState,
-            updatedAt: statusPayload.updatedAt || new Date().toISOString()
-          })
+          body: JSON.stringify(headerPayload)
         });
 
         // Update order_line (only for items in this job)
