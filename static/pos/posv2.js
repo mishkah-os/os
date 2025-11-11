@@ -2743,8 +2743,14 @@
         });
       }
 
+      // ✅ CRITICAL: For reopened orders, only include NEW unpersisted lines
+      // Old persisted lines already sent to kitchen - don't resend them!
+      const linesToInclude = isReopenedOrder
+        ? lines.filter(line => !line.isPersisted)  // Only new lines for reopened orders
+        : lines;  // All lines for new orders
+
       // ✅ Build order_line records for static tabs
-      const orderLines = lines.map((line, index) => {
+      const orderLines = linesToInclude.map((line, index) => {
         const lineIndex = index + 1;
         const itemId = toIdentifier(line.itemId, line.productId, line.menuItemId, line.sku, `${order.id}-line-${lineIndex}`);
         const itemName = line.name || line.displayName || line.label || itemId;
@@ -2769,6 +2775,14 @@
           updatedAt: updatedIso
         };
       });
+
+      if(isReopenedOrder) {
+        console.log('🔄 [KDS REOPEN] Filtered order_line to NEW items only:', {
+          totalLines: lines.length,
+          newLines: linesToInclude.length,
+          oldPersistedLines: lines.length - linesToInclude.length
+        });
+      }
 
       // ✅ Flat structure: job order tables at root level (consistent with REST API)
       return {
