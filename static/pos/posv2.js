@@ -2760,6 +2760,16 @@
         updatedAt: updatedIso
       };
 
+      console.log('📝 [DEBUG] orderHeader creation in serializeOrderForKDS:', {
+        orderId: order.id,
+        inputNotes: order.notes,
+        inputNotesType: typeof order.notes,
+        inputNotesLength: Array.isArray(order.notes) ? order.notes.length : (order.notes ? 1 : 0),
+        convertedNotes: notesToText(order.notes, '; '),
+        convertedNotesLength: notesToText(order.notes, '; ').length,
+        isReopened: isReopenedOrderForHeader
+      });
+
       if(isReopenedOrderForHeader) {
         console.log('🔄 [KDS REOPEN] Order was delivered but has new lines - reopening for KDS:', {
           orderId: order.id,
@@ -6705,6 +6715,19 @@
             console.log('[POS V2] order_header count:', kdsPayload.order_header?.length || 0);
             console.log('[POS V2] order_line count:', kdsPayload.order_line?.length || 0);
 
+            // ✅ DEBUG: Log order_header notes BEFORE save
+            if(kdsPayload.order_header && kdsPayload.order_header.length > 0) {
+              console.log('📝 [DEBUG] order_header[0] BEFORE save:', {
+                id: kdsPayload.order_header[0].id,
+                notes: kdsPayload.order_header[0].notes,
+                notesType: typeof kdsPayload.order_header[0].notes,
+                notesLength: kdsPayload.order_header[0].notes?.length,
+                status: kdsPayload.order_header[0].status,
+                tableIds: kdsPayload.order_header[0].tableIds,
+                version: kdsPayload.order_header[0].version
+              });
+            }
+
             // ✅ CRITICAL FIX: Fire-and-forget - DON'T await job_order saves
             // Print modal opens IMMEDIATELY without waiting for saves
             // This prevents print delays - user sees print dialog instantly
@@ -6736,6 +6759,8 @@
                     status: orderHeader.status,
                     stage: orderHeader.fulfillmentStage,
                     tableIds: orderHeader.tableIds,
+                    notes: updatePayload.notes,  // ✅ DEBUG: Log notes in update payload
+                    notesType: typeof updatePayload.notes,
                     currentVersion,
                     nextVersion
                   });
@@ -6743,7 +6768,13 @@
                     console.error('[POS V2] Failed to update order_header:', orderHeader.id, err)
                   );
                 } else {
-                  console.log('✨ [POS V2] INSERTING order_header (new order):', orderHeader.id);
+                  console.log('✨ [POS V2] INSERTING order_header (new order):', orderHeader.id, {
+                    status: orderHeader.status,
+                    tableIds: orderHeader.tableIds,
+                    notes: orderHeader.notes,  // ✅ DEBUG: Log notes in insert payload
+                    notesType: typeof orderHeader.notes,
+                    version: orderHeader.version
+                  });
                   return store.insert('order_header', orderHeader).catch(err =>
                     console.error('[POS V2] Failed to insert order_header:', orderHeader.id, err)
                   );
