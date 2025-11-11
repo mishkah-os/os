@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>عارض النص القرآني المدمج - Merged Quran Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { font-family: 'Traditional Arabic', 'Arial', sans-serif; background: #f5f5f5; direction: rtl; }
+        body { padding: 20px; }
+
+        .container {
+            max-width: 1400px; margin: 0 auto; background: white; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white; padding: 30px; text-align: center;
+        }
+
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .header p { font-size: 1.1em; opacity: 0.9; }
+
+        .controls {
+            padding: 20px; background: #ecf0f1; border-bottom: 2px solid #bdc3c7;
+        }
+
+        .control-group {
+            display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;
+        }
+
+        .control-group label { font-weight: bold; margin-left: 5px; }
+
+        input[type="text"], input[type="number"], select {
+            padding: 8px 12px; border: 2px solid #bdc3c7; border-radius: 4px;
+            font-size: 1em; font-family: inherit;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none; border-color: #3498db;
+        }
+
+        button {
+            padding: 10px 20px; background: #3498db; color: white; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 1em; font-weight: bold;
+        }
+
+        button:hover { background: #2980b9; }
+        button:active { transform: scale(0.98); }
+
+        .stats-bar {
+            padding: 20px; background: #2c3e50; color: white;
+            display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em; font-weight: bold; color: #3498db;
+        }
+
+        .stat-label {
+            font-size: 0.9em; margin-top: 5px; opacity: 0.8;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .word-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px; margin-top: 20px;
+        }
+
+        .word-card {
+            background: white; border: 2px solid #ecf0f1; border-radius: 8px;
+            padding: 15px; transition: all 0.3s;
+        }
+
+        .word-card:hover {
+            border-color: #3498db; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .word-text {
+            font-size: 1.8em; font-weight: bold; color: #2c3e50; margin-bottom: 10px;
+            font-family: 'Traditional Arabic', 'Arial', sans-serif;
+        }
+
+        .word-info {
+            font-size: 0.9em; color: #7f8c8d; margin: 5px 0;
+        }
+
+        .word-info strong { color: #2c3e50; }
+
+        .tag-badge {
+            display: inline-block; padding: 4px 8px; background: #3498db; color: white;
+            border-radius: 4px; font-size: 0.8em; margin: 2px;
+        }
+
+        .position {
+            background: #e74c3c; color: white; padding: 4px 8px; border-radius: 4px;
+            font-size: 0.85em; font-weight: bold;
+        }
+
+        .pagination {
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+            padding: 20px; margin-top: 30px;
+        }
+
+        .page-btn {
+            padding: 8px 16px; background: #ecf0f1; color: #2c3e50; border: none;
+            border-radius: 4px; cursor: pointer; font-weight: bold;
+        }
+
+        .page-btn:hover { background: #bdc3c7; }
+        .page-btn.active { background: #3498db; color: white; }
+        .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .loading {
+            text-align: center; padding: 50px; font-size: 1.5em; color: #7f8c8d;
+        }
+
+        .error {
+            background: #e74c3c; color: white; padding: 20px; border-radius: 8px;
+            text-align: center; margin: 20px;
+        }
+
+        .tag-legend {
+            margin-top: 20px; padding: 15px; background: #ecf0f1; border-radius: 8px;
+        }
+
+        .tag-legend h3 { margin-bottom: 10px; }
+
+        .legend-item {
+            display: inline-block; margin: 5px 10px 5px 0;
+        }
+
+        .search-highlight {
+            background: yellow; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>عارض النص القرآني المدمج</h1>
+            <p>Merged Quranic Text Viewer - Full Morphological Analysis</p>
+        </div>
+
+        <div class="stats-bar" id="statsBar">
+            <div class="stat-item">
+                <div class="stat-value" id="totalWords">-</div>
+                <div class="stat-label">إجمالي الكلمات</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="uniqueWords">-</div>
+                <div class="stat-label">كلمات فريدة</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="uniqueRoots">-</div>
+                <div class="stat-label">جذور فريدة</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="uniqueTags">-</div>
+                <div class="stat-label">تصنيفات</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>بحث بالكلمة:</label>
+                <input type="text" id="searchWord" placeholder="ابحث عن كلمة...">
+
+                <label>بحث بالجذر:</label>
+                <input type="text" id="searchRoot" placeholder="ابحث عن جذر...">
+
+                <label>التصنيف:</label>
+                <select id="filterTag">
+                    <option value="">جميع التصنيفات</option>
+                </select>
+
+                <button onclick="applyFilters()">تطبيق الفلاتر</button>
+                <button onclick="resetFilters()">إعادة تعيين</button>
+            </div>
+
+            <div class="control-group">
+                <label>السورة:</label>
+                <input type="number" id="filterSurah" min="0" max="114" placeholder="رقم السورة">
+
+                <label>الآية:</label>
+                <input type="number" id="filterAyah" min="0" placeholder="رقم الآية">
+
+                <label>عدد النتائج:</label>
+                <select id="pageSize">
+                    <option value="20">20</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="content">
+            <div id="loading" class="loading">جاري تحميل البيانات...</div>
+            <div id="error" class="error" style="display: none;"></div>
+
+            <div id="results" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>النتائج: <span id="resultCount">0</span></h2>
+                    <button onclick="exportToJSON()">تصدير JSON</button>
+                </div>
+
+                <div class="word-grid" id="wordGrid"></div>
+
+                <div class="pagination" id="pagination"></div>
+            </div>
+
+            <div class="tag-legend">
+                <h3>دليل التصنيفات:</h3>
+                <div class="legend-item"><span class="tag-badge">1.1</span> حرف جر</div>
+                <div class="legend-item"><span class="tag-badge">1.2</span> حرف عطف</div>
+                <div class="legend-item"><span class="tag-badge">2.1</span> اسم عام</div>
+                <div class="legend-item"><span class="tag-badge">2.2</span> اسم علم</div>
+                <div class="legend-item"><span class="tag-badge">3.1</span> فعل ماضٍ</div>
+                <div class="legend-item"><span class="tag-badge">3.2</span> فعل مضارع</div>
+                <div class="legend-item"><span class="tag-badge">4.2</span> ضمير متصل</div>
+                <div class="legend-item"><span class="tag-badge">6.1</span> غير معروف</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        let pageSize = 50;
+
+        // Tag names map
+        const tagNames = {
+            '1.1': 'حرف جر',
+            '1.2': 'حرف عطف',
+            '1.3': 'حرف نصب',
+            '1.4': 'حرف جزم',
+            '1.5': 'ال التعريف',
+            '1.7': 'حرف استفهام',
+            '1.8': 'حرف استثناء',
+            '1.9': 'حرف توكيد',
+            '1.10': 'حرف نفي',
+            '1.14': 'حرف إضراب',
+            '1.18': 'حرف استدراك',
+            '2.1': 'اسم عام',
+            '2.2': 'اسم علم',
+            '2.3': 'اسم إشارة',
+            '2.4': 'اسم موصول',
+            '3.1': 'فعل ماضٍ',
+            '3.2': 'فعل مضارع',
+            '3.3': 'فعل أمر',
+            '4.1': 'ضمير منفصل',
+            '4.2': 'ضمير متصل',
+            '5.1': 'ظرف زمان',
+            '5.2': 'ظرف مكان',
+            '6.1': 'غير معروف'
+        };
+
+        async function loadData() {
+            try {
+                const response = await fetch('../../qu/merged_quran_full.json');
+                if (!response.ok) throw new Error('Failed to load data');
+
+                allData = await response.json();
+                filteredData = [...allData];
+
+                updateStats();
+                populateTagFilter();
+                renderPage();
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results').style.display = 'block';
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'خطأ في تحميل البيانات: ' + error.message;
+            }
+        }
+
+        function updateStats() {
+            const uniqueWords = new Set(allData.map(w => w.word)).size;
+            const uniqueRoots = new Set(allData.map(w => w.root).filter(r => r && r !== 'NTWS')).size;
+            const uniqueTags = new Set(allData.flatMap(w => w.tags ? w.tags.split(',') : [])).size;
+
+            document.getElementById('totalWords').textContent = allData.length.toLocaleString();
+            document.getElementById('uniqueWords').textContent = uniqueWords.toLocaleString();
+            document.getElementById('uniqueRoots').textContent = uniqueRoots.toLocaleString();
+            document.getElementById('uniqueTags').textContent = uniqueTags;
+        }
+
+        function populateTagFilter() {
+            const tags = new Set();
+            allData.forEach(entry => {
+                if (entry.tags) {
+                    entry.tags.split(',').forEach(tag => tags.add(tag.trim()));
+                }
+            });
+
+            const select = document.getElementById('filterTag');
+            Array.from(tags).sort().forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag;
+                option.textContent = `${tag} - ${tagNames[tag] || 'غير معروف'}`;
+                select.appendChild(option);
+            });
+        }
+
+        function applyFilters() {
+            const searchWord = document.getElementById('searchWord').value.trim();
+            const searchRoot = document.getElementById('searchRoot').value.trim();
+            const filterTag = document.getElementById('filterTag').value;
+            const filterSurah = document.getElementById('filterSurah').value;
+            const filterAyah = document.getElementById('filterAyah').value;
+
+            filteredData = allData.filter(entry => {
+                if (searchWord && !entry.word.includes(searchWord)) return false;
+                if (searchRoot && !entry.root.includes(searchRoot)) return false;
+                if (filterTag && !entry.tags.includes(filterTag)) return false;
+                if (filterSurah && entry.surah !== parseInt(filterSurah)) return false;
+                if (filterAyah && entry.ayah !== parseInt(filterAyah)) return false;
+                return true;
+            });
+
+            currentPage = 1;
+            renderPage();
+        }
+
+        function resetFilters() {
+            document.getElementById('searchWord').value = '';
+            document.getElementById('searchRoot').value = '';
+            document.getElementById('filterTag').value = '';
+            document.getElementById('filterSurah').value = '';
+            document.getElementById('filterAyah').value = '';
+
+            filteredData = [...allData];
+            currentPage = 1;
+            renderPage();
+        }
+
+        function renderPage() {
+            pageSize = parseInt(document.getElementById('pageSize').value);
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pageData = filteredData.slice(start, end);
+
+            const grid = document.getElementById('wordGrid');
+            grid.innerHTML = '';
+
+            pageData.forEach(entry => {
+                const card = createWordCard(entry);
+                grid.appendChild(card);
+            });
+
+            document.getElementById('resultCount').textContent = filteredData.length.toLocaleString();
+            renderPagination();
+        }
+
+        function createWordCard(entry) {
+            const card = document.createElement('div');
+            card.className = 'word-card';
+
+            const tags = entry.tags ? entry.tags.split(',').map(t => {
+                const tag = t.trim();
+                return `<span class="tag-badge">${tag}</span>`;
+            }).join(' ') : '<span class="tag-badge">بدون تصنيف</span>';
+
+            card.innerHTML = `
+                <div class="word-text">${entry.word}</div>
+                <div class="word-info">
+                    <strong>الجذر:</strong> ${entry.root || 'غير محدد'}
+                </div>
+                <div class="word-info">
+                    <strong>الموقع:</strong>
+                    <span class="position">سورة ${entry.surah} : آية ${entry.ayah} : كلمة ${entry.word_position}</span>
+                </div>
+                <div class="word-info">
+                    <strong>التصنيفات:</strong><br>
+                    ${tags}
+                </div>
+            `;
+
+            return card;
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredData.length / pageSize);
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            // Previous button
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'page-btn';
+            prevBtn.textContent = '← السابق';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.onclick = () => {
+                currentPage--;
+                renderPage();
+            };
+            pagination.appendChild(prevBtn);
+
+            // Page numbers
+            const maxButtons = 10;
+            let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+            let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+            if (endPage - startPage < maxButtons - 1) {
+                startPage = Math.max(1, endPage - maxButtons + 1);
+            }
+
+            if (startPage > 1) {
+                const btn = document.createElement('button');
+                btn.className = 'page-btn';
+                btn.textContent = '1';
+                btn.onclick = () => {
+                    currentPage = 1;
+                    renderPage();
+                };
+                pagination.appendChild(btn);
+
+                if (startPage > 2) {
+                    const dots = document.createElement('span');
+                    dots.textContent = '...';
+                    dots.style.padding = '0 10px';
+                    pagination.appendChild(dots);
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+                btn.textContent = i;
+                btn.onclick = () => {
+                    currentPage = i;
+                    renderPage();
+                };
+                pagination.appendChild(btn);
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    const dots = document.createElement('span');
+                    dots.textContent = '...';
+                    dots.style.padding = '0 10px';
+                    pagination.appendChild(dots);
+                }
+
+                const btn = document.createElement('button');
+                btn.className = 'page-btn';
+                btn.textContent = totalPages;
+                btn.onclick = () => {
+                    currentPage = totalPages;
+                    renderPage();
+                };
+                pagination.appendChild(btn);
+            }
+
+            // Next button
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'page-btn';
+            nextBtn.textContent = 'التالي →';
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.onclick = () => {
+                currentPage++;
+                renderPage();
+            };
+            pagination.appendChild(nextBtn);
+        }
+
+        function exportToJSON() {
+            const dataStr = JSON.stringify(filteredData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'filtered_quran_data.json';
+            link.click();
+        }
+
+        // Event listeners
+        document.getElementById('searchWord').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') applyFilters();
+        });
+
+        document.getElementById('searchRoot').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') applyFilters();
+        });
+
+        document.getElementById('pageSize').addEventListener('change', () => {
+            currentPage = 1;
+            renderPage();
+        });
+
+        // Load data on page load
+        loadData();
+    </script>
+</body>
+</html>
