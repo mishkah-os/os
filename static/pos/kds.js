@@ -1262,6 +1262,24 @@
 
       // Removed verbose logging for order status
 
+      // ✅ Extract order header notes
+      const headerNotes = (() => {
+        const notes = header.notes;
+        if(!notes) return '';
+        if(Array.isArray(notes)) return notes.filter(Boolean).map(n => {
+          if(typeof n === 'string') return n;
+          if(typeof n === 'object'){
+            if(n.message) return String(n.message);
+            if(n.text) return String(n.text);
+            if(n.note) return String(n.note);
+            if(n.content) return String(n.content);
+          }
+          return '';
+        }).filter(Boolean).join(' • ');
+        if(typeof notes === 'string') return notes;
+        return '';
+      })();
+
       return {
         orderId,
         orderNumber: header.orderNumber || header.id,
@@ -1269,6 +1287,7 @@
         serviceMode: header.metadata?.serviceMode || header.metadata?.orderType || header.orderTypeId || header.serviceMode || header.type || 'dine_in',
         tableLabel: header.tableLabel || null,
         customerName: header.customerName || null,
+        notes: headerNotes,  // ✅ Add order header notes
         handoffStatus: status,
         handoffRecord: record,
         totalItems,
@@ -2136,15 +2155,17 @@
 
   const renderDetailRow = (detail, t, lang, stationLabel)=>{
     const statusLabel = t.labels.jobStatus[detail.status] || detail.status || 'draft';
-    const stationText = lang === 'ar' ? t.labels.station.ar : t.labels.station.en;
-    // ✅ Only show station label if it's a valid non-empty string
+    // ✅ Fixed: Use optional chaining to prevent "undefined" from showing
+    const stationText = lang === 'ar' ? (t.labels?.station?.ar || 'المحطة') : (t.labels?.station?.en || 'Station');
+    // ✅ Only show station label if it's a valid non-empty string AND stationText is valid
     const hasValidStationLabel = stationLabel && typeof stationLabel === 'string' && stationLabel !== 'undefined' && stationLabel.trim().length > 0;
+    const hasValidStationText = stationText && stationText !== 'undefined';
     return D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
         D.Text.Strong({ attrs:{ class: tw`text-base font-semibold leading-tight text-slate-100 sm:text-lg` }}, [`${detail.quantity}× ${lang === 'ar' ? (detail.itemNameAr || detail.itemNameEn || detail.itemId) : (detail.itemNameEn || detail.itemNameAr || detail.itemId)}`]),
         createBadge(statusLabel, STATUS_CLASS[detail.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
       ]),
-      hasValidStationLabel ? createBadge(`${stationText}: ${stationLabel}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
+      (hasValidStationLabel && hasValidStationText) ? createBadge(`${stationText}: ${stationLabel}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
       detail.prepNotes ? D.Text.P({ attrs:{ class: tw`text-xs text-slate-300` }}, [`📝 ${detail.prepNotes}`]) : null,
       detail.modifiers && detail.modifiers.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, detail.modifiers.map(mod=>{
         const typeText = mod.modifierType === 'remove'
@@ -2307,6 +2328,7 @@
       ]),
       order.tableLabel ? createBadge(`${t.labels.table} ${order.tableLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`) : null,
       order.customerName ? D.Text.P({ attrs:{ class: tw`text-sm text-slate-300` }}, [`${t.labels.customer}: ${order.customerName}`]) : null,
+      order.notes ? D.Text.P({ attrs:{ class: tw`text-sm text-amber-200` }}, [`🧾 ${order.notes}`]) : null,  // ✅ Display order header notes
       // ✅ Display all order lines grouped by kitchen section
       D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, (order.detailRows || []).map(row=> {
         const stationLabel = lang === 'ar' ? row.stationLabelAr : row.stationLabelEn;
@@ -2386,6 +2408,7 @@
           createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
         ]),
         headerBadges.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, headerBadges) : null,
+        order.notes ? D.Text.P({ attrs:{ class: tw`text-sm text-amber-200` }}, [`🧾 ${order.notes}`]) : null,  // ✅ Display order header notes
         D.Containers.Div({ attrs:{ class: tw`grid gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3 text-xs text-slate-300 sm:grid-cols-2` }}, [
           D.Text.Span(null, [`${t.stats.ready}: ${order.readyItems || 0} / ${order.totalItems || 0}`]),
           D.Text.Span(null, [`${t.labels.timer}: ${formatDuration(elapsed)}`])
@@ -2514,6 +2537,7 @@
           createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
         ]),
         headerBadges.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, headerBadges) : null,
+        order.notes ? D.Text.P({ attrs:{ class: tw`text-sm text-amber-200` }}, [`🧾 ${order.notes}`]) : null,  // ✅ Display order header notes
         D.Containers.Div({ attrs:{ class: tw`grid gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3 text-xs text-slate-300 sm:grid-cols-2` }}, [
           D.Text.Span(null, [`${t.stats.ready}: ${order.readyItems || 0} / ${order.totalItems || 0}`]),
           D.Text.Span(null, [`${t.labels.timer}: ${formatClock(order.handoffRecord?.assembledAt || order.createdAt, lang)}`])
