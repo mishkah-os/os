@@ -2488,6 +2488,23 @@
       const linesRaw = Array.isArray(order.lines) ? order.lines : [];
       const lines = linesRaw.filter(Boolean);
       if(!lines.length) return null;
+
+      // ✅ CRITICAL: For persisted orders with new items, detect if this is a reopened order
+      const hasPersistedLines = lines.some(line => line.isPersisted);
+      const hasNewLines = lines.some(line => !line.isPersisted);
+      const isReopenedOrder = order.isPersisted && hasPersistedLines && hasNewLines;
+
+      // ✅ CRITICAL: For reopened orders, only send NEW unpersisted lines to kitchen
+      // Old persisted lines already sent - don't resend them!
+      const linesToSendToKitchen = isReopenedOrder
+        ? lines.filter(line => !line.isPersisted)
+        : lines;
+
+      if(!linesToSendToKitchen.length) {
+        console.log('⚠️ [KDS] No new lines to send to kitchen for reopened order:', order.id);
+        return null;  // No job_order if no new lines
+      }
+
       const kitchenSections = Array.isArray(state.data?.kitchenSections) ? state.data.kitchenSections : [];
       const sectionMap = new Map(kitchenSections.map(section=> [section.id, section]));
       const jobsMap = new Map();
@@ -2500,7 +2517,16 @@
       // Using order.updatedAt would cause overwriting existing job_orders when adding items
       const batchId = Date.now();
 
-      lines.forEach((line, index)=>{
+      if(isReopenedOrder) {
+        console.log('🔄 [KDS REOPEN] Creating job_order for NEW items only:', {
+          orderId: order.id,
+          totalLines: lines.length,
+          newLines: linesToSendToKitchen.length,
+          oldPersistedLines: lines.length - linesToSendToKitchen.length
+        });
+      }
+
+      linesToSendToKitchen.forEach((line, index)=>{
         const lineIndex = index + 1;
         // ✅ Check all variants of kitchenSection field
         const kitchenSectionSource = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.kitchen_section;
@@ -2694,8 +2720,9 @@
 
       // ✅ CRITICAL FIX: Check if this is a reopened order (has new unpersisted lines)
       // If order was finalized/delivered but now has new lines added, reopen it for KDS
-      const hasNewLines = lines.some(line => !line.isPersisted);
-      const isReopenedOrder = order.isPersisted && hasNewLines &&
+      // Note: isReopenedOrder already calculated in serializeOrderForKDS above
+      const hasNewLinesForHeader = lines.some(line => !line.isPersisted);
+      const isReopenedOrderForHeader = order.isPersisted && hasNewLinesForHeader &&
                               (order.status === 'finalized' || order.status === 'closed' ||
                                order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed');
 
@@ -2707,9 +2734,9 @@
         orderTypeId: serviceMode,
         serviceMode,
         // ✅ CRITICAL: Reopen order if has new unpersisted lines
-        status: isReopenedOrder ? 'open' : (order.status || 'open'),
-        statusId: isReopenedOrder ? 'open' : (order.statusId || order.status || 'open'),
-        fulfillmentStage: isReopenedOrder ? 'in_progress' : (order.fulfillmentStage || order.stage || 'new'),
+        status: isReopenedOrderForHeader ? 'open' : (order.status || 'open'),
+        statusId: isReopenedOrderForHeader ? 'open' : (order.statusId || order.status || 'open'),
+        fulfillmentStage: isReopenedOrderForHeader ? 'in_progress' : (order.fulfillmentStage || order.stage || 'new'),
         paymentState: order.paymentState || 'unpaid',
         tableIds: Array.isArray(order.tableIds) ? order.tableIds : [],
         tableLabel: tableLabel || null,
@@ -2726,13 +2753,13 @@
           serviceMode,
           orderType: serviceMode,
           orderTypeId: serviceMode,
-          isReopened: isReopenedOrder  // ✅ Flag for KDS to know this is reopened
+          isReopened: isReopenedOrderForHeader  // ✅ Flag for KDS to know this is reopened
         },
         createdAt: createdIso,
         updatedAt: updatedIso
       };
 
-      if(isReopenedOrder) {
+      if(isReopenedOrderForHeader) {
         console.log('🔄 [KDS REOPEN] Order was delivered but has new lines - reopening for KDS:', {
           orderId: order.id,
           oldStatus: order.status,
@@ -2745,7 +2772,7 @@
 
       // ✅ CRITICAL: For reopened orders, only include NEW unpersisted lines
       // Old persisted lines already sent to kitchen - don't resend them!
-      const linesToInclude = isReopenedOrder
+      const linesToInclude = isReopenedOrderForHeader
         ? lines.filter(line => !line.isPersisted)  // Only new lines for reopened orders
         : lines;  // All lines for new orders
 
@@ -2776,7 +2803,7 @@
         };
       });
 
-      if(isReopenedOrder) {
+      if(isReopenedOrderForHeader) {
         console.log('🔄 [KDS REOPEN] Filtered order_line to NEW items only:', {
           totalLines: lines.length,
           newLines: linesToInclude.length,
