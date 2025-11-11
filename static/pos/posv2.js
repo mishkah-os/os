@@ -6506,6 +6506,16 @@
         : (order.fulfillmentStage || 'new');
       const allowAdditions = finalize ? false : !!typeConfig.allowsLineAdditions;
       const orderNotes = Array.isArray(order.notes) ? order.notes : (order.notes ? [order.notes] : []);
+
+      console.log('📝📝📝 [NOTES CRITICAL] Order notes before save:', {
+        'order.notes': order.notes,
+        'order.notes type': typeof order.notes,
+        'order.notes isArray': Array.isArray(order.notes),
+        'orderNotes': orderNotes,
+        'orderNotes.length': orderNotes.length,
+        'orderNotes[0]': orderNotes[0]
+      });
+
       let finalOrderId = previousOrderId;
       // Check if current ID is a draft (local-only) ID
       const isDraftId = previousOrderId && String(previousOrderId).startsWith('draft-');
@@ -6653,7 +6663,15 @@
         paymentsLocked: finalize ? true : isPaymentsLocked(order),
         allowAdditions,
         lockLineEdits: finalize ? true : (order.lockLineEdits !== undefined ? order.lockLineEdits : false),
-        metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType, tableIds: assignedTables }
+        metadata:{
+          ...(order.metadata || {}),
+          orderType,
+          orderTypeId: orderType,
+          serviceMode: orderType,
+          tableIds: assignedTables,
+          notes: orderNotes,  // ✅ Add notes to metadata as backup
+          notes_json: JSON.stringify(orderNotes)  // ✅ JSON string version for backend
+        }
       };
 
       console.log('🏷️🏷️🏷️ [TABLE CRITICAL] AFTER creating orderPayload:', {
@@ -6661,6 +6679,15 @@
         'orderPayload.table_ids': orderPayload.table_ids,
         'orderPayload.tableId': orderPayload.tableId,
         'orderPayload.metadata.tableIds': orderPayload.metadata.tableIds
+      });
+
+      console.log('📝📝📝 [NOTES CRITICAL] orderPayload notes:', {
+        'orderPayload.notes': orderPayload.notes,
+        'orderPayload.notes type': typeof orderPayload.notes,
+        'orderPayload.notes isArray': Array.isArray(orderPayload.notes),
+        'orderPayload.notes.length': orderPayload.notes?.length,
+        'orderPayload.metadata.notes': orderPayload.metadata.notes,
+        'orderPayload.metadata.notes_json': orderPayload.metadata.notes_json
       });
       if(finalize){
         orderPayload.finalizedAt = now;
@@ -6695,6 +6722,15 @@
             firstLine: savedOrder?.lines?.[0],
             subtotal: savedOrder?.subtotal,
             totalDue: savedOrder?.totalDue
+          });
+
+          console.log('📝📝📝 [NOTES CRITICAL] Backend response notes:', {
+            'savedOrder.notes': savedOrder?.notes,
+            'savedOrder.notes type': typeof savedOrder?.notes,
+            'savedOrder.notes isArray': Array.isArray(savedOrder?.notes),
+            'savedOrder.notes.length': savedOrder?.notes?.length,
+            'savedOrder.metadata?.notes': savedOrder?.metadata?.notes,
+            'savedOrder.metadata?.notes_json': savedOrder?.metadata?.notes_json
           });
         } catch(error){
           console.error('[Mishkah][POS] Error saving order to backend:', {
@@ -6904,6 +6940,13 @@
           savedOrderTable_ids: savedOrder?.table_ids
         });
 
+        console.log('📝 [NOTES DEBUG] BEFORE mergePreferRemote:', {
+          orderPayloadNotes: orderPayload.notes,
+          orderPayloadNotesLength: orderPayload.notes?.length,
+          savedOrderNotes: savedOrder?.notes,
+          savedOrderNotesLength: savedOrder?.notes?.length
+        });
+
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
           ? mergePreferRemote(orderPayload, savedOrder)
           : orderPayload;
@@ -6913,6 +6956,11 @@
           remoteResolvedTableId: remoteResolved.tableId,
           isArray: Array.isArray(remoteResolved.tableIds),
           length: remoteResolved.tableIds?.length
+        });
+
+        console.log('📝 [NOTES DEBUG] AFTER mergePreferRemote:', {
+          remoteResolvedNotes: remoteResolved.notes,
+          remoteResolvedNotesLength: remoteResolved.notes?.length
         });
 
         // ✅ CRITICAL FIX: Preserve tableIds from orderPayload if savedOrder doesn't have them
@@ -6930,17 +6978,34 @@
           console.log('✅ [TABLE DEBUG] tableIds preserved after merge:', remoteResolved.tableIds);
         }
 
+        // ✅ CRITICAL FIX: Preserve notes from orderPayload if savedOrder doesn't have them
+        // Backend may not return notes, causing them to disappear after save
+        if(remoteResolved && (!remoteResolved.notes || remoteResolved.notes.length === 0)) {
+          if(Array.isArray(orderPayload.notes) && orderPayload.notes.length > 0) {
+            console.warn('⚠️⚠️ [NOTES FIX] Backend missing notes - restoring from orderPayload:', orderPayload.notes);
+            remoteResolved.notes = orderPayload.notes.slice();
+          } else if(orderPayload.metadata?.notes && Array.isArray(orderPayload.metadata.notes) && orderPayload.metadata.notes.length > 0) {
+            console.warn('⚠️⚠️ [NOTES FIX] Restoring notes from metadata:', orderPayload.metadata.notes);
+            remoteResolved.notes = orderPayload.metadata.notes.slice();
+          }
+        } else {
+          console.log('✅ [NOTES DEBUG] notes preserved after merge:', remoteResolved.notes);
+        }
+
         console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
           orderId: remoteResolved.id,
           tableIds: remoteResolved.tableIds,
+          notes: remoteResolved.notes,
+          notesLength: remoteResolved.notes?.length,
           totals: remoteResolved.totals,
           linesCount: remoteResolved.lines?.length,
           firstLine: remoteResolved.lines?.[0]
         });
 
-        // ✅ CRITICAL: Store tableIds BEFORE enrichOrderWithMenu (may lose them)
+        // ✅ CRITICAL: Store tableIds AND notes BEFORE enrichOrderWithMenu (may lose them)
         const tableIdsBackup = Array.isArray(remoteResolved.tableIds) ? remoteResolved.tableIds.slice() : [];
         const tableIdBackup = remoteResolved.tableId || (tableIdsBackup.length > 0 ? tableIdsBackup[0] : null);
+        const notesBackup = Array.isArray(remoteResolved.notes) ? remoteResolved.notes.map(n => ({...n})) : [];
 
         const normalizedOrderForState = enrichOrderWithMenu({
           ...remoteResolved,
@@ -6953,6 +7018,12 @@
           console.warn('⚠️⚠️⚠️ [TABLE RESTORE] enrichOrderWithMenu lost tableIds! Restoring:', tableIdsBackup);
           normalizedOrderForState.tableIds = tableIdsBackup;
           normalizedOrderForState.tableId = tableIdBackup;
+        }
+
+        // ✅ RESTORE notes after enrichOrderWithMenu if lost
+        if((!normalizedOrderForState.notes || normalizedOrderForState.notes.length === 0) && notesBackup.length > 0) {
+          console.warn('⚠️⚠️⚠️ [NOTES RESTORE] enrichOrderWithMenu lost notes! Restoring:', notesBackup);
+          normalizedOrderForState.notes = notesBackup;
         }
         console.log('[Mishkah][POS] After enrichOrderWithMenu:', {
           orderId: normalizedOrderForState.id,
@@ -6985,10 +7056,18 @@
           syncedOrderForState.tableId = tableIdBackup;
         }
 
+        // ✅ FINAL BACKUP: Ensure notes survive to the end
+        if((!syncedOrderForState.notes || syncedOrderForState.notes.length === 0) && notesBackup.length > 0) {
+          console.error('❌❌❌ [NOTES RESTORE] syncOrderVersionMetadata lost notes! Restoring:', notesBackup);
+          syncedOrderForState.notes = notesBackup;
+        }
+
         console.log('[Mishkah][POS] Final order for state:', {
           orderId: syncedOrderForState.id,
           tableIds: syncedOrderForState.tableIds,  // ✅ FINAL CHECK: tableIds before setState
           tableId: syncedOrderForState.tableId,
+          notes: syncedOrderForState.notes,  // ✅ FINAL CHECK: notes before setState
+          notesLength: syncedOrderForState.notes?.length,
           totals: syncedOrderForState.totals,
           linesCount: syncedOrderForState.lines?.length,
           firstLine: syncedOrderForState.lines?.[0]
