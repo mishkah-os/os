@@ -2008,7 +2008,11 @@
         base.statusId = base.status;
         base.payment_state = base.paymentState;
         base.paymentStateId = base.paymentState;
-        base.tableIds = Array.isArray(base.tableIds) ? base.tableIds.slice() : [];
+        // ✅ Support both tableIds (camelCase) and table_ids (snake_case) from backend
+        const tableIdsSource = raw.tableIds || raw.table_ids || raw.tableId || metadata.tableIds || metadata.table_ids;
+        base.tableIds = Array.isArray(tableIdsSource)
+          ? tableIdsSource.slice()
+          : (tableIdsSource ? [tableIdsSource] : []);
         base.guests = Number.isFinite(Number(base.guests)) ? Number(base.guests) : 0;
         base.allowAdditions = base.allowAdditions !== undefined ? !!base.allowAdditions : true;
         base.lockLineEdits = base.lockLineEdits !== undefined ? !!base.lockLineEdits : true;
@@ -7499,13 +7503,20 @@
       const paymentEntries = getActivePaymentEntries(order, db.data.payments);
       const paymentSnapshot = summarizePayments(order.totals || {}, paymentEntries);
       const outstanding = paymentSnapshot.remaining || 0;
+      // ✅ Check if order has valid lines (prevent saving empty orders)
+      const validLines = (order.lines || []).filter(line => {
+        const notCancelled = !line.cancelled && !line.voided;
+        const hasQuantity = Number(line.qty || line.quantity || 0) > 0;
+        return notCancelled && hasQuantity;
+      });
+      const hasValidLines = validLines.length > 0;
       // ✅ FIXED: For takeaway:
       //    - Save button is DISABLED (requires payment)
       //    - Finish button is ENABLED (smart - opens payment modal first)
       const saveDisabled = isTakeaway && outstanding > 0.0001;
       const finishDisabled = false; // Finish button always enabled - it will open payment modal if needed
-      const canShowSave = !isFinalized && !deliveredStage;
-      const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
+      const canShowSave = !isFinalized && !deliveredStage && hasValidLines; // ✅ Only show if has valid lines
+      const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage) && hasValidLines; // ✅ Only show if has valid lines
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
       const showPrintButton = order.isPersisted && order.id && !order.id.startsWith('draft-'); // ✅ FIXED: Show print for all saved orders with real ID
