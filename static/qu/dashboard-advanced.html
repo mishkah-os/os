@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة التحليل المورفولوجي - Advanced Dashboard</title>
+
+    <!-- Mishkah Core -->
+    <script src="../../static/lib/mishkah.core.js"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-family: 'Segoe UI', 'Courier New', monospace;
+            background: #f5f5f5;
+            color: #333;
+            direction: rtl;
+        }
+
+        body {
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-box .number {
+            font-size: 2em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .stat-box .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .toolbar {
+            background: #f9f9f9;
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toolbar button:hover {
+            background: #5568d3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .error {
+            background: #fee;
+            color: #c00;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .success {
+            background: #efe;
+            color: #0c0;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .tabs {
+            display: flex;
+            background: #e9ecef;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            color: #333;
+            font-size: 1em;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+            border-bottom-color: #667eea;
+        }
+
+        .tab:hover {
+            background: #f0f0f0;
+        }
+
+        .tab.active:hover {
+            background: #667eea;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table th {
+            background: #f0f0f0;
+            padding: 12px;
+            text-align: right;
+            font-weight: bold;
+            border-bottom: 2px solid #ddd;
+        }
+
+        table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .pattern-card {
+            background: #f9f9f9;
+            border: 2px solid #667eea;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .pattern-card .title {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .pattern-card .value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #764ba2;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script>
+    (async function() {
+        const M = Mishkah;
+        const D = M.DSL;
+        const U = M.utils;
+
+        // ============================================
+        // DATABASE
+        // ============================================
+        const db = {
+            env: { lang: 'ar', theme: 'light', dir: 'rtl' },
+            data: {
+                loading: true,
+                error: null,
+                currentTab: 'overview',
+
+                wordsData: [],
+                wordsRef: [],
+
+                stats: {
+                    totalWords: 0,
+                    uniqueWords: 0,
+                    uniqueRoots: 0,
+                    tagFrequency: {},
+                    rootFrequency: {},
+                    wordFrequency: {},
+                    patternFrequency: {}
+                },
+
+                patterns: [],
+                wordLocations: {}
+            }
+        };
+
+        // ============================================
+        // DATA LOADING
+        // ============================================
+        async function loadData() {
+            try {
+                console.log('📂 جاري تحميل البيانات...');
+
+                // Load all final JSON files
+                const finalData = [];
+                for (let i = 1; i <= 15; i++) {
+                    const fileNum = String(i).padStart(2, '0');
+                    const response = await fetch(`./final/final_${fileNum}.json`);
+                    if (!response.ok) throw new Error(`Failed to load final_${fileNum}.json`);
+                    const data = await response.json();
+                    finalData.push(...data);
+                }
+
+                // Load words-ref.json
+                const refResponse = await fetch('./words-ref.json');
+                if (!refResponse.ok) throw new Error('Failed to load words-ref.json');
+                const wordsRef = await refResponse.json();
+
+                db.data.wordsData = finalData;
+                db.data.wordsRef = wordsRef;
+
+                // Build word locations index
+                wordsRef.forEach((locations, idx) => {
+                    if (finalData[idx]) {
+                        db.data.wordLocations[finalData[idx][0]] = locations;
+                    }
+                });
+
+                // Calculate statistics
+                calculateStatistics(finalData);
+                discoverPatterns(finalData);
+
+                db.data.loading = false;
+                console.log('✓ تم تحميل البيانات بنجاح');
+
+                return true;
+            } catch (error) {
+                console.error('❌ خطأ:', error);
+                db.data.loading = false;
+                db.data.error = error.message;
+                return false;
+            }
+        }
+
+        function calculateStatistics(wordsData) {
+            const stats = db.data.stats;
+            const uniqueWordsSet = new Set();
+            const uniqueRootsSet = new Set();
+            const tagFreq = {};
+            const rootFreq = {};
+            const wordFreq = {};
+
+            wordsData.forEach(([word, root, tags]) => {
+                uniqueWordsSet.add(word);
+                uniqueRootsSet.add(root);
+                wordFreq[word] = (wordFreq[word] || 0) + 1;
+                rootFreq[root] = (rootFreq[root] || 0) + 1;
+
+                if (tags) {
+                    const tagList = tags.split(',');
+                    tagList.forEach(tag => {
+                        const t = tag.trim();
+                        tagFreq[t] = (tagFreq[t] || 0) + 1;
+                    });
+                }
+            });
+
+            stats.totalWords = wordsData.length;
+            stats.uniqueWords = uniqueWordsSet.size;
+            stats.uniqueRoots = uniqueRootsSet.size;
+            stats.tagFrequency = tagFreq;
+            stats.rootFrequency = rootFreq;
+            stats.wordFrequency = wordFreq;
+        }
+
+        function discoverPatterns(wordsData) {
+            const patterns = [];
+            const rootFreq = {};
+            const tagFreq = {};
+
+            // Count frequencies
+            wordsData.forEach(([word, root, tags]) => {
+                rootFreq[root] = (rootFreq[root] || 0) + 1;
+                if (tags) {
+                    tags.split(',').forEach(tag => {
+                        const t = tag.trim();
+                        tagFreq[t] = (tagFreq[t] || 0) + 1;
+                    });
+                }
+            });
+
+            // Find patterns (words appearing multiple times)
+            const wordFreq = {};
+            wordsData.forEach(([word]) => {
+                wordFreq[word] = (wordFreq[word] || 0) + 1;
+            });
+
+            const repeatingWords = Object.entries(wordFreq)
+                .filter(([w, freq]) => freq > 5)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 20);
+
+            patterns.push({
+                name: 'كلمات متكررة بكثرة',
+                items: repeatingWords,
+                type: 'frequency'
+            });
+
+            // Find frequent combinations
+            const rootsByTag = {};
+            wordsData.forEach(([word, root, tags]) => {
+                if (tags) {
+                    const tagList = tags.split(',');
+                    tagList.forEach(tag => {
+                        const t = tag.trim();
+                        if (!rootsByTag[t]) rootsByTag[t] = {};
+                        rootsByTag[t][root] = (rootsByTag[t][root] || 0) + 1;
+                    });
+                }
+            });
+
+            db.data.patterns = patterns;
+        }
+
+        // ============================================
+        // ORDERS
+        // ============================================
+        const orders = {
+            'tab:select': function(event, context) {
+                context.db.data.currentTab = event.target.dataset.tab;
+                context.rebuild();
+            }
+        };
+
+        // ============================================
+        // UI COMPONENTS
+        // ============================================
+        function renderHeader(D) {
+            return D.Containers.Div({ attrs: { class: 'header' } }, [
+                D.Text.H1({}, ['📊 لوحة التحليل المورفولوجي']),
+                D.Text.P({}, ['Arabic Morphological Analysis - Advanced Dashboard'])
+            ]);
+        }
+
+        function renderStatBox(label, value, D) {
+            return D.Containers.Div({ attrs: { class: 'stat-box' } }, [
+                D.Text.P({ attrs: { class: 'label' } }, [label]),
+                D.Text.P({ attrs: { class: 'number' } }, [String(value)])
+            ]);
+        }
+
+        function renderOverviewTab(state, D) {
+            const stats = state.stats;
+            const topWords = Object.entries(stats.wordFrequency)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            return D.Containers.Div({}, [
+                D.Containers.Div({ attrs: { class: 'card full-width' } }, [
+                    D.Text.H2({}, ['الإحصائيات الأساسية']),
+                    D.Containers.Div({ attrs: { class: 'stats-grid' } }, [
+                        renderStatBox('📊 إجمالي الكلمات', stats.totalWords, D),
+                        renderStatBox('🔤 كلمات فريدة', stats.uniqueWords, D),
+                        renderStatBox('🌳 جذور فريدة', stats.uniqueRoots, D),
+                        renderStatBox('🏷️ تصنيفات', Object.keys(stats.tagFrequency).length, D)
+                    ])
+                ]),
+
+                D.Containers.Div({ attrs: { class: 'card' } }, [
+                    D.Text.H2({}, ['أكثر الكلمات تكراراً']),
+                    D.Containers.Div({ attrs: { class: 'table-container' } }, [
+                        D.Tables.Table({}, [
+                            D.Tables.Thead({}, [
+                                D.Tables.Tr({}, [
+                                    D.Tables.Th({}, ['الكلمة']),
+                                    D.Tables.Th({}, ['التكرار']),
+                                    D.Tables.Th({}, ['النسبة %'])
+                                ])
+                            ]),
+                            D.Tables.Tbody({}, topWords.map(([word, freq]) =>
+                                D.Tables.Tr({}, [
+                                    D.Tables.Td({}, [D.Text.Strong({}, [word])]),
+                                    D.Tables.Td({}, [String(freq)]),
+                                    D.Tables.Td({}, [((freq / stats.totalWords) * 100).toFixed(2)])
+                                ])
+                            ))
+                        ])
+                    ])
+                ]),
+
+                D.Containers.Div({ attrs: { class: 'card' } }, [
+                    D.Text.H2({}, ['أكثر الجذور تكراراً']),
+                    D.Containers.Div({ attrs: { class: 'table-container' } }, [
+                        D.Tables.Table({}, [
+                            D.Tables.Thead({}, [
+                                D.Tables.Tr({}, [
+                                    D.Tables.Th({}, ['الجذر']),
+                                    D.Tables.Th({}, ['التكرار'])
+                                ])
+                            ]),
+                            D.Tables.Tbody({}, Object.entries(stats.rootFrequency)
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 10)
+                                .map(([root, freq]) =>
+                                    D.Tables.Tr({}, [
+                                        D.Tables.Td({}, [D.Text.Strong({}, [root])]),
+                                        D.Tables.Td({}, [String(freq)])
+                                    ])
+                                ))
+                        ])
+                    ])
+                ])
+            ]);
+        }
+
+        function renderStatisticsTab(state, D) {
+            const stats = state.stats;
+            return D.Containers.Div({}, [
+                D.Containers.Div({ attrs: { class: 'card full-width' } }, [
+                    D.Text.H2({}, ['توزيع التصنيفات (Tags)']),
+                    D.Containers.Div({ attrs: { class: 'table-container' } }, [
+                        D.Tables.Table({}, [
+                            D.Tables.Thead({}, [
+                                D.Tables.Tr({}, [
+                                    D.Tables.Th({}, ['التصنيف']),
+                                    D.Tables.Th({}, ['التكرار']),
+                                    D.Tables.Th({}, ['النسبة %']),
+                                    D.Tables.Th({}, ['شريط التقدم'])
+                                ])
+                            ]),
+                            D.Tables.Tbody({}, Object.entries(stats.tagFrequency)
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 15)
+                                .map(([tag, freq]) => {
+                                    const percentage = ((freq / stats.totalWords) * 100).toFixed(2);
+                                    return D.Tables.Tr({}, [
+                                        D.Tables.Td({}, [tag]),
+                                        D.Tables.Td({}, [String(freq)]),
+                                        D.Tables.Td({}, [percentage + '%']),
+                                        D.Tables.Td({}, [
+                                            D.Containers.Div({ attrs: { class: 'progress-bar' } }, [
+                                                D.Containers.Div({
+                                                    attrs: {
+                                                        class: 'progress-fill',
+                                                        style: `width: ${percentage}%`
+                                                    }
+                                                })
+                                            ])
+                                        ])
+                                    ]);
+                                })
+                            )
+                        ])
+                    ])
+                ])
+            ]);
+        }
+
+        function renderPatternsTab(state, D) {
+            return D.Containers.Div({}, [
+                D.Containers.Div({ attrs: { class: 'card full-width' } }, [
+                    D.Text.H2({}, ['الأنماط المكتشفة']),
+                    ...state.patterns.map(pattern =>
+                        D.Containers.Div({}, [
+                            D.Text.H3({}, [pattern.name]),
+                            ...pattern.items.slice(0, 10).map(([item, freq]) =>
+                                D.Containers.Div({ attrs: { class: 'pattern-card' } }, [
+                                    D.Containers.Div({ attrs: { class: 'title' } }, [item]),
+                                    D.Containers.Div({ attrs: { class: 'value' } }, [
+                                        'التكرار: ' + freq
+                                    ])
+                                ])
+                            )
+                        ])
+                    )
+                ])
+            ]);
+        }
+
+        // ============================================
+        // MAIN RENDER
+        // ============================================
+        M.app.setBody((stateWrapper, D) => {
+            const state = stateWrapper.data;
+
+            if (state.loading) {
+                return D.Containers.Div({ attrs: { class: 'container' } }, [
+                    renderHeader(D),
+                    D.Containers.Div({ attrs: { class: 'loading' } }, [
+                        D.Containers.Div({ attrs: { class: 'spinner' } }),
+                        D.Text.P({}, ['جاري تحميل البيانات...'])
+                    ])
+                ]);
+            }
+
+            if (state.error) {
+                return D.Containers.Div({ attrs: { class: 'container' } }, [
+                    renderHeader(D),
+                    D.Containers.Div({ attrs: { class: 'error' } }, [state.error])
+                ]);
+            }
+
+            const tabContent = {
+                'overview': renderOverviewTab(state, D),
+                'statistics': renderStatisticsTab(state, D),
+                'patterns': renderPatternsTab(state, D)
+            };
+
+            return D.Containers.Div({ attrs: { class: 'container' } }, [
+                renderHeader(D),
+
+                D.Containers.Div({ attrs: { class: 'tabs' } }, [
+                    D.Forms.Button({
+                        attrs: {
+                            class: state.currentTab === 'overview' ? 'tab active' : 'tab',
+                            'data-tab': 'overview',
+                            gkey: 'tab:select'
+                        }
+                    }, ['📊 نظرة عامة']),
+                    D.Forms.Button({
+                        attrs: {
+                            class: state.currentTab === 'statistics' ? 'tab active' : 'tab',
+                            'data-tab': 'statistics',
+                            gkey: 'tab:select'
+                        }
+                    }, ['📈 الإحصائيات']),
+                    D.Forms.Button({
+                        attrs: {
+                            class: state.currentTab === 'patterns' ? 'tab active' : 'tab',
+                            'data-tab': 'patterns',
+                            gkey: 'tab:select'
+                        }
+                    }, ['🎯 الأنماط'])
+                ]),
+
+                D.Containers.Div({ attrs: { class: 'content' } }, [
+                    tabContent[state.currentTab]
+                ])
+            ]);
+        });
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        const app = M.app.createApp(db, orders);
+        app.mount('#app');
+        await loadData();
+        app.rebuild();
+        console.log('✅ تم تشغيل التطبيق');
+
+    })();
+    </script>
+</body>
+</html>
