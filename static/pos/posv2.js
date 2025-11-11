@@ -2702,6 +2702,7 @@
         orderTypeId: serviceMode,
         serviceMode,
         status: order.status || 'open',
+        statusId: order.statusId || order.status || 'open',  // ✅ Add statusId for KDS
         fulfillmentStage: order.fulfillmentStage || order.stage || 'new',
         paymentState: order.paymentState || 'unpaid',
         tableIds: Array.isArray(order.tableIds) ? order.tableIds : [],
@@ -2713,6 +2714,13 @@
         customerId: order.customerId || null,
         customerPhone: order.customerPhone || '',
         customerAddress: order.customerAddress || '',
+        notes: notesToText(order.notes, '; '),  // ✅ CRITICAL: Add order header notes for KDS display
+        metadata: {  // ✅ Add metadata with serviceMode (KDS reads from here)
+          ...(order.metadata || {}),
+          serviceMode,
+          orderType: serviceMode,
+          orderTypeId: serviceMode
+        },
         createdAt: createdIso,
         updatedAt: updatedIso
       };
@@ -6616,33 +6624,41 @@
           if(kdsPayload && kdsPayload.job_order_header){
             console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
 
-            // ✅ Fire-and-forget save (don't await - prevents timeout blocking)
-            // posv2.html watchers will update window.database when ready
-            Promise.all([
-              // Save headers
-              ...kdsPayload.job_order_header.map(jobHeader =>
-                store.insert('job_order_header', jobHeader).catch(err =>
-                  console.error('[POS V2] Failed to save header:', jobHeader.id, err)
+            // ✅ CRITICAL FIX: AWAIT job_order saves before continuing
+            // This ensures window.database is updated BEFORE print modal opens
+            // Prevents printing with stale/missing data
+            try {
+              await Promise.all([
+                // Save headers
+                ...kdsPayload.job_order_header.map(jobHeader =>
+                  store.insert('job_order_header', jobHeader).catch(err =>
+                    console.error('[POS V2] Failed to save header:', jobHeader.id, err)
+                  )
+                ),
+                // Save details
+                ...(kdsPayload.job_order_detail || []).map(jobDetail =>
+                  store.insert('job_order_detail', jobDetail).catch(err =>
+                    console.error('[POS V2] Failed to save detail:', jobDetail.id, err)
+                  )
+                ),
+                // Save modifiers
+                ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
+                  store.insert('job_order_detail_modifier', modifier).catch(err =>
+                    console.error('[POS V2] Failed to save modifier:', modifier.id, err)
+                  )
                 )
-              ),
-              // Save details
-              ...(kdsPayload.job_order_detail || []).map(jobDetail =>
-                store.insert('job_order_detail', jobDetail).catch(err =>
-                  console.error('[POS V2] Failed to save detail:', jobDetail.id, err)
-                )
-              ),
-              // Save modifiers
-              ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
-                store.insert('job_order_detail_modifier', modifier).catch(err =>
-                  console.error('[POS V2] Failed to save modifier:', modifier.id, err)
-                )
-              )
-            ]).then(() => {
+              ]);
               console.log('✅ [POS V2] All job_order tables saved!');
-              console.log('📡 [POS V2] posv2.html watchers will update window.database');
-            }).catch(err => {
+              console.log('📡 [POS V2] window.database updated - ready for printing');
+
+              // ✅ ADDITIONAL FIX: Small delay to ensure watchers update window.database
+              // posv2.html watchers are synchronous but may need a tick to propagate
+              await new Promise(resolve => setTimeout(resolve, 50));
+
+            } catch(err) {
               console.error('[POS V2] ❌ Some job_order saves failed:', err);
-            });
+              // Continue anyway - partial data is better than no data
+            }
 
           } else {
             console.warn('[POS V2] ⚠️ No job_order payload generated');
@@ -11308,18 +11324,42 @@
           }));
 
           try {
-            await persistOrderFlow(ctx, mode);
-            console.log('✅ [POS SAVE] Save completed successfully');
+            const result = await persistOrderFlow(ctx, mode);
+            console.log('✅ [POS SAVE] Save completed successfully', result);
+
+            // ✅ CRITICAL: For finalize-print, keep saving=true until new blank order is created
+            // This prevents the save button from being enabled on the finalized order
+            // before the print modal appears and new order is created
+            const isFinalizePrint = mode === 'finalize-print' || mode === 'finish-print';
+            if(!isFinalizePrint) {
+              IS_SAVING_ORDER = false;
+              ctx.setState(s=>({
+                ...s,
+                ui:{ ...(s.ui || {}), saving:false }
+              }));
+              console.log('🔓 [POS SAVE] Save lock released (non-finalize-print)');
+            } else {
+              // For finalize-print, keep lock active
+              // It will be released after state update creates new blank order (happens in setState callback above)
+              console.log('🔐 [POS SAVE] Keeping save lock for finalize-print (prevents premature save button enable)');
+              // Release after a short delay to ensure state update completes
+              setTimeout(() => {
+                IS_SAVING_ORDER = false;
+                ctx.setState(s=>({
+                  ...s,
+                  ui:{ ...(s.ui || {}), saving:false }
+                }));
+                console.log('🔓 [POS SAVE] Save lock released (finalize-print delayed)');
+              }, 500);  // 500ms delay to ensure new order is created
+            }
           } catch(error) {
             console.error('❌ [POS SAVE] Save failed:', error);
-            throw error;
-          } finally {
             IS_SAVING_ORDER = false;
             ctx.setState(s=>({
               ...s,
               ui:{ ...(s.ui || {}), saving:false }
             }));
-            console.log('🔓 [POS SAVE] Save lock released');
+            throw error;
           }
         }
       },
