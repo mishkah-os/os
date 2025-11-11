@@ -6,7 +6,7 @@
     <title>لوحة التحليل المورفولوجي - Arabic Morphological Dashboard</title>
 
     <!-- Mishkah Core -->
-    <script src="../../static/lib/mishkah.core.js"></script>
+    <script src="../lib/mishkah.core.js"></script>
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -355,14 +355,14 @@
                 const finalData = [];
                 for (let i = 1; i <= 15; i++) {
                     const fileNum = String(i).padStart(2, '0');
-                    const response = await fetch(`./final/final_${fileNum}.json`);
+                    const response = await fetch(`../../qu/final/final_${fileNum}.json`);
                     if (!response.ok) throw new Error(`Failed to load final_${fileNum}.json`);
                     const data = await response.json();
                     finalData.push(...data);
                 }
 
                 // Load words-ref.json
-                const refResponse = await fetch('./words-ref.json');
+                const refResponse = await fetch('../../qu/words-ref.json');
                 if (!refResponse.ok) throw new Error('Failed to load words-ref.json');
                 const wordsRef = await refResponse.json();
 
