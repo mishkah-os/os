@@ -6640,34 +6640,48 @@
 
           if(kdsPayload && kdsPayload.job_order_header){
             console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
+            console.log('[POS V2] order_header count:', kdsPayload.order_header?.length || 0);
+            console.log('[POS V2] order_line count:', kdsPayload.order_line?.length || 0);
 
             // ✅ CRITICAL FIX: Fire-and-forget - DON'T await job_order saves
             // Print modal opens IMMEDIATELY without waiting for saves
             // This prevents print delays - user sees print dialog instantly
             Promise.all([
-              // Save headers
+              // ✅ Save order_header (for static KDS tabs - has notes!)
+              ...(kdsPayload.order_header || []).map(orderHeader =>
+                store.insert('order_header', orderHeader).catch(err =>
+                  console.error('[POS V2] Failed to save order_header:', orderHeader.id, err)
+                )
+              ),
+              // ✅ Save order_line (for static KDS tabs)
+              ...(kdsPayload.order_line || []).map(orderLine =>
+                store.insert('order_line', orderLine).catch(err =>
+                  console.error('[POS V2] Failed to save order_line:', orderLine.id, err)
+                )
+              ),
+              // Save job_order_header (for dynamic station tabs)
               ...kdsPayload.job_order_header.map(jobHeader =>
                 store.insert('job_order_header', jobHeader).catch(err =>
-                  console.error('[POS V2] Failed to save header:', jobHeader.id, err)
+                  console.error('[POS V2] Failed to save job_order_header:', jobHeader.id, err)
                 )
               ),
               // Save details
               ...(kdsPayload.job_order_detail || []).map(jobDetail =>
                 store.insert('job_order_detail', jobDetail).catch(err =>
-                  console.error('[POS V2] Failed to save detail:', jobDetail.id, err)
+                  console.error('[POS V2] Failed to save job_order_detail:', jobDetail.id, err)
                 )
               ),
               // Save modifiers
               ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
                 store.insert('job_order_detail_modifier', modifier).catch(err =>
-                  console.error('[POS V2] Failed to save modifier:', modifier.id, err)
+                  console.error('[POS V2] Failed to save job_order_detail_modifier:', modifier.id, err)
                 )
               )
             ]).then(() => {
-              console.log('✅ [POS V2] All job_order tables saved!');
-              console.log('📡 [POS V2] window.database updated');
+              console.log('✅ [POS V2] All KDS tables saved (order_header, order_line, job_order_*)!');
+              console.log('📡 [POS V2] window.database updated - KDS will show notes');
             }).catch(err => {
-              console.error('[POS V2] ❌ Some job_order saves failed:', err);
+              console.error('[POS V2] ❌ Some KDS table saves failed:', err);
             });
             // Don't wait - continue immediately to open print modal
 
