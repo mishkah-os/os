@@ -5243,7 +5243,19 @@
       const stageId = header.stage_id || header.stageId || raw.fulfillmentStage || 'new';
       const statusId = header.status_id || header.statusId || raw.status || 'open';
       const paymentStateId = header.payment_state_id || header.paymentStateId || raw.payment_state || 'unpaid';
-      const tableIds = Array.isArray(header.table_ids) ? header.table_ids.slice() : Array.isArray(raw.tableIds) ? raw.tableIds.slice() : [];
+      // ✅ CRITICAL FIX: Read tableIds with proper fallbacks
+      // Priority: raw.tableIds > raw.table_ids > header.table_ids > header.tableIds > [tableId] > []
+      const tableIds = Array.isArray(raw.tableIds) && raw.tableIds.length > 0
+        ? raw.tableIds.slice()
+        : Array.isArray(raw.table_ids) && raw.table_ids.length > 0
+          ? raw.table_ids.slice()
+          : Array.isArray(header.table_ids) && header.table_ids.length > 0
+            ? header.table_ids.slice()
+            : Array.isArray(header.tableIds) && header.tableIds.length > 0
+              ? header.tableIds.slice()
+              : (raw.tableId || raw.table_id || header.tableId || header.table_id)
+                ? [raw.tableId || raw.table_id || header.tableId || header.table_id]
+                : [];
       const guests = header.guests || raw.guests || 0;
       const allowAdditions = header.allow_line_additions !== undefined ? !!header.allow_line_additions : (ORDER_TYPES.find(t=> t.id === typeId)?.allowsLineAdditions ?? (typeId === 'dine_in'));
       const lockLineEdits = header.locked_line_edits !== undefined ? !!header.locked_line_edits : (orderStageMap.get(stageId)?.lockLineEdits ?? true);
@@ -6517,6 +6529,8 @@
         total_paid: paymentSummary.paid,
         tableId: primaryTableId,
         table_id: primaryTableId,
+        tableIds: assignedTables,  // ✅ CRITICAL FIX: Send full tableIds array to backend
+        table_ids: assignedTables,  // ✅ snake_case for backend
         serviceMode: orderType,
         version: outgoingVersion,
         currentVersion: outgoingVersion,
