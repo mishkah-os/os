@@ -6849,9 +6849,24 @@
           console.warn('[POS V2] ⚠️ mishkah-store not available');
         }
         await posDB.markSync();
+
+        console.log('🏷️ [TABLE DEBUG] BEFORE mergePreferRemote:', {
+          orderPayloadTableIds: orderPayload.tableIds,
+          savedOrderTableIds: savedOrder?.tableIds,
+          savedOrderTableId: savedOrder?.tableId,
+          savedOrderTable_ids: savedOrder?.table_ids
+        });
+
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
           ? mergePreferRemote(orderPayload, savedOrder)
           : orderPayload;
+
+        console.log('🏷️ [TABLE DEBUG] AFTER mergePreferRemote:', {
+          remoteResolvedTableIds: remoteResolved.tableIds,
+          remoteResolvedTableId: remoteResolved.tableId,
+          isArray: Array.isArray(remoteResolved.tableIds),
+          length: remoteResolved.tableIds?.length
+        });
 
         // ✅ CRITICAL FIX: Preserve tableIds from orderPayload if savedOrder doesn't have them
         // Backend may not return tableIds, causing them to disappear after save
@@ -6859,7 +6874,13 @@
           if(Array.isArray(orderPayload.tableIds) && orderPayload.tableIds.length > 0) {
             console.log('⚠️ [TABLE FIX] Backend missing tableIds - restoring from orderPayload:', orderPayload.tableIds);
             remoteResolved.tableIds = orderPayload.tableIds.slice();
+            // ✅ Also set tableId (primary table) for compatibility
+            if(!remoteResolved.tableId && orderPayload.tableIds.length > 0) {
+              remoteResolved.tableId = orderPayload.tableIds[0];
+            }
           }
+        } else {
+          console.log('✅ [TABLE DEBUG] tableIds preserved after merge:', remoteResolved.tableIds);
         }
 
         console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
@@ -6876,6 +6897,8 @@
         });
         console.log('[Mishkah][POS] After enrichOrderWithMenu:', {
           orderId: normalizedOrderForState.id,
+          tableIds: normalizedOrderForState.tableIds,  // ✅ CHECK: Did enrichOrderWithMenu preserve tableIds?
+          tableId: normalizedOrderForState.tableId,
           totals: normalizedOrderForState.totals,
           linesCount: normalizedOrderForState.lines?.length,
           firstLine: normalizedOrderForState.lines?.[0]
@@ -6896,6 +6919,8 @@
         const syncedOrderForState = syncOrderVersionMetadata(normalizedOrderForState);
         console.log('[Mishkah][POS] Final order for state:', {
           orderId: syncedOrderForState.id,
+          tableIds: syncedOrderForState.tableIds,  // ✅ FINAL CHECK: tableIds before setState
+          tableId: syncedOrderForState.tableId,
           totals: syncedOrderForState.totals,
           linesCount: syncedOrderForState.lines?.length,
           firstLine: syncedOrderForState.lines?.[0]
@@ -6955,10 +6980,21 @@
           // ✅ CRITICAL FIX: Update ordersQueue with saved order (preserving tableIds)
           // latestOrders from getRealtimeOrdersSnapshot may be stale (watchers haven't run yet)
           // We must manually update the saved order in ordersQueue to preserve tableIds
+
+          console.log('🏷️ [TABLE DEBUG] latestOrders from getRealtimeOrdersSnapshot:', {
+            count: latestOrders.length,
+            orderIds: latestOrders.map(o => o.id),
+            targetOrderInSnapshot: latestOrders.find(o => o.id === syncedOrderForState.id)?.tableIds
+          });
+
           const updatedOrdersQueue = latestOrders.slice();
           const queueIndex = updatedOrdersQueue.findIndex(ord => ord.id === syncedOrderForState.id);
           if(queueIndex >= 0) {
             // Update existing order in queue with fresh data (has tableIds!)
+            console.log('🏷️ [TABLE DEBUG] BEFORE update in ordersQueue:', {
+              oldTableIds: updatedOrdersQueue[queueIndex].tableIds,
+              newTableIds: syncedOrderForState.tableIds
+            });
             updatedOrdersQueue[queueIndex] = { ...syncedOrderForState };
             console.log('✅ [TABLE FIX] Updated order in ordersQueue with tableIds:', syncedOrderForState.tableIds);
           } else if(!finalize) {
