@@ -2748,6 +2748,7 @@
         customerPhone: order.customerPhone || '',
         customerAddress: order.customerAddress || '',
         notes: notesToText(order.notes, '; '),  // ✅ CRITICAL: Add order header notes for KDS display
+        version: order.version || order.currentVersion || 1,  // ✅ Version for optimistic concurrency control
         metadata: {  // ✅ Add metadata with serviceMode (KDS reads from here)
           ...(order.metadata || {}),
           serviceMode,
@@ -6707,14 +6708,48 @@
             // ✅ CRITICAL FIX: Fire-and-forget - DON'T await job_order saves
             // Print modal opens IMMEDIATELY without waiting for saves
             // This prevents print delays - user sees print dialog instantly
+
+            // ✅ CRITICAL: For PERSISTED orders, use update() instead of insert() for order_header
+            // This ensures reopened orders get their status updated from 'delivered' to 'open'
+            // and tableIds are preserved correctly
+            const isPersistedOrder = order.isPersisted === true;
+
+            // ✅ Get existing order_header from window.database to read current version
+            const existingOrderHeaders = window.database?.order_header || [];
+            const existingOrderHeader = existingOrderHeaders.find(h => String(h.id) === String(order.id));
+
             Promise.all([
-              // ✅ Save order_header (for static KDS tabs - has notes!)
-              ...(kdsPayload.order_header || []).map(orderHeader =>
-                store.insert('order_header', orderHeader).catch(err =>
-                  console.error('[POS V2] Failed to save order_header:', orderHeader.id, err)
-                )
-              ),
-              // ✅ Save order_line (for static KDS tabs)
+              // ✅ Save/Update order_header (for static KDS tabs - has notes!)
+              ...(kdsPayload.order_header || []).map(orderHeader => {
+                if(isPersistedOrder && typeof store.update === 'function') {
+                  // ✅ CRITICAL: Version is REQUIRED for store.update()
+                  // Read current version from existing record, increment by 1
+                  const currentVersion = existingOrderHeader?.version || order.version || order.currentVersion || 1;
+                  const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+                  const updatePayload = {
+                    ...orderHeader,
+                    version: nextVersion  // ✅ REQUIRED for update to work!
+                  };
+
+                  console.log('🔄 [POS V2] UPDATING order_header (persisted order):', orderHeader.id, {
+                    status: orderHeader.status,
+                    stage: orderHeader.fulfillmentStage,
+                    tableIds: orderHeader.tableIds,
+                    currentVersion,
+                    nextVersion
+                  });
+                  return store.update('order_header', updatePayload).catch(err =>
+                    console.error('[POS V2] Failed to update order_header:', orderHeader.id, err)
+                  );
+                } else {
+                  console.log('✨ [POS V2] INSERTING order_header (new order):', orderHeader.id);
+                  return store.insert('order_header', orderHeader).catch(err =>
+                    console.error('[POS V2] Failed to insert order_header:', orderHeader.id, err)
+                  );
+                }
+              }),
+              // ✅ Save order_line (for static KDS tabs - always insert since we filter to new lines only)
               ...(kdsPayload.order_line || []).map(orderLine =>
                 store.insert('order_line', orderLine).catch(err =>
                   console.error('[POS V2] Failed to save order_line:', orderLine.id, err)
