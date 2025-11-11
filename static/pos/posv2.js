@@ -6873,17 +6873,19 @@
               indexeddb:{ state:'online', lastSync: now }
             }
           };
-          // ✅ CRITICAL: بعد finalize-print، يجب إنشاء أوردر جديد دائماً
-          // وليس فقط إذا كان syncedOrderForState.id === data.order?.id
-          if(openPrint && finalize){
+          // ✅ CRITICAL: After save/finalize, create new blank order
+          // Don't leave saved order in cart - prevents duplicate saves
+          const shouldCreateNewOrder = (openPrint && finalize) || (!finalize && orderType === 'dine_in');
+
+          if(shouldCreateNewOrder){
             const newOrderId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
             updatedData.order = {
               id: newOrderId,
               status: 'open',
               fulfillmentStage: 'new',
               paymentState: 'unpaid',
-              type: orderType,  // Keep same order type (takeaway)
-              tableIds: [],
+              type: orderType,  // Keep same order type
+              tableIds: orderType === 'dine_in' ? [] : [],  // Clear tables for new order
               guests: 0,
               lines: [],
               notes: [],
@@ -6898,11 +6900,16 @@
               paymentsLocked: false
             };
             updatedData.payments = { ...(data.payments || {}), split:[] };
-            console.log('✅ [POS] Created new blank order after finalize-print:', newOrderId);
+            console.log('✅ [POS] Created new blank order after save:', {
+              reason: openPrint && finalize ? 'finalize-print' : 'dine-in save',
+              newOrderId,
+              orderType
+            });
           } else if(syncedOrderForState.id === data.order?.id){
-            // ✅ فقط في حالة عدم finalize-print، نطبق الأوردر المُحفظ
+            // ✅ Only for delivery/takeaway draft saves (rare case)
             updatedData.order = syncedOrderForState;
             updatedData.payments = { ...(data.payments || {}), split:[] };
+            console.log('⚠️ [POS] Keeping saved order in cart (delivery/takeaway draft)');
           }
           return {
             ...s,
