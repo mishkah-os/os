@@ -2136,15 +2136,17 @@
 
   const renderDetailRow = (detail, t, lang, stationLabel)=>{
     const statusLabel = t.labels.jobStatus[detail.status] || detail.status || 'draft';
-    const stationText = lang === 'ar' ? t.labels.station.ar : t.labels.station.en;
-    // ✅ Only show station label if it's a valid non-empty string
+    // ✅ Fixed: Use optional chaining to prevent "undefined" from showing
+    const stationText = lang === 'ar' ? (t.labels?.station?.ar || 'المحطة') : (t.labels?.station?.en || 'Station');
+    // ✅ Only show station label if it's a valid non-empty string AND stationText is valid
     const hasValidStationLabel = stationLabel && typeof stationLabel === 'string' && stationLabel !== 'undefined' && stationLabel.trim().length > 0;
+    const hasValidStationText = stationText && stationText !== 'undefined';
     return D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2 rounded-2xl border border-slate-800/60 bg-slate-900/60 p-3` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
         D.Text.Strong({ attrs:{ class: tw`text-base font-semibold leading-tight text-slate-100 sm:text-lg` }}, [`${detail.quantity}× ${lang === 'ar' ? (detail.itemNameAr || detail.itemNameEn || detail.itemId) : (detail.itemNameEn || detail.itemNameAr || detail.itemId)}`]),
         createBadge(statusLabel, STATUS_CLASS[detail.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
       ]),
-      hasValidStationLabel ? createBadge(`${stationText}: ${stationLabel}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
+      (hasValidStationLabel && hasValidStationText) ? createBadge(`${stationText}: ${stationLabel}`, tw`border-slate-600/40 bg-slate-800/70 text-slate-100`) : null,
       detail.prepNotes ? D.Text.P({ attrs:{ class: tw`text-xs text-slate-300` }}, [`📝 ${detail.prepNotes}`]) : null,
       detail.modifiers && detail.modifiers.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, detail.modifiers.map(mod=>{
         const typeText = mod.modifierType === 'remove'

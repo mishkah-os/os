@@ -1517,6 +1517,10 @@
         tablesLine,
         formatDateTime(order.updatedAt || Date.now(), lang, { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
       ].filter(Boolean).map(val=> `<p class="meta">${escapeHTML(val)}</p>`).join('');
+      const orderNotesText = notesToText(order.notes);
+      const orderNotesHtml = orderNotesText
+        ? `<div class="row note" style="margin-top:12px;"><span>📝 ${escapeHTML(t.ui.notes)}: ${escapeHTML(orderNotesText)}</span><span></span></div>`
+        : '';
       const noItems = `<p class="muted">${escapeHTML(t.ui.cart_empty)}</p>`;
       const changeRow = payments.length ? `<div class="row"><span>${escapeHTML(t.ui.print_change_due)}</span><span>${formatCurrencyValue(db, changeDue)}</span></div>` : '';
       const paidRow = payments.length ? `<div class="row"><span>${escapeHTML(t.ui.paid)}</span><span>${formatCurrencyValue(db, totalPaid)}</span></div>` : '';
@@ -1560,6 +1564,7 @@
       </header>
       <section>
         ${orderMeta}
+        ${orderNotesHtml}
       </section>
       <div class="separator"></div>
       <section class="rows">
@@ -2003,7 +2008,11 @@
         base.statusId = base.status;
         base.payment_state = base.paymentState;
         base.paymentStateId = base.paymentState;
-        base.tableIds = Array.isArray(base.tableIds) ? base.tableIds.slice() : [];
+        // ✅ Support both tableIds (camelCase) and table_ids (snake_case) from backend
+        const tableIdsSource = raw.tableIds || raw.table_ids || raw.tableId || metadata.tableIds || metadata.table_ids;
+        base.tableIds = Array.isArray(tableIdsSource)
+          ? tableIdsSource.slice()
+          : (tableIdsSource ? [tableIdsSource] : []);
         base.guests = Number.isFinite(Number(base.guests)) ? Number(base.guests) : 0;
         base.allowAdditions = base.allowAdditions !== undefined ? !!base.allowAdditions : true;
         base.lockLineEdits = base.lockLineEdits !== undefined ? !!base.lockLineEdits : true;
@@ -2543,7 +2552,7 @@
           completedAt:null,
           expoAt:null,
           syncChecksum:`${order.id}-${stationId}`,
-          notes: notesToText(line.notes, '; '),
+          notes: notesToText(order.notes, '; '),  // ✅ Order header notes
           meta:{ orderSource:'pos', kdsTab: stationId },
           createdAt: createdIso,
           updatedAt: updatedIso
@@ -6756,8 +6765,35 @@
             }
           };
           if(syncedOrderForState.id === data.order?.id){
-            updatedData.order = syncedOrderForState;
-            updatedData.payments = { ...(data.payments || {}), split:[] };
+            // ✅ If openPrint is true (finalize-print for takeaway), create new blank order
+            if(openPrint && finalize){
+              const newOrderId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+              updatedData.order = {
+                id: newOrderId,
+                status: 'open',
+                fulfillmentStage: 'new',
+                paymentState: 'unpaid',
+                type: orderType,  // Keep same order type (takeaway)
+                tableIds: [],
+                guests: 0,
+                lines: [],
+                notes: [],
+                discount: null,
+                totals: calculateTotals([], data.settings || {}, orderType),
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                shiftId: currentShift?.id || null,
+                isPersisted: false,
+                dirty: false,
+                allowAdditions: true,
+                paymentsLocked: false
+              };
+              updatedData.payments = { ...(data.payments || {}), split:[] };
+              console.log('✅ [POS] Created new blank order after finalize-print:', newOrderId);
+            } else {
+              updatedData.order = syncedOrderForState;
+              updatedData.payments = { ...(data.payments || {}), split:[] };
+            }
           }
           return {
             ...s,
@@ -7147,13 +7183,22 @@
 
     function CartFooter(db){
       const t = getTexts(db);
+      const order = db.data.order || {};
+      const orderNotes = notesToText(order.notes);
+      const orderNotesSection = orderNotes
+        ? D.Containers.Div({ attrs:{ class: tw`text-xs ${token('muted')} border-t border-[var(--border)] pt-2 mt-1` }}, [
+            D.Text.Span({ attrs:{ class: tw`font-semibold` }}, ['📝 ملاحظات الطلب: ']),
+            D.Text.Span({}, [orderNotes])
+          ])
+        : null;
       return D.Containers.Div({ attrs:{ class: tw`shrink-0 border-t border-[var(--border)] bg-[color-mix(in oklab,var(--surface-1) 90%, transparent)] px-4 py-3 rounded-[var(--radius)] shadow-[var(--shadow)] flex flex-col gap-3` }}, [
         TotalsSection(db),
+        orderNotesSection,
         UI.HStack({ attrs:{ class: tw`gap-2` }}, [
           UI.Button({ attrs:{ gkey:'pos:order:discount', class: tw`flex-1` }, variant:'ghost', size:'sm' }, [t.ui.discount_action]),
           UI.Button({ attrs:{ gkey:'pos:order:note', class: tw`flex-1` }, variant:'ghost', size:'sm' }, [t.ui.notes])
         ])
-      ]);
+      ].filter(Boolean));
     }
 
     function computeTableRuntime(db){
@@ -7458,13 +7503,20 @@
       const paymentEntries = getActivePaymentEntries(order, db.data.payments);
       const paymentSnapshot = summarizePayments(order.totals || {}, paymentEntries);
       const outstanding = paymentSnapshot.remaining || 0;
+      // ✅ Check if order has valid lines (prevent saving empty orders)
+      const validLines = (order.lines || []).filter(line => {
+        const notCancelled = !line.cancelled && !line.voided;
+        const hasQuantity = Number(line.qty || line.quantity || 0) > 0;
+        return notCancelled && hasQuantity;
+      });
+      const hasValidLines = validLines.length > 0;
       // ✅ FIXED: For takeaway:
       //    - Save button is DISABLED (requires payment)
       //    - Finish button is ENABLED (smart - opens payment modal first)
       const saveDisabled = isTakeaway && outstanding > 0.0001;
       const finishDisabled = false; // Finish button always enabled - it will open payment modal if needed
-      const canShowSave = !isFinalized && !deliveredStage;
-      const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage);
+      const canShowSave = !isFinalized && !deliveredStage && hasValidLines; // ✅ Only show if has valid lines
+      const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage) && hasValidLines; // ✅ Only show if has valid lines
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
       const showPrintButton = order.isPersisted && order.id && !order.id.startsWith('draft-'); // ✅ FIXED: Show print for all saved orders with real ID
