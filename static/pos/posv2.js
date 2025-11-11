@@ -2692,6 +2692,13 @@
       };
       const handoffSnapshot = { ...(kdsState.handoff || {}) };
 
+      // ✅ CRITICAL FIX: Check if this is a reopened order (has new unpersisted lines)
+      // If order was finalized/delivered but now has new lines added, reopen it for KDS
+      const hasNewLines = lines.some(line => !line.isPersisted);
+      const isReopenedOrder = order.isPersisted && hasNewLines &&
+                              (order.status === 'finalized' || order.status === 'closed' ||
+                               order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed');
+
       // ✅ Build order_header record for static tabs (all sections, expo, handoff)
       const orderHeader = {
         id: order.id,
@@ -2699,9 +2706,10 @@
         orderNumber: order.orderNumber || order.invoiceId || order.id,
         orderTypeId: serviceMode,
         serviceMode,
-        status: order.status || 'open',
-        statusId: order.statusId || order.status || 'open',  // ✅ Add statusId for KDS
-        fulfillmentStage: order.fulfillmentStage || order.stage || 'new',
+        // ✅ CRITICAL: Reopen order if has new unpersisted lines
+        status: isReopenedOrder ? 'open' : (order.status || 'open'),
+        statusId: isReopenedOrder ? 'open' : (order.statusId || order.status || 'open'),
+        fulfillmentStage: isReopenedOrder ? 'in_progress' : (order.fulfillmentStage || order.stage || 'new'),
         paymentState: order.paymentState || 'unpaid',
         tableIds: Array.isArray(order.tableIds) ? order.tableIds : [],
         tableLabel: tableLabel || null,
@@ -2717,11 +2725,23 @@
           ...(order.metadata || {}),
           serviceMode,
           orderType: serviceMode,
-          orderTypeId: serviceMode
+          orderTypeId: serviceMode,
+          isReopened: isReopenedOrder  // ✅ Flag for KDS to know this is reopened
         },
         createdAt: createdIso,
         updatedAt: updatedIso
       };
+
+      if(isReopenedOrder) {
+        console.log('🔄 [KDS REOPEN] Order was delivered but has new lines - reopening for KDS:', {
+          orderId: order.id,
+          oldStatus: order.status,
+          oldStage: order.fulfillmentStage,
+          newStatus: 'open',
+          newStage: 'in_progress',
+          newLinesCount: lines.filter(l => !l.isPersisted).length
+        });
+      }
 
       // ✅ Build order_line records for static tabs
       const orderLines = lines.map((line, index) => {
