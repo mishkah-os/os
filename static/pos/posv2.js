@@ -2692,6 +2692,13 @@
       };
       const handoffSnapshot = { ...(kdsState.handoff || {}) };
 
+      // ✅ CRITICAL FIX: Check if this is a reopened order (has new unpersisted lines)
+      // If order was finalized/delivered but now has new lines added, reopen it for KDS
+      const hasNewLines = lines.some(line => !line.isPersisted);
+      const isReopenedOrder = order.isPersisted && hasNewLines &&
+                              (order.status === 'finalized' || order.status === 'closed' ||
+                               order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed');
+
       // ✅ Build order_header record for static tabs (all sections, expo, handoff)
       const orderHeader = {
         id: order.id,
@@ -2699,9 +2706,10 @@
         orderNumber: order.orderNumber || order.invoiceId || order.id,
         orderTypeId: serviceMode,
         serviceMode,
-        status: order.status || 'open',
-        statusId: order.statusId || order.status || 'open',  // ✅ Add statusId for KDS
-        fulfillmentStage: order.fulfillmentStage || order.stage || 'new',
+        // ✅ CRITICAL: Reopen order if has new unpersisted lines
+        status: isReopenedOrder ? 'open' : (order.status || 'open'),
+        statusId: isReopenedOrder ? 'open' : (order.statusId || order.status || 'open'),
+        fulfillmentStage: isReopenedOrder ? 'in_progress' : (order.fulfillmentStage || order.stage || 'new'),
         paymentState: order.paymentState || 'unpaid',
         tableIds: Array.isArray(order.tableIds) ? order.tableIds : [],
         tableLabel: tableLabel || null,
@@ -2717,14 +2725,32 @@
           ...(order.metadata || {}),
           serviceMode,
           orderType: serviceMode,
-          orderTypeId: serviceMode
+          orderTypeId: serviceMode,
+          isReopened: isReopenedOrder  // ✅ Flag for KDS to know this is reopened
         },
         createdAt: createdIso,
         updatedAt: updatedIso
       };
 
+      if(isReopenedOrder) {
+        console.log('🔄 [KDS REOPEN] Order was delivered but has new lines - reopening for KDS:', {
+          orderId: order.id,
+          oldStatus: order.status,
+          oldStage: order.fulfillmentStage,
+          newStatus: 'open',
+          newStage: 'in_progress',
+          newLinesCount: lines.filter(l => !l.isPersisted).length
+        });
+      }
+
+      // ✅ CRITICAL: For reopened orders, only include NEW unpersisted lines
+      // Old persisted lines already sent to kitchen - don't resend them!
+      const linesToInclude = isReopenedOrder
+        ? lines.filter(line => !line.isPersisted)  // Only new lines for reopened orders
+        : lines;  // All lines for new orders
+
       // ✅ Build order_line records for static tabs
-      const orderLines = lines.map((line, index) => {
+      const orderLines = linesToInclude.map((line, index) => {
         const lineIndex = index + 1;
         const itemId = toIdentifier(line.itemId, line.productId, line.menuItemId, line.sku, `${order.id}-line-${lineIndex}`);
         const itemName = line.name || line.displayName || line.label || itemId;
@@ -2749,6 +2775,14 @@
           updatedAt: updatedIso
         };
       });
+
+      if(isReopenedOrder) {
+        console.log('🔄 [KDS REOPEN] Filtered order_line to NEW items only:', {
+          totalLines: lines.length,
+          newLines: linesToInclude.length,
+          oldPersistedLines: lines.length - linesToInclude.length
+        });
+      }
 
       // ✅ Flat structure: job order tables at root level (consistent with REST API)
       return {
@@ -6640,34 +6674,48 @@
 
           if(kdsPayload && kdsPayload.job_order_header){
             console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
+            console.log('[POS V2] order_header count:', kdsPayload.order_header?.length || 0);
+            console.log('[POS V2] order_line count:', kdsPayload.order_line?.length || 0);
 
             // ✅ CRITICAL FIX: Fire-and-forget - DON'T await job_order saves
             // Print modal opens IMMEDIATELY without waiting for saves
             // This prevents print delays - user sees print dialog instantly
             Promise.all([
-              // Save headers
+              // ✅ Save order_header (for static KDS tabs - has notes!)
+              ...(kdsPayload.order_header || []).map(orderHeader =>
+                store.insert('order_header', orderHeader).catch(err =>
+                  console.error('[POS V2] Failed to save order_header:', orderHeader.id, err)
+                )
+              ),
+              // ✅ Save order_line (for static KDS tabs)
+              ...(kdsPayload.order_line || []).map(orderLine =>
+                store.insert('order_line', orderLine).catch(err =>
+                  console.error('[POS V2] Failed to save order_line:', orderLine.id, err)
+                )
+              ),
+              // Save job_order_header (for dynamic station tabs)
               ...kdsPayload.job_order_header.map(jobHeader =>
                 store.insert('job_order_header', jobHeader).catch(err =>
-                  console.error('[POS V2] Failed to save header:', jobHeader.id, err)
+                  console.error('[POS V2] Failed to save job_order_header:', jobHeader.id, err)
                 )
               ),
               // Save details
               ...(kdsPayload.job_order_detail || []).map(jobDetail =>
                 store.insert('job_order_detail', jobDetail).catch(err =>
-                  console.error('[POS V2] Failed to save detail:', jobDetail.id, err)
+                  console.error('[POS V2] Failed to save job_order_detail:', jobDetail.id, err)
                 )
               ),
               // Save modifiers
               ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
                 store.insert('job_order_detail_modifier', modifier).catch(err =>
-                  console.error('[POS V2] Failed to save modifier:', modifier.id, err)
+                  console.error('[POS V2] Failed to save job_order_detail_modifier:', modifier.id, err)
                 )
               )
             ]).then(() => {
-              console.log('✅ [POS V2] All job_order tables saved!');
-              console.log('📡 [POS V2] window.database updated');
+              console.log('✅ [POS V2] All KDS tables saved (order_header, order_line, job_order_*)!');
+              console.log('📡 [POS V2] window.database updated - KDS will show notes');
             }).catch(err => {
-              console.error('[POS V2] ❌ Some job_order saves failed:', err);
+              console.error('[POS V2] ❌ Some KDS table saves failed:', err);
             });
             // Don't wait - continue immediately to open print modal
 
@@ -6711,8 +6759,19 @@
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
           ? mergePreferRemote(orderPayload, savedOrder)
           : orderPayload;
+
+        // ✅ CRITICAL FIX: Preserve tableIds from orderPayload if savedOrder doesn't have them
+        // Backend may not return tableIds, causing them to disappear after save
+        if(remoteResolved && (!remoteResolved.tableIds || remoteResolved.tableIds.length === 0)) {
+          if(Array.isArray(orderPayload.tableIds) && orderPayload.tableIds.length > 0) {
+            console.log('⚠️ [TABLE FIX] Backend missing tableIds - restoring from orderPayload:', orderPayload.tableIds);
+            remoteResolved.tableIds = orderPayload.tableIds.slice();
+          }
+        }
+
         console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
           orderId: remoteResolved.id,
+          tableIds: remoteResolved.tableIds,
           totals: remoteResolved.totals,
           linesCount: remoteResolved.lines?.length,
           firstLine: remoteResolved.lines?.[0]
@@ -6799,12 +6858,28 @@
           if(openPrint){
             nextUi.print = { ...(uiBase.print || {}), docType: data.print?.docType || 'customer', size: data.print?.size || 'thermal_80' };
           }
+
+          // ✅ CRITICAL FIX: Update ordersQueue with saved order (preserving tableIds)
+          // latestOrders from getRealtimeOrdersSnapshot may be stale (watchers haven't run yet)
+          // We must manually update the saved order in ordersQueue to preserve tableIds
+          const updatedOrdersQueue = latestOrders.slice();
+          const queueIndex = updatedOrdersQueue.findIndex(ord => ord.id === syncedOrderForState.id);
+          if(queueIndex >= 0) {
+            // Update existing order in queue with fresh data (has tableIds!)
+            updatedOrdersQueue[queueIndex] = { ...syncedOrderForState };
+            console.log('✅ [TABLE FIX] Updated order in ordersQueue with tableIds:', syncedOrderForState.tableIds);
+          } else if(!finalize) {
+            // Add new order to queue (not finalized)
+            updatedOrdersQueue.push({ ...syncedOrderForState });
+            console.log('✅ [TABLE FIX] Added new order to ordersQueue with tableIds:', syncedOrderForState.tableIds);
+          }
+
           const updatedData = {
             ...data,
             tableLocks: idChanged
               ? (data.tableLocks || []).map(lock=> lock.orderId === previousOrderId ? { ...lock, orderId: orderPayload.id } : lock)
               : data.tableLocks,
-            ordersQueue: latestOrders,
+            ordersQueue: updatedOrdersQueue,  // ✅ Use updated queue instead of latestOrders
             ordersHistory: history,
             shift:{ ...(data.shift || {}), current: nextShift },
             status:{
@@ -6812,17 +6887,19 @@
               indexeddb:{ state:'online', lastSync: now }
             }
           };
-          // ✅ CRITICAL: بعد finalize-print، يجب إنشاء أوردر جديد دائماً
-          // وليس فقط إذا كان syncedOrderForState.id === data.order?.id
-          if(openPrint && finalize){
+          // ✅ CRITICAL: After save/finalize, create new blank order
+          // Don't leave saved order in cart - prevents duplicate saves
+          const shouldCreateNewOrder = (openPrint && finalize) || (!finalize && orderType === 'dine_in');
+
+          if(shouldCreateNewOrder){
             const newOrderId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
             updatedData.order = {
               id: newOrderId,
               status: 'open',
               fulfillmentStage: 'new',
               paymentState: 'unpaid',
-              type: orderType,  // Keep same order type (takeaway)
-              tableIds: [],
+              type: orderType,  // Keep same order type
+              tableIds: orderType === 'dine_in' ? [] : [],  // Clear tables for new order
               guests: 0,
               lines: [],
               notes: [],
@@ -6837,11 +6914,16 @@
               paymentsLocked: false
             };
             updatedData.payments = { ...(data.payments || {}), split:[] };
-            console.log('✅ [POS] Created new blank order after finalize-print:', newOrderId);
+            console.log('✅ [POS] Created new blank order after save:', {
+              reason: openPrint && finalize ? 'finalize-print' : 'dine-in save',
+              newOrderId,
+              orderType
+            });
           } else if(syncedOrderForState.id === data.order?.id){
-            // ✅ فقط في حالة عدم finalize-print، نطبق الأوردر المُحفظ
+            // ✅ Only for delivery/takeaway draft saves (rare case)
             updatedData.order = syncedOrderForState;
             updatedData.payments = { ...(data.payments || {}), split:[] };
+            console.log('⚠️ [POS] Keeping saved order in cart (delivery/takeaway draft)');
           }
           return {
             ...s,
