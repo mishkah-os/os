@@ -6088,11 +6088,14 @@
 
     function normalizeSaveMode(value, orderType){
       const base = (value || '').toString().toLowerCase();
+      // ✅ CRITICAL: No more "draft" - everything saves to server immediately!
+      // "draft" was confusing and not needed - all saves go to backend
       switch(base){
         case 'save-only':
         case 'draft':
         case 'save-draft':
-          return 'draft';
+        case 'save':
+          return 'save';  // ✅ Changed from 'draft' to 'save'
         case 'finalize-print':
         case 'finish-print':
           return 'finalize-print';
@@ -6100,9 +6103,9 @@
         case 'finish':
           return 'finalize';
         case 'save-print':
-          return orderType === 'dine_in' ? 'draft' : 'finalize-print';
+          return orderType === 'dine_in' ? 'save' : 'finalize-print';  // ✅ Changed from 'draft'
         default:
-          return base || 'draft';
+          return base || 'save';  // ✅ Changed from 'draft' to 'save'
       }
     }
 
@@ -6595,6 +6598,12 @@
           ? 'new order - start at v1'
           : (order.isPersisted ? `update existing - increment from v${currentVersion} to v${outgoingVersion}` : 'fallback to v1')
       });
+      console.log('🏷️🏷️🏷️ [TABLE CRITICAL] BEFORE creating orderPayload:', {
+        'order.tableIds': order.tableIds,
+        'assignedTables': assignedTables,
+        'primaryTableId': primaryTableId
+      });
+
       const orderPayload = {
         ...order,
         id: finalOrderId,
@@ -6644,8 +6653,15 @@
         paymentsLocked: finalize ? true : isPaymentsLocked(order),
         allowAdditions,
         lockLineEdits: finalize ? true : (order.lockLineEdits !== undefined ? order.lockLineEdits : false),
-        metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType }
+        metadata:{ ...(order.metadata || {}), orderType, orderTypeId: orderType, serviceMode: orderType, tableIds: assignedTables }
       };
+
+      console.log('🏷️🏷️🏷️ [TABLE CRITICAL] AFTER creating orderPayload:', {
+        'orderPayload.tableIds': orderPayload.tableIds,
+        'orderPayload.table_ids': orderPayload.table_ids,
+        'orderPayload.tableId': orderPayload.tableId,
+        'orderPayload.metadata.tableIds': orderPayload.metadata.tableIds
+      });
       if(finalize){
         orderPayload.finalizedAt = now;
         orderPayload.finishedAt = now;
@@ -6921,11 +6937,23 @@
           linesCount: remoteResolved.lines?.length,
           firstLine: remoteResolved.lines?.[0]
         });
+
+        // ✅ CRITICAL: Store tableIds BEFORE enrichOrderWithMenu (may lose them)
+        const tableIdsBackup = Array.isArray(remoteResolved.tableIds) ? remoteResolved.tableIds.slice() : [];
+        const tableIdBackup = remoteResolved.tableId || (tableIdsBackup.length > 0 ? tableIdsBackup[0] : null);
+
         const normalizedOrderForState = enrichOrderWithMenu({
           ...remoteResolved,
           allowAdditions,
           lockLineEdits: finalize ? true : (remoteResolved.lockLineEdits ?? order.lockLineEdits)
         });
+
+        // ✅ RESTORE tableIds after enrichOrderWithMenu if lost
+        if((!normalizedOrderForState.tableIds || normalizedOrderForState.tableIds.length === 0) && tableIdsBackup.length > 0) {
+          console.warn('⚠️⚠️⚠️ [TABLE RESTORE] enrichOrderWithMenu lost tableIds! Restoring:', tableIdsBackup);
+          normalizedOrderForState.tableIds = tableIdsBackup;
+          normalizedOrderForState.tableId = tableIdBackup;
+        }
         console.log('[Mishkah][POS] After enrichOrderWithMenu:', {
           orderId: normalizedOrderForState.id,
           tableIds: normalizedOrderForState.tableIds,  // ✅ CHECK: Did enrichOrderWithMenu preserve tableIds?
@@ -6947,7 +6975,16 @@
         normalizedOrderForState.paymentsLocked = finalize ? true : isPaymentsLocked(normalizedOrderForState);
         normalizedOrderForState.allowAdditions = allowAdditions;
         normalizedOrderForState.lockLineEdits = finalize ? true : (normalizedOrderForState.lockLineEdits !== undefined ? normalizedOrderForState.lockLineEdits : true);
+
         const syncedOrderForState = syncOrderVersionMetadata(normalizedOrderForState);
+
+        // ✅ FINAL BACKUP: Ensure tableIds survive to the end
+        if((!syncedOrderForState.tableIds || syncedOrderForState.tableIds.length === 0) && tableIdsBackup.length > 0) {
+          console.error('❌❌❌ [TABLE RESTORE] syncOrderVersionMetadata lost tableIds! Restoring:', tableIdsBackup);
+          syncedOrderForState.tableIds = tableIdsBackup;
+          syncedOrderForState.tableId = tableIdBackup;
+        }
+
         console.log('[Mishkah][POS] Final order for state:', {
           orderId: syncedOrderForState.id,
           tableIds: syncedOrderForState.tableIds,  // ✅ FINAL CHECK: tableIds before setState
@@ -7819,7 +7856,7 @@
       if(canShowSave){
         const saveAttrs = {
           gkey:'pos:order:save',
-          'data-save-mode':'draft',
+          'data-save-mode':'save',  // ✅ Changed from 'draft' - all saves go to server
           class: tw`min-w-[160px] flex items-center justify-center gap-2 ${(saveDisabled || db.ui?.saving) ? 'opacity-50 cursor-not-allowed' : ''}`
         };
         if(saveDisabled || db.ui?.saving){
@@ -11566,7 +11603,7 @@
           }
 
           const trigger = e.target.closest('[data-save-mode]');
-          const mode = trigger?.getAttribute('data-save-mode') || 'draft';
+          const mode = trigger?.getAttribute('data-save-mode') || 'save';  // ✅ Changed default from 'draft'
 
           console.log('✅ [POS SAVE] Starting save operation', { mode, validLines: validLines.length });
 
