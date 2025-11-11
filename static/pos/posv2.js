@@ -8775,7 +8775,36 @@
         const totalDue = Number(totals?.due || 0);
         const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
         const remainingAmount = Math.max(0, round(totalDue - paidAmount));
-        const tableNames = (order.tableIds || []).map(id=> tablesIndex.get(id)?.name || id).join(', ');
+
+        // ✅ CRITICAL FIX: Map tableIds to names, showing tableId if name not found
+        const orderTableIds = order.tableIds || [];
+
+        // ✅ DEBUG: Log order tableIds to see if they're present
+        if(order.type === 'dine_in' && (!orderTableIds || orderTableIds.length === 0)) {
+          console.warn('⚠️ [ORDERS REPORT] Dine-in order missing tableIds!', {
+            orderId: order.id,
+            'order.tableIds': order.tableIds,
+            'order.tableId': order.tableId,
+            'order.table_ids': order.table_ids
+          });
+        }
+
+        const tableNames = orderTableIds
+          .map(id=> {
+            const table = tablesIndex.get(id);
+            const name = table?.name || table?.label || id;
+            // ✅ DEBUG: Log if table not found in index
+            if(!table && id) {
+              console.warn('⚠️ [ORDERS REPORT] Table not found in tablesIndex:', {
+                tableId: id,
+                orderId: order.id,
+                availableTables: Array.from(tablesIndex.keys())
+              });
+            }
+            return name;
+          })
+          .filter(Boolean)
+          .join(', ');
         const updatedStamp = order.updatedAt || order.createdAt;
         return D.Tables.Tr({ attrs:{ key:order.id, class: tw`bg-[var(--surface-1)]` }}, [
           D.Tables.Td({ attrs:{ class: tw`px-3 py-2 text-sm font-semibold` }}, [order.id]),
@@ -9193,6 +9222,9 @@
               paymentState: paymentSnapshot.state,
               allowAdditions: safeOrder.allowAdditions !== undefined ? safeOrder.allowAdditions : !!typeConfig.allowsLineAdditions,
               lockLineEdits: safeOrder.lockLineEdits !== undefined ? safeOrder.lockLineEdits : true,
+              // ✅ CRITICAL FIX: Recalculate paymentsLocked when opening order
+              // This ensures delivery/takeaway orders can accept payments when reopened
+              paymentsLocked: isPaymentsLocked(safeOrder),
               isPersisted: safeOrder.isPersisted
             },
             payments: nextPayments
