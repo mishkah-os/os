@@ -6725,8 +6725,19 @@
         const remoteResolved = savedOrder && typeof savedOrder === 'object'
           ? mergePreferRemote(orderPayload, savedOrder)
           : orderPayload;
+
+        // ✅ CRITICAL FIX: Preserve tableIds from orderPayload if savedOrder doesn't have them
+        // Backend may not return tableIds, causing them to disappear after save
+        if(remoteResolved && (!remoteResolved.tableIds || remoteResolved.tableIds.length === 0)) {
+          if(Array.isArray(orderPayload.tableIds) && orderPayload.tableIds.length > 0) {
+            console.log('⚠️ [TABLE FIX] Backend missing tableIds - restoring from orderPayload:', orderPayload.tableIds);
+            remoteResolved.tableIds = orderPayload.tableIds.slice();
+          }
+        }
+
         console.log('[Mishkah][POS] Before enrichOrderWithMenu:', {
           orderId: remoteResolved.id,
+          tableIds: remoteResolved.tableIds,
           totals: remoteResolved.totals,
           linesCount: remoteResolved.lines?.length,
           firstLine: remoteResolved.lines?.[0]
@@ -6813,12 +6824,28 @@
           if(openPrint){
             nextUi.print = { ...(uiBase.print || {}), docType: data.print?.docType || 'customer', size: data.print?.size || 'thermal_80' };
           }
+
+          // ✅ CRITICAL FIX: Update ordersQueue with saved order (preserving tableIds)
+          // latestOrders from getRealtimeOrdersSnapshot may be stale (watchers haven't run yet)
+          // We must manually update the saved order in ordersQueue to preserve tableIds
+          const updatedOrdersQueue = latestOrders.slice();
+          const queueIndex = updatedOrdersQueue.findIndex(ord => ord.id === syncedOrderForState.id);
+          if(queueIndex >= 0) {
+            // Update existing order in queue with fresh data (has tableIds!)
+            updatedOrdersQueue[queueIndex] = { ...syncedOrderForState };
+            console.log('✅ [TABLE FIX] Updated order in ordersQueue with tableIds:', syncedOrderForState.tableIds);
+          } else if(!finalize) {
+            // Add new order to queue (not finalized)
+            updatedOrdersQueue.push({ ...syncedOrderForState });
+            console.log('✅ [TABLE FIX] Added new order to ordersQueue with tableIds:', syncedOrderForState.tableIds);
+          }
+
           const updatedData = {
             ...data,
             tableLocks: idChanged
               ? (data.tableLocks || []).map(lock=> lock.orderId === previousOrderId ? { ...lock, orderId: orderPayload.id } : lock)
               : data.tableLocks,
-            ordersQueue: latestOrders,
+            ordersQueue: updatedOrdersQueue,  // ✅ Use updated queue instead of latestOrders
             ordersHistory: history,
             shift:{ ...(data.shift || {}), current: nextShift },
             status:{
