@@ -6024,10 +6024,31 @@
         return { status:'error', reason:'shift' };
       }
       let order = state.data.order || {}; // ✅ Changed from const to let (to allow reassignment for INSERT-ONLY logic)
+
+      // ✅ CRITICAL: منع حفظ أوردر منتهي (finalized) مرة أخرى
+      // هذا يمنع المشكلة حيث Backend يقبل header جديد لكن يتجاهل lines موجودة
+      const orderStatus = String(order.status || '').toLowerCase();
+      const isFinalizedOrder = orderStatus === 'finalized' || orderStatus === 'closed';
+
+      if(isFinalizedOrder && order.isPersisted){
+        console.error('❌ [POS V2] BLOCKED: Cannot save finalized order again!', {
+          orderId: order.id,
+          status: order.status,
+          isPersisted: order.isPersisted
+        });
+        UI.pushToast(ctx, {
+          title: t.toast.order_finalized || 'الطلب منتهي بالفعل',
+          subtitle: 'لا يمكن حفظ طلب منتهي مرة أخرى',
+          icon:'🔒'
+        });
+        return { status:'error', reason:'order-already-finalized' };
+      }
+
       console.log('[Mishkah][POS] persistOrderFlow START', {
         orderId: order.id,
         isPersisted: order.isPersisted,
         dirty: order.dirty,
+        status: order.status,
         linesCount: order.lines?.length || 0,
         mode: rawMode,
         retryCount
@@ -6764,36 +6785,36 @@
               indexeddb:{ state:'online', lastSync: now }
             }
           };
-          if(syncedOrderForState.id === data.order?.id){
-            // ✅ If openPrint is true (finalize-print for takeaway), create new blank order
-            if(openPrint && finalize){
-              const newOrderId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
-              updatedData.order = {
-                id: newOrderId,
-                status: 'open',
-                fulfillmentStage: 'new',
-                paymentState: 'unpaid',
-                type: orderType,  // Keep same order type (takeaway)
-                tableIds: [],
-                guests: 0,
-                lines: [],
-                notes: [],
-                discount: null,
-                totals: calculateTotals([], data.settings || {}, orderType),
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                shiftId: currentShift?.id || null,
-                isPersisted: false,
-                dirty: false,
-                allowAdditions: true,
-                paymentsLocked: false
-              };
-              updatedData.payments = { ...(data.payments || {}), split:[] };
-              console.log('✅ [POS] Created new blank order after finalize-print:', newOrderId);
-            } else {
-              updatedData.order = syncedOrderForState;
-              updatedData.payments = { ...(data.payments || {}), split:[] };
-            }
+          // ✅ CRITICAL: بعد finalize-print، يجب إنشاء أوردر جديد دائماً
+          // وليس فقط إذا كان syncedOrderForState.id === data.order?.id
+          if(openPrint && finalize){
+            const newOrderId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+            updatedData.order = {
+              id: newOrderId,
+              status: 'open',
+              fulfillmentStage: 'new',
+              paymentState: 'unpaid',
+              type: orderType,  // Keep same order type (takeaway)
+              tableIds: [],
+              guests: 0,
+              lines: [],
+              notes: [],
+              discount: null,
+              totals: calculateTotals([], data.settings || {}, orderType),
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              shiftId: currentShift?.id || null,
+              isPersisted: false,
+              dirty: false,
+              allowAdditions: true,
+              paymentsLocked: false
+            };
+            updatedData.payments = { ...(data.payments || {}), split:[] };
+            console.log('✅ [POS] Created new blank order after finalize-print:', newOrderId);
+          } else if(syncedOrderForState.id === data.order?.id){
+            // ✅ فقط في حالة عدم finalize-print، نطبق الأوردر المُحفظ
+            updatedData.order = syncedOrderForState;
+            updatedData.payments = { ...(data.payments || {}), split:[] };
           }
           return {
             ...s,
