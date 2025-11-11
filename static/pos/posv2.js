@@ -3262,11 +3262,26 @@
       if(typeof normalized.metadata === 'string'){
         normalized.metadata = ensurePlainObject(parseJSONSafe(normalized.metadata, {}));
       }
-      if(Array.isArray(row.table_ids) && !Array.isArray(normalized.tableIds)){
-        normalized.tableIds = row.table_ids.slice();
-      } else if(typeof row.table_ids === 'string' && !Array.isArray(normalized.tableIds)){
-        const parsed = parseJSONSafe(row.table_ids, null);
-        if(Array.isArray(parsed)) normalized.tableIds = parsed;
+      // ✅ CRITICAL FIX: Handle tableIds from multiple sources (camelCase, snake_case, singular)
+      // Backend may send: tableIds, table_ids, tableId, table_id
+      if(!Array.isArray(normalized.tableIds) || normalized.tableIds.length === 0){
+        if(Array.isArray(row.table_ids)){
+          normalized.tableIds = row.table_ids.slice();
+        } else if(typeof row.table_ids === 'string'){
+          const parsed = parseJSONSafe(row.table_ids, null);
+          if(Array.isArray(parsed)) normalized.tableIds = parsed;
+        } else if(Array.isArray(row.tableIds)){
+          normalized.tableIds = row.tableIds.slice();
+        } else if(row.tableId != null){
+          // Handle singular tableId
+          normalized.tableIds = [row.tableId];
+        } else if(row.table_id != null){
+          // Handle singular table_id
+          normalized.tableIds = [row.table_id];
+        } else {
+          // Ensure tableIds is always an array
+          normalized.tableIds = [];
+        }
       }
       if(normalized.notes == null && row.notes_json){
         const parsedNotes = parseJSONSafe(row.notes_json, null);
@@ -9064,6 +9079,7 @@
       const isDraftOrder = order.id && String(order.id).startsWith('draft-');
       console.log('[Mishkah][POS] activateOrder START', {
         orderId: order.id,
+        type: order.type,
         isDraftOrder,
         isPersisted: order.isPersisted,
         tableIds: order.tableIds,
@@ -9084,6 +9100,9 @@
         discount: normalizeDiscount(order.discount),
         // Preserve critical fields that MUST NOT be lost when reopening an order
         id: order.id,
+        // ✅ CRITICAL FIX: Explicitly preserve order type (delivery, takeaway, dine_in)
+        // Without this, reopened orders lose their type and default to dine_in!
+        type: order.type || order.orderType || order.order_type || 'dine_in',
         // CRITICAL: Draft orders should NOT be marked as persisted (they only exist locally)
         isPersisted: isDraftOrder ? false : (order.isPersisted !== undefined ? order.isPersisted : true),
         tableIds: Array.isArray(order.tableIds) ? order.tableIds.slice() : (order.tableId ? [order.tableId] : []),
@@ -9110,6 +9129,7 @@
       };
       console.log('🔍 [activateOrder] BEFORE enrichment:', {
         orderId: safeOrder.id,
+        type: safeOrder.type,
         tableIds: safeOrder.tableIds,
         tableId: safeOrder.tableId,
         customerId: safeOrder.customerId,
@@ -9123,6 +9143,7 @@
 
       console.log('🔍 [activateOrder] AFTER enrichment:', {
         orderId: safeOrder.id,
+        type: safeOrder.type,
         tableIds: safeOrder.tableIds,
         tableId: safeOrder.tableId,
         customerId: safeOrder.customerId,
@@ -9200,6 +9221,7 @@
         });
         console.log('[Mishkah][POS] activateOrder FINAL STATE', {
           orderId: safeOrder.id,
+          type: safeOrder.type,
           isDraftOrder,
           isPersisted: safeOrder.isPersisted,
           tableIds: safeOrder.tableIds,
