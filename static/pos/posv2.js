@@ -2489,6 +2489,16 @@
       const lines = linesRaw.filter(Boolean);
       if(!lines.length) return null;
 
+      // ✅ CRITICAL: Log notes before serialization
+      console.log('📝📝📝 [KDS NOTES] serializeOrderForKDS notes check:', {
+        orderId: order.id,
+        'order.notes': order.notes,
+        'order.notes type': typeof order.notes,
+        'order.notes isArray': Array.isArray(order.notes),
+        'order.notes.length': order.notes?.length,
+        'notesToText result': notesToText(order.notes, '; ')
+      });
+
       console.log('🔍 [REOPEN DEBUG] serializeOrderForKDS input:', {
         orderId: order.id,
         'order.isPersisted': order.isPersisted,
@@ -6900,12 +6910,14 @@
           }
 
           // ✅ [POS V2] Save NEW payments via mishkah-store (unified with kds.js)
+          // ✅ CRITICAL FIX: Fire-and-forget payments to prevent print delay!
           console.log('💰 [POS V2] Saving NEW payments...');
           if(newPaymentsOnly.length > 0){
             console.log('[POS V2] New payments to save:', newPaymentsOnly.length);
             const nowIso = new Date(now).toISOString();
 
-            for(const payment of newPaymentsOnly){
+            // ✅ CRITICAL: Don't await payment saves - fire and forget!
+            Promise.all(newPaymentsOnly.map(payment => {
               const paymentRecord = {
                 id: payment.id || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 orderId: finalOrderId,
@@ -6916,22 +6928,26 @@
                 reference: payment.reference || null
               };
 
-              try {
-                await store.insert('order_payment', paymentRecord);
-                console.log('[POS V2] ✅ Saved payment:', paymentRecord.id, 'amount:', paymentRecord.amount);
-              } catch(paymentError){
-                console.error('[POS V2] ❌ Failed to save payment:', paymentError);
-                // Don't fail the entire save - payment is non-critical
-              }
-            }
-            console.log('✅ [POS V2] Payments saved!');
+              return store.insert('order_payment', paymentRecord)
+                .then(() => console.log('[POS V2] ✅ Saved payment:', paymentRecord.id, 'amount:', paymentRecord.amount))
+                .catch(paymentError => {
+                  console.error('[POS V2] ❌ Failed to save payment:', paymentError);
+                  // Don't fail the entire save - payment is non-critical
+                });
+            })).then(() => {
+              console.log('✅ [POS V2] All payments saved!');
+            }).catch(err => {
+              console.error('[POS V2] ❌ Some payments failed:', err);
+            });
+            // Don't wait - continue immediately to print
           } else {
             console.log('[POS V2] No new payments to save');
           }
         } else {
           console.warn('[POS V2] ⚠️ mishkah-store not available');
         }
-        await posDB.markSync();
+        // ✅ CRITICAL FIX: Fire-and-forget markSync to prevent print delay!
+        posDB.markSync().catch(err => console.error('[POS V2] markSync failed:', err));
 
         console.log('🏷️ [TABLE DEBUG] BEFORE mergePreferRemote:', {
           orderPayloadTableIds: orderPayload.tableIds,
