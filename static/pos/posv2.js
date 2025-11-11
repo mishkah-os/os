@@ -2495,12 +2495,10 @@
       const jobModifiers = [];
       const historyEntries = [];
 
-      // ✅ BATCH IDENTIFIER: Each save creates separate job_orders
-      // This ensures adding new items doesn't overwrite existing job_orders
-      const batchTimestamp = order.updatedAt || order.savedAt || Date.now();
-      const batchId = typeof batchTimestamp === 'number'
-        ? batchTimestamp
-        : new Date(batchTimestamp).getTime();
+      // ✅ CRITICAL FIX: ALWAYS use Date.now() for batchId
+      // This ensures each save creates UNIQUE job_orders
+      // Using order.updatedAt would cause overwriting existing job_orders when adding items
+      const batchId = Date.now();
 
       lines.forEach((line, index)=>{
         const lineIndex = index + 1;
@@ -3382,9 +3380,12 @@
       const rawId = raw.id ?? raw.order_id ?? raw.orderId;
       if(rawId == null) return null;
       const metadata = ensurePlainObject(raw.metadata || raw.meta);
+      // ✅ CRITICAL FIX: Read tableIds from both camelCase AND snake_case
+      // Backend may return table_ids (snake_case) but code was only reading tableIds (camelCase)
       const tableIdsSet = new Set();
-      if(raw.tableId) tableIdsSet.add(String(raw.tableId));
+      if(raw.tableId || raw.table_id) tableIdsSet.add(String(raw.tableId || raw.table_id));
       if(Array.isArray(raw.tableIds)) raw.tableIds.forEach(id=>{ if(id != null) tableIdsSet.add(String(id)); });
+      if(Array.isArray(raw.table_ids)) raw.table_ids.forEach(id=>{ if(id != null) tableIdsSet.add(String(id)); });
       const openedAt = toMillis(raw.openedAt || raw.opened_at);
       const updatedAt = toMillis(raw.updatedAt || raw.updated_at || raw.closedAt || raw.closed_at, openedAt);
       const closedAt = raw.closedAt || raw.closed_at ? toMillis(raw.closedAt || raw.closed_at, updatedAt) : null;
@@ -6415,12 +6416,14 @@
         timestamp: new Date().toISOString()
       });
 
-      // ✅ STRENGTHENED GUARD: Only allocate if absolutely necessary
-      // Allocate new ID if:
-      // 1. Order is not persisted, OR
-      // 2. No valid previous ID, OR
-      // 3. Previous ID is a draft ID (needs real invoice ID for backend)
-      const needsNewId = !order.isPersisted || !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId;
+      // ✅ CRITICAL FIX: Only allocate sequence for truly NEW orders
+      // Allocate new ID ONLY if:
+      // 1. No previous ID at all, OR
+      // 2. Previous ID is empty/undefined, OR
+      // 3. Previous ID is a draft (draft-xxx) that needs real invoice ID
+      //
+      // ❌ DO NOT allocate if order already has real ID (persisted order with additions)
+      const needsNewId = !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId;
 
       console.log('[ALLOCATION CHECK] Decision:', needsNewId ? '🔢 WILL ALLOCATE NEW ID' : '♻️ WILL USE EXISTING ID');
 
@@ -6638,41 +6641,35 @@
           if(kdsPayload && kdsPayload.job_order_header){
             console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
 
-            // ✅ CRITICAL FIX: AWAIT job_order saves before continuing
-            // This ensures window.database is updated BEFORE print modal opens
-            // Prevents printing with stale/missing data
-            try {
-              await Promise.all([
-                // Save headers
-                ...kdsPayload.job_order_header.map(jobHeader =>
-                  store.insert('job_order_header', jobHeader).catch(err =>
-                    console.error('[POS V2] Failed to save header:', jobHeader.id, err)
-                  )
-                ),
-                // Save details
-                ...(kdsPayload.job_order_detail || []).map(jobDetail =>
-                  store.insert('job_order_detail', jobDetail).catch(err =>
-                    console.error('[POS V2] Failed to save detail:', jobDetail.id, err)
-                  )
-                ),
-                // Save modifiers
-                ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
-                  store.insert('job_order_detail_modifier', modifier).catch(err =>
-                    console.error('[POS V2] Failed to save modifier:', modifier.id, err)
-                  )
+            // ✅ CRITICAL FIX: Fire-and-forget - DON'T await job_order saves
+            // Print modal opens IMMEDIATELY without waiting for saves
+            // This prevents print delays - user sees print dialog instantly
+            Promise.all([
+              // Save headers
+              ...kdsPayload.job_order_header.map(jobHeader =>
+                store.insert('job_order_header', jobHeader).catch(err =>
+                  console.error('[POS V2] Failed to save header:', jobHeader.id, err)
                 )
-              ]);
+              ),
+              // Save details
+              ...(kdsPayload.job_order_detail || []).map(jobDetail =>
+                store.insert('job_order_detail', jobDetail).catch(err =>
+                  console.error('[POS V2] Failed to save detail:', jobDetail.id, err)
+                )
+              ),
+              // Save modifiers
+              ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
+                store.insert('job_order_detail_modifier', modifier).catch(err =>
+                  console.error('[POS V2] Failed to save modifier:', modifier.id, err)
+                )
+              )
+            ]).then(() => {
               console.log('✅ [POS V2] All job_order tables saved!');
-              console.log('📡 [POS V2] window.database updated - ready for printing');
-
-              // ✅ ADDITIONAL FIX: Small delay to ensure watchers update window.database
-              // posv2.html watchers are synchronous but may need a tick to propagate
-              await new Promise(resolve => setTimeout(resolve, 50));
-
-            } catch(err) {
+              console.log('📡 [POS V2] window.database updated');
+            }).catch(err => {
               console.error('[POS V2] ❌ Some job_order saves failed:', err);
-              // Continue anyway - partial data is better than no data
-            }
+            });
+            // Don't wait - continue immediately to open print modal
 
           } else {
             console.warn('[POS V2] ⚠️ No job_order payload generated');
@@ -7561,12 +7558,12 @@
         return notCancelled && hasQuantity;
       });
       const hasValidLines = validLines.length > 0;
-      // ✅ FIXED: For takeaway:
-      //    - Save button is DISABLED (requires payment)
-      //    - Finish button is ENABLED (smart - opens payment modal first)
+      // ✅ FIXED: For takeaway - HIDE save button completely (one-shot: finalize-print only)
+      // Takeaway workflow: Add items → Finish & Print (with auto payment modal) → Done
+      // No need for intermediate "save draft" step
       const saveDisabled = isTakeaway && outstanding > 0.0001;
       const finishDisabled = false; // Finish button always enabled - it will open payment modal if needed
-      const canShowSave = !isFinalized && !deliveredStage && hasValidLines; // ✅ Only show if has valid lines
+      const canShowSave = !isFinalized && !deliveredStage && hasValidLines && !isTakeaway; // ✅ HIDE save in takeaway
       const canShowFinish = !isFinalized && (!isDelivery || !deliveredStage) && hasValidLines; // ✅ Only show if has valid lines
       const finishMode = isTakeaway ? 'finalize-print' : 'finalize';
       const finishLabel = isTakeaway ? t.ui.finish_and_print : t.ui.finish_order;
@@ -11340,40 +11337,19 @@
           try {
             const result = await persistOrderFlow(ctx, mode);
             console.log('✅ [POS SAVE] Save completed successfully', result);
-
-            // ✅ CRITICAL: For finalize-print, keep saving=true until new blank order is created
-            // This prevents the save button from being enabled on the finalized order
-            // before the print modal appears and new order is created
-            const isFinalizePrint = mode === 'finalize-print' || mode === 'finish-print';
-            if(!isFinalizePrint) {
-              IS_SAVING_ORDER = false;
-              ctx.setState(s=>({
-                ...s,
-                ui:{ ...(s.ui || {}), saving:false }
-              }));
-              console.log('🔓 [POS SAVE] Save lock released (non-finalize-print)');
-            } else {
-              // For finalize-print, keep lock active
-              // It will be released after state update creates new blank order (happens in setState callback above)
-              console.log('🔐 [POS SAVE] Keeping save lock for finalize-print (prevents premature save button enable)');
-              // Release after a short delay to ensure state update completes
-              setTimeout(() => {
-                IS_SAVING_ORDER = false;
-                ctx.setState(s=>({
-                  ...s,
-                  ui:{ ...(s.ui || {}), saving:false }
-                }));
-                console.log('🔓 [POS SAVE] Save lock released (finalize-print delayed)');
-              }, 500);  // 500ms delay to ensure new order is created
-            }
           } catch(error) {
             console.error('❌ [POS SAVE] Save failed:', error);
+            throw error;
+          } finally {
+            // ✅ Release save lock immediately
+            // No need for delays - save button is hidden in takeaway, and for other types
+            // the new blank order created by persistOrderFlow has no lines → no save button shown
             IS_SAVING_ORDER = false;
             ctx.setState(s=>({
               ...s,
               ui:{ ...(s.ui || {}), saving:false }
             }));
-            throw error;
+            console.log('🔓 [POS SAVE] Save lock released');
           }
         }
       },
