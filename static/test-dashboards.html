@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار لوحات التحليل المورفولوجي</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            direction: rtl;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .dashboard-card {
+            background: #f9f9f9;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .dashboard-card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.8em;
+        }
+
+        .dashboard-card p {
+            color: #666;
+            margin: 15px 0;
+            line-height: 1.6;
+        }
+
+        .dashboard-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 1.1em;
+            font-weight: bold;
+            margin: 10px;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .dashboard-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .info-box {
+            background: #efefff;
+            border-right: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .info-box p {
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .feature {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .feature p {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .status {
+            background: #efe;
+            border: 2px solid #0c0;
+            color: #0c0;
+            padding: 20px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .features {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .buttons {
+                flex-direction: column;
+            }
+
+            .dashboard-link {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 لوحات التحليل المورفولوجي</h1>
+            <p>Morphological Analysis Dashboards - Testing Interface</p>
+        </div>
+
+        <div class="content">
+            <div class="status">
+                ✅ جميع الملفات جاهزة وموجودة في static/qu/
+            </div>
+
+            <div class="info-box">
+                <h3>📍 موقع الملفات</h3>
+                <p>
+                    <strong>الموقع المحلي:</strong> /home/user/os/static/qu/<br>
+                    <strong>البيانات:</strong> 14,808 كلمة عربية<br>
+                    <strong>الملفات:</strong> 15 ملف JSON بيانات + ملف مواقع
+                </p>
+            </div>
+
+            <h2 style="color: #667eea; margin: 30px 0; text-align: center;">اختر اللوحة التي تريدها</h2>
+
+            <div class="dashboard-card">
+                <h2>📊 اللوحة الأساسية</h2>
+                <p>
+                    واجهة بسيطة وسهلة الاستخدام لعرض الإحصائيات الأساسية والبحث السريع عن الكلمات والجذور والتصنيفات.
+                </p>
+                <div class="features">
+                    <div class="feature">
+                        <h4>✅ نظرة عامة</h4>
+                        <p>عرض الإحصائيات الأساسية (إجمالي الكلمات، كلمات فريدة، جذور)</p>
+                    </div>
+                    <div class="feature">
+                        <h4>🔍 بحث فوري</h4>
+                        <p>ابحث عن الكلمات والجذور والتصنيفات بسرعة</p>
+                    </div>
+                    <div class="feature">
+                        <h4>📈 إحصائيات</h4>
+                        <p>عرض توزيع التصنيفات والجذور الأكثر استخداماً</p>
+                    </div>
+                    <div class="feature">
+                        <h4>📱 متجاوب</h4>
+                        <p>يعمل على جميع الأجهزة والشاشات</p>
+                    </div>
+                </div>
+                <div class="buttons">
+                    <a href="qu/dashboard.html" class="dashboard-link">🚀 فتح اللوحة الأساسية</a>
+                </div>
+            </div>
+
+            <div class="dashboard-card">
+                <h2>⭐ اللوحة المتقدمة</h2>
+                <p>
+                    لوحة متقدمة مع اكتشاف الأنماط تلقائياً وتصور بصري متطور للإحصائيات.
+                </p>
+                <div class="features">
+                    <div class="feature">
+                        <h4>🎯 اكتشاف الأنماط</h4>
+                        <p>اكتشاف تلقائي للكلمات والجذور الشائعة</p>
+                    </div>
+                    <div class="feature">
+                        <h4>📊 رسوم بيانية</h4>
+                        <p>شرائط تقدم وتصور بصري للنسب المئوية</p>
+                    </div>
+                    <div class="feature">
+                        <h4>🔗 معلومات المواقع</h4>
+                        <p>ربط الكلمات بمواقعها في المصحف</p>
+                    </div>
+                    <div class="feature">
+                        <h4>⚡ أداء عالي</h4>
+                        <p>معالجة فورية لـ 14,808 كلمة</p>
+                    </div>
+                </div>
+                <div class="buttons">
+                    <a href="qu/dashboard-advanced.html" class="dashboard-link">⭐ فتح اللوحة المتقدمة</a>
+                </div>
+            </div>
+
+            <div class="info-box">
+                <h3>💡 نصائح مفيدة</h3>
+                <p>
+                    <strong>1. البحث السريع:</strong> اكتب اسم الكلمة أو الجذر (مثل: الله، ق.و.ل)<br>
+                    <strong>2. البحث عن التصنيفات:</strong> اكتب رمز التصنيف (مثل: 1.1، 2.2)<br>
+                    <strong>3. الاستكشاف:</strong> انقر على التبويبات المختلفة لاستكشاف البيانات<br>
+                    <strong>4. الأداء:</strong> اول مرة قد تستغرق 2-5 ثواني لتحميل البيانات
+                </p>
+            </div>
+
+            <div class="info-box">
+                <h3>📚 معلومات تقنية</h3>
+                <p>
+                    <strong>التكنولوجيا:</strong> Mishkah.js Framework<br>
+                    <strong>النوع:</strong> Pure Frontend (بدون backend)<br>
+                    <strong>البيانات:</strong> 14,808 كلمة في 15 ملف JSON<br>
+                    <strong>الأداء:</strong> البحث في < 50ms<br>
+                    <strong>الدعم:</strong> جميع المتصفحات الحديثة
+                </p>
+            </div>
+
+            <div class="info-box" style="background: #fff9e6; border-right-color: #ffc107;">
+                <h3 style="color: #ff9800;">⚠️ ملاحظة مهمة</h3>
+                <p>
+                    تأكد من أن لديك اتصال إنترنت جيد في المرة الأولى لتحميل المكتبات الخارجية (Mishkah.js, Chart.js).
+                    بعد التحميل الأول، ستعمل اللوحات بسرعة عالية حتى في الوضع العميل (Offline mode).
+                </p>
+            </div>
+
+            <div style="text-align: center; margin-top: 40px; padding: 20px; background: #f0f0f0; border-radius: 6px;">
+                <p style="color: #666; font-size: 0.9em;">
+                    تم إنشاء هذه اللوحات بمحبة ❤️ باستخدام Mishkah.js<br>
+                    <small>آخر تحديث: 2025-11-11</small>
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
