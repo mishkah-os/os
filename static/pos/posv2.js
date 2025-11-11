@@ -7870,8 +7870,26 @@
       const serviceSegments = ORDER_TYPES.map(type=>({
         id: type.id,
         label: `${type.icon} ${localize(type.label, db.env.lang)}`,
-        attrs:{ gkey:'pos:order:type', 'data-order-type':type.id }
+        attrs:{
+          gkey:'pos:order:type',
+          'data-order-type':type.id,
+          // ✅ Disable type change for persisted orders
+          disabled: order.isPersisted ? true : undefined
+        }
       }));
+
+      // ✅ CRITICAL FIX: Show order type as read-only badge for persisted orders
+      const orderTypeDisplay = order.isPersisted
+        ? D.Containers.Div({ attrs:{ class: tw`flex items-center gap-2 rounded-[var(--radius)] bg-[var(--surface-2)] px-4 py-2` }}, [
+            D.Text.Span({ attrs:{ class: tw`text-sm` }}, [
+              ORDER_TYPES.find(t=> t.id === order.type)?.icon || '🍽️',
+              ' ',
+              localize(ORDER_TYPES.find(t=> t.id === order.type)?.label || {ar:'صالة',en:'Dine-in'}, db.env.lang)
+            ]),
+            D.Text.Span({ attrs:{ class: tw`text-xs ${token('muted')}` }}, ['🔒'])
+          ])
+        : UI.Segmented({ items: serviceSegments, activeId: order.type });
+
       return D.Containers.Section({ attrs:{ class: tw`flex h-full min-h-0 w-full flex-col overflow-hidden` }}, [
         UI.ScrollArea({
           attrs:{ class: tw`flex-1 min-h-0 w-full` },
@@ -7880,7 +7898,7 @@
               UI.Card({
                 variant:'card/soft-1',
                 content: D.Containers.Div({ attrs:{ class: tw`flex h-full min-h-0 flex-col gap-3` }}, [
-                  UI.Segmented({ items: serviceSegments, activeId: order.type }),
+                  orderTypeDisplay,
                   D.Containers.Div({ attrs:{ class: tw`flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm ${token('muted')}` }}, [
                     D.Text.Span({}, [`${t.ui.order_id} ${orderNumberLabel}`]),
                     order.type === 'dine_in'
@@ -11648,6 +11666,25 @@
           const type = btn.getAttribute('data-order-type');
           const state = ctx.getState();
           const t = getTexts(state);
+          const order = state.data?.order || {};
+
+          // ✅ CRITICAL FIX: PREVENT changing order type for persisted orders
+          // User requirement: "يمنع أصلا تحويل حالة الأوردر من حالة لحالة"
+          if(order.isPersisted) {
+            console.warn('⚠️ [POS] BLOCKED: Cannot change order type for persisted order!', {
+              orderId: order.id,
+              currentType: order.type,
+              attemptedType: type,
+              isPersisted: order.isPersisted
+            });
+            UI.pushToast(ctx, {
+              title: t.toast.order_type_locked || 'لا يمكن تغيير نوع الطلب',
+              message: 'الطلبات المحفوظة لا يمكن تغيير نوعها',
+              icon:'🔒'
+            });
+            return;
+          }
+
           ctx.setState(s=>{
             const data = s.data || {};
             const order = data.order || {};
@@ -13475,13 +13512,27 @@
           }
           if(!order){
             order = [state.data.order, ...(state.data.ordersQueue || [])].find(ord=> ord && ord.id === orderId);
-            console.log('🔍 [open-order HANDLER] Order found in local state:', !!order);
+            console.log('🔍 [open-order HANDLER] Order found in local state:', {
+              found: !!order,
+              type: order?.type,
+              orderType: order?.orderType,
+              order_type: order?.order_type,
+              tableIds: order?.tableIds,
+              isPersisted: order?.isPersisted
+            });
           }
           if(!order){
             console.error('❌ [open-order HANDLER] Order not found!');
             return;
           }
-          console.log('🔍 [open-order HANDLER] Calling activateOrder...');
+          console.log('🔍 [open-order HANDLER] FINAL order before activateOrder:', {
+            id: order.id,
+            type: order.type,
+            orderType: order.orderType,
+            order_type: order.order_type,
+            tableIds: order.tableIds,
+            isPersisted: order.isPersisted
+          });
           activateOrder(ctx, order, { closeOrdersModal:true, resetOrderNavValue:true });
         }
       },
