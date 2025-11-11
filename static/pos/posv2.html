@@ -103,6 +103,7 @@
 
           // 2. Define tables to watch
           const tables = [
+            // ✅ CRITICAL: order_header and order_line for static KDS tabs (prep, expo, handoff)
             'order_header',
             'order_line',
             'order_payment',
@@ -113,7 +114,7 @@
             'delivery_drivers',
             'payment_methods',
             'customer_profiles',
-            // ✅ Job order tables (for KDS integration)
+            // ✅ Job order tables (for dynamic KDS station tabs)
             'job_order_header',
             'job_order_detail',
             'job_order_detail_modifier',

@@ -2489,10 +2489,26 @@
       const lines = linesRaw.filter(Boolean);
       if(!lines.length) return null;
 
+      console.log('🔍 [REOPEN DEBUG] serializeOrderForKDS input:', {
+        orderId: order.id,
+        'order.isPersisted': order.isPersisted,
+        'order.status': order.status,
+        'order.fulfillmentStage': order.fulfillmentStage,
+        totalLines: lines.length,
+        linesIsPersisted: lines.map((l, i) => `[${i}]: ${l.isPersisted}`).join(', ')
+      });
+
       // ✅ CRITICAL: For persisted orders with new items, detect if this is a reopened order
       const hasPersistedLines = lines.some(line => line.isPersisted);
       const hasNewLines = lines.some(line => !line.isPersisted);
       const isReopenedOrder = order.isPersisted && hasPersistedLines && hasNewLines;
+
+      console.log('🔍 [REOPEN DEBUG] Detection result:', {
+        hasPersistedLines,
+        hasNewLines,
+        isReopenedOrder,
+        logic: `isPersisted=${order.isPersisted} && hasPersistedLines=${hasPersistedLines} && hasNewLines=${hasNewLines}`
+      });
 
       // ✅ CRITICAL: For reopened orders, only send NEW unpersisted lines to kitchen
       // Old persisted lines already sent - don't resend them!
@@ -2500,8 +2516,15 @@
         ? lines.filter(line => !line.isPersisted)
         : lines;
 
+      console.log('🔍 [REOPEN DEBUG] Lines to send to kitchen:', {
+        linesToSendCount: linesToSendToKitchen.length,
+        totalLines: lines.length,
+        filtered: isReopenedOrder
+      });
+
       if(!linesToSendToKitchen.length) {
-        console.log('⚠️ [KDS] No new lines to send to kitchen for reopened order:', order.id);
+        console.error('❌❌❌ [KDS] No new lines to send to kitchen for reopened order:', order.id);
+        console.error('❌ This means KDS will NOT receive any update!');
         return null;  // No job_order if no new lines
       }
 
@@ -5156,11 +5179,19 @@
       if(Array.isArray(order.lines)){
         next.lines = order.lines.map(line => {
           const enriched = enrichOrderLineWithMenu(line);
-          // ✅ Mark lines from persisted orders as persisted
-          // This is crucial for INSERT-ONLY architecture
-          if(order.isPersisted && !enriched.isPersisted){
+          // ✅ CRITICAL FIX: Only mark EXISTING lines as persisted, NOT new lines!
+          // New lines added to persisted orders should remain unpersisted (undefined or false)
+          // so they can be detected as new additions in serializeOrderForKDS
+          //
+          // Original logic marked ALL lines as isPersisted=true if order.isPersisted=true
+          // This broke reopened order detection - new items were marked as persisted!
+          //
+          // NEW LOGIC: Only mark line as persisted if it ALREADY has isPersisted=true
+          // This preserves the line's original persistence state
+          if(enriched.isPersisted === true){
             return { ...enriched, isPersisted: true };
           }
+          // ✅ NEW: Keep lines with isPersisted=false or undefined as-is (unpersisted)
           return enriched;
         });
       }
