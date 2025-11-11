@@ -7179,9 +7179,11 @@
               indexeddb:{ state:'online', lastSync: now }
             }
           };
-          // ✅ CRITICAL: After save/finalize, create new blank order
+          // ✅ CRITICAL: After save/finalize, ALWAYS create new blank order
           // Don't leave saved order in cart - prevents duplicate saves
-          const shouldCreateNewOrder = (openPrint && finalize) || (!finalize && orderType === 'dine_in');
+          // User requirement: "أي عملية حفظ أو انهاء يتبعها clear للأوردر وعمل أوردر جديد"
+          // ALWAYS create new order regardless of type (dine_in, delivery, takeaway)
+          const shouldCreateNewOrder = true;  // ✅ ALWAYS clear after save/finalize!
 
           if(shouldCreateNewOrder){
             const newOrderId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
@@ -7206,17 +7208,14 @@
               paymentsLocked: false
             };
             updatedData.payments = { ...(data.payments || {}), split:[] };
-            console.log('✅ [POS] Created new blank order after save:', {
-              reason: openPrint && finalize ? 'finalize-print' : 'dine-in save',
+            console.log('✅ [POS] Created new blank order after save (ALL order types cleared):', {
+              reason: finalize ? 'finalize' : 'save',
               newOrderId,
-              orderType
+              orderType,
+              openPrint
             });
-          } else if(syncedOrderForState.id === data.order?.id){
-            // ✅ Only for delivery/takeaway draft saves (rare case)
-            updatedData.order = syncedOrderForState;
-            updatedData.payments = { ...(data.payments || {}), split:[] };
-            console.log('⚠️ [POS] Keeping saved order in cart (delivery/takeaway draft)');
           }
+          // ✅ No else case - ALWAYS create new order!
           return {
             ...s,
             data: updatedData,
