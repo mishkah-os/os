@@ -174,28 +174,30 @@
         </div>
 
         <!-- Chart Controls: Separate container for buttons outside chart figure -->
-        <div class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
+        <div data-m-key="chart-controls-container" class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex items-center gap-2">
               <span class="text-xs font-medium text-[var(--muted-foreground)]">
                 {trans('quick.sales.title')} - {trans(state.data.analytics.unitLabelKey || 'quick.sales.unit')}
               </span>
             </div>
-            <div class="flex flex-wrap items-center justify-end gap-2">
+            <div data-m-key="chart-buttons-wrapper" class="flex flex-wrap items-center justify-end gap-2">
               <!-- TEST BUTTON: Direct randomize for debugging -->
               <button
+                data-m-key="test-randomize-btn"
                 data-m-gkey="test-randomize"
                 class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
               >
                 <span class="select-none">🧪 TEST</span>
               </button>
               <button
+                data-m-key="toggle-live-data-btn"
                 data-m-gkey="toggle-live-data"
                 class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
                 style="min-width: 120px;"
               >
                 <span class="select-none">{trans('quick.sales.randomize')}</span>
-                <span class="text-[10px] font-bold" data-live-status="indicator">○ OFF</span>
+                <span data-m-key="live-data-indicator" class="text-[10px] font-bold" data-live-status="indicator">○ OFF</span>
               </button>
             </div>
           </div>
@@ -253,9 +255,10 @@
           </div>
         </figure>
 
-        <div class="flex items-center justify-between rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
+        <div data-m-key="countdown-container" class="flex items-center justify-between rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
           <span class="text-sm text-[var(--muted-foreground)]">{trans('quick.timer')}</span>
           <strong
+            data-m-key="countdown-timer"
             class="text-2xl font-semibold"
             data-countdown="{state.data.timer.seconds}"
             data-countdown-template="{state.data.ui.countdownTemplate}"
@@ -1348,19 +1351,39 @@
           });
         }
 
-        function updateLiveDataIndicator(enabled) {
-          var indicators = document.querySelectorAll('[data-live-status="indicator"]');
-          console.log('[DEBUG] Updating', indicators.length, 'indicators, enabled:', enabled);
-          for (var i = 0; i < indicators.length; i++) {
-            var indicator = indicators[i];
-            if (enabled) {
-              indicator.textContent = '● LIVE';
-              indicator.style.color = '#22c55e'; // green-500
+        function updateLiveDataIndicator(enabled, retryCount) {
+          var maxRetries = retryCount != null ? retryCount : 10;
+          var attempt = 0;
+
+          function tryUpdate() {
+            var indicators = document.querySelectorAll('[data-live-status="indicator"]');
+            console.log('[DEBUG] Updating', indicators.length, 'indicators, enabled:', enabled, 'attempt:', attempt + 1);
+
+            if (indicators.length > 0) {
+              for (var i = 0; i < indicators.length; i++) {
+                var indicator = indicators[i];
+                if (enabled) {
+                  indicator.textContent = '● LIVE';
+                  indicator.style.color = '#22c55e'; // green-500
+                } else {
+                  indicator.textContent = '○ OFF';
+                  indicator.style.color = '#9ca3af'; // gray-400
+                }
+              }
+              return true;
+            }
+
+            attempt++;
+            if (attempt < maxRetries) {
+              setTimeout(tryUpdate, 100);
+              return false;
             } else {
-              indicator.textContent = '○ OFF';
-              indicator.style.color = '#9ca3af'; // gray-400
+              console.warn('[DEBUG] Failed to find indicators after', maxRetries, 'attempts');
+              return false;
             }
           }
+
+          tryUpdate();
         }
 
         function registerLiveDataOrder(ctx) {
@@ -1457,11 +1480,9 @@
 
           var initial = resolveAutoState(ctx);
 
-          // Update initial indicator state
-          setTimeout(function() {
-            var enabled = initial && initial.data && initial.data.liveData && initial.data.liveData.enabled;
-            updateLiveDataIndicator(enabled || false);
-          }, 100);
+          // Update initial indicator state with retry mechanism
+          var enabled = initial && initial.data && initial.data.liveData && initial.data.liveData.enabled;
+          updateLiveDataIndicator(enabled || false);
           if (!initial && ctx && typeof ctx.getState === 'function') {
             try {
               initial = ctx.getState();
@@ -1509,52 +1530,67 @@
           });
         }
 
-        // Countdown directive implementation
-        function initCountdownDirectives() {
-          console.log('[DEBUG] initCountdownDirectives called!');
-          var countdownElements = document.querySelectorAll('[data-countdown]');
-          console.log('[DEBUG] Found', countdownElements.length, 'countdown elements');
+        // Countdown directive implementation with retry mechanism
+        function initCountdownDirectives(retryCount) {
+          var maxRetries = retryCount != null ? retryCount : 10;
+          var attempt = 0;
 
-          countdownElements.forEach(function(element) {
-            if (element.__countdownInit) {
-              console.log('[DEBUG] Element already initialized, skipping');
-              return; // Already initialized
+          function tryInit() {
+            console.log('[DEBUG] initCountdownDirectives attempt', attempt + 1);
+            var countdownElements = document.querySelectorAll('[data-countdown]');
+            console.log('[DEBUG] Found', countdownElements.length, 'countdown elements');
+
+            if (countdownElements.length === 0 && attempt < maxRetries) {
+              attempt++;
+              setTimeout(tryInit, 100);
+              return;
             }
-            element.__countdownInit = true;
 
-            // Get initial values from data attributes
-            var initialSeconds = Number(element.getAttribute('data-countdown')) || 270;
-            var baseline = Number(element.dataset.countdownBaseline) || initialSeconds;
-            var template = element.getAttribute('data-countdown-template') || '{{time}}';
-
-            console.log('[DEBUG] Initializing countdown: initial=' + initialSeconds + ', baseline=' + baseline);
-
-            // Use internal state
-            var currentSeconds = initialSeconds;
-
-            var updateCountdown = function() {
-              if (currentSeconds <= 0) {
-                currentSeconds = baseline;
-                element.dispatchEvent(new CustomEvent('countdown:finished'));
+            countdownElements.forEach(function(element) {
+              // Clear any existing interval to prevent duplicates
+              if (element.__countdownInterval) {
+                clearInterval(element.__countdownInterval);
+                element.__countdownInterval = null;
               }
 
-              // Update display
-              var minutes = Math.floor(currentSeconds / 60);
-              var seconds = currentSeconds % 60;
-              var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
-              var displayText = template.replace('{{time}}', timeStr);
+              // Get initial values from data attributes
+              var initialSeconds = Number(element.getAttribute('data-countdown')) || 270;
+              var baseline = Number(element.dataset.countdownBaseline) || initialSeconds;
+              var template = element.getAttribute('data-countdown-template') || '{{time}}';
 
-              element.textContent = displayText;
-              currentSeconds--;
-            };
+              console.log('[DEBUG] Initializing countdown: initial=' + initialSeconds + ', baseline=' + baseline);
 
-            // Initial render
-            updateCountdown();
+              // Use internal state
+              var currentSeconds = initialSeconds;
 
-            // Start interval
-            element.__countdownInterval = setInterval(updateCountdown, 1000);
-            console.log('[✓] Countdown started successfully!');
-          });
+              var updateCountdown = function() {
+                if (currentSeconds <= 0) {
+                  currentSeconds = baseline;
+                  try {
+                    element.dispatchEvent(new CustomEvent('countdown:finished'));
+                  } catch (e) {}
+                }
+
+                // Update display
+                var minutes = Math.floor(currentSeconds / 60);
+                var seconds = currentSeconds % 60;
+                var timeStr = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+                var displayText = template.replace('{{time}}', timeStr);
+
+                element.textContent = displayText;
+                currentSeconds--;
+              };
+
+              // Initial render
+              updateCountdown();
+
+              // Start interval
+              element.__countdownInterval = setInterval(updateCountdown, 1000);
+              console.log('[✓] Countdown started successfully!');
+            });
+          }
+
+          tryInit();
         }
 
         // Note: fixButtonContent removed - Flatten Children fix in mishkah.core.js resolves nested array bug
@@ -1565,8 +1601,8 @@
           setTimeout(function() {
             quickDashboardMount(app, helpers);
 
-            // Initialize countdown directives
-            setTimeout(initCountdownDirectives, 100);
+            // Initialize countdown directives with retry mechanism
+            initCountdownDirectives();
           }, 16);
         }
       </script>
