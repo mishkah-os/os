@@ -2514,10 +2514,18 @@
       const isReopenedOrder = order.isPersisted && hasPersistedLines && hasNewLines;
 
       console.log('🔍 [REOPEN DEBUG] Detection result:', {
+        'order.isPersisted': order.isPersisted,
         hasPersistedLines,
         hasNewLines,
         isReopenedOrder,
-        logic: `isPersisted=${order.isPersisted} && hasPersistedLines=${hasPersistedLines} && hasNewLines=${hasNewLines}`
+        logic: `isPersisted=${order.isPersisted} && hasPersistedLines=${hasPersistedLines} && hasNewLines=${hasNewLines}`,
+        linesDetail: lines.map((l, i) => ({
+          index: i,
+          id: l.id,
+          itemId: l.itemId,
+          isPersisted: l.isPersisted,
+          '!isPersisted': !l.isPersisted
+        }))
       });
 
       // ✅ CRITICAL: For reopened orders, only send NEW unpersisted lines to kitchen
@@ -2752,11 +2760,11 @@
       const handoffSnapshot = { ...(kdsState.handoff || {}) };
 
       // ✅ CRITICAL FIX: Check if this is a reopened order (has new unpersisted lines)
-      // ✅ CRITICAL FIX: If order was persisted and now has new lines added, skip order_header update
-      // This prevents cascade delete of existing job_orders, regardless of current order status
-      // Note: isReopenedOrder already calculated in serializeOrderForKDS above
-      const hasNewLinesForHeader = lines.some(line => !line.isPersisted);
-      const isReopenedOrderForHeader = order.isPersisted && hasNewLinesForHeader;
+      // ✅ CRITICAL FIX: Must use SAME logic as isReopenedOrder (line 2514) to prevent mismatch!
+      // isReopenedOrder checks: hasPersistedLines && hasNewLines (both required!)
+      // isReopenedOrderForHeader MUST match to prevent cascade delete
+      // Note: isReopenedOrder already calculated above
+      const isReopenedOrderForHeader = isReopenedOrder;  // ✅ Use same value!
 
       // ✅ Build order_header record for static tabs (all sections, expo, handoff)
       const orderHeader = {
@@ -2803,14 +2811,24 @@
         isReopened: isReopenedOrderForHeader
       });
 
+      console.log('🔄 [KDS REOPEN] isReopenedOrderForHeader check:', {
+        orderId: order.id,
+        'order.isPersisted': order.isPersisted,
+        isReopenedOrder,
+        isReopenedOrderForHeader,
+        matched: isReopenedOrder === isReopenedOrderForHeader,
+        willSkipOrderHeaderUpdate: isReopenedOrderForHeader,
+        currentStatus: order.status,
+        currentStage: order.fulfillmentStage,
+        totalLines: lines.length,
+        newLinesCount: lines.filter(l => !l.isPersisted).length,
+        oldLinesCount: lines.filter(l => l.isPersisted).length
+      });
+
       if(isReopenedOrderForHeader) {
-        console.log('🔄 [KDS REOPEN] Order has new items - creating new job_orders only:', {
-          orderId: order.id,
-          currentStatus: order.status,
-          currentStage: order.fulfillmentStage,
-          newLinesCount: lines.filter(l => !l.isPersisted).length,
-          note: 'order_header status NOT changed - only new job_orders created'
-        });
+        console.log('✅ [KDS REOPEN] WILL SKIP order_header update - preventing cascade delete!');
+      } else {
+        console.log('⚠️ [KDS REOPEN] WILL UPDATE order_header - may cause cascade delete if order exists!');
       }
 
       // ✅ CRITICAL: For reopened orders, only include NEW unpersisted lines
@@ -3855,11 +3873,26 @@
       active.forEach((entry)=>{
         entry.dirty = false;
         entry.isPersisted = true;
+        // ✅ CRITICAL FIX: Mark all lines as persisted too!
+        // Without this, reopened orders can't detect which lines are new vs old
+        if(Array.isArray(entry.lines)){
+          entry.lines = entry.lines.map(line => ({
+            ...line,
+            isPersisted: true  // All lines from database are persisted
+          }));
+        }
       });
       history.forEach((entry, idx)=>{
         entry.seq = idx + 1;
         entry.dirty = false;
         entry.isPersisted = true;
+        // ✅ CRITICAL FIX: Mark all lines as persisted too!
+        if(Array.isArray(entry.lines)){
+          entry.lines = entry.lines.map(line => ({
+            ...line,
+            isPersisted: true
+          }));
+        }
       });
       realtimeOrders.snapshot = {
         orders: orders.map(cloneOrderSnapshot),
