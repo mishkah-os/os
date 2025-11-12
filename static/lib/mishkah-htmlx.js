@@ -1797,6 +1797,12 @@
 
       var activeScope = hasLocalAugment ? createLocalScope(scope, localAugment) : scope;
       var attrs = resolveAttrs(activeScope) || {};
+
+      // x-once: add data-m-frozen to protect DOM
+      if (isOnce) {
+        attrs['data-m-frozen'] = 'true';
+      }
+
       if (resolveKey) {
         var keyValue = resolveKey(activeScope);
         if (keyValue != null && keyValue !== '') {
