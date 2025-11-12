@@ -2517,15 +2517,29 @@
 
       if (store && typeof store.query === 'function') {
         try {
-          // Query job_order_detail for this order to see which lines already sent
-          const existingJobDetails = await store.query('job_order_detail', {
+          // ✅ STEP 1: Query job_order_header to get all jobOrderIds for this order
+          const existingJobHeaders = await store.query('job_order_header', {
             where: { orderId: order.id }
           });
 
-          existingJobDetails.forEach(detail => {
-            const lineId = detail.orderLineId || detail.order_line_id;
-            if (lineId) alreadySentLineIds.add(String(lineId));
+          console.log('🔍 [DATABASE CHECK] Found existing job_order_header:', {
+            orderId: order.id,
+            count: existingJobHeaders.length,
+            jobOrderIds: existingJobHeaders.map(h => h.id)
           });
+
+          // ✅ STEP 2: For each jobOrderId, query job_order_detail
+          for (const jobHeader of existingJobHeaders) {
+            const jobOrderId = jobHeader.id;
+            const existingJobDetails = await store.query('job_order_detail', {
+              where: { jobOrderId }
+            });
+
+            existingJobDetails.forEach(detail => {
+              const lineId = detail.orderLineId || detail.order_line_id;
+              if (lineId) alreadySentLineIds.add(String(lineId));
+            });
+          }
 
           console.log('🔍 [DATABASE CHECK] Already sent line IDs:', {
             orderId: order.id,
@@ -2538,8 +2552,10 @@
       }
 
       // ✅ CRITICAL: Filter out lines that already have job_order_detail
-      const linesToSendToKitchen = lines.filter(line => {
-        const lineId = String(line.id || '');
+      const linesToSendToKitchen = lines.filter((line, index) => {
+        const lineIndex = index + 1;
+        // ✅ Use same logic as baseLineId to ensure matching
+        const lineId = toIdentifier(line.id, line.uid, line.storageId, `${order.id}-line-${lineIndex}`) || `${order.id}-line-${lineIndex}`;
         const alreadySent = alreadySentLineIds.has(lineId);
 
         if (alreadySent) {
@@ -2714,6 +2730,7 @@
         const detail = {
           id: detailId,
           jobOrderId: jobId,
+          orderLineId: baseLineId,  // ✅ CRITICAL: Add orderLineId to track which order_line this came from
           itemId: itemIdentifier,
           itemCode: itemIdentifier,
           quantity,
