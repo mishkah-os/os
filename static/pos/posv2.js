@@ -2766,10 +2766,12 @@
         orderNumber: order.orderNumber || order.invoiceId || order.id,
         orderTypeId: serviceMode,
         serviceMode,
-        // ✅ CRITICAL: Reopen order if has new unpersisted lines
-        status: isReopenedOrderForHeader ? 'open' : (order.status || 'open'),
-        statusId: isReopenedOrderForHeader ? 'open' : (order.statusId || order.status || 'open'),
-        fulfillmentStage: isReopenedOrderForHeader ? 'in_progress' : (order.fulfillmentStage || order.stage || 'new'),
+        // ✅ CRITICAL FIX: DO NOT change order_header status when adding new items
+        // Changing status from 'delivered' to 'open' may cause backend to reset job_orders
+        // Only job_orders should be created for new items - order_header stays as-is
+        status: order.status || 'open',
+        statusId: order.statusId || order.status || 'open',
+        fulfillmentStage: order.fulfillmentStage || order.stage || 'new',
         paymentState: order.paymentState || 'unpaid',
         tableIds: Array.isArray(order.tableIds) ? order.tableIds : [],
         tableLabel: tableLabel || null,
@@ -2786,8 +2788,7 @@
           ...(order.metadata || {}),
           serviceMode,
           orderType: serviceMode,
-          orderTypeId: serviceMode,
-          isReopened: isReopenedOrderForHeader  // ✅ Flag for KDS to know this is reopened
+          orderTypeId: serviceMode
         },
         createdAt: createdIso,
         updatedAt: updatedIso
@@ -2804,13 +2805,12 @@
       });
 
       if(isReopenedOrderForHeader) {
-        console.log('🔄 [KDS REOPEN] Order was delivered but has new lines - reopening for KDS:', {
+        console.log('🔄 [KDS REOPEN] Order has new items - creating new job_orders only:', {
           orderId: order.id,
-          oldStatus: order.status,
-          oldStage: order.fulfillmentStage,
-          newStatus: 'open',
-          newStage: 'in_progress',
-          newLinesCount: lines.filter(l => !l.isPersisted).length
+          currentStatus: order.status,
+          currentStage: order.fulfillmentStage,
+          newLinesCount: lines.filter(l => !l.isPersisted).length,
+          note: 'order_header status NOT changed - only new job_orders created'
         });
       }
 

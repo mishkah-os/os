@@ -1554,23 +1554,22 @@
   };
 
   const getExpoOrders = (db)=>{
-    // ✅ CRITICAL FIX: Use job_orders instead of order_header
-    // This ensures new items added to existing orders appear correctly
+    // ✅ CRITICAL: Expo shows ONLY ready jobs (waiting to be assembled)
+    // Jobs appear here after kitchen marks them as ready
+    // Jobs disappear when "تم التجميع" is pressed (progressState → 'assembled')
     const allJobs = db.data.jobs?.list || [];
 
-    // Show jobs that are NOT assembled/served/delivered/settled
-    // Include: draft, pending, in_progress, ready (ready jobs need to be assembled)
     const snapshot = buildOrdersFromJobs(allJobs, job => {
       const status = String(job.status || '').toLowerCase();
       const progressState = String(job.progressState || '').toLowerCase();
 
-      // Hide completed/assembled/served/delivered
-      if(progressState === 'assembled' || progressState === 'served' ||
-         progressState === 'delivered' || progressState === 'settled') return false;
-      if(status === 'assembled' || status === 'served' ||
-         status === 'delivered' || status === 'settled') return false;
+      // ✅ Show ONLY ready jobs (waiting for assembly)
+      if(status === 'ready' && progressState !== 'assembled' &&
+         progressState !== 'served' && progressState !== 'delivered') {
+        return true;
+      }
 
-      return true; // Show: draft, pending, in_progress, ready
+      return false;
     });
     const orderMap = new Map();
     snapshot.forEach(order=>{
@@ -1729,13 +1728,19 @@
         })
       : [];
 
-    // ✅ Also filter out jobs with progressState='completed'
+    // ✅ Filter out jobs that are assembled/served/delivered (moved to handoff/done)
+    // Keep: queued, pending, in_progress, ready (ready jobs shown in expo for assembly)
     const activeJobs = validJobs.filter(job => {
-      const isCompleted = job.status === 'ready' ||
-                         job.status === 'completed' ||
-                         job.progressState === 'completed';
+      const progressState = String(job.progressState || '').toLowerCase();
 
-      return !isCompleted;
+      // Hide jobs that moved to handoff/done
+      const isMovedToHandoff = progressState === 'assembled' ||
+                               progressState === 'served' ||
+                               progressState === 'delivered' ||
+                               progressState === 'settled' ||
+                               progressState === 'completed';
+
+      return !isMovedToHandoff;
     });
 
     const list = activeJobs.slice();
@@ -3738,41 +3743,54 @@
         const orderId = btn.getAttribute('data-order-id');
         if(!orderId) return;
         const nowIso = new Date().toISOString();
+
+        // ✅ CRITICAL: Update all ready jobs for this order to 'assembled'
+        // This marks jobs as assembled at job_order_header level
         ctx.setState(state=>{
+          const allJobs = state.data.jobs?.list || [];
+
+          // Find all ready jobs for this order
+          const readyJobsForOrder = allJobs.filter(job => {
+            return String(job.orderId) === String(orderId) &&
+                   String(job.status || '').toLowerCase() === 'ready' &&
+                   String(job.progressState || '').toLowerCase() !== 'assembled';
+          });
+
+          console.log(`✅ [ASSEMBLED] Marking ${readyJobsForOrder.length} jobs as assembled for order:`, orderId);
+
+          // Update progressState for each job
+          readyJobsForOrder.forEach(job => {
+            if(window.__POS_DB__ && typeof window.__POS_DB__.update === 'function') {
+              try {
+                window.__POS_DB__.update('job_order_header', {
+                  id: job.id,
+                  progressState: 'assembled',
+                  updatedAt: nowIso
+                }).catch(err => console.error('[KDS] Failed to update job_order_header:', job.id, err));
+              } catch(err) {
+                console.error('[KDS] Error updating job:', err);
+              }
+            }
+          });
+
           const handoff = state.data.handoff || {};
           const record = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
           const next = { ...handoff, [orderId]: record };
-          const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'assembled', assembledAt: nowIso, updatedAt: nowIso });
-          const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
           recordPersistedHandoff(orderId, cloneDeep(record));
-
-          // ✅ Update order_header in state immediately (don't wait for watcher)
-          const orderHeaders = state.data.orderHeaders || [];
-          const orderHeadersNext = orderHeaders.map(header => {
-            const headerId = String(header.id || header.orderId);
-            if (headerId === orderId) {
-              return { ...header, statusId: 'assembled', status: 'assembled', updatedAt: nowIso };
-            }
-            return header;
-          });
 
           return {
             ...state,
             data:{
               ...state.data,
-              handoff: next,
-              orderHeaders: orderHeadersNext,  // ✅ Updated immediately!
-              expoSource: expoSourceNext,
-              expoTickets: expoTicketsNext
+              handoff: next
             }
           };
         });
+
         emitSync({ type:'handoff:update', orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
         }
-        // ✅ Persist order_header.statusId to database
-        persistOrderHeaderStatus(orderId, 'assembled', nowIso);
       }
     },
     'kds.handoff.served':{
