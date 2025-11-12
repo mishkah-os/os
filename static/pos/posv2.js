@@ -2510,41 +2510,58 @@
         linesIsPersisted: lines.map((l, i) => `[${i}]: ${l.isPersisted}`).join(', ')
       });
 
-      // ✅ CRITICAL: For persisted orders with new items, detect if this is a reopened order
-      const hasPersistedLines = lines.some(line => line.isPersisted);
-      const hasNewLines = lines.some(line => !line.isPersisted);
-      const isReopenedOrder = order.isPersisted && hasPersistedLines && hasNewLines;
+      // ✅ CRITICAL: Check database to see which lines already have job_order_detail
+      // Don't rely on isPersisted flag alone - it may be wrong!
+      const store = typeof window !== 'undefined' && window.__POS_DB__ ? window.__POS_DB__ : null;
+      let alreadySentLineIds = new Set();
 
-      console.log('🔍 [REOPEN DEBUG] Detection result:', {
-        'order.isPersisted': order.isPersisted,
-        hasPersistedLines,
-        hasNewLines,
-        isReopenedOrder,
-        logic: `isPersisted=${order.isPersisted} && hasPersistedLines=${hasPersistedLines} && hasNewLines=${hasNewLines}`,
-        linesDetail: lines.map((l, i) => ({
-          index: i,
-          id: l.id,
-          itemId: l.itemId,
-          isPersisted: l.isPersisted,
-          '!isPersisted': !l.isPersisted
-        }))
+      if (store && typeof store.query === 'function') {
+        try {
+          // Query job_order_detail for this order to see which lines already sent
+          const existingJobDetails = await store.query('job_order_detail', {
+            where: { orderId: order.id }
+          });
+
+          existingJobDetails.forEach(detail => {
+            const lineId = detail.orderLineId || detail.order_line_id;
+            if (lineId) alreadySentLineIds.add(String(lineId));
+          });
+
+          console.log('🔍 [DATABASE CHECK] Already sent line IDs:', {
+            orderId: order.id,
+            alreadySentCount: alreadySentLineIds.size,
+            lineIds: Array.from(alreadySentLineIds)
+          });
+        } catch (err) {
+          console.warn('[KDS] Failed to query existing job_order_detail:', err);
+        }
+      }
+
+      // ✅ CRITICAL: Filter out lines that already have job_order_detail
+      const linesToSendToKitchen = lines.filter(line => {
+        const lineId = String(line.id || '');
+        const alreadySent = alreadySentLineIds.has(lineId);
+
+        if (alreadySent) {
+          console.log('⏭️ [SKIP LINE] Line already sent to kitchen:', {
+            lineId,
+            itemName: line.name,
+            reason: 'Found in job_order_detail'
+          });
+        }
+
+        return !alreadySent;  // ✅ Only send NEW lines!
       });
-
-      // ✅ CRITICAL: For reopened orders, only send NEW unpersisted lines to kitchen
-      // Old persisted lines already sent - don't resend them!
-      const linesToSendToKitchen = isReopenedOrder
-        ? lines.filter(line => !line.isPersisted)
-        : lines;
 
       console.log('🔍 [REOPEN DEBUG] Lines to send to kitchen:', {
         linesToSendCount: linesToSendToKitchen.length,
         totalLines: lines.length,
-        filtered: isReopenedOrder
+        skippedCount: lines.length - linesToSendToKitchen.length,
+        filtered: linesToSendToKitchen.map(l => ({ id: l.id, name: l.name }))
       });
 
       if(!linesToSendToKitchen.length) {
-        console.error('❌❌❌ [KDS] No new lines to send to kitchen for reopened order:', order.id);
-        console.error('❌ This means KDS will NOT receive any update!');
+        console.log('✅ [KDS] No new lines to send - all items already in kitchen');
         return null;  // No job_order if no new lines
       }
 

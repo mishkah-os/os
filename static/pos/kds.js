@@ -1754,17 +1754,35 @@
       });
       cloned.createdMs = parseTime(cloned.createdAt || cloned.created_at);
       cloned.acceptedMs = parseTime(cloned.acceptedAt || cloned.accepted_at);
-      // ✅ Try both camelCase and snake_case
-      cloned.startMs = parseTime(cloned.startedAt || cloned.started_at);
-      cloned.readyMs = parseTime(cloned.readyAt || cloned.ready_at);
-      cloned.completedMs = parseTime(cloned.completedAt || cloned.completed_at);
+
+      // ✅ CRITICAL FIX: Don't use startedAt if status is 'queued' or 'awaiting'
+      // This fixes old job_order_header that had startedAt=createdAt by mistake
+      const currentStatus = String(cloned.status || '').toLowerCase();
+      const currentProgressState = String(cloned.progressState || cloned.progress_state || '').toLowerCase();
+      const isQueued = currentStatus === 'queued' || currentProgressState === 'awaiting';
+
+      if (isQueued) {
+        // ✅ If queued, clear startedAt/readyAt/completedAt (should not exist yet)
+        cloned.startedAt = null;
+        cloned.startMs = null;
+        cloned.readyAt = null;
+        cloned.readyMs = null;
+        cloned.completedAt = null;
+        cloned.completedMs = null;
+      } else {
+        // ✅ Try both camelCase and snake_case
+        cloned.startMs = parseTime(cloned.startedAt || cloned.started_at);
+        cloned.readyMs = parseTime(cloned.readyAt || cloned.ready_at);
+        cloned.completedMs = parseTime(cloned.completedAt || cloned.completed_at);
+
+        // ✅ Normalize startedAt to always use camelCase
+        if(!cloned.startedAt && cloned.started_at) {
+          cloned.startedAt = cloned.started_at;
+        }
+      }
+
       cloned.updatedMs = parseTime(cloned.updatedAt || cloned.updated_at);
       cloned.dueMs = parseTime(cloned.dueAt || cloned.due_at);
-
-      // ✅ Normalize startedAt to always use camelCase
-      if(!cloned.startedAt && cloned.started_at) {
-        cloned.startedAt = cloned.started_at;
-      }
 
       // ✅ If header status is NOT in_progress/ready/completed but ANY detail is in_progress,
       // calculate startMs and update header status from first in_progress detail
