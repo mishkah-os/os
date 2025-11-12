@@ -1300,6 +1300,146 @@
     });
   };
 
+  // ✅ NEW: Build orders from job_order_header for Expo/Handoff tabs
+  // This replaces buildOrdersFromHeaders() to use job_order_header as single source of truth
+  const buildOrdersFromJobHeaders = (db) => {
+    const jobHeaders = Array.isArray(db?.data?.jobHeaders) ? db.data.jobHeaders : [];
+    const jobDetails = Array.isArray(db?.data?.jobOrderDetails) ? db.data.jobOrderDetails : [];
+    const handoff = db?.data?.handoff || {};
+    const stationMap = db?.data?.stationMap || {};
+    const menuIndex = db?.data?.menuIndex || {};
+
+    // ✅ Filter out completed job_order_header
+    const activeJobHeaders = jobHeaders.filter(header => {
+      const progressState = header.progressState || header.progress_state;
+      return progressState !== 'completed';
+    });
+
+    // ✅ Group job_order_header by orderId
+    const jobsByOrder = new Map();
+    activeJobHeaders.forEach(header => {
+      const orderId = header.orderId || header.order_id;
+      if (!orderId) return;
+
+      if (!jobsByOrder.has(orderId)) {
+        jobsByOrder.set(orderId, []);
+      }
+      jobsByOrder.get(orderId).push(header);
+    });
+
+    // ✅ Build orders from grouped job_order_header
+    const orders = [];
+    jobsByOrder.forEach((headers, orderId) => {
+      // Use first header for order-level info
+      const firstHeader = headers[0];
+      const orderKey = normalizeOrderKey(orderId);
+      let record = (orderKey && (handoff[orderKey] || handoff[orderId])) || {};
+
+      let totalItems = 0;
+      let readyItems = 0;
+      const detailRows = [];
+      const jobs = [];
+
+      // ✅ Process each job_order_header
+      headers.forEach(header => {
+        const jobOrderId = header.id;
+        const stationId = header.stationId || header.station_id;
+        const station = stationMap[stationId] || {};
+
+        // Get details for this job
+        const details = jobDetails.filter(d => {
+          const detailJobId = d.jobOrderId || d.job_order_id;
+          return detailJobId === jobOrderId;
+        });
+
+        // Build job object
+        const job = {
+          id: jobOrderId,
+          stationId: stationId,
+          status: header.status || 'queued',
+          progressState: header.progressState || header.progress_state,
+          details: details.map(detail => {
+            const itemId = detail.itemId || detail.item_id;
+            const menuItem = menuIndex[itemId];
+            const quantity = Number(detail.quantity) || 1;
+            const itemStatus = detail.status || 'queued';
+
+            totalItems += quantity;
+            if (itemStatus === 'ready' || itemStatus === 'completed') {
+              readyItems += quantity;
+            }
+
+            const detailObj = {
+              id: detail.id,
+              itemId: itemId,
+              itemNameAr: detail.itemNameAr || detail.item_name_ar ||
+                         menuItem?.item_name?.ar || menuItem?.nameAr || itemId,
+              itemNameEn: detail.itemNameEn || detail.item_name_en ||
+                         menuItem?.item_name?.en || menuItem?.nameEn || itemId,
+              quantity: quantity,
+              status: itemStatus,
+              prepNotes: detail.prepNotes || detail.prep_notes || detail.notes || '',
+              modifiers: []
+            };
+
+            // Add to detailRows for display
+            const stationLabelAr = station.nameAr || stationId || 'غير محدد';
+            const stationLabelEn = station.nameEn || stationId || 'Unassigned';
+            detailRows.push({
+              detail: detailObj,
+              stationLabelAr,
+              stationLabelEn
+            });
+
+            return detailObj;
+          })
+        };
+
+        jobs.push(job);
+      });
+
+      const pendingItems = totalItems - readyItems;
+
+      // ✅ Calculate handoff status
+      let status = record.status;
+      const recordStatus = status ? String(status).toLowerCase() : '';
+
+      // Check if persisted status is still valid
+      if (recordStatus === 'assembled' || recordStatus === 'served') {
+        // Keep persisted status unless there are new pending items
+        if (pendingItems > 0) {
+          status = 'pending';
+        } else {
+          status = recordStatus;
+        }
+      } else {
+        // Calculate from items
+        status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
+      }
+
+      orders.push({
+        orderId,
+        orderNumber: firstHeader.orderNumber || firstHeader.order_number || orderId,
+        serviceMode: firstHeader.serviceMode || firstHeader.service_mode || 'dine_in',
+        tableLabel: firstHeader.tableLabel || firstHeader.table_label || null,
+        customerName: firstHeader.customerName || firstHeader.customer_name || null,
+        notes: firstHeader.notes || '',
+        handoffStatus: status,
+        handoffRecord: record,
+        totalItems,
+        readyItems,
+        pendingItems,
+        detailRows,
+        jobs,
+        createdAt: firstHeader.createdAt || firstHeader.created_at,
+        updatedAt: firstHeader.updatedAt || firstHeader.updated_at,
+        createdMs: parseTime(firstHeader.createdAt || firstHeader.created_at)
+      });
+    });
+
+    return orders;
+  };
+
   // ✅ Build orders from job_orders (for dynamic kitchen section tabs)
   const computeOrdersSnapshot = (db)=>{
     const orders = Array.isArray(db?.data?.jobs?.orders) ? db.data.jobs.orders : [];
@@ -1516,8 +1656,8 @@
   };
 
   const getExpoOrders = (db)=>{
-    // ✅ Use order_header + order_line for static expo tab
-    const snapshot = buildOrdersFromHeaders(db)
+    // ✅ NEW: Use job_order_header as single source of truth
+    const snapshot = buildOrdersFromJobHeaders(db)
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
@@ -1548,7 +1688,7 @@
     });
   };
 
-  const getHandoffOrders = (db)=> buildOrdersFromHeaders(db)
+  const getHandoffOrders = (db)=> buildOrdersFromJobHeaders(db)
     .filter(order=>{
       if(!order) return false;
       const status = order.handoffStatus;
@@ -3385,9 +3525,10 @@
         ...state,
         data:{
           ...state.data,
-          orderHeaders: orderHeadersNext,      // ✅ For static tabs
-          orderLines: orderLinesNext,          // ✅ For static tabs
-          jobOrderDetails: mergedOrders.job_order_detail || [],  // ✅ For derived status
+          orderHeaders: orderHeadersNext,      // ✅ For static tabs (legacy)
+          orderLines: orderLinesNext,          // ✅ For static tabs (legacy)
+          jobHeaders: mergedOrders.job_order_header || [],        // ✅ NEW: For Expo/Handoff tabs
+          jobOrderDetails: mergedOrders.job_order_detail || [],   // ✅ For derived status
           jobOrders: mergedOrders,
           jobs: jobsIndexedNext,
           expoSource: expoSourceNext,
@@ -3684,6 +3825,25 @@
         const orderId = btn.getAttribute('data-order-id');
         if(!orderId) return;
         const nowIso = new Date().toISOString();
+
+        // ✅ CRITICAL: Mark all job_order_header for this order as completed
+        const jobHeaders = ctx.getState().data?.jobHeaders || [];
+        const jobsToComplete = jobHeaders.filter(header => {
+          const headerOrderId = header.orderId || header.order_id;
+          return headerOrderId === orderId;
+        });
+
+        // Update each job_order_header to completed state
+        jobsToComplete.forEach(header => {
+          const jobId = header.id;
+          persistJobOrderStatusChange(jobId, {
+            status: 'completed',
+            progressState: 'completed',
+            completedAt: nowIso,
+            updatedAt: nowIso
+          }, {});
+        });
+
         ctx.setState(state=>{
           const handoff = state.data.handoff || {};
           const record = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
@@ -3730,6 +3890,25 @@
         const orderId = btn.getAttribute('data-order-id');
         if(!orderId) return;
         const nowIso = new Date().toISOString();
+
+        // ✅ CRITICAL: Mark all job_order_header for this order as completed
+        const jobHeaders = ctx.getState().data?.jobHeaders || [];
+        const jobsToComplete = jobHeaders.filter(header => {
+          const headerOrderId = header.orderId || header.order_id;
+          return headerOrderId === orderId;
+        });
+
+        // Update each job_order_header to completed state
+        jobsToComplete.forEach(header => {
+          const jobId = header.id;
+          persistJobOrderStatusChange(jobId, {
+            status: 'completed',
+            progressState: 'completed',
+            completedAt: nowIso,
+            updatedAt: nowIso
+          }, {});
+        });
+
         ctx.setState(state=>{
           const handoff = state.data.handoff || {};
           const record = { ...(handoff[orderId] || {}), status:'served', servedAt: nowIso, updatedAt: nowIso };
@@ -5725,12 +5904,41 @@
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_header', (rows) => {          watcherState.headers = ensureArray(rows);          updateFromWatchers();
+        store.watch('job_order_header', (rows) => {
+          // ✅ Filter out completed job_order_header to prevent showing old items
+          const allHeaders = ensureArray(rows);
+          const activeHeaders = allHeaders.filter(header => {
+            const progressState = header?.progressState || header?.progress_state;
+            return progressState !== 'completed';
+          });
+          watcherState.headers = activeHeaders;
+
+          // ✅ Build map of completed jobOrderIds for filtering job_order_detail
+          watcherState.completedJobOrderIds = new Set();
+          allHeaders.forEach(header => {
+            const progressState = header?.progressState || header?.progress_state;
+            if (progressState === 'completed') {
+              const jobOrderId = header?.id || header?.jobOrderId || header?.job_order_id;
+              if (jobOrderId) {
+                watcherState.completedJobOrderIds.add(jobOrderId);
+              }
+            }
+          });
+
+          updateFromWatchers();
         })
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_detail', (rows) => {          watcherState.lines = ensureArray(rows);          updateFromWatchers();
+        store.watch('job_order_detail', (rows) => {
+          // ✅ Filter out details belonging to completed job_order_header
+          const allDetails = ensureArray(rows);
+          const activeDetails = allDetails.filter(detail => {
+            const jobOrderId = detail?.jobOrderId || detail?.job_order_id;
+            return !watcherState.completedJobOrderIds || !watcherState.completedJobOrderIds.has(jobOrderId);
+          });
+          watcherState.lines = activeDetails;
+          updateFromWatchers();
         })
       );
 
@@ -5850,11 +6058,40 @@
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_header', (rows) => {              watcherState.headers = ensureArray(rows);              updateFromWatchers();
+            store.watch('job_order_header', (rows) => {
+              // ✅ Filter out completed job_order_header to prevent showing old items
+              const allHeaders = ensureArray(rows);
+              const activeHeaders = allHeaders.filter(header => {
+                const progressState = header?.progressState || header?.progress_state;
+                return progressState !== 'completed';
+              });
+              watcherState.headers = activeHeaders;
+
+              // ✅ Build map of completed jobOrderIds for filtering job_order_detail
+              watcherState.completedJobOrderIds = new Set();
+              allHeaders.forEach(header => {
+                const progressState = header?.progressState || header?.progress_state;
+                if (progressState === 'completed') {
+                  const jobOrderId = header?.id || header?.jobOrderId || header?.job_order_id;
+                  if (jobOrderId) {
+                    watcherState.completedJobOrderIds.add(jobOrderId);
+                  }
+                }
+              });
+
+              updateFromWatchers();
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_detail', (rows) => {              watcherState.lines = ensureArray(rows);              updateFromWatchers();
+            store.watch('job_order_detail', (rows) => {
+              // ✅ Filter out details belonging to completed job_order_header
+              const allDetails = ensureArray(rows);
+              const activeDetails = allDetails.filter(detail => {
+                const jobOrderId = detail?.jobOrderId || detail?.job_order_id;
+                return !watcherState.completedJobOrderIds || !watcherState.completedJobOrderIds.has(jobOrderId);
+              });
+              watcherState.lines = activeDetails;
+              updateFromWatchers();
             })
           );
           // ✅ Watch order_header for static tabs
