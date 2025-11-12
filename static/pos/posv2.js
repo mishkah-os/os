@@ -2752,12 +2752,11 @@
       const handoffSnapshot = { ...(kdsState.handoff || {}) };
 
       // ✅ CRITICAL FIX: Check if this is a reopened order (has new unpersisted lines)
-      // If order was finalized/delivered but now has new lines added, reopen it for KDS
+      // ✅ CRITICAL FIX: If order was persisted and now has new lines added, skip order_header update
+      // This prevents cascade delete of existing job_orders, regardless of current order status
       // Note: isReopenedOrder already calculated in serializeOrderForKDS above
       const hasNewLinesForHeader = lines.some(line => !line.isPersisted);
-      const isReopenedOrderForHeader = order.isPersisted && hasNewLinesForHeader &&
-                              (order.status === 'finalized' || order.status === 'closed' ||
-                               order.fulfillmentStage === 'delivered' || order.fulfillmentStage === 'closed');
+      const isReopenedOrderForHeader = order.isPersisted && hasNewLinesForHeader;
 
       // ✅ Build order_header record for static tabs (all sections, expo, handoff)
       const orderHeader = {
