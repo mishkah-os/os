@@ -7,8 +7,8 @@
     activeTab: 'all',
     sections: [],
     menuItems: [],
-    orders: [],
-    lines: [],
+    jobHeaders: [],
+    jobDetails: [],
     jobs: new Map(),
     lang: 'ar',
     posPayload: {}
@@ -59,6 +59,19 @@
   const store = await waitForStore();
   console.log('[KDS v2] Store is ready:', store);
 
+  // Make store accessible from console for debugging
+  window.POS_DB = {
+    store: {
+      state: {
+        modules: {
+          pos: {
+            tables: {}
+          }
+        }
+      }
+    }
+  };
+
   // ==================== Data Watchers ====================
 
   // Watch pos_database for master data (menu_items, kitchen_sections, etc.)
@@ -104,25 +117,27 @@
     processOrders();
   });
 
-  // Watch order headers
-  store.watch('order_header', (rows) => {
+  // Watch job order headers
+  store.watch('job_order_header', (rows) => {
     const headers = ensureArray(rows);
-    console.log('[KDS v2] order_header updated:', {
+    console.log('[KDS v2] job_order_header updated:', {
       count: headers.length,
       sample: headers[0]
     });
-    state.orders = headers;
+    state.jobHeaders = headers;
+    window.POS_DB.store.state.modules.pos.tables.job_order_header = headers;
     processOrders();
   });
 
-  // Watch order lines
-  store.watch('order_line', (rows) => {
-    const lines = ensureArray(rows);
-    console.log('[KDS v2] order_line updated:', {
-      count: lines.length,
-      sample: lines[0]
+  // Watch job order details
+  store.watch('job_order_detail', (rows) => {
+    const details = ensureArray(rows);
+    console.log('[KDS v2] job_order_detail updated:', {
+      count: details.length,
+      sample: details[0]
     });
-    state.lines = lines;
+    state.jobDetails = details;
+    window.POS_DB.store.state.modules.pos.tables.job_order_detail = details;
     processOrders();
   });
 
@@ -135,17 +150,17 @@
 
   // ==================== Order Processing ====================
   function processOrders() {
-    if (!state.orders || !state.lines) {
+    if (!state.jobHeaders || !state.jobDetails) {
       console.log('[KDS v2] processOrders: Waiting for data...', {
-        hasOrders: !!state.orders,
-        hasLines: !!state.lines
+        hasJobHeaders: !!state.jobHeaders,
+        hasJobDetails: !!state.jobDetails
       });
       return;
     }
 
     console.log('[KDS v2] Processing orders:', {
-      orders: state.orders.length,
-      lines: state.lines.length,
+      jobHeaders: state.jobHeaders.length,
+      jobDetails: state.jobDetails.length,
       menuItems: state.menuItems.length,
       sections: state.sections.length
     });
@@ -168,91 +183,101 @@
       sampleItem: Object.values(itemsIndex)[0]
     });
 
-    // Group lines by orderId and kitchenSectionId
-    state.lines.forEach(line => {
-      const orderId = line.orderId || line.order_id;
-      const sectionId = line.kitchenSectionId || line.kitchen_section_id || line.sectionId;
+    // Process job_order_header and job_order_detail
+    state.jobHeaders.forEach(header => {
+      const jobOrderId = header.id;
+      const orderId = header.orderId || header.order_id;
+      const sectionId = header.stationId || header.station_id || header.sectionId;
 
-      if (!orderId || !sectionId) {
-        console.log('[KDS v2] Skipping line - missing orderId or sectionId:', line);
+      if (!jobOrderId || !sectionId) {
+        console.log('[KDS v2] Skipping header - missing id or sectionId:', header);
         return;
       }
 
-      // Find order header
-      const order = state.orders.find(o => (o.id === orderId || o.orderId === orderId));
-      if (!order) {
-        console.log('[KDS v2] Skipping line - order not found:', { orderId, lineId: line.id });
+      // Skip if status is completed or ready (based on progressState)
+      const progressState = header.progressState || header.progress_state;
+      if (progressState === 'completed') {
+        console.log('[KDS v2] Skipping completed job:', jobOrderId);
         return;
       }
 
-      // Get item details from menu_item table
-      const itemId = line.itemId || line.item_id || line.menuItemId;
-      const menuItem = itemsIndex[itemId];
-
-      // Use names from menu_item if available, fallback to line data
-      const nameAr = menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar ||
-                     line.itemNameAr || line.item_name_ar || line.itemName || itemId;
-      const nameEn = menuItem?.item_name?.en || menuItem?.nameEn || menuItem?.name_en ||
-                     line.itemNameEn || line.item_name_en || line.itemName || itemId;
-
-      // Create job ID: orderId:sectionId
-      const jobId = `${orderId}:${sectionId}`;
-
-      // Get or create job
-      if (!state.jobs.has(jobId)) {
-        state.jobs.set(jobId, {
-          id: jobId,
-          orderId: orderId,
-          orderNumber: order.orderNumber || order.order_number || orderId,
-          sectionId: sectionId,
-          serviceMode: order.serviceMode || order.service_mode || 'dine_in',
-          tableLabel: order.tableLabel || order.table_label || '',
-          customerName: order.customerName || order.customer_name || '',
-          status: 'queued',
-          createdAt: order.createdAt || order.created_at,
-          items: [],
-          totalItems: 0,
-          completedItems: 0
-        });
-      }
-
-      const job = state.jobs.get(jobId);
-
-      // Add item to job
-      job.items.push({
-        id: line.id,
-        itemId: itemId,
-        nameAr: nameAr,
-        nameEn: nameEn,
-        quantity: line.quantity || 1,
-        notes: line.notes || line.prep_notes || '',
-        status: line.statusId || line.status_id || line.status || 'queued'
+      // Find all details for this job
+      const jobItems = state.jobDetails.filter(detail => {
+        const detailJobId = detail.jobOrderId || detail.job_order_id;
+        return detailJobId === jobOrderId;
       });
 
-      job.totalItems += (line.quantity || 1);
-      if (line.statusId === 'ready' || line.statusId === 'completed' ||
-          line.status_id === 'ready' || line.status_id === 'completed' ||
-          line.status === 'ready' || line.status === 'completed') {
-        job.completedItems += (line.quantity || 1);
+      if (jobItems.length === 0) {
+        console.log('[KDS v2] No items found for job:', jobOrderId);
+        return;
       }
-    });
 
-    // Update job statuses based on items
-    state.jobs.forEach(job => {
+      // Create job
+      const job = {
+        id: jobOrderId,
+        orderId: orderId,
+        orderNumber: header.orderNumber || header.order_number || orderId,
+        sectionId: sectionId,
+        serviceMode: header.serviceMode || header.service_mode || 'dine_in',
+        tableLabel: header.tableLabel || header.table_label || '',
+        customerName: header.customerName || header.customer_name || '',
+        status: header.status || 'queued',
+        progressState: progressState,
+        createdAt: header.createdAt || header.created_at || header.acceptedAt || header.accepted_at,
+        items: [],
+        totalItems: 0,
+        completedItems: 0
+      };
+
+      // Add items to job
+      jobItems.forEach(detail => {
+        const itemId = detail.itemId || detail.item_id;
+        const menuItem = itemsIndex[itemId];
+
+        // Use names from detail or menu_item
+        const nameAr = detail.itemNameAr || detail.item_name_ar ||
+                       menuItem?.item_name?.ar || menuItem?.nameAr || menuItem?.name_ar || itemId;
+        const nameEn = detail.itemNameEn || detail.item_name_en ||
+                       menuItem?.item_name?.en || menuItem?.nameEn || menuItem?.name_en || itemId;
+
+        const itemStatus = detail.status || 'queued';
+        const quantity = detail.quantity || 1;
+
+        job.items.push({
+          id: detail.id,
+          itemId: itemId,
+          nameAr: nameAr,
+          nameEn: nameEn,
+          quantity: quantity,
+          notes: detail.prepNotes || detail.prep_notes || detail.notes || '',
+          status: itemStatus
+        });
+
+        job.totalItems += quantity;
+        if (itemStatus === 'ready' || itemStatus === 'completed' || itemStatus === 'done') {
+          job.completedItems += quantity;
+        }
+      });
+
+      // Update job status based on items
       if (job.completedItems >= job.totalItems && job.totalItems > 0) {
         job.status = 'ready';
       } else if (job.completedItems > 0) {
         job.status = 'cooking';
-      } else {
+      } else if (job.status !== 'cooking' && job.status !== 'ready') {
         job.status = 'queued';
       }
+
+      state.jobs.set(jobOrderId, job);
     });
 
     console.log('[KDS v2] Processed jobs:', {
       total: state.jobs.size,
       jobs: Array.from(state.jobs.values()).map(j => ({
         id: j.id,
+        orderId: j.orderId,
         status: j.status,
+        progressState: j.progressState,
         items: j.items.length
       }))
     });
@@ -433,15 +458,27 @@
     const job = state.jobs.get(jobId);
     if (!job) return;
 
+    // Update job header status
+    try {
+      await store.update('job_order_header', {
+        id: jobId,
+        status: 'cooking',
+        startedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('[KDS v2] Error updating job header:', err);
+    }
+
     // Update all items in this job to 'cooking' status
     for (const item of job.items) {
       try {
-        await store.update('order_line', {
+        await store.update('job_order_detail', {
           id: item.id,
-          statusId: 'cooking'
+          status: 'cooking',
+          startAt: new Date().toISOString()
         });
       } catch (err) {
-        console.error('[KDS v2] Error updating line:', err);
+        console.error('[KDS v2] Error updating detail:', err);
       }
     }
   };
@@ -451,15 +488,27 @@
     const job = state.jobs.get(jobId);
     if (!job) return;
 
+    // Update job header status
+    try {
+      await store.update('job_order_header', {
+        id: jobId,
+        status: 'ready',
+        readyAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('[KDS v2] Error updating job header:', err);
+    }
+
     // Update all items in this job to 'ready' status
     for (const item of job.items) {
       try {
-        await store.update('order_line', {
+        await store.update('job_order_detail', {
           id: item.id,
-          statusId: 'ready'
+          status: 'ready',
+          finishAt: new Date().toISOString()
         });
       } catch (err) {
-        console.error('[KDS v2] Error updating line:', err);
+        console.error('[KDS v2] Error updating detail:', err);
       }
     }
   };
@@ -469,15 +518,27 @@
     const job = state.jobs.get(jobId);
     if (!job) return;
 
+    // Update job header status
+    try {
+      await store.update('job_order_header', {
+        id: jobId,
+        status: 'completed',
+        progressState: 'completed',
+        completedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('[KDS v2] Error updating job header:', err);
+    }
+
     // Update all items in this job to 'completed' status
     for (const item of job.items) {
       try {
-        await store.update('order_line', {
+        await store.update('job_order_detail', {
           id: item.id,
-          statusId: 'completed'
+          status: 'completed'
         });
       } catch (err) {
-        console.error('[KDS v2] Error updating line:', err);
+        console.error('[KDS v2] Error updating detail:', err);
       }
     }
   };
