@@ -2013,6 +2013,8 @@
         base.tableIds = Array.isArray(tableIdsSource)
           ? tableIdsSource.slice()
           : (tableIdsSource ? [tableIdsSource] : []);
+         // console.log(tableIdsSource,"tableIdsSource");
+         // console.log(raw);
         base.guests = Number.isFinite(Number(base.guests)) ? Number(base.guests) : 0;
         base.allowAdditions = base.allowAdditions !== undefined ? !!base.allowAdditions : true;
         base.lockLineEdits = base.lockLineEdits !== undefined ? !!base.lockLineEdits : true;
@@ -8912,12 +8914,14 @@
 
         // ✅ CRITICAL FIX: Read tableIds from multiple sources (camelCase, snake_case, single tableId)
         const tableIdsSource = order.tableIds || order.table_ids || order.tableId || order.table_id;
-        const orderTableIds = Array.isArray(tableIdsSource)
+        let  orderTableIds = Array.isArray(tableIdsSource)
           ? tableIdsSource
           : (tableIdsSource ? [tableIdsSource] : []);
-
-        // ✅ DEBUG: Log order tableIds to see if they're present
+          const headerTableIds = ((window.__POS_DB__?.store?.state?.modules?.pos?.tables?.order_header) || []).find(h => h.id === order.id)?.metadata?.tableIds || [];
+          orderTableIds=headerTableIds;
         if(order.type === 'dine_in' && (!orderTableIds || orderTableIds.length === 0)) {
+          console.log(headerTableIds);
+          console.log(order);
           console.warn('⚠️ [ORDERS REPORT] Dine-in order missing tableIds!', {
             orderId: order.id,
             'order.tableIds': order.tableIds,
