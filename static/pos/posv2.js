@@ -2610,12 +2610,12 @@
           isExpedite:false,
           tableLabel: tableLabel || null,
           customerName: customerName || null,
-          dueAt: order.dueAt ? normalizeIso(order.dueAt) : null,
-          acceptedAt:null,
-          startedAt:null,
-          readyAt:null,
-          completedAt:null,
-          expoAt:null,
+          dueAt: order.dueAt ? normalizeIso(order.dueAt) : createdIso,
+          acceptedAt: createdIso,  // ✅ Set to creation time
+          startedAt: createdIso,   // ✅ Set to creation time
+          readyAt: createdIso,     // ✅ Set to creation time
+          completedAt: createdIso, // ✅ Set to creation time
+          expoAt: createdIso,      // ✅ Set to creation time
           syncChecksum:`${order.id}-${stationId}`,
           notes: notesToText(order.notes, '; '),  // ✅ Order header notes
           meta:{ orderSource:'pos', kdsTab: stationId },
