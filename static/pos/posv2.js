@@ -7093,7 +7093,20 @@
           syncedOrderForState.notes = notesBackup;
         }
 
-        console.log('[Mishkah][POS] Final order for state:', {
+        // ✅ CRITICAL FIX: Mark ALL lines as persisted after successful save
+        // This ensures that when the order is reopened and new items are added,
+        // we can detect which items are new (isPersisted=false/undefined) vs old (isPersisted=true)
+        if(Array.isArray(syncedOrderForState.lines)){
+          syncedOrderForState.lines = syncedOrderForState.lines.map(line => ({
+            ...line,
+            isPersisted: true  // ✅ Mark as persisted since it's now saved in backend
+          }));
+        }
+        // ✅ Mark order itself as persisted
+        syncedOrderForState.isPersisted = true;
+        syncedOrderForState.dirty = false;
+
+        console.log('[Mishkah][POS] Final order for state (with isPersisted marks):', {
           orderId: syncedOrderForState.id,
           tableIds: syncedOrderForState.tableIds,  // ✅ FINAL CHECK: tableIds before setState
           tableId: syncedOrderForState.tableId,
@@ -7101,7 +7114,8 @@
           notesLength: syncedOrderForState.notes?.length,
           totals: syncedOrderForState.totals,
           linesCount: syncedOrderForState.lines?.length,
-          firstLine: syncedOrderForState.lines?.[0]
+          firstLine: syncedOrderForState.lines?.[0],
+          allLinesMarkedPersisted: syncedOrderForState.lines?.every(l => l.isPersisted === true)
         });
         const latestSnapshot = getRealtimeOrdersSnapshot();
         const latestOrders = latestSnapshot.active.map(order=> ({ ...order }));
@@ -9109,9 +9123,18 @@
       });
       const typeConfig = getOrderTypeConfig(order.type || 'dine_in');
       // IMPORTANT: Preserve ALL critical order data when activating an existing order
+      // ✅ CRITICAL FIX: Mark order and all lines as persisted if loading from backend
+      const orderIsPersisted = isDraftOrder ? false : (order.isPersisted !== undefined ? order.isPersisted : true);
       let safeOrder = {
         ...order,
-        lines: Array.isArray(order.lines) ? order.lines.map(line=> ({ ...line })) : [],
+        // ✅ CRITICAL: Mark all lines as persisted if this is a persisted order
+        // This ensures that when new items are added later, we can detect them (no isPersisted)
+        lines: Array.isArray(order.lines)
+          ? order.lines.map(line=> ({
+              ...line,
+              isPersisted: orderIsPersisted ? true : line.isPersisted  // ✅ Mark as persisted for saved orders
+            }))
+          : [],
         notes: Array.isArray(order.notes) ? order.notes.map(note=> ({ ...note })) : [],
         payments: Array.isArray(order.payments) ? order.payments.map(pay=> ({ ...pay })) : [],
         dirty:false,
@@ -9122,7 +9145,7 @@
         // Without this, reopened orders lose their type and default to dine_in!
         type: order.type || order.orderType || order.order_type || 'dine_in',
         // CRITICAL: Draft orders should NOT be marked as persisted (they only exist locally)
-        isPersisted: isDraftOrder ? false : (order.isPersisted !== undefined ? order.isPersisted : true),
+        isPersisted: orderIsPersisted,
         tableIds: Array.isArray(order.tableIds) ? order.tableIds.slice() : (order.tableId ? [order.tableId] : []),
         tableId: order.tableId || (Array.isArray(order.tableIds) && order.tableIds.length ? order.tableIds[0] : null),
         customerId: order.customerId || null,
