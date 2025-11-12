@@ -6840,18 +6840,20 @@
             // Print modal opens IMMEDIATELY without waiting for saves
             // This prevents print delays - user sees print dialog instantly
 
-            // ✅ CRITICAL: For PERSISTED orders, use update() instead of insert() for order_header
-            // This ensures reopened orders get their status updated from 'delivered' to 'open'
-            // and tableIds are preserved correctly
+            // ✅ CRITICAL FIX: DO NOT update order_header when adding new items to existing order
+            // Updating order_header causes backend to DELETE existing job_orders!
+            // Only insert new job_orders for new items - leave order_header untouched
             const isPersistedOrder = order.isPersisted === true;
+            const hasOnlyNewItems = isReopenedOrderForHeader; // Order has new unpersisted items
 
             // ✅ Get existing order_header from window.database to read current version
             const existingOrderHeaders = window.database?.order_header || [];
             const existingOrderHeader = existingOrderHeaders.find(h => String(h.id) === String(order.id));
 
             Promise.all([
-              // ✅ Save/Update order_header (for static KDS tabs - has notes!)
-              ...(kdsPayload.order_header || []).map(orderHeader => {
+              // ✅ CRITICAL: Only save order_header for NEW orders
+              // For existing orders with new items, skip order_header update to preserve job_orders
+              ...(hasOnlyNewItems ? [] : (kdsPayload.order_header || []).map(orderHeader => {
                 if(isPersistedOrder && typeof store.update === 'function') {
                   // ✅ CRITICAL: Version is REQUIRED for store.update()
                   // Read current version from existing record, increment by 1
@@ -6887,8 +6889,10 @@
                     console.error('[POS V2] Failed to insert order_header:', orderHeader.id, err)
                   );
                 }
-              }),
-              // ✅ Save order_line (for static KDS tabs - always insert since we filter to new lines only)
+              })),
+              // ✅ Save order_line (for static KDS tabs)
+              // For reopened orders: only insert new lines (filtered in serializeOrderForKDS)
+              // For new orders: insert all lines
               ...(kdsPayload.order_line || []).map(orderLine =>
                 store.insert('order_line', orderLine).catch(err =>
                   console.error('[POS V2] Failed to save order_line:', orderLine.id, err)
