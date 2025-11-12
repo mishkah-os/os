@@ -565,6 +565,39 @@
       if (opts==null) opts = {}; if (parentPath==null) parentPath = "";
       var host = parent._dom || parent;
       var dom = prev ? prev._dom : null;
+
+      // Check if element is frozen - skip patching entirely
+      if (dom && dom.nodeType === 1) {
+        var frozen = dom.getAttribute('data-m-frozen');
+        if (frozen === 'true' || frozen === '') {
+          // Element is frozen - preserve it completely, just update vnode reference
+          if (next) {
+            next._dom = dom;
+            next._path = prev._path || (parentPath + '/' + (next.tag||'') + (next.key?('#'+next.key):''));
+            trackVNodeDom(next);
+          }
+          return;
+        }
+        // Also check if key is in freeze set
+        if (opts.freeze && opts.freeze.size > 0) {
+          var keyAttr = dom.getAttribute('data-m-key');
+          if (keyAttr) {
+            var keys = keyAttr.split(/[\s,]+/);
+            for (var ki = 0; ki < keys.length; ki++) {
+              if (opts.freeze.has(keys[ki])) {
+                // Key is frozen - preserve element
+                if (next) {
+                  next._dom = dom;
+                  next._path = prev._path || (parentPath + '/' + (next.tag||'') + (next.key?('#'+next.key):''));
+                  trackVNodeDom(next);
+                }
+                return;
+              }
+            }
+          }
+        }
+      }
+
       if (prev==null){ return host.appendChild(render(next, db, parentPath)); }
       if (next==null){ if (dom && dom.parentNode===host){ try{ host.removeChild(dom); }
         catch (err){ reportCoreError('CORE:DOM', 'Failed to remove child during patch', { hostTag: host && host.tagName }, err); } } return; }
