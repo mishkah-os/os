@@ -2480,7 +2480,7 @@
       return table ? (table.name || table.label || table.id) : tableIds[0];
     }
 
-    function serializeOrderForKDS(order, state){
+    async function serializeOrderForKDS(order, state){
       if(!order || !order.id) return null;
       const createdIso = normalizeIso(order.createdAt || order.savedAt || Date.now());
       const updatedIso = normalizeIso(order.updatedAt || order.savedAt || Date.now());
@@ -2966,8 +2966,8 @@
       };
     }
 
-    const buildOrderEnvelope = (orderPayload, state)=>{
-      const payload = serializeOrderForKDS(orderPayload, state);
+    const buildOrderEnvelope = async (orderPayload, state)=>{
+      const payload = await serializeOrderForKDS(orderPayload, state);
       if(!payload) return null;
       const nowIso = new Date().toISOString();
       const baseHandoff = (payload.handoff && typeof payload.handoff === 'object') ? { ...payload.handoff } : {};
@@ -3027,8 +3027,8 @@
       if(!WebSocketX || !endpoint){
         return {
           connect:()=>{},
-          publishOrder(orderPayload, state){
-            const envelope = buildOrderEnvelope(orderPayload, state);
+          async publishOrder(orderPayload, state){
+            const envelope = await buildOrderEnvelope(orderPayload, state);
             if(!envelope) return null;
 
             // ⚠️ FALLBACK MODE: No WebSocket - job_orders stored in offline store only
@@ -3159,8 +3159,8 @@
       const connect = ()=>{ try { socket.connect({ waitOpen:false }); } catch(_err){} };
       return {
         connect,
-        publishOrder(orderPayload, state){
-          const envelope = buildOrderEnvelope(orderPayload, state);
+        async publishOrder(orderPayload, state){
+          const envelope = await buildOrderEnvelope(orderPayload, state);
           if(!envelope){
             console.warn('[Mishkah][POS][KDS] Skipped publishing order payload — serialization failed.', { orderId: orderPayload?.id });
             return null;
@@ -6925,7 +6925,7 @@
         const store = window.__POS_DB__;
         if(store && typeof store.insert === 'function'){
           // Generate KDS payload
-          const kdsPayload = serializeOrderForKDS(orderPayload, state);
+          const kdsPayload = await serializeOrderForKDS(orderPayload, state);
 
           if(kdsPayload && kdsPayload.job_order_header){
             console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
