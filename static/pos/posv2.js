@@ -2553,10 +2553,14 @@
         return !alreadySent;  // ✅ Only send NEW lines!
       });
 
+      // ✅ Determine if this is a reopened order (has items that were already sent)
+      const isReopenedOrder = alreadySentLineIds.size > 0 && linesToSendToKitchen.length < lines.length;
+
       console.log('🔍 [REOPEN DEBUG] Lines to send to kitchen:', {
         linesToSendCount: linesToSendToKitchen.length,
         totalLines: lines.length,
         skippedCount: lines.length - linesToSendToKitchen.length,
+        isReopenedOrder,
         filtered: linesToSendToKitchen.map(l => ({ id: l.id, name: l.name }))
       });
 
