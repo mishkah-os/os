@@ -5568,7 +5568,13 @@
         jobId = sectionId ? `${order.orderId}:${sectionId}` : order.orderId;
       }
       if (!order.jobs.has(jobId)) {
-        const station = stationMap[sectionId] || {};        order.jobs.set(jobId, {
+        const station = stationMap[sectionId] || {};
+        // ✅ CRITICAL FIX: Read status and progressState from order.header
+        // This prevents status from being reset when adding new items
+        const headerStatus = order.header?.status || 'queued';
+        const headerProgressState = order.header?.progressState || order.header?.progress_state;
+
+        order.jobs.set(jobId, {
           id: jobId,
           jobOrderId: jobOrderRef || jobId,
           orderId: order.orderId,
@@ -5578,14 +5584,16 @@
           serviceMode: order.serviceMode,
           tableLabel: order.tableLabel,
           customerName: order.customerName,
+          status: headerStatus,  // ✅ Read from header, not hardcoded
+          progressState: headerProgressState,  // ✅ Read from header
           totalItems: 0,
           completedItems: 0,
           remainingItems: 0,
           createdAt: order.openedAt,
           acceptedAt: order.openedAt,
           dueAt: order.dueAt,
-          readyAt: null,
-          completedAt: null,
+          readyAt: order.header?.readyAt || order.header?.ready_at || null,
+          completedAt: order.header?.completedAt || order.header?.completed_at || null,
           updatedAt: order.openedAt,
           details: []
         });
