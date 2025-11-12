@@ -8740,13 +8740,18 @@
       // ✅ Helper: Check if order is completed (delivered/closed + fully paid)
       const isOrderCompleted = (order)=>{
         const fulfillmentStage = order.fulfillmentStage || 'new';
-        const paymentState = order.paymentState || 'unpaid';
 
         // ✅ Order is completed if:
         // 1. Delivered (delivery/takeaway) or Closed (dine_in)
-        // 2. AND fully paid
+        // 2. AND fully paid (calculated from actual payments, not paymentState field)
         const isDelivered = fulfillmentStage === 'delivered' || fulfillmentStage === 'closed';
-        const isFullyPaid = paymentState === 'paid' || paymentState === 'overpaid';
+
+        // ✅ CRITICAL FIX: Calculate if fully paid from actual payments instead of paymentState field
+        // paymentState field may not be updated when payments are added
+        const totals = calculateTotals(order.lines || [], settings, order.type || 'dine_in', { orderDiscount: order.discount });
+        const totalDue = Number(totals?.due || 0);
+        const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
+        const isFullyPaid = totalDue > 0 && paidAmount >= totalDue;
 
         return isDelivered && isFullyPaid;
       };
@@ -8859,8 +8864,11 @@
         const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
         const remainingAmount = Math.max(0, round(totalDue - paidAmount));
 
-        // ✅ CRITICAL FIX: Map tableIds to names, showing tableId if name not found
-        const orderTableIds = order.tableIds || [];
+        // ✅ CRITICAL FIX: Read tableIds from multiple sources (camelCase, snake_case, single tableId)
+        const tableIdsSource = order.tableIds || order.table_ids || order.tableId || order.table_id;
+        const orderTableIds = Array.isArray(tableIdsSource)
+          ? tableIdsSource
+          : (tableIdsSource ? [tableIdsSource] : []);
 
         // ✅ DEBUG: Log order tableIds to see if they're present
         if(order.type === 'dine_in' && (!orderTableIds || orderTableIds.length === 0)) {
@@ -8868,7 +8876,8 @@
             orderId: order.id,
             'order.tableIds': order.tableIds,
             'order.tableId': order.tableId,
-            'order.table_ids': order.table_ids
+            'order.table_ids': order.table_ids,
+            'order.table_id': order.table_id
           });
         }
 

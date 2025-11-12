@@ -4612,13 +4612,23 @@
       watcherState.orderHeaders = orderHeaders.map(header => {
         const headerId = String(header.id || header.orderId);
         if (headerId === orderId) {
-          return {
+          const updatedHeader = {
             ...header,
             statusId: status,
             status: status,
             version: nextVersion,  // ✅ Update version locally
             updatedAt: timestamp || new Date().toISOString()
           };
+
+          // ✅ CRITICAL FIX: Update fulfillmentStage when order is delivered
+          if (status === 'assembled') {
+            updatedHeader.fulfillmentStage = 'ready';
+          } else if (status === 'served') {
+            const serviceMode = header.type || header.serviceMode || header.orderTypeId || 'dine_in';
+            updatedHeader.fulfillmentStage = serviceMode === 'dine_in' ? 'closed' : 'delivered';
+          }
+
+          return updatedHeader;
         }
         return header;
       });
@@ -4638,6 +4648,16 @@
         version: nextVersion,    // ✅ Send version! (CRITICAL)
         updatedAt: timestamp || new Date().toISOString()
       };
+
+      // ✅ CRITICAL FIX: Update fulfillmentStage when order is delivered (assembled/served)
+      // This is required for orders to disappear from "Open Orders" report
+      if (status === 'assembled') {
+        headerUpdate.fulfillmentStage = 'ready';
+      } else if (status === 'served') {
+        // For dine_in: use 'closed', for delivery/takeaway: use 'delivered'
+        const serviceMode = matchingHeader.type || matchingHeader.serviceMode || matchingHeader.orderTypeId || 'dine_in';
+        headerUpdate.fulfillmentStage = serviceMode === 'dine_in' ? 'closed' : 'delivered';
+      }
 
       // ✅ Increase timeout to 10 seconds for order_header updates
       await Promise.race([
@@ -5646,14 +5666,18 @@
     orders.forEach((order) => {
       order.jobs.forEach((job) => {
         job.remainingItems = Math.max(0, job.totalItems - job.completedItems);
-        const status =
+        // ✅ CRITICAL FIX: Read status from job object (which comes from watcherState.headers)
+        // Don't recalculate it, otherwise we'll overwrite the status we just updated!
+        const status = job.status || (
           job.totalItems > 0 && job.completedItems >= job.totalItems
             ? 'ready'
             : job.completedItems > 0
             ? 'in_progress'
-            : 'queued';
-        const progressState =
-          status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting';
+            : 'queued'
+        );
+        const progressState = job.progressState || (
+          status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting'
+        );
         jobHeaders.push({
           id: job.jobOrderId || job.id,
           jobOrderId: job.jobOrderId || job.id,
