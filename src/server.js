@@ -2115,23 +2115,10 @@ function generateJobOrderRecords(store, header, lines) {
 }
 
 async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, options = {}) {
-  // ✅ CRITICAL FIX: DO NOT regenerate job_order from order_line!
-  // posv2.js already sends job_order_header/detail through WebSocket/BroadcastChannel
-  // and inserts them directly into mishkah-store. If we regenerate here from order_line,
-  // we'll delete ALL existing job_order_header (including completed ones!) and recreate them,
-  // causing:
-  // 1. Old completed orders to reappear on KDS (cooked twice! - cost 3000 EGP!)
-  // 2. Timers to reset (startedAt gets lost)
-  // 3. Assembly/Handoff workflow to break
-  //
-  // The backend should ONLY handle job_order data persistence, NOT regenerate from order_line.
-  logger.debug({ orderId }, '[syncJobOrders] SKIPPED - job_order data managed by POS client directly');
-  return;
+  // ✅ CRITICAL FIX: Smart sync that preserves completed job_order_header
+  // Problem: Old code deleted ALL job_order_header (including completed ones) then recreated them
+  // Solution: Only delete/update NON-completed jobs, preserve completed ones
 
-  // ❌ OLD CODE BELOW - DISABLED TO PREVENT CASCADING DELETE/RECREATE BUG
-  /*
-  // Generate job order records from order data
-  // ✅ Pass store as first parameter to query kitchen_sections and menu_items
   const jobOrderData = generateJobOrderRecords(store, header, lines);
 
   if (!jobOrderData) {
@@ -2139,12 +2126,32 @@ async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, 
     return;
   }
 
-  // Delete existing job orders for this order
+  // ✅ Get existing job_order_header for this order
   const existingHeaders = store
     .listTable('job_order_header')
     .filter((entry) => entry && entry.orderId === orderId);
 
-  for (const entry of existingHeaders) {
+  // ✅ Separate completed vs non-completed headers
+  const completedHeaders = existingHeaders.filter(header => {
+    const progressState = header.progressState || header.progress_state;
+    return progressState === 'completed';
+  });
+
+  const nonCompletedHeaders = existingHeaders.filter(header => {
+    const progressState = header.progressState || header.progress_state;
+    return progressState !== 'completed';
+  });
+
+  logger.debug({
+    orderId,
+    existingCount: existingHeaders.length,
+    completedCount: completedHeaders.length,
+    nonCompletedCount: nonCompletedHeaders.length,
+    newCount: jobOrderData.headers.length
+  }, '[syncJobOrders] Smart sync - preserving completed jobs');
+
+  // ✅ ONLY delete non-completed job_order_header
+  for (const entry of nonCompletedHeaders) {
     if (!entry || !entry.id) continue;
     await applyModuleMutation(
       branchId,
@@ -2156,11 +2163,11 @@ async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, 
     );
   }
 
-  // Delete existing job order details
+  // ✅ Delete job_order_detail for non-completed headers only
+  const nonCompletedHeaderIds = nonCompletedHeaders.map(h => h.id);
   const existingDetails = store
     .listTable('job_order_detail')
-    .filter((entry) => entry && Array.isArray(jobOrderData.headers) &&
-             jobOrderData.headers.some(h => h.id === entry.jobOrderId));
+    .filter((entry) => entry && nonCompletedHeaderIds.includes(entry.jobOrderId));
 
   for (const entry of existingDetails) {
     if (!entry || !entry.id) continue;
@@ -2174,11 +2181,10 @@ async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, 
     );
   }
 
-  // Delete existing job order history
+  // ✅ Delete job_order_status_history for non-completed headers only
   const existingHistory = store
     .listTable('job_order_status_history')
-    .filter((entry) => entry && Array.isArray(jobOrderData.headers) &&
-             jobOrderData.headers.some(h => h.id === entry.jobOrderId));
+    .filter((entry) => entry && nonCompletedHeaderIds.includes(entry.jobOrderId));
 
   for (const entry of existingHistory) {
     if (!entry || !entry.id) continue;
@@ -2192,7 +2198,7 @@ async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, 
     );
   }
 
-  // Insert new job order headers
+  // ✅ Insert new job order headers (only for new/updated items)
   for (const jobHeader of jobOrderData.headers) {
     await applyModuleMutation(
       branchId,
@@ -2243,13 +2249,13 @@ async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, 
   logger.info(
     {
       orderId,
+      existingCompleted: completedHeaders.length,
       jobHeaders: jobOrderData.headers.length,
       jobDetails: jobOrderData.details.length,
       jobHistory: jobOrderData.history.length
     },
-    'Synced job order records'
+    'Synced job order records (preserved completed jobs)'
   );
-  */
 }
 
 // ✅ CLAUDE FIX: Global map to track in-flight save operations
