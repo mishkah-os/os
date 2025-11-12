@@ -1059,7 +1059,10 @@
             }
           };
           if (ensured && typeof ensured.then === 'function') {
-            ensured.then(hydrate).catch(hydrate);
+            ensured.then(hydrate).catch(function(err) {
+              console.warn('[SYNC-CHART] Library load error (hydrating anyway):', err);
+              // Don't call hydrate() again - it causes double updates!
+            });
             console.log('[SYNC-CHART] Hydrate scheduled (promise)');
             return true;
           }
