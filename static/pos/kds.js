@@ -1154,10 +1154,24 @@
     // Removed verbose logging for jobStatusMap
 
     // Group lines by orderId
+    // ✅ CRITICAL FIX: Filter out completed/ready lines to avoid showing already-delivered items
+    // when new items are added to an existing order
     const linesByOrder = new Map();
     orderLines.forEach(line => {
       if (!line || !line.orderId) return;
       const orderId = String(line.orderId);
+
+      // ✅ Check if this line was already delivered (has job_order_detail with ready/completed status)
+      const lookupKey = `${orderId}:${line.itemId}`;
+      const jobDetail = jobStatusMap.get(lookupKey);
+      const derivedStatus = jobDetail?.status || line.status || 'draft';
+
+      // ✅ Skip lines that are already ready/completed (already delivered to customer)
+      // This ensures when new items are added to existing order, only new items appear
+      if (derivedStatus === 'ready' || derivedStatus === 'completed') {
+        return; // Skip this line - already delivered
+      }
+
       if (!linesByOrder.has(orderId)) {
         linesByOrder.set(orderId, []);
       }
