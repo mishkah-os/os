@@ -5725,12 +5725,41 @@
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_header', (rows) => {          watcherState.headers = ensureArray(rows);          updateFromWatchers();
+        store.watch('job_order_header', (rows) => {
+          // ✅ Filter out completed job_order_header to prevent showing old items
+          const allHeaders = ensureArray(rows);
+          const activeHeaders = allHeaders.filter(header => {
+            const progressState = header?.progressState || header?.progress_state;
+            return progressState !== 'completed';
+          });
+          watcherState.headers = activeHeaders;
+
+          // ✅ Build map of completed jobOrderIds for filtering job_order_detail
+          watcherState.completedJobOrderIds = new Set();
+          allHeaders.forEach(header => {
+            const progressState = header?.progressState || header?.progress_state;
+            if (progressState === 'completed') {
+              const jobOrderId = header?.id || header?.jobOrderId || header?.job_order_id;
+              if (jobOrderId) {
+                watcherState.completedJobOrderIds.add(jobOrderId);
+              }
+            }
+          });
+
+          updateFromWatchers();
         })
       );
 
       watcherUnsubscribers.push(
-        store.watch('job_order_detail', (rows) => {          watcherState.lines = ensureArray(rows);          updateFromWatchers();
+        store.watch('job_order_detail', (rows) => {
+          // ✅ Filter out details belonging to completed job_order_header
+          const allDetails = ensureArray(rows);
+          const activeDetails = allDetails.filter(detail => {
+            const jobOrderId = detail?.jobOrderId || detail?.job_order_id;
+            return !watcherState.completedJobOrderIds || !watcherState.completedJobOrderIds.has(jobOrderId);
+          });
+          watcherState.lines = activeDetails;
+          updateFromWatchers();
         })
       );
 
@@ -5850,11 +5879,40 @@
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_header', (rows) => {              watcherState.headers = ensureArray(rows);              updateFromWatchers();
+            store.watch('job_order_header', (rows) => {
+              // ✅ Filter out completed job_order_header to prevent showing old items
+              const allHeaders = ensureArray(rows);
+              const activeHeaders = allHeaders.filter(header => {
+                const progressState = header?.progressState || header?.progress_state;
+                return progressState !== 'completed';
+              });
+              watcherState.headers = activeHeaders;
+
+              // ✅ Build map of completed jobOrderIds for filtering job_order_detail
+              watcherState.completedJobOrderIds = new Set();
+              allHeaders.forEach(header => {
+                const progressState = header?.progressState || header?.progress_state;
+                if (progressState === 'completed') {
+                  const jobOrderId = header?.id || header?.jobOrderId || header?.job_order_id;
+                  if (jobOrderId) {
+                    watcherState.completedJobOrderIds.add(jobOrderId);
+                  }
+                }
+              });
+
+              updateFromWatchers();
             })
           );
           watcherUnsubscribers.push(
-            store.watch('job_order_detail', (rows) => {              watcherState.lines = ensureArray(rows);              updateFromWatchers();
+            store.watch('job_order_detail', (rows) => {
+              // ✅ Filter out details belonging to completed job_order_header
+              const allDetails = ensureArray(rows);
+              const activeDetails = allDetails.filter(detail => {
+                const jobOrderId = detail?.jobOrderId || detail?.job_order_id;
+                return !watcherState.completedJobOrderIds || !watcherState.completedJobOrderIds.has(jobOrderId);
+              });
+              watcherState.lines = activeDetails;
+              updateFromWatchers();
             })
           );
           // ✅ Watch order_header for static tabs
