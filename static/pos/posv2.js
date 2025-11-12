@@ -6884,9 +6884,10 @@
             const existingOrderHeader = existingOrderHeaders.find(h => String(h.id) === String(order.id));
 
             Promise.all([
-              // ✅ CRITICAL: Only save order_header for NEW orders
-              // For existing orders with new items, skip order_header update to preserve job_orders
-              ...(hasOnlyNewItems ? [] : (kdsPayload.order_header || []).map(orderHeader => {
+              // ✅ ALWAYS save order_header (even for reopened orders)
+              // KDS needs order_header to display job_orders correctly!
+              // Use update (not insert) to avoid cascade delete
+              ...(kdsPayload.order_header || []).map(orderHeader => {
                 if(isPersistedOrder && typeof store.update === 'function') {
                   // ✅ CRITICAL: Version is REQUIRED for store.update()
                   // Read current version from existing record, increment by 1
