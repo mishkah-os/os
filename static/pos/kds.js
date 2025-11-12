@@ -1692,7 +1692,10 @@
     .filter(order=>{
       if(!order) return false;
       const status = order.handoffStatus;
-      if(status !== 'assembled') return false;
+      // ✅ CRITICAL FIX: Show ALL orders except assembled/served/delivered
+      // Orders should appear here from the beginning (even while cooking)
+      // and only disappear when assembled (moved to delivery queue)
+      if(status === 'assembled' || status === 'served' || status === 'delivered' || status === 'settled') return false;
       const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
       return serviceMode !== 'delivery';
     });
@@ -1832,14 +1835,12 @@
         })
       : [];
 
-    // ✅ Also filter out jobs with progressState='completed'
-    const activeJobs = validJobs.filter(job => {
-      const isCompleted = job.status === 'ready' ||
-                         job.status === 'completed' ||
-                         job.progressState === 'completed';
-
-      return !isCompleted;
-    });
+    // ✅ CRITICAL FIX: DON'T filter by progressState='completed' here!
+    // Jobs with progressState='completed' should STAY visible in Assembly/Handoff
+    // until the order is assembled/served. Each view (dynamic tabs, expo, handoff)
+    // will apply its own filtering based on needs.
+    // Dynamic station tabs will filter out completed jobs in their own render logic.
+    const activeJobs = validJobs;
 
     const list = activeJobs.slice();
     list.sort((a, b)=>{
