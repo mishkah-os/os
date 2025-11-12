@@ -6995,6 +6995,52 @@
           } else {
             console.log('[POS V2] No new payments to save');
           }
+
+          // ✅ CRITICAL FIX: Auto-close dine_in orders when fully paid from POS cashier
+          // This is the ONLY place where dine_in orders are closed (not from KDS)
+          const serviceMode = orderPayload.type || orderPayload.serviceMode || 'dine_in';
+          if (serviceMode === 'dine_in') {
+            // Calculate total due and paid
+            const totalsDue = calculateTotals(orderPayload.lines || [], settings, serviceMode, { orderDiscount: orderPayload.discount });
+            const totalDue = Number(totalsDue?.due || 0);
+            const allPayments = [...(orderPayload.payments || []), ...newPaymentsOnly];
+            const totalPaid = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+            console.log('[POS V2] Dine-in order payment check:', {
+              orderId: orderPayload.id,
+              totalDue,
+              totalPaid,
+              isFullyPaid: totalPaid >= totalDue
+            });
+
+            // ✅ If fully paid, close the order
+            if (totalDue > 0 && totalPaid >= totalDue) {
+              console.log('[POS V2] ✅ Dine-in order fully paid, closing:', orderPayload.id);
+
+              // Get existing order_header
+              const existingOrderHeaders = window.database?.order_header || [];
+              const existingOrderHeader = existingOrderHeaders.find(h => String(h.id) === String(orderPayload.id));
+
+              if (existingOrderHeader && typeof store.update === 'function') {
+                const currentVersion = existingOrderHeader.version || 1;
+                const nextVersion = currentVersion + 1;
+                const nowIso = new Date().toISOString();
+
+                // Update order_header to closed
+                store.update('order_header', {
+                  id: orderPayload.id,
+                  fulfillmentStage: 'closed',
+                  status: 'closed',
+                  version: nextVersion,
+                  updatedAt: nowIso
+                }).then(() => {
+                  console.log('[POS V2] ✅ Dine-in order closed successfully');
+                }).catch(err => {
+                  console.error('[POS V2] ❌ Failed to close dine-in order:', err);
+                });
+              }
+            }
+          }
         } else {
           console.warn('[POS V2] ⚠️ mishkah-store not available');
         }

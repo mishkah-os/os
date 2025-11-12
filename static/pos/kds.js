@@ -4620,12 +4620,19 @@
             updatedAt: timestamp || new Date().toISOString()
           };
 
-          // ✅ CRITICAL FIX: Update fulfillmentStage when order is delivered
+          // ✅ CRITICAL FIX: Update fulfillmentStage based on order type
+          // - dine_in: NEVER close from KDS (only from POS cashier)
+          // - delivery: NEVER close from served (only from settlements)
+          // - takeaway: Close when served from KDS
           if (status === 'assembled') {
             updatedHeader.fulfillmentStage = 'ready';
           } else if (status === 'served') {
             const serviceMode = header.type || header.serviceMode || header.orderTypeId || 'dine_in';
-            updatedHeader.fulfillmentStage = serviceMode === 'dine_in' ? 'closed' : 'delivered';
+            if (serviceMode === 'takeaway') {
+              updatedHeader.fulfillmentStage = 'closed';  // ✅ Takeaway: close on delivery
+            } else {
+              updatedHeader.fulfillmentStage = 'delivered';  // ✅ dine_in/delivery: mark as delivered but stay open
+            }
           }
 
           return updatedHeader;
@@ -4649,14 +4656,22 @@
         updatedAt: timestamp || new Date().toISOString()
       };
 
-      // ✅ CRITICAL FIX: Update fulfillmentStage when order is delivered (assembled/served)
-      // This is required for orders to disappear from "Open Orders" report
+      // ✅ CRITICAL FIX: Update fulfillmentStage based on order type and action
+      // - dine_in: NEVER close from KDS (only from POS cashier screen)
+      // - delivery: NEVER close from assembled/served (only from delivery settlements)
+      // - takeaway: Close when assembled/served (delivered from KDS)
+      const serviceMode = matchingHeader.type || matchingHeader.serviceMode || matchingHeader.orderTypeId || 'dine_in';
+
       if (status === 'assembled') {
         headerUpdate.fulfillmentStage = 'ready';
       } else if (status === 'served') {
-        // For dine_in: use 'closed', for delivery/takeaway: use 'delivered'
-        const serviceMode = matchingHeader.type || matchingHeader.serviceMode || matchingHeader.orderTypeId || 'dine_in';
-        headerUpdate.fulfillmentStage = serviceMode === 'dine_in' ? 'closed' : 'delivered';
+        // ✅ Only takeaway orders are closed when served from KDS
+        // dine_in stays open (closed from POS), delivery stays open (closed from settlements)
+        if (serviceMode === 'takeaway') {
+          headerUpdate.fulfillmentStage = 'closed';  // ✅ Takeaway: close on delivery
+        } else {
+          headerUpdate.fulfillmentStage = 'delivered';  // ✅ dine_in/delivery: mark as delivered but stay open
+        }
       }
 
       // ✅ Increase timeout to 10 seconds for order_header updates
@@ -5553,7 +5568,13 @@
         jobId = sectionId ? `${order.orderId}:${sectionId}` : order.orderId;
       }
       if (!order.jobs.has(jobId)) {
-        const station = stationMap[sectionId] || {};        order.jobs.set(jobId, {
+        const station = stationMap[sectionId] || {};
+        // ✅ CRITICAL FIX: Read status and progressState from order.header
+        // This prevents status from being reset when adding new items
+        const headerStatus = order.header?.status || 'queued';
+        const headerProgressState = order.header?.progressState || order.header?.progress_state;
+
+        order.jobs.set(jobId, {
           id: jobId,
           jobOrderId: jobOrderRef || jobId,
           orderId: order.orderId,
@@ -5563,14 +5584,16 @@
           serviceMode: order.serviceMode,
           tableLabel: order.tableLabel,
           customerName: order.customerName,
+          status: headerStatus,  // ✅ Read from header, not hardcoded
+          progressState: headerProgressState,  // ✅ Read from header
           totalItems: 0,
           completedItems: 0,
           remainingItems: 0,
           createdAt: order.openedAt,
           acceptedAt: order.openedAt,
           dueAt: order.dueAt,
-          readyAt: null,
-          completedAt: null,
+          readyAt: order.header?.readyAt || order.header?.ready_at || null,
+          completedAt: order.header?.completedAt || order.header?.completed_at || null,
           updatedAt: order.openedAt,
           details: []
         });
@@ -6016,6 +6039,74 @@
       watcherUnsubscribers.push(
         store.watch('payment_methods', (rows) => {
           watcherState.paymentMethods = ensureArray(rows);          updateFromWatchers();
+        })
+      );
+
+      // ✅ Watch order_payment to auto-close delivery orders when fully paid
+      watcherUnsubscribers.push(
+        store.watch('order_payment', (rows) => {
+          const payments = ensureArray(rows);
+          console.log('[KDS] order_payment updated:', { count: payments.length });
+
+          // ✅ Group payments by orderId
+          const paymentsByOrder = new Map();
+          payments.forEach(payment => {
+            const orderId = payment.orderId || payment.order_id;
+            if (!orderId) return;
+            if (!paymentsByOrder.has(orderId)) {
+              paymentsByOrder.set(orderId, []);
+            }
+            paymentsByOrder.get(orderId).push(payment);
+          });
+
+          // ✅ Check each order with payments
+          paymentsByOrder.forEach((orderPayments, orderId) => {
+            // Find order_header
+            const orderHeaders = watcherState.orderHeaders || [];
+            const orderHeader = orderHeaders.find(h => String(h.id || h.orderId) === String(orderId));
+
+            if (!orderHeader) return;
+
+            // ✅ Only process delivery orders
+            const serviceMode = orderHeader.type || orderHeader.serviceMode || orderHeader.orderTypeId;
+            if (serviceMode !== 'delivery') return;
+
+            // ✅ Skip if already closed
+            const fulfillmentStage = orderHeader.fulfillmentStage || orderHeader.fulfillment_stage;
+            if (fulfillmentStage === 'closed') return;
+
+            // ✅ Calculate total paid
+            const totalPaid = orderPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+            // ✅ Get total due from order
+            const totalDue = Number(orderHeader.total_due || orderHeader.totalDue || orderHeader.amount || 0);
+
+            console.log('[KDS] Delivery order payment check:', {
+              orderId,
+              totalPaid,
+              totalDue,
+              isFullyPaid: totalPaid >= totalDue
+            });
+
+            // ✅ If fully paid, close the order
+            if (totalDue > 0 && totalPaid >= totalDue) {
+              console.log('[KDS] ✅ Delivery order fully paid, closing:', orderId);
+
+              // Update order_header to closed
+              const nowIso = new Date().toISOString();
+              persistOrderHeaderStatus(orderId, 'closed', nowIso);
+
+              // ✅ Also update fulfillmentStage directly in watcherState (optimistic)
+              watcherState.orderHeaders = orderHeaders.map(h => {
+                if (String(h.id || h.orderId) === String(orderId)) {
+                  return { ...h, fulfillmentStage: 'closed', updatedAt: nowIso };
+                }
+                return h;
+              });
+
+              updateFromWatchers();
+            }
+          });
         })
       );
     };
