@@ -173,18 +173,15 @@
           </section>
         </div>
 
-        <figure class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
-          <header class="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <figcaption class="text-sm font-medium text-[var(--muted-foreground)]">
-                {trans('quick.sales.title')}
-              </figcaption>
-              <p class="mt-1 text-xs text-[var(--muted-foreground)]">{trans('quick.sales.subtitle')}</p>
+        <!-- Chart Controls: Separate container for buttons outside chart figure -->
+        <div class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-[var(--muted-foreground)]">
+                {trans('quick.sales.title')} - {trans(state.data.analytics.unitLabelKey || 'quick.sales.unit')}
+              </span>
             </div>
             <div class="flex flex-wrap items-center justify-end gap-2">
-              <span class="text-xs text-[var(--muted-foreground)]">
-                {trans(state.data.analytics.unitLabelKey || 'quick.sales.unit')}
-              </span>
               <!-- TEST BUTTON: Direct randomize for debugging -->
               <button
                 data-m-gkey="test-randomize"
@@ -200,6 +197,17 @@
                 <span class="select-none">{trans('quick.sales.randomize')}</span>
                 <span class="text-[10px] font-bold" data-live-status="indicator">○ OFF</span>
               </button>
+            </div>
+          </div>
+        </div>
+
+        <figure class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
+          <header class="mb-4">
+            <div>
+              <figcaption class="text-sm font-medium text-[var(--muted-foreground)]">
+                {trans('quick.sales.title')}
+              </figcaption>
+              <p class="mt-1 text-xs text-[var(--muted-foreground)]">{trans('quick.sales.subtitle')}</p>
             </div>
           </header>
           <canvas
