@@ -173,9 +173,24 @@
           </section>
         </div>
 
-        <!-- Chart Controls: Web Component (protected from re-rendering) -->
+        <!-- Chart Controls: x-once directive (Mishkah-native solution!) -->
         <div class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
-          <chart-controls></chart-controls>
+          <div x-once class="flex flex-wrap items-center justify-end gap-2">
+            <button
+              id="test-randomize"
+              class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
+            >
+              <span class="select-none">🧪 TEST</span>
+            </button>
+            <button
+              id="toggle-live-data"
+              class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
+              style="min-width: 120px;"
+            >
+              <span class="select-none">بيانات حية</span>
+              <span id="live-indicator" class="text-[10px] font-bold" style="color: #9ca3af;">○ OFF</span>
+            </button>
+          </div>
         </div>
 
         <figure class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
@@ -309,51 +324,6 @@
       </section>
 
       <script>
-        // Define Web Component for Chart Controls (protected from HTMLx re-rendering)
-        (function() {
-          if (customElements.get('chart-controls')) return; // Already defined
-
-          class ChartControls extends HTMLElement {
-            constructor() {
-              super();
-              this._initialized = false;
-            }
-
-            connectedCallback() {
-              if (this._initialized) return; // Prevent re-initialization
-              this._initialized = true;
-
-              console.log('[WEB-COMPONENT] ChartControls connected');
-
-              // Create buttons HTML
-              this.innerHTML = `
-                <div class="flex flex-wrap items-center justify-end gap-2">
-                  <button
-                    id="test-randomize"
-                    class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
-                  >
-                    <span class="select-none">🧪 TEST</span>
-                  </button>
-                  <button
-                    id="toggle-live-data"
-                    class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
-                    style="min-width: 120px;"
-                  >
-                    <span class="select-none">بيانات حية</span>
-                    <span id="live-indicator" class="text-[10px] font-bold" style="color: #9ca3af;">○ OFF</span>
-                  </button>
-                </div>
-              `;
-
-              // Attach event listeners (will be set up by quickDashboardMount)
-              console.log('[WEB-COMPONENT] ChartControls HTML injected');
-            }
-          }
-
-          customElements.define('chart-controls', ChartControls);
-          console.log('[WEB-COMPONENT] chart-controls registered');
-        })();
-
         function toCsv(list) {
           if (!Array.isArray(list)) return '';
           return list
