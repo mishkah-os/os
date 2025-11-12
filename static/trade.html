@@ -1494,76 +1494,51 @@
         function quickDashboardMount(app, helpers) {
           console.log('[DEBUG] quickDashboardMount called, app:', app, 'helpers:', helpers);
           var ctx = app || (helpers && helpers.app) || window.MishkahAuto || null;
-          if (ctx) {
-            console.log('[DEBUG] Connecting auto state for ctx');
-            connectAutoState(ctx);
-          }
           var auto = window.MishkahAuto || null;
-          if (auto && auto !== ctx) {
-            console.log('[DEBUG] Connecting auto state for MishkahAuto');
-            connectAutoState(auto);
+          var target = ctx || auto;
+
+          if (!target) {
+            console.error('[DEBUG] No context available for mount!');
+            return;
           }
+
+          // SINGLE connectAutoState call - avoid duplicate listeners
+          console.log('[DEBUG] Connecting auto state ONCE for target');
+          connectAutoState(target);
 
           // Inject static buttons from body into placeholder
           setTimeout(function() {
             if (injectStaticButtons()) {
               // Attach event handlers to the injected buttons
-              attachStaticButtonHandlers(ctx || auto);
+              attachStaticButtonHandlers(target);
 
               // Update initial indicator state
-              var initial = resolveAutoState(ctx);
+              var initial = resolveAutoState(target);
               var enabled = initial && initial.data && initial.data.liveData && initial.data.liveData.enabled;
               updateLiveDataIndicator(enabled || false);
             }
           }, 200);
 
-          var initial = resolveAutoState(ctx);
-
-          if (!initial && ctx && typeof ctx.getState === 'function') {
+          // Get initial state
+          var initial = resolveAutoState(target);
+          if (!initial && typeof target.getState === 'function') {
             try {
-              initial = ctx.getState();
-            } catch (_errInitial) {
-              initial = ctx.state || null;
-            }
-          }
-          if (!initial && auto && typeof auto.getState === 'function') {
-            try {
-              initial = auto.getState();
-            } catch (_errAuto) {
-              initial = auto.state || null;
+              initial = target.getState();
+            } catch (_err) {
+              initial = target.state || null;
             }
           }
           initial = ensureHelperBindings(initial || null);
 
-          var seeded = randomizeSalesReport(null, ctx || auto, { snapshot: initial || null, bootstrap: true });
-          if (!seeded) {
-            if (initial) {
-              ensureCountdownLoop(initial);
-            }
-            queueQuickDashboardHydration({ ctx: ctx || auto, snapshot: initial || null, immediate: true });
-          }
-          onAutoReady(function (instance) {
-            var target = instance || window.MishkahAuto || ctx || null;
-            connectAutoState(target);
-            var snapshot = ensureHelperBindings(resolveAutoState(target) || initial || null);
-            var seededUpdate = randomizeSalesReport(null, target || ctx, { snapshot: snapshot, bootstrap: true });
-            if (!seededUpdate) {
-              if (snapshot) {
-                ensureCountdownLoop(snapshot);
-              }
-              queueQuickDashboardHydration({ ctx: target || ctx, snapshot: snapshot, immediate: true });
-            }
-          });
-          if (initial) {
+          // SINGLE bootstrap call
+          var seeded = randomizeSalesReport(null, target, { snapshot: initial || null, bootstrap: true });
+          if (!seeded && initial) {
             ensureCountdownLoop(initial);
           }
-          queueQuickDashboardHydration({ ctx: ctx || auto, snapshot: initial || null, immediate: true });
-          onAutoReady(function (instance) {
-            var target = instance || window.MishkahAuto || ctx || null;
-            connectAutoState(target);
-            var snapshot = ensureHelperBindings(resolveAutoState(target) || initial || null);
-            queueQuickDashboardHydration({ ctx: target || ctx, snapshot: snapshot, immediate: true });
-          });
+
+          // SINGLE queueQuickDashboardHydration call
+          // After this, onState listener (from connectAutoState) handles updates
+          queueQuickDashboardHydration({ ctx: target, snapshot: initial || null, immediate: true });
         }
 
         // Countdown directive implementation with retry mechanism
