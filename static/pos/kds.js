@@ -1964,7 +1964,7 @@
     const completedOrderIds = new Set();
 
     // 1. Get orders that are assembled/served/delivered from order_header
-    const completedOrders = buildOrdersFromHeaders(db)
+    const completedOrders = buildOrdersFromJobHeaders(db)
       .filter(order=> {
         const status = order.handoffStatus;
         return status === 'assembled' || status === 'served' || status === 'delivered';
@@ -1974,7 +1974,7 @@
     const deliveriesState = db.data.deliveries || {};
     const settlements = deliveriesState.settlements || {};
 
-    const settledDeliveryOrders = buildOrdersFromHeaders(db)
+    const settledDeliveryOrders = buildOrdersFromJobHeaders(db)
       .filter(order=> {
         const isDelivery = (order.serviceMode || 'dine_in').toLowerCase() === 'delivery';
         if(!isDelivery) return false;
@@ -2016,7 +2016,7 @@
 
     if(!locked){
       // ✅ Count orders that are NOT completed (same logic as renderPrepPanel)
-      const prepOrders = buildOrdersFromHeaders(db).filter(order=> {
+      const prepOrders = buildOrdersFromJobHeaders(db).filter(order=> {
         const status = order.handoffStatus;
         return status !== 'assembled' && status !== 'served' && status !== 'delivered';
       });
@@ -2129,7 +2129,7 @@
     const settlements = deliveriesState.settlements || {};
     // ✅ Show orders that are assembled and ready for delivery
     // Status: assembled (جاهز للتوصيل)
-    return buildOrdersFromHeaders(db)
+    return buildOrdersFromJobHeaders(db)
       .filter(order=>{
         if(!order) return false;
         if(order.handoffStatus !== 'assembled') return false;
@@ -2149,7 +2149,7 @@
     const settlements = deliveriesState.settlements || {};
     // ✅ Show orders that have been delivered but not yet settled
     // Status: delivered (تم التوصيل - في انتظار التسوية)
-    return buildOrdersFromHeaders(db)
+    return buildOrdersFromJobHeaders(db)
       .filter(order=>{
         if(!order) return false;
         if((order.serviceMode || 'dine_in').toLowerCase() !== 'delivery') return false;
@@ -2180,7 +2180,7 @@
   const renderHeader = (db, t)=>{
     // ✅ Calculate stats from orders (not job_orders)
     // Only count active orders (not assembled/served/delivered/settled)
-    const allOrders = buildOrdersFromHeaders(db);
+    const allOrders = buildOrdersFromJobHeaders(db);
     const activeOrders = allOrders.filter(order => {
       const status = order.handoffStatus;
       return status !== 'assembled' && status !== 'served' && status !== 'delivered' && status !== 'settled';
@@ -2437,9 +2437,9 @@
   };
 
   const renderPrepPanel = (db, t, lang, now)=>{
-    // ✅ Use order_header + order_line for static "prep/all" tab
+    // ✅ Use job_order_header for static "prep/all" tab
     // Show ALL orders except those assembled/served/delivered/settled
-    const allOrders = buildOrdersFromHeaders(db);
+    const allOrders = buildOrdersFromJobHeaders(db);
 
     const orders = allOrders.filter(order=> {
       const status = order.handoffStatus;
@@ -2765,7 +2765,7 @@
     // ✅ قراءة وسائل الدفع من posPayload
     const paymentMethods = Array.isArray(db.data.paymentMethods) ? db.data.paymentMethods : [];
 
-    const order = buildOrdersFromHeaders(db).find(o => o.orderId === orderId || o.id === orderId);
+    const order = buildOrdersFromJobHeaders(db).find(o => o.orderId === orderId || o.id === orderId);
     const subtitle = order ? `${t.labels.order} ${order.orderNumber || orderId}` : '';
 
     const methodsList = paymentMethods.filter(m => m.isActive !== false).length > 0
@@ -4416,7 +4416,9 @@
             detailUpdate.start_at = statusPayload.startedAt;
           }
 
+          console.log('[KDS][persistJobOrderStatusChange] Updating job_order_detail:', detail.id, detailUpdate);
           await store.update('job_order_detail', detailUpdate);
+          console.log('[KDS][persistJobOrderStatusChange] ✅ Successfully updated job_order_detail:', detail.id);
 
           // ✅ Update watcherState.lines immediately (optimistic update)
           detail.version = nextDetailVersion;
@@ -4426,7 +4428,7 @@
             detail.start_at = statusPayload.startedAt;
           }
         } catch (detailError) {
-          console.warn('[KDS][persistJobOrderStatusChange] Failed to update job_order_detail:', detail.id, detailError);
+          console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail:', detail.id, detailError);
         }
       }
 
