@@ -1309,11 +1309,11 @@
     const stationMap = db?.data?.stationMap || {};
     const menuIndex = db?.data?.menuIndex || {};
 
-    // ✅ Filter out completed job_order_header
-    const activeJobHeaders = jobHeaders.filter(header => {
-      const progressState = header.progressState || header.progress_state;
-      return progressState !== 'completed';
-    });
+    // ✅ CRITICAL FIX: DON'T filter by job progressState!
+    // Jobs with progressState='completed' should STAY in Expo/Handoff
+    // Only filter when ORDER is delivered (assembled/served)
+    // We check order status in getExpoOrders/getHandoffOrders filters
+    const activeJobHeaders = jobHeaders;
 
     // ✅ Group job_order_header by orderId
     const jobsByOrder = new Map();
@@ -4379,16 +4379,31 @@
 
       await store.update('job_order_header', headerUpdate);
 
-      // ✅ Update watcherState.headers immediately (optimistic update)
-      if (existingHeader) {
-        existingHeader.version = nextVersion;
-        existingHeader.status = statusPayload.status;
-        existingHeader.progressState = statusPayload.progressState;
-        if (statusPayload.startedAt) {
-          existingHeader.startedAt = statusPayload.startedAt;
-          existingHeader.started_at = statusPayload.startedAt;
+      // ✅ CRITICAL FIX: Update watcherState.headers with immutable update
+      // Mutating existingHeader doesn't trigger re-render!
+      watcherState.headers = (watcherState.headers || []).map(h => {
+        if (String(h.id) === String(jobId)) {
+          return {
+            ...h,
+            version: nextVersion,
+            status: statusPayload.status,
+            progressState: statusPayload.progressState,
+            progress_state: statusPayload.progressState,
+            startedAt: statusPayload.startedAt || h.startedAt,
+            started_at: statusPayload.startedAt || h.started_at,
+            readyAt: statusPayload.readyAt || h.readyAt,
+            ready_at: statusPayload.readyAt || h.ready_at,
+            completedAt: statusPayload.completedAt || h.completedAt,
+            completed_at: statusPayload.completedAt || h.completed_at,
+            updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+            updated_at: statusPayload.updatedAt || new Date().toISOString()
+          };
         }
-      }
+        return h;
+      });
+
+      // ✅ CRITICAL: Trigger re-render by calling updateFromWatchers
+      updateFromWatchers();
 
       // 2. ✅ Update all job_order_detail for this job
       const allJobDetails = watcherState.lines || [];
@@ -5954,25 +5969,12 @@
 
       watcherUnsubscribers.push(
         store.watch('job_order_header', (rows) => {
-          // ✅ Filter out completed job_order_header to prevent showing old items
+          // ✅ CRITICAL FIX: DON'T filter by progressState='completed'!
+          // Jobs that finished cooking (progressState='completed') should STAY visible
+          // in Expo/Handoff until ORDER is delivered (assembled/served)
+          // Filtering happens at UI layer based on order.handoffStatus
           const allHeaders = ensureArray(rows);
-          const activeHeaders = allHeaders.filter(header => {
-            const progressState = header?.progressState || header?.progress_state;
-            return progressState !== 'completed';
-          });
-          watcherState.headers = activeHeaders;
-
-          // ✅ Build map of completed jobOrderIds for filtering job_order_detail
-          watcherState.completedJobOrderIds = new Set();
-          allHeaders.forEach(header => {
-            const progressState = header?.progressState || header?.progress_state;
-            if (progressState === 'completed') {
-              const jobOrderId = header?.id || header?.jobOrderId || header?.job_order_id;
-              if (jobOrderId) {
-                watcherState.completedJobOrderIds.add(jobOrderId);
-              }
-            }
-          });
+          watcherState.headers = allHeaders;  // Keep ALL jobs
 
           updateFromWatchers();
         })
@@ -5980,13 +5982,10 @@
 
       watcherUnsubscribers.push(
         store.watch('job_order_detail', (rows) => {
-          // ✅ Filter out details belonging to completed job_order_header
+          // ✅ CRITICAL FIX: Keep ALL details, don't filter by job completion
+          // Details should stay visible in Expo/Handoff even after cooking is done
           const allDetails = ensureArray(rows);
-          const activeDetails = allDetails.filter(detail => {
-            const jobOrderId = detail?.jobOrderId || detail?.job_order_id;
-            return !watcherState.completedJobOrderIds || !watcherState.completedJobOrderIds.has(jobOrderId);
-          });
-          watcherState.lines = activeDetails;
+          watcherState.lines = allDetails;  // Keep ALL details
           updateFromWatchers();
         })
       );
