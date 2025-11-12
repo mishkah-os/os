@@ -1787,8 +1787,7 @@
       // ✅ If header status is NOT in_progress/ready/completed but ANY detail is in_progress,
       // calculate startMs and update header status from first in_progress detail
       // This ensures timer works even after page reload
-      const currentStatus = String(cloned.status || '').toLowerCase();
-      // ✅ Check for pending, queued, draft, or empty status
+      // ✅ Reuse currentStatus from above (line 1760)
       const shouldCheckDetails = currentStatus !== 'in_progress' &&
                                 currentStatus !== 'ready' &&
                                 currentStatus !== 'completed';
