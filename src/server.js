@@ -2115,6 +2115,21 @@ function generateJobOrderRecords(store, header, lines) {
 }
 
 async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, options = {}) {
+  // ✅ CRITICAL FIX: DO NOT regenerate job_order from order_line!
+  // posv2.js already sends job_order_header/detail through WebSocket/BroadcastChannel
+  // and inserts them directly into mishkah-store. If we regenerate here from order_line,
+  // we'll delete ALL existing job_order_header (including completed ones!) and recreate them,
+  // causing:
+  // 1. Old completed orders to reappear on KDS (cooked twice! - cost 3000 EGP!)
+  // 2. Timers to reset (startedAt gets lost)
+  // 3. Assembly/Handoff workflow to break
+  //
+  // The backend should ONLY handle job_order data persistence, NOT regenerate from order_line.
+  logger.debug({ orderId }, '[syncJobOrders] SKIPPED - job_order data managed by POS client directly');
+  return;
+
+  // ❌ OLD CODE BELOW - DISABLED TO PREVENT CASCADING DELETE/RECREATE BUG
+  /*
   // Generate job order records from order data
   // ✅ Pass store as first parameter to query kitchen_sections and menu_items
   const jobOrderData = generateJobOrderRecords(store, header, lines);
@@ -2234,6 +2249,7 @@ async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, 
     },
     'Synced job order records'
   );
+  */
 }
 
 // ✅ CLAUDE FIX: Global map to track in-flight save operations
