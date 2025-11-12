@@ -90,7 +90,7 @@
             branch: BRANCH_ID,
             module: MODULE_ID
           });
-          const schemaResponse = await fetch(`/api/schema?${schemaParams.toString()}`);
+          const schemaResponse = await fetch(window.basedomain+`/api/schema?${schemaParams.toString()}`);
           const schemaPayload = await schemaResponse.json();
           const moduleEntry = schemaPayload?.modules?.[MODULE_ID];
 
