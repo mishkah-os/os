@@ -3163,6 +3163,34 @@
         }
         return updated;
       }));
+
+      // ✅ CRITICAL FIX: Also update state.data.jobHeaders so renderKdsApp() sees the change!
+      // Without this, the job won't disappear from the screen when marked as completed
+      const existingJobHeaders = Array.isArray(baseNext.data?.jobHeaders) ? baseNext.data.jobHeaders : [];
+      const jobHeadersNext = existingJobHeaders.map(header => {
+        if (String(header.id) !== String(jobId)) return header;
+
+        // ✅ Apply the same patch to jobHeader
+        const updatedHeader = { ...header, ...patch };
+        if(patch.startedAt){
+          updatedHeader.startedAt = patch.startedAt;
+          updatedHeader.started_at = patch.startedAt;  // Both formats
+        }
+        if(patch.readyAt){
+          updatedHeader.readyAt = patch.readyAt;
+          updatedHeader.ready_at = patch.readyAt;
+        }
+        if(patch.completedAt){
+          updatedHeader.completedAt = patch.completedAt;
+          updatedHeader.completed_at = patch.completedAt;
+        }
+        if(patch.updatedAt){
+          updatedHeader.updatedAt = patch.updatedAt;
+          updatedHeader.updated_at = patch.updatedAt;
+        }
+        return updatedHeader;
+      });
+
       const syncBase = baseNext.data?.sync || state.data?.sync || {};
       const sync = { ...syncBase, lastMessage: now, state:'online' };
       if(meta && meta.channel) sync.channel = meta.channel;
@@ -3170,6 +3198,7 @@
         ...baseNext,
         data:{
           ...baseNext.data,
+          jobHeaders: jobHeadersNext,  // ✅ Update jobHeaders!
           sync
         }
       };
