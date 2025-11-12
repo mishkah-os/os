@@ -3825,6 +3825,25 @@
         const orderId = btn.getAttribute('data-order-id');
         if(!orderId) return;
         const nowIso = new Date().toISOString();
+
+        // ✅ CRITICAL: Mark all job_order_header for this order as completed
+        const jobHeaders = ctx.getState().data?.jobHeaders || [];
+        const jobsToComplete = jobHeaders.filter(header => {
+          const headerOrderId = header.orderId || header.order_id;
+          return headerOrderId === orderId;
+        });
+
+        // Update each job_order_header to completed state
+        jobsToComplete.forEach(header => {
+          const jobId = header.id;
+          persistJobOrderStatusChange(jobId, {
+            status: 'completed',
+            progressState: 'completed',
+            completedAt: nowIso,
+            updatedAt: nowIso
+          }, {});
+        });
+
         ctx.setState(state=>{
           const handoff = state.data.handoff || {};
           const record = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
@@ -3871,6 +3890,25 @@
         const orderId = btn.getAttribute('data-order-id');
         if(!orderId) return;
         const nowIso = new Date().toISOString();
+
+        // ✅ CRITICAL: Mark all job_order_header for this order as completed
+        const jobHeaders = ctx.getState().data?.jobHeaders || [];
+        const jobsToComplete = jobHeaders.filter(header => {
+          const headerOrderId = header.orderId || header.order_id;
+          return headerOrderId === orderId;
+        });
+
+        // Update each job_order_header to completed state
+        jobsToComplete.forEach(header => {
+          const jobId = header.id;
+          persistJobOrderStatusChange(jobId, {
+            status: 'completed',
+            progressState: 'completed',
+            completedAt: nowIso,
+            updatedAt: nowIso
+          }, {});
+        });
+
         ctx.setState(state=>{
           const handoff = state.data.handoff || {};
           const record = { ...(handoff[orderId] || {}), status:'served', servedAt: nowIso, updatedAt: nowIso };
