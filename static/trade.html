@@ -197,7 +197,13 @@
                 style="min-width: 120px;"
               >
                 <span class="select-none">{trans('quick.sales.randomize')}</span>
-                <span data-m-key="live-data-indicator" class="text-[10px] font-bold" data-live-status="indicator">○ OFF</span>
+                <span
+                  data-m-key="live-data-indicator"
+                  class="text-[10px] font-bold"
+                  style="color: {(state.data.liveData && state.data.liveData.enabled) ? '#22c55e' : '#9ca3af'};"
+                >
+                  {(state.data.liveData && state.data.liveData.enabled) ? '● LIVE' : '○ OFF'}
+                </span>
               </button>
             </div>
           </div>
@@ -1343,47 +1349,12 @@
           }, function (latest) {
             console.log('[DEBUG] Toggle commit completed, latest state:', latest);
             var enabled = latest && latest.data && latest.data.liveData && latest.data.liveData.enabled;
-            updateLiveDataIndicator(enabled);
+            // Indicator is now reactive - no manual update needed
             if (enabled) {
               console.log('[DEBUG] Triggering initial randomize...');
               randomizeSalesReport(null, context, { force: true, reusePrevious: false });
             }
           });
-        }
-
-        function updateLiveDataIndicator(enabled, retryCount) {
-          var maxRetries = retryCount != null ? retryCount : 10;
-          var attempt = 0;
-
-          function tryUpdate() {
-            var indicators = document.querySelectorAll('[data-live-status="indicator"]');
-            console.log('[DEBUG] Updating', indicators.length, 'indicators, enabled:', enabled, 'attempt:', attempt + 1);
-
-            if (indicators.length > 0) {
-              for (var i = 0; i < indicators.length; i++) {
-                var indicator = indicators[i];
-                if (enabled) {
-                  indicator.textContent = '● LIVE';
-                  indicator.style.color = '#22c55e'; // green-500
-                } else {
-                  indicator.textContent = '○ OFF';
-                  indicator.style.color = '#9ca3af'; // gray-400
-                }
-              }
-              return true;
-            }
-
-            attempt++;
-            if (attempt < maxRetries) {
-              setTimeout(tryUpdate, 100);
-              return false;
-            } else {
-              console.warn('[DEBUG] Failed to find indicators after', maxRetries, 'attempts');
-              return false;
-            }
-          }
-
-          tryUpdate();
         }
 
         function registerLiveDataOrder(ctx) {
@@ -1480,9 +1451,7 @@
 
           var initial = resolveAutoState(ctx);
 
-          // Update initial indicator state with retry mechanism
-          var enabled = initial && initial.data && initial.data.liveData && initial.data.liveData.enabled;
-          updateLiveDataIndicator(enabled || false);
+          // Indicator is now reactive via data binding - no manual update needed
           if (!initial && ctx && typeof ctx.getState === 'function') {
             try {
               initial = ctx.getState();
