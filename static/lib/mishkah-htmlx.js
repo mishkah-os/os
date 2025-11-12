@@ -1787,6 +1787,8 @@
 
     // x-once: cache support
     var cachedVNode = null;
+    var cachedKids = null;
+    var cachedAttrs = null;
     var isOnce = node.xOnce === true;
 
     return function (scope) {
@@ -1796,20 +1798,41 @@
       }
 
       var activeScope = hasLocalAugment ? createLocalScope(scope, localAugment) : scope;
-      var attrs = resolveAttrs(activeScope) || {};
 
-      // x-once: add data-m-frozen to protect DOM
-      if (isOnce) {
-        attrs['data-m-frozen'] = 'true';
-      }
+      // x-once: use cached attrs or compute once
+      var attrs;
+      if (isOnce && cachedAttrs !== null) {
+        attrs = cachedAttrs;
+      } else {
+        attrs = resolveAttrs(activeScope) || {};
 
-      if (resolveKey) {
-        var keyValue = resolveKey(activeScope);
-        if (keyValue != null && keyValue !== '') {
-          attrs.key = keyValue;
+        // x-once: add data-m-frozen to protect DOM
+        if (isOnce) {
+          attrs['data-m-frozen'] = 'true';
+        }
+
+        if (resolveKey) {
+          var keyValue = resolveKey(activeScope);
+          if (keyValue != null && keyValue !== '') {
+            attrs.key = keyValue;
+          }
+        }
+
+        if (isOnce) {
+          cachedAttrs = attrs;
         }
       }
-      var kids = renderChildren(activeScope);
+
+      // x-once: use cached kids or render once
+      var kids;
+      if (isOnce && cachedKids !== null) {
+        kids = cachedKids;
+      } else {
+        kids = renderChildren(activeScope);
+        if (isOnce) {
+          cachedKids = kids;
+        }
+      }
       if (node.events && node.events.length) {
         var runtimeId = registerRuntimeLocals(activeScope.locals);
         if (runtimeId) {
