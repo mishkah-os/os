@@ -35,26 +35,6 @@
   </script>
   </head>
   <body class="bg-[var(--background)] text-[var(--foreground)]">
-    <!-- Chart Controls: OUTSIDE HTMLx - Pure Static HTML -->
-    <div id="static-chart-controls" style="display: none; position: fixed; z-index: 1000; top: 20px; right: 20px;">
-      <div class="flex flex-wrap items-center justify-end gap-2">
-        <button
-          id="test-randomize-static"
-          class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
-        >
-          <span class="select-none">🧪 TEST</span>
-        </button>
-        <button
-          id="toggle-live-data-static"
-          class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
-          style="min-width: 120px;"
-        >
-          <span class="select-none">بيانات حية</span>
-          <span id="live-indicator-static" class="text-[10px] font-bold" style="color: #9ca3af;">○ OFF</span>
-        </button>
-      </div>
-    </div>
-
     <div id="app"></div>
     <template id="quick-dashboard">
       <script type="application/json" data-m-env data-m-path="env">
@@ -193,8 +173,27 @@
           </section>
         </div>
 
-        <!-- Chart Controls: Placeholder for static buttons from body -->
-        <div id="chart-controls-placeholder" class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]"></div>
+        <!-- Chart Controls: Frozen buttons inside HTMLx template -->
+        <div class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
+          <div class="flex flex-wrap items-center justify-end gap-2" data-m-frozen="true" data-m-key="chart-controls-frozen">
+            <button
+              id="test-randomize"
+              class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
+              data-m-gkey="test-randomize"
+            >
+              <span class="select-none">🧪 TEST</span>
+            </button>
+            <button
+              id="toggle-live-data"
+              class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
+              style="min-width: 120px;"
+              data-m-gkey="toggle-live-data"
+            >
+              <span class="select-none">بيانات حية</span>
+              <span id="live-indicator" class="text-[10px] font-bold" style="color: #9ca3af;">○ OFF</span>
+            </button>
+          </div>
+        </div>
 
         <figure class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
           <header class="mb-4">
@@ -1346,7 +1345,7 @@
 
         function updateLiveDataIndicator(enabled) {
           console.log('[UPDATE-INDICATOR] Updating indicator, enabled:', enabled);
-          var indicator = document.getElementById('live-indicator-static');
+          var indicator = document.getElementById('live-indicator');
           if (indicator) {
             if (enabled) {
               indicator.textContent = '● LIVE';
@@ -1358,60 +1357,6 @@
             console.log('[UPDATE-INDICATOR] ✓ Updated successfully');
           } else {
             console.warn('[UPDATE-INDICATOR] ✗ Indicator element not found!');
-          }
-        }
-
-        function injectStaticButtons() {
-          console.log('[INJECT-BUTTONS] Starting button injection...');
-          var placeholder = document.getElementById('chart-controls-placeholder');
-          var staticControls = document.getElementById('static-chart-controls');
-
-          if (!placeholder) {
-            console.error('[INJECT-BUTTONS] Placeholder not found!');
-            return false;
-          }
-
-          if (!staticControls) {
-            console.error('[INJECT-BUTTONS] Static controls not found!');
-            return false;
-          }
-
-          // Move the static controls into the placeholder
-          var buttonsWrapper = staticControls.querySelector('div');
-          if (buttonsWrapper) {
-            placeholder.appendChild(buttonsWrapper);
-            staticControls.remove(); // Remove the hidden wrapper
-            console.log('[INJECT-BUTTONS] ✓ Buttons injected successfully');
-            return true;
-          }
-
-          console.error('[INJECT-BUTTONS] Buttons wrapper not found!');
-          return false;
-        }
-
-        function attachStaticButtonHandlers(ctx) {
-          console.log('[ATTACH-HANDLERS] Attaching button handlers...');
-          var testBtn = document.getElementById('test-randomize-static');
-          var liveBtn = document.getElementById('toggle-live-data-static');
-
-          if (testBtn) {
-            testBtn.addEventListener('click', function(e) {
-              console.log('[STATIC-BTN] TEST button clicked!');
-              testRandomize(e, ctx);
-            });
-            console.log('[ATTACH-HANDLERS] ✓ TEST button handler attached');
-          } else {
-            console.error('[ATTACH-HANDLERS] TEST button not found!');
-          }
-
-          if (liveBtn) {
-            liveBtn.addEventListener('click', function(e) {
-              console.log('[STATIC-BTN] Live data button clicked!');
-              toggleLiveData(e, ctx);
-            });
-            console.log('[ATTACH-HANDLERS] ✓ Live data button handler attached');
-          } else {
-            console.error('[ATTACH-HANDLERS] Live data button not found!');
           }
         }
 
@@ -1506,18 +1451,8 @@
           console.log('[DEBUG] Connecting auto state ONCE for target');
           connectAutoState(target);
 
-          // Inject static buttons from body into placeholder
-          setTimeout(function() {
-            if (injectStaticButtons()) {
-              // Attach event handlers to the injected buttons
-              attachStaticButtonHandlers(target);
-
-              // Update initial indicator state
-              var initial = resolveAutoState(target);
-              var enabled = initial && initial.data && initial.data.liveData && initial.data.liveData.enabled;
-              updateLiveDataIndicator(enabled || false);
-            }
-          }, 200);
+          // Register event handlers via order system (buttons are now frozen inside template)
+          registerLiveDataOrder(target);
 
           // Get initial state
           var initial = resolveAutoState(target);
@@ -1529,6 +1464,12 @@
             }
           }
           initial = ensureHelperBindings(initial || null);
+
+          // Update initial indicator state
+          setTimeout(function() {
+            var enabled = initial && initial.data && initial.data.liveData && initial.data.liveData.enabled;
+            updateLiveDataIndicator(enabled || false);
+          }, 100);
 
           // SINGLE bootstrap call
           var seeded = randomizeSalesReport(null, target, { snapshot: initial || null, bootstrap: true });
