@@ -173,16 +173,16 @@
           </section>
         </div>
 
-        <!-- Chart Controls: Separate container for buttons - NO DYNAMIC EXPRESSIONS -->
-        <div data-m-key="chart-controls-container" class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
-          <div class="flex flex-wrap items-center justify-end gap-2">
+        <!-- Chart Controls: FROZEN container - completely isolated from reactivity -->
+        <div data-m-key="chart-controls-container" data-m-frozen="true" class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
+          <div data-m-key="buttons-wrapper" class="flex flex-wrap items-center justify-end gap-2">
             <!-- TEST BUTTON: Direct randomize for debugging -->
             <button
               data-m-key="test-randomize-btn"
               data-m-gkey="test-randomize"
               class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
             >
-              <span class="select-none">🧪 TEST</span>
+              <span data-m-key="test-btn-text" class="select-none">🧪 TEST</span>
             </button>
             <button
               data-m-key="toggle-live-data-btn"
@@ -190,14 +190,13 @@
               class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
               style="min-width: 120px;"
             >
-              <span class="select-none">بيانات حية</span>
+              <span data-m-key="live-btn-text" class="select-none">بيانات حية</span>
               <span
+                id="live-data-indicator-static"
                 data-m-key="live-data-indicator"
                 class="text-[10px] font-bold"
-                style="color: {(state.data.liveData && state.data.liveData.enabled) ? '#22c55e' : '#9ca3af'};"
-              >
-                {(state.data.liveData && state.data.liveData.enabled) ? '● LIVE' : '○ OFF'}
-              </span>
+                style="color: #9ca3af;"
+              >○ OFF</span>
             </button>
           </div>
         </div>
@@ -1342,12 +1341,29 @@
           }, function (latest) {
             console.log('[DEBUG] Toggle commit completed, latest state:', latest);
             var enabled = latest && latest.data && latest.data.liveData && latest.data.liveData.enabled;
-            // Indicator is now reactive - no manual update needed
+            updateLiveDataIndicator(enabled);
             if (enabled) {
               console.log('[DEBUG] Triggering initial randomize...');
               randomizeSalesReport(null, context, { force: true, reusePrevious: false });
             }
           });
+        }
+
+        function updateLiveDataIndicator(enabled) {
+          console.log('[UPDATE-INDICATOR] Updating indicator, enabled:', enabled);
+          var indicator = document.getElementById('live-data-indicator-static');
+          if (indicator) {
+            if (enabled) {
+              indicator.textContent = '● LIVE';
+              indicator.style.color = '#22c55e'; // green-500
+            } else {
+              indicator.textContent = '○ OFF';
+              indicator.style.color = '#9ca3af'; // gray-400
+            }
+            console.log('[UPDATE-INDICATOR] ✓ Updated successfully');
+          } else {
+            console.warn('[UPDATE-INDICATOR] ✗ Indicator element not found!');
+          }
         }
 
         function registerLiveDataOrder(ctx) {
@@ -1444,7 +1460,12 @@
 
           var initial = resolveAutoState(ctx);
 
-          // Indicator is now reactive via data binding - no manual update needed
+          // Update initial indicator state
+          setTimeout(function() {
+            var enabled = initial && initial.data && initial.data.liveData && initial.data.liveData.enabled;
+            updateLiveDataIndicator(enabled || false);
+          }, 100);
+
           if (!initial && ctx && typeof ctx.getState === 'function') {
             try {
               initial = ctx.getState();
