@@ -1154,24 +1154,10 @@
     // Removed verbose logging for jobStatusMap
 
     // Group lines by orderId
-    // ✅ CRITICAL FIX: Filter out completed/ready lines to avoid showing already-delivered items
-    // when new items are added to an existing order
     const linesByOrder = new Map();
     orderLines.forEach(line => {
       if (!line || !line.orderId) return;
       const orderId = String(line.orderId);
-
-      // ✅ Check if this line was already delivered (has job_order_detail with ready/completed status)
-      const lookupKey = `${orderId}:${line.itemId}`;
-      const jobDetail = jobStatusMap.get(lookupKey);
-      const derivedStatus = jobDetail?.status || line.status || 'draft';
-
-      // ✅ Skip lines that are already ready/completed (already delivered to customer)
-      // This ensures when new items are added to existing order, only new items appear
-      if (derivedStatus === 'ready' || derivedStatus === 'completed') {
-        return; // Skip this line - already delivered
-      }
-
       if (!linesByOrder.has(orderId)) {
         linesByOrder.set(orderId, []);
       }
@@ -1529,18 +1515,63 @@
     };
   };
 
+  // ✅ NEW: Build orders from job_orders instead of order_header
+  // This ensures new items added to existing orders appear correctly
+  const buildOrdersFromJobs = (jobsList, filterFn)=>{
+    if(!Array.isArray(jobsList) || !jobsList.length) return [];
+
+    // Filter jobs based on status
+    const filteredJobs = filterFn ? jobsList.filter(filterFn) : jobsList;
+
+    // Group jobs by orderId
+    const orderMap = new Map();
+    filteredJobs.forEach(job => {
+      const orderId = job.orderId || job.orderNumber || job.id;
+      if(!orderMap.has(orderId)) {
+        orderMap.set(orderId, {
+          orderId: job.orderId || orderId,
+          orderNumber: job.orderNumber || orderId,
+          serviceMode: job.serviceMode || job.orderTypeId || 'dine_in',
+          tableLabel: job.tableLabel || null,
+          customerName: job.customerName || null,
+          notes: job.notes || null,
+          createdAt: job.createdAt || job.acceptedAt || job.startedAt,
+          createdMs: job.createdMs || job.acceptedMs || job.startMs,
+          jobs: []
+        });
+      }
+      orderMap.get(orderId).jobs.push(job);
+    });
+
+    // Convert to array and sort by creation time
+    const orders = Array.from(orderMap.values());
+    orders.forEach(order => {
+      order.jobs.sort((a, b) => (a.startMs || a.acceptedMs || 0) - (b.startMs || b.acceptedMs || 0));
+    });
+    orders.sort((a, b) => (a.createdMs || 0) - (b.createdMs || 0));
+
+    return orders;
+  };
+
   const getExpoOrders = (db)=>{
-    // ✅ Use order_header + order_line for static expo tab
-    const snapshot = buildOrdersFromHeaders(db)
-      .filter(order=>{
-        if(!order) return false;
-        const status = order.handoffStatus;
-        // ✅ Show in expo: ALL orders (pending + ready) EXCEPT assembled/served/delivered/settled
-        // Orders appear here immediately when created
-        // Orders stay until "تم التجميع" is pressed → 'assembled'
-        // This shows ALL active orders being prepared across all sections
-        return status !== 'assembled' && status !== 'served' && status !== 'delivered' && status !== 'settled';
-      });
+    // ✅ CRITICAL FIX: Use job_orders instead of order_header
+    // This ensures new items added to existing orders appear correctly
+    const allJobs = db.data.jobs?.list || [];
+
+    // Show jobs that are NOT assembled/served/delivered/settled
+    // Include: draft, pending, in_progress, ready (ready jobs need to be assembled)
+    const snapshot = buildOrdersFromJobs(allJobs, job => {
+      const status = String(job.status || '').toLowerCase();
+      const progressState = String(job.progressState || '').toLowerCase();
+
+      // Hide completed/assembled/served/delivered
+      if(progressState === 'assembled' || progressState === 'served' ||
+         progressState === 'delivered' || progressState === 'settled') return false;
+      if(status === 'assembled' || status === 'served' ||
+         status === 'delivered' || status === 'settled') return false;
+
+      return true; // Show: draft, pending, in_progress, ready
+    });
     const orderMap = new Map();
     snapshot.forEach(order=>{
       const key = normalizeOrderKey(order.orderId || order.id);
@@ -1562,14 +1593,23 @@
     });
   };
 
-  const getHandoffOrders = (db)=> buildOrdersFromHeaders(db)
-    .filter(order=>{
-      if(!order) return false;
-      const status = order.handoffStatus;
-      if(status !== 'assembled') return false;
-      const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
-      return serviceMode !== 'delivery';
+  const getHandoffOrders = (db)=> {
+    // ✅ CRITICAL FIX: Use job_orders instead of order_header
+    const allJobs = db.data.jobs?.list || [];
+
+    return buildOrdersFromJobs(allJobs, job => {
+      const status = String(job.status || '').toLowerCase();
+      const progressState = String(job.progressState || '').toLowerCase();
+      const serviceMode = String(job.serviceMode || job.orderTypeId || 'dine_in').toLowerCase();
+
+      // Show only assembled jobs (ready for handoff)
+      // Exclude delivery orders (they have separate flow)
+      if(progressState !== 'assembled' && status !== 'assembled') return false;
+      if(serviceMode === 'delivery') return false;
+
+      return true;
     });
+  };
 
   const cloneJob = (job)=>({
     ...job,
