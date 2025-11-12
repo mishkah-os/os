@@ -35,26 +35,6 @@
   </script>
   </head>
   <body class="bg-[var(--background)] text-[var(--foreground)]">
-    <!-- Chart Controls: Pure HTML in body (outside HTMLx) -->
-    <div id="chart-controls-floating" style="position: fixed; right: 24px; top: 24px; z-index: 1000;">
-      <div class="flex flex-wrap items-center justify-end gap-2 rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
-        <button
-          id="test-randomize"
-          class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
-        >
-          <span class="select-none">🧪 TEST</span>
-        </button>
-        <button
-          id="toggle-live-data"
-          class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
-          style="min-width: 120px;"
-        >
-          <span class="select-none">بيانات حية</span>
-          <span id="live-indicator" class="text-[10px] font-bold" style="color: #9ca3af;">○ OFF</span>
-        </button>
-      </div>
-    </div>
-
     <div id="app"></div>
     <template id="quick-dashboard">
       <script type="application/json" data-m-env data-m-path="env">
@@ -191,6 +171,26 @@
               {state.data.metrics.orders}
             </strong>
           </section>
+        </div>
+
+        <!-- Chart Controls: x-once directive (Mishkah-native solution!) -->
+        <div class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-[var(--shadow)]">
+          <div x-once class="flex flex-wrap items-center justify-end gap-2">
+            <button
+              id="test-randomize"
+              class="flex items-center gap-2 rounded-full border-2 border-orange-500 bg-orange-100 dark:bg-orange-900 px-3 py-2 text-xs font-bold text-orange-700 dark:text-orange-200 shadow-md transition hover:shadow-lg cursor-pointer"
+            >
+              <span class="select-none">🧪 TEST</span>
+            </button>
+            <button
+              id="toggle-live-data"
+              class="flex items-center gap-3 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-medium text-[var(--foreground)] shadow-[var(--shadow)] transition hover:shadow-lg cursor-pointer"
+              style="min-width: 120px;"
+            >
+              <span class="select-none">بيانات حية</span>
+              <span id="live-indicator" class="text-[10px] font-bold" style="color: #9ca3af;">○ OFF</span>
+            </button>
+          </div>
         </div>
 
         <figure class="rounded-3xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">

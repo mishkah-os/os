@@ -1445,6 +1445,10 @@
         if (!xFor) warnings.push('E_BAD_XFOR(' + nextPath + '): صيغة x-for غير صحيحة.');
         continue;
       }
+      if (name === 'x-once') {
+        descriptor.xOnce = true;
+        continue;
+      }
       // دعم @ syntax للأحداث (مثل Vue.js)
       // @click="handler" → x-on:click="handler"
       if (name.charAt(0) === '@') {
@@ -1781,7 +1785,16 @@
     var localAugment = collectScopedLocals(scopeTokens, ctx && ctx.scopedLocals);
     var hasLocalAugment = localAugment && Object.keys(localAugment).length > 0;
 
+    // x-once: cache support
+    var cachedVNode = null;
+    var isOnce = node.xOnce === true;
+
     return function (scope) {
+      // x-once: return cached VNode if exists
+      if (isOnce && cachedVNode !== null) {
+        return cachedVNode;
+      }
+
       var activeScope = hasLocalAugment ? createLocalScope(scope, localAugment) : scope;
       var attrs = resolveAttrs(activeScope) || {};
       if (resolveKey) {
@@ -1801,6 +1814,7 @@
           }
         }
       }
+      var result;
       if (node.type === 'component') {
         var componentFactory = activeScope.UI[node.component];
         if (typeof componentFactory !== 'function') {
@@ -1813,26 +1827,33 @@
         } else if (kids.length > 1) {
           props.content = kids;
         }
-        return componentFactory(props);
-      }
-      if (node.type === 'element') {
+        result = componentFactory(props);
+      } else if (node.type === 'element') {
         var hFactory = (activeScope.D && typeof activeScope.D.h === 'function') ? activeScope.D.h
           : (Mishkah && Mishkah.DSL && typeof Mishkah.DSL.h === 'function' ? Mishkah.DSL.h : null);
         if (!hFactory) {
           console.warn('E_ELEMENT_UNSUPPORTED: لا يمكن إنشاء العنصر', node.tag, 'لأن DSL.h غير متوفر.');
           return null;
         }
-        return hFactory(node.tag, 'Custom', { attrs: attrs }, kids);
+        result = hFactory(node.tag, 'Custom', { attrs: attrs }, kids);
+      } else {
+        var family = node.family;
+        var atom = node.atom;
+        var atoms = activeScope.D[family] || {};
+        var factory = atoms[atom];
+        if (typeof factory !== 'function') {
+          console.warn('E_ATOM_MISMATCH: atom', family + '.' + atom, 'غير متوفر في DSL.');
+          return null;
+        }
+        result = factory({ attrs: attrs }, kids);
       }
-      var family = node.family;
-      var atom = node.atom;
-      var atoms = activeScope.D[family] || {};
-      var factory = atoms[atom];
-      if (typeof factory !== 'function') {
-        console.warn('E_ATOM_MISMATCH: atom', family + '.' + atom, 'غير متوفر في DSL.');
-        return null;
+
+      // x-once: cache the result for future renders
+      if (isOnce) {
+        cachedVNode = result;
       }
-      return factory({ attrs: attrs }, kids);
+
+      return result;
     };
   }
 
