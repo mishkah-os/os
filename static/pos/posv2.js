@@ -2867,7 +2867,8 @@
         deliveries: deliveriesSnapshot,
         handoff: handoffSnapshot,
         drivers: masterSnapshot.drivers,
-        meta:{ channel: masterSnapshot.channel, branch: BRANCH_CHANNEL, posId: POS_INFO.id, emittedAt: new Date().toISOString() }
+        meta:{ channel: masterSnapshot.channel, branch: BRANCH_CHANNEL, posId: POS_INFO.id, emittedAt: new Date().toISOString() },
+        isReopenedOrder: isReopenedOrderForHeader  // ✅ CRITICAL: Pass flag to indicate reopened order
       };
     }
 
@@ -6843,7 +6844,7 @@
             // Updating order_header causes backend to DELETE existing job_orders!
             // Only insert new job_orders for new items - leave order_header untouched
             const isPersistedOrder = order.isPersisted === true;
-            const hasOnlyNewItems = isReopenedOrderForHeader; // Order has new unpersisted items
+            const hasOnlyNewItems = kdsPayload.isReopenedOrder || false; // Order has new unpersisted items
 
             // ✅ Get existing order_header from window.database to read current version
             const existingOrderHeaders = window.database?.order_header || [];
