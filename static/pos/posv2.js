@@ -2555,6 +2555,34 @@
       const jobModifiers = [];
       const historyEntries = [];
 
+      // ✅ Build category route index for automatic station assignment
+      const stationCategoryRoutes = Array.isArray(state.data?.stationCategoryRoutes) ? state.data.stationCategoryRoutes : [];
+      const categoryRouteIndex = new Map();
+      stationCategoryRoutes.forEach((route) => {
+        if (!route?.categoryId || !route?.stationId) return;
+        const categoryId = String(route.categoryId || '').toLowerCase().trim();
+        const stationId = String(route.stationId || '').toLowerCase().trim();
+        if (!categoryId || !stationId) return;
+        const bucket = categoryRouteIndex.get(categoryId) || [];
+        bucket.push({ ...route, categoryId, stationId });
+        categoryRouteIndex.set(categoryId, bucket);
+      });
+      // Sort by priority and filter active routes
+      categoryRouteIndex.forEach((bucket, key) => {
+        const sorted = bucket
+          .slice()
+          .sort((a, b) => (a.priority || 0) - (b.priority || 0));
+        const active = sorted.filter((route) => route.isActive !== false);
+        categoryRouteIndex.set(key, active.length ? active : sorted);
+      });
+      const resolveStationForCategory = (categoryId) => {
+        if (!categoryId) return null;
+        const key = String(categoryId).toLowerCase().trim();
+        const bucket = categoryRouteIndex.get(key);
+        if (bucket && bucket.length) return bucket[0].stationId;
+        return null;
+      };
+
       // ✅ CRITICAL FIX: ALWAYS use Date.now() for batchId
       // This ensures each save creates UNIQUE job_orders
       // Using order.updatedAt would cause overwriting existing job_orders when adding items
@@ -2574,18 +2602,29 @@
         // ✅ Check all variants of kitchenSection field
         const kitchenSectionSource = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.kitchen_section;
         const resolvedStation = toIdentifier(kitchenSectionSource);
-        const stationId = resolvedStation || 'expo';
+
+        // ✅ CRITICAL FIX: If no kitchenSection, try to resolve from categoryId
+        let stationId = resolvedStation;
+        if (!stationId) {
+          const categoryId = line.categoryId || line.category_id || line.menuCategoryId || line.menu_category_id;
+          if (categoryId) {
+            stationId = resolveStationForCategory(categoryId);
+          }
+        }
+        // Final fallback to 'general' (not 'expo', to avoid mixing all items)
+        stationId = stationId || 'general';
 
         // 🔍 DEBUG: Log kitchen section resolution
-        if(!resolvedStation || resolvedStation === 'expo'){
-          console.log('[POS][serializeOrderForKDS] Line kitchen section:', {
+        if(!resolvedStation || resolvedStation === 'expo' || stationId === 'general'){
+          console.log('[POS][serializeOrderForKDS] Line kitchen section resolution:', {
             lineId: line.id,
             itemId: line.itemId,
+            itemName: line.name,
             kitchenSection: line.kitchenSection,
-            kitchenSectionId: line.kitchenSectionId,
-            kitchen_section_id: line.kitchen_section_id,
+            categoryId: line.categoryId || line.category_id,
             resolvedStation,
-            stationId
+            finalStationId: stationId,
+            method: resolvedStation ? 'explicit' : (stationId !== 'general' ? 'category-route' : 'fallback')
           });
         }
 
@@ -2614,10 +2653,10 @@
           customerName: customerName || null,
           dueAt: order.dueAt ? normalizeIso(order.dueAt) : createdIso,
           acceptedAt: createdIso,  // ✅ Set to creation time
-          startedAt: createdIso,   // ✅ Set to creation time
-          readyAt: createdIso,     // ✅ Set to creation time
-          completedAt: createdIso, // ✅ Set to creation time
-          expoAt: createdIso,      // ✅ Set to creation time
+          startedAt: null,         // ✅ CRITICAL FIX: Don't set until "Start Prep" clicked!
+          readyAt: null,           // ✅ CRITICAL FIX: Don't set until "Mark Ready" clicked!
+          completedAt: null,       // ✅ CRITICAL FIX: Don't set until completed!
+          expoAt: null,            // ✅ Will be set when moved to expo
           syncChecksum:`${order.id}-${stationId}`,
           notes: notesToText(order.notes, '; '),  // ✅ Order header notes
           meta:{ orderSource:'pos', kdsTab: stationId },
@@ -2723,6 +2762,24 @@
       });
       const headers = Array.from(jobsMap.values());
       if(!headers.length) return null;
+
+      // ✅ DEBUG: Log job_order_header breakdown by station
+      console.log('📊 [JOB_ORDER CREATION] Created job_order_header breakdown:', {
+        orderId: order.id,
+        batchId,
+        totalJobs: headers.length,
+        jobsByStation: headers.map(h => ({
+          jobId: h.id,
+          stationId: h.stationId,
+          stationCode: h.stationCode,
+          totalItems: h.totalItems,
+          status: h.status
+        })),
+        stationsSummary: headers.reduce((acc, h) => {
+          acc[h.stationId] = (acc[h.stationId] || 0) + 1;
+          return acc;
+        }, {})
+      });
 
       const orderSummary = {
         orderId: order.id,
