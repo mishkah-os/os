@@ -1481,6 +1481,285 @@
     return orders;
   };
 
+  /**
+   * ✅ Build batch cards with progress tracking
+   * Shows each batch as a card with:
+   * - Batch header (order number, table, status)
+   * - Progress bar (readyJobs / totalJobs)
+   * - List of jobs grouped by station
+   *
+   * @param {Object} db - Database snapshot with batches, headers, details
+   * @returns {Array} Array of batch card objects
+   */
+  const buildBatchCards = (db) => {
+    const batches = Array.isArray(db?.data?.batches) ? db.data.batches : [];
+    const jobHeaders = Array.isArray(db?.data?.jobHeaders) ? db.data.jobHeaders : [];
+    const jobDetails = Array.isArray(db?.data?.jobOrderDetails) ? db.data.jobOrderDetails : [];
+    const stationMap = db?.data?.stationMap || {};
+    const menuIndex = db?.data?.menuIndex || {};
+
+    if (batches.length === 0) {
+      // Fallback: if no batches, return empty (or could use buildOrdersFromJobHeaders)
+      return [];
+    }
+
+    const batchCards = batches.map(batch => {
+      const batchId = batch.id;
+
+      // Get all jobs for this batch
+      const batchJobs = jobHeaders.filter(h =>
+        String(h.batchId || h.batch_id) === String(batchId)
+      );
+
+      // Compute batch status from jobs
+      const batchInfo = computeBatchStatus(batchJobs);
+
+      // Build job details
+      const jobs = batchJobs.map(header => {
+        const jobOrderId = header.id;
+        const stationId = header.stationId || header.station_id;
+        const station = stationMap[stationId] || {};
+
+        // Get details for this job
+        const details = jobDetails.filter(d => {
+          const detailJobId = d.jobOrderId || d.job_order_id;
+          return detailJobId === jobOrderId;
+        });
+
+        return {
+          id: jobOrderId,
+          stationId: stationId,
+          stationNameAr: station.nameAr || stationId || 'غير محدد',
+          stationNameEn: station.nameEn || stationId || 'Unassigned',
+          status: header.status || 'queued',
+          progressState: header.progressState || header.progress_state,
+          itemCount: details.length,
+          details: details.map(detail => {
+            const itemId = detail.itemId || detail.item_id;
+            const menuItem = menuIndex[itemId];
+
+            return {
+              id: detail.id,
+              itemId: itemId,
+              itemNameAr: detail.itemNameAr || detail.item_name_ar ||
+                         menuItem?.item_name?.ar || menuItem?.nameAr || itemId,
+              itemNameEn: detail.itemNameEn || detail.item_name_en ||
+                         menuItem?.item_name?.en || menuItem?.nameEn || itemId,
+              quantity: Number(detail.quantity) || 1,
+              status: detail.status || 'queued',
+              prepNotes: detail.prepNotes || detail.prep_notes || detail.notes || ''
+            };
+          })
+        };
+      });
+
+      // Build batch card
+      return {
+        batchId: batchId,
+        orderId: batch.orderId,
+        orderNumber: batch.orderNumber,
+        batchType: batch.batchType,  // 'initial' or 'addition'
+
+        // Batch status (computed from jobs)
+        status: batchInfo.status,
+        progress: batchInfo.progress,
+        totalJobs: batchInfo.totalJobs,
+        readyJobs: batchInfo.readyJobs,
+        cookingJobs: batchInfo.cookingJobs,
+        queuedJobs: batchInfo.queuedJobs,
+
+        // Display info
+        tableLabel: batch.meta?.tableLabel || null,
+        serviceMode: batch.meta?.orderType || 'dine_in',
+
+        // Timestamps
+        createdAt: batch.createdAt,
+        updatedAt: batch.updatedAt,
+        assembledAt: batch.assembledAt,
+        servedAt: batch.servedAt,
+
+        // Jobs list
+        jobs: jobs,
+
+        // Helper for UI
+        progressPercent: batchInfo.progress,
+        statusLabel: getStatusLabel(batchInfo.status),
+        statusColor: getStatusColor(batchInfo.status)
+      };
+    });
+
+    // Sort by creation time (newest first)
+    return batchCards.sort((a, b) => {
+      const aTime = parseTime(a.createdAt) || 0;
+      const bTime = parseTime(b.createdAt) || 0;
+      return bTime - aTime;
+    });
+  };
+
+  /**
+   * ✅ Get status label in Arabic/English
+   */
+  const getStatusLabel = (status) => {
+    const labels = {
+      'queued': { ar: 'قيد الانتظار', en: 'Queued' },
+      'cooking': { ar: 'جاري التجهيز', en: 'Cooking' },
+      'ready': { ar: 'جاهز', en: 'Ready' },
+      'assembled': { ar: 'تم التجميع', en: 'Assembled' },
+      'served': { ar: 'تم التسليم', en: 'Served' }
+    };
+    return labels[status] || { ar: status, en: status };
+  };
+
+  /**
+   * ✅ Get status color for UI
+   */
+  const getStatusColor = (status) => {
+    const colors = {
+      'queued': '#9CA3AF',      // Gray
+      'cooking': '#F59E0B',     // Amber
+      'ready': '#10B981',       // Green
+      'assembled': '#3B82F6',   // Blue
+      'served': '#6B7280'       // Gray (done)
+    };
+    return colors[status] || '#9CA3AF';
+  };
+
+  /**
+   * ✅ Render progress bar component
+   * Returns HTML string for progress bar
+   *
+   * @param {number} progress - Progress percentage (0-100)
+   * @param {string} color - Bar color (hex)
+   * @param {string} label - Label text (e.g., "2/3")
+   * @returns {string} HTML string
+   */
+  const renderProgressBar = (progress, color, label) => {
+    const progressPercent = Math.max(0, Math.min(100, progress || 0));
+    const barWidth = `${progressPercent}%`;
+
+    return `
+      <div class="batch-progress-container" style="width: 100%; background: #E5E7EB; border-radius: 8px; overflow: hidden; height: 24px; position: relative;">
+        <div class="batch-progress-bar" style="
+          width: ${barWidth};
+          height: 100%;
+          background: ${color};
+          transition: width 0.3s ease;
+          border-radius: 8px;
+        "></div>
+        <div class="batch-progress-label" style="
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          font-size: 12px;
+          font-weight: 600;
+          color: #1F2937;
+        ">
+          ${label}
+        </div>
+      </div>
+    `;
+  };
+
+  /**
+   * ✅ Render batch card component
+   * Returns HTML string for a batch card
+   *
+   * @param {Object} batchCard - Batch card data from buildBatchCards()
+   * @param {string} lang - Language ('ar' or 'en')
+   * @returns {string} HTML string
+   */
+  const renderBatchCard = (batchCard, lang = 'ar') => {
+    const dir = lang === 'ar' ? 'rtl' : 'ltr';
+    const statusLabel = lang === 'ar' ? batchCard.statusLabel.ar : batchCard.statusLabel.en;
+    const progressLabel = `${batchCard.readyJobs}/${batchCard.totalJobs}`;
+
+    // Build jobs list HTML
+    const jobsHtml = batchCard.jobs.map(job => {
+      const stationName = lang === 'ar' ? job.stationNameAr : job.stationNameEn;
+      const statusIcon = job.status === 'in_progress' ? '🔥' :
+                        job.status === 'ready' ? '✅' : '⏳';
+
+      const itemsHtml = job.details.map(detail => {
+        const itemName = lang === 'ar' ? detail.itemNameAr : detail.itemNameEn;
+        return `
+          <div style="padding: 4px 0; font-size: 14px;">
+            <span>${itemName}</span>
+            <span style="color: #6B7280;"> × ${detail.quantity}</span>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="batch-job" style="
+          padding: 12px;
+          background: #F9FAFB;
+          border-radius: 8px;
+          margin-bottom: 8px;
+        ">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-weight: 600; color: #111827;">
+              ${statusIcon} ${stationName}
+            </span>
+            <span style="font-size: 12px; color: #6B7280;">
+              ${job.itemCount} ${lang === 'ar' ? 'أصناف' : 'items'}
+            </span>
+          </div>
+          ${itemsHtml}
+        </div>
+      `;
+    }).join('');
+
+    const batchTypeLabel = batchCard.batchType === 'addition'
+      ? (lang === 'ar' ? '(زيادة)' : '(Addition)')
+      : '';
+
+    return `
+      <div class="batch-card" style="
+        background: white;
+        border: 2px solid ${batchCard.statusColor};
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      " dir="${dir}">
+        <!-- Header -->
+        <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #E5E7EB;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #111827;">
+              📦 ${batchCard.orderNumber} ${batchTypeLabel}
+            </h3>
+            <span style="
+              background: ${batchCard.statusColor};
+              color: white;
+              padding: 4px 12px;
+              border-radius: 16px;
+              font-size: 12px;
+              font-weight: 600;
+            ">
+              ${statusLabel}
+            </span>
+          </div>
+          ${batchCard.tableLabel ? `
+            <div style="margin-top: 4px; font-size: 14px; color: #6B7280;">
+              ${batchCard.tableLabel}
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Progress Bar -->
+        <div style="margin-bottom: 16px;">
+          ${renderProgressBar(batchCard.progressPercent, batchCard.statusColor, progressLabel)}
+        </div>
+
+        <!-- Jobs List -->
+        <div class="batch-jobs-list">
+          ${jobsHtml}
+        </div>
+      </div>
+    `;
+  };
+
   // ✅ Build orders from job_orders (for dynamic kitchen section tabs)
   const computeOrdersSnapshot = (db)=>{
     const orders = Array.isArray(db?.data?.jobs?.orders) ? db.data.jobs.orders : [];
