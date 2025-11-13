@@ -67,6 +67,7 @@ export default class ModuleStore {
    */
   findCanonicalTableName(tableName) {
     if (!tableName) return null;
+    if (!Array.isArray(this.tables)) return null;
 
     // Try exact match first
     if (this.tables.includes(tableName)) {
@@ -92,6 +93,9 @@ export default class ModuleStore {
   }
 
   ensureTable(tableName) {
+    if (!Array.isArray(this.tables)) {
+      throw new Error(`Module store not properly initialized: tables array is missing`);
+    }
     const canonical = this.findCanonicalTableName(tableName);
     if (!canonical) {
       throw new Error(`Table "${tableName}" not registered in module "${this.moduleId}"`);
