@@ -3252,16 +3252,20 @@
               wsConnected: store?.connected || 'unknown'
             });
 
+            console.log('🔍🔍🔍 [DEBUG] About to insert job_order_header:', {
+              headersCount: headers.length,
+              detailsCount: details.length,
+              headers: headers.map(h => ({ id: h.id, orderId: h.orderId, orderNumber: h.orderNumber, stationId: h.stationId }))
+            });
+
             headers.forEach((header, index) => {
               try {
+                console.log(`📤 [POS][KDS] Inserting job_order_header ${index + 1}/${headers.length}:`, header);
                 store.insert('job_order_header', header);
-                console.log(`✅ [POS][KDS] Sent job_order_header ${index + 1}/${headers.length}:`, {
-                  id: header.id,
-                  orderId: header.orderId,
-                  stationId: header.stationId
-                });
+                console.log(`✅ [POS][KDS] Successfully inserted job_order_header ${index + 1}/${headers.length}`);
               } catch (err) {
                 console.error(`❌ [POS][KDS] Failed to insert job_order_header ${index + 1}:`, err, header);
+                console.error('[POS][KDS] Error details:', err.stack);
               }
             });
 
