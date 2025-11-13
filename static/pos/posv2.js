@@ -2651,7 +2651,8 @@
       // ✅ CRITICAL FIX: ALWAYS use Date.now() for batchId
       // This ensures each save creates UNIQUE job_orders
       // Using order.updatedAt would cause overwriting existing job_orders when adding items
-      const batchId = Date.now();
+      // batchId groups all job_orders created in the same save operation
+      const batchId = `BATCH-${order.id}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
       if(isReopenedOrder) {
         console.log('🔄 [KDS REOPEN] Creating job_order for NEW items only:', {
@@ -2728,6 +2729,7 @@
           expoAt: null,            // ✅ Will be set when moved to expo
           syncChecksum:`${order.id}-${stationId}`,
           notes: notesToText(order.notes, '; '),  // ✅ Order header notes
+          batchId,  // ✅ Group job_orders from same save operation for static stages
           meta:{ orderSource:'pos', kdsTab: stationId },
           createdAt: createdIso,
           updatedAt: updatedIso
@@ -3105,11 +3107,11 @@
                 statusHistory: statusHistory.length
               });
 
-              // Insert to offline store (NOT persistent - data lost on refresh!)
-              headers.forEach(h => { try { store.insert('job_order_header', h, { silent: true }); } catch (e) {} });
-              details.forEach(d => { try { store.insert('job_order_detail', d, { silent: true }); } catch (e) {} });
-              modifiers.forEach(m => { try { store.insert('job_order_detail_modifier', m, { silent: true }); } catch (e) {} });
-              statusHistory.forEach(s => { try { store.insert('job_order_status_history', s, { silent: true }); } catch (e) {} });
+              // ✅ FIX: Insert WITHOUT silent flag so KDS sees updates in real-time!
+              headers.forEach(h => { try { store.insert('job_order_header', h); } catch (e) { console.error('[POS][Fallback] Failed to insert job_order_header:', e); } });
+              details.forEach(d => { try { store.insert('job_order_detail', d); } catch (e) { console.error('[POS][Fallback] Failed to insert job_order_detail:', e); } });
+              modifiers.forEach(m => { try { store.insert('job_order_detail_modifier', m); } catch (e) { console.error('[POS][Fallback] Failed to insert modifier:', e); } });
+              statusHistory.forEach(s => { try { store.insert('job_order_status_history', s); } catch (e) { console.error('[POS][Fallback] Failed to insert status history:', e); } });
             }
 
             pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });

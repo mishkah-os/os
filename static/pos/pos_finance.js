@@ -333,7 +333,12 @@
     TABLE_NAME_GROUPS.orders.canonical,
     TABLE_NAME_GROUPS.lines.canonical,
     TABLE_NAME_GROUPS.payments.canonical,
-    TABLE_NAME_GROUPS.shifts.canonical
+    TABLE_NAME_GROUPS.shifts.canonical,
+    // ✅ Add job_order tables for KDS reset
+    'job_order_header',
+    'job_order_detail',
+    'job_order_detail_modifier',
+    'job_order_status_history'
   ];
 
   let DEFAULT_PURGE_TABLES = CANONICAL_PURGE_TABLES.slice();
