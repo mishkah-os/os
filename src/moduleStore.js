@@ -59,10 +59,44 @@ export default class ModuleStore {
     }
   }
 
+  /**
+   * Attempts to find canonical table name from provided name.
+   * Handles common variations like plural/singular (job_order_details → job_order_detail)
+   * @param {string} tableName - Table name to canonicalize
+   * @returns {string|null} Canonical table name if found, null otherwise
+   */
+  findCanonicalTableName(tableName) {
+    if (!tableName) return null;
+
+    // Try exact match first
+    if (this.tables.includes(tableName)) {
+      return tableName;
+    }
+
+    // Try removing trailing 's' (plural → singular)
+    // e.g., 'job_order_details' → 'job_order_detail'
+    if (tableName.endsWith('s')) {
+      const singular = tableName.slice(0, -1);
+      if (this.tables.includes(singular)) {
+        return singular;
+      }
+    }
+
+    // Try adding trailing 's' (singular → plural)
+    const plural = tableName + 's';
+    if (this.tables.includes(plural)) {
+      return plural;
+    }
+
+    return null;
+  }
+
   ensureTable(tableName) {
-    if (!this.tables.includes(tableName)) {
+    const canonical = this.findCanonicalTableName(tableName);
+    if (!canonical) {
       throw new Error(`Table "${tableName}" not registered in module "${this.moduleId}"`);
     }
+    return canonical;
   }
 
   isVersionedTable(tableName) {
@@ -170,16 +204,16 @@ export default class ModuleStore {
   }
 
   listTable(tableName) {
-    this.ensureTable(tableName);
-    return this.data[tableName].map((entry) => deepClone(entry));
+    const canonical = this.ensureTable(tableName);
+    return this.data[canonical].map((entry) => deepClone(entry));
   }
 
   insert(tableName, record = {}, context = {}) {
-    this.ensureTable(tableName);
+    const canonical = this.ensureTable(tableName);
     const enrichedContext = { branchId: this.branchId, ...context };
-    const created = this.schemaEngine.createRecord(tableName, record, enrichedContext);
-    this.initializeRecordVersion(tableName, created);
-    this.data[tableName].push(created);
+    const created = this.schemaEngine.createRecord(canonical, record, enrichedContext);
+    this.initializeRecordVersion(canonical, created);
+    this.data[canonical].push(created);
     this.version += 1;
     this.touchMeta({ increment: 1 });
     return deepClone(created);
@@ -267,15 +301,15 @@ export default class ModuleStore {
     if (!patch || typeof patch !== 'object') {
       throw new Error('Update payload must be an object.');
     }
-    this.ensureTable(tableName);
-    const { key } = this.resolveRecordKey(tableName, patch, { require: true });
-    const index = this.findRecordIndex(tableName, key);
+    const canonical = this.ensureTable(tableName);
+    const { key } = this.resolveRecordKey(canonical, patch, { require: true });
+    const index = this.findRecordIndex(canonical, key);
     if (index < 0) {
       throw new Error(`Record not found in table "${tableName}".`);
     }
-    const tableDef = this.schemaEngine.getTable(tableName);
-    const current = this.data[tableName][index];
-    const nextVersion = this.resolveNextVersion(tableName, current, patch, key);
+    const tableDef = this.schemaEngine.getTable(canonical);
+    const current = this.data[canonical][index];
+    const nextVersion = this.resolveNextVersion(canonical, current, patch, key);
     const next = { ...current };
     for (const field of tableDef.fields || []) {
       const fieldName = field.name;
@@ -291,7 +325,7 @@ export default class ModuleStore {
     if (nextVersion !== null) {
       next.version = nextVersion;
     }
-    this.data[tableName][index] = next;
+    this.data[canonical][index] = next;
     this.version += 1;
     this.touchMeta();
     return deepClone(next);
@@ -344,13 +378,13 @@ export default class ModuleStore {
   }
 
   remove(tableName, criteria = {}, context = {}) {
-    this.ensureTable(tableName);
-    const { key } = this.resolveRecordKey(tableName, criteria, { require: true });
-    const index = this.findRecordIndex(tableName, key);
+    const canonical = this.ensureTable(tableName);
+    const { key } = this.resolveRecordKey(canonical, criteria, { require: true });
+    const index = this.findRecordIndex(canonical, key);
     if (index < 0) {
       throw new Error(`Record not found in table "${tableName}".`);
     }
-    const [removed] = this.data[tableName].splice(index, 1);
+    const [removed] = this.data[canonical].splice(index, 1);
     this.version += 1;
     this.touchMeta({ recount: true });
     return { record: deepClone(removed), context };
@@ -726,7 +760,7 @@ export default class ModuleStore {
    * @returns {Object|null} - الـ record أو null إذا لم يوجد
    */
   getRecord(tableName, idOrCriteria, options = {}) {
-    this.ensureTable(tableName);
+    const canonical = this.ensureTable(tableName);
 
     // إذا كان id بسيط، نحوله إلى criteria
     const criteria = typeof idOrCriteria === 'string' || typeof idOrCriteria === 'number'
@@ -734,22 +768,22 @@ export default class ModuleStore {
       : idOrCriteria;
 
     // نبحث عن الـ record
-    const { key } = this.resolveRecordKey(tableName, criteria, { require: false });
+    const { key } = this.resolveRecordKey(canonical, criteria, { require: false });
     if (!key) {
       return null;
     }
 
-    const index = this.findRecordIndex(tableName, key);
+    const index = this.findRecordIndex(canonical, key);
     if (index < 0) {
       return null;
     }
 
-    const record = deepClone(this.data[tableName][index]);
+    const record = deepClone(this.data[canonical][index]);
 
     // FK population إذا مطلوب (default: true)
     const populate = options.populate !== false;
     if (populate) {
-      return populateRecordFks(this.schemaEngine, this, tableName, record, options);
+      return populateRecordFks(this.schemaEngine, this, canonical, record, options);
     }
 
     return record;
@@ -763,10 +797,10 @@ export default class ModuleStore {
    * @returns {Array} - مصفوفة من الـ records
    */
   queryTable(tableName, options = {}) {
-    this.ensureTable(tableName);
+    const canonical = this.ensureTable(tableName);
 
     // نقرأ جميع الـ records
-    let records = this.data[tableName].map((entry) => deepClone(entry));
+    let records = this.data[canonical].map((entry) => deepClone(entry));
 
     // تطبيق filter إذا موجود
     if (typeof options.filter === 'function') {
@@ -776,7 +810,7 @@ export default class ModuleStore {
     // FK population إذا مطلوب (default: true)
     const populate = options.populate !== false;
     if (populate) {
-      return populateRecordsFks(this.schemaEngine, this, tableName, records, options);
+      return populateRecordsFks(this.schemaEngine, this, canonical, records, options);
     }
 
     return records;
