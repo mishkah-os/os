@@ -10,7 +10,17 @@ import { logSchemaValidation, createMigrationReport } from './schema-logger.js';
 let database = null;
 const statementCache = new Map();
 
-const DEFAULT_TABLES = new Set(['order_header', 'order_line', 'order_payment', 'pos_shift']);
+const DEFAULT_TABLES = new Set([
+  'order_header',
+  'order_line',
+  'order_payment',
+  'pos_shift',
+  // 🔧 FIX: Add job_order tables for kitchen sync persistence
+  'job_order_header',
+  'job_order_detail',
+  'job_order_detail_modifier',
+  'job_order_status_history'
+]);
 
 function normalizeKey(value) {
   if (value === undefined || value === null) return null;
@@ -407,6 +417,99 @@ function buildShiftRow(record = {}, context = {}) {
   };
 }
 
+// 🔧 FIX: Add job_order builders for kitchen sync persistence
+function buildJobOrderHeaderRow(record = {}, context = {}) {
+  if (!record || record.id == null) {
+    throw new Error('job_order_header record requires an id');
+  }
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) {
+    throw new Error('job_order_header record requires branchId and moduleId');
+  }
+  const orderId = record.orderId || record.order_id;
+  const stationId = record.stationId || record.station_id;
+  const status = record.status || 'queued';
+  const createdAt = record.createdAt || record.created_at || null;
+  const updatedAt = record.updatedAt || record.updated_at || createdAt || null;
+  return {
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId,
+    id: String(record.id),
+    order_id: orderId ? String(orderId) : null,
+    station_id: stationId ? String(stationId) : null,
+    status: String(status),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    payload: JSON.stringify(record)
+  };
+}
+
+function buildJobOrderDetailRow(record = {}, context = {}) {
+  if (!record || record.id == null) {
+    throw new Error('job_order_detail record requires an id');
+  }
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) {
+    throw new Error('job_order_detail record requires branchId and moduleId');
+  }
+  const jobOrderId = record.jobOrderId || record.job_order_id;
+  const itemId = record.itemId || record.item_id || null;
+  const status = record.status || 'queued';
+  const createdAt = record.createdAt || record.created_at || null;
+  const updatedAt = record.updatedAt || record.updated_at || createdAt || null;
+  return {
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId,
+    id: String(record.id),
+    job_order_id: jobOrderId ? String(jobOrderId) : null,
+    item_id: itemId ? String(itemId) : null,
+    status: String(status),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    payload: JSON.stringify(record)
+  };
+}
+
+function buildJobOrderDetailModifierRow(record = {}, context = {}) {
+  if (!record || record.id == null) {
+    throw new Error('job_order_detail_modifier record requires an id');
+  }
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) {
+    throw new Error('job_order_detail_modifier record requires branchId and moduleId');
+  }
+  const jobOrderDetailId = record.jobOrderDetailId || record.job_order_detail_id;
+  return {
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId,
+    id: String(record.id),
+    job_order_detail_id: jobOrderDetailId ? String(jobOrderDetailId) : null,
+    payload: JSON.stringify(record)
+  };
+}
+
+function buildJobOrderStatusHistoryRow(record = {}, context = {}) {
+  if (!record || record.id == null) {
+    throw new Error('job_order_status_history record requires an id');
+  }
+  const normalizedContext = normalizeContext(context);
+  if (!normalizedContext.branchId || !normalizedContext.moduleId) {
+    throw new Error('job_order_status_history record requires branchId and moduleId');
+  }
+  const jobOrderId = record.jobOrderId || record.job_order_id;
+  const status = record.status || null;
+  const changedAt = record.changedAt || record.changed_at || null;
+  return {
+    branch_id: normalizedContext.branchId,
+    module_id: normalizedContext.moduleId,
+    id: String(record.id),
+    job_order_id: jobOrderId ? String(jobOrderId) : null,
+    status: status ? String(status) : null,
+    changed_at: changedAt,
+    payload: JSON.stringify(record)
+  };
+}
+
 function getBuilder(tableName) {
   switch (tableName) {
     case 'order_header':
@@ -417,6 +520,14 @@ function getBuilder(tableName) {
       return buildPaymentRow;
     case 'pos_shift':
       return buildShiftRow;
+    case 'job_order_header':
+      return buildJobOrderHeaderRow;
+    case 'job_order_detail':
+      return buildJobOrderDetailRow;
+    case 'job_order_detail_modifier':
+      return buildJobOrderDetailModifierRow;
+    case 'job_order_status_history':
+      return buildJobOrderStatusHistoryRow;
     default:
       return null;
   }
@@ -526,6 +637,96 @@ function getStatements(tableName) {
         ),
         load: db.prepare(
           'SELECT payload FROM pos_shift WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY opened_at DESC, updated_at DESC'
+        )
+      };
+      break;
+    case 'job_order_header':
+      statements = {
+        upsert: db.prepare(`
+          INSERT INTO job_order_header (branch_id, module_id, id, order_id, station_id, status, created_at, updated_at, payload)
+          VALUES (@branch_id, @module_id, @id, @order_id, @station_id, @status, @created_at, @updated_at, @payload)
+          ON CONFLICT(branch_id, module_id, id) DO UPDATE SET
+            order_id = excluded.order_id,
+            station_id = excluded.station_id,
+            status = excluded.status,
+            created_at = excluded.created_at,
+            updated_at = excluded.updated_at,
+            payload = excluded.payload
+        `),
+        remove: db.prepare(
+          'DELETE FROM job_order_header WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE AND id = @id'
+        ),
+        truncate: db.prepare(
+          'DELETE FROM job_order_header WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
+        ),
+        load: db.prepare(
+          'SELECT payload FROM job_order_header WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY created_at DESC'
+        )
+      };
+      break;
+    case 'job_order_detail':
+      statements = {
+        upsert: db.prepare(`
+          INSERT INTO job_order_detail (branch_id, module_id, id, job_order_id, item_id, status, created_at, updated_at, payload)
+          VALUES (@branch_id, @module_id, @id, @job_order_id, @item_id, @status, @created_at, @updated_at, @payload)
+          ON CONFLICT(branch_id, module_id, id) DO UPDATE SET
+            job_order_id = excluded.job_order_id,
+            item_id = excluded.item_id,
+            status = excluded.status,
+            created_at = excluded.created_at,
+            updated_at = excluded.updated_at,
+            payload = excluded.payload
+        `),
+        remove: db.prepare(
+          'DELETE FROM job_order_detail WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE AND id = @id'
+        ),
+        truncate: db.prepare(
+          'DELETE FROM job_order_detail WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
+        ),
+        load: db.prepare(
+          'SELECT payload FROM job_order_detail WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY created_at DESC'
+        )
+      };
+      break;
+    case 'job_order_detail_modifier':
+      statements = {
+        upsert: db.prepare(`
+          INSERT INTO job_order_detail_modifier (branch_id, module_id, id, job_order_detail_id, payload)
+          VALUES (@branch_id, @module_id, @id, @job_order_detail_id, @payload)
+          ON CONFLICT(branch_id, module_id, id) DO UPDATE SET
+            job_order_detail_id = excluded.job_order_detail_id,
+            payload = excluded.payload
+        `),
+        remove: db.prepare(
+          'DELETE FROM job_order_detail_modifier WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE AND id = @id'
+        ),
+        truncate: db.prepare(
+          'DELETE FROM job_order_detail_modifier WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
+        ),
+        load: db.prepare(
+          'SELECT payload FROM job_order_detail_modifier WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE'
+        )
+      };
+      break;
+    case 'job_order_status_history':
+      statements = {
+        upsert: db.prepare(`
+          INSERT INTO job_order_status_history (branch_id, module_id, id, job_order_id, status, changed_at, payload)
+          VALUES (@branch_id, @module_id, @id, @job_order_id, @status, @changed_at, @payload)
+          ON CONFLICT(branch_id, module_id, id) DO UPDATE SET
+            job_order_id = excluded.job_order_id,
+            status = excluded.status,
+            changed_at = excluded.changed_at,
+            payload = excluded.payload
+        `),
+        remove: db.prepare(
+          'DELETE FROM job_order_status_history WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE AND id = @id'
+        ),
+        truncate: db.prepare(
+          'DELETE FROM job_order_status_history WHERE branch_id = @branch_id COLLATE NOCASE AND module_id = @module_id COLLATE NOCASE'
+        ),
+        load: db.prepare(
+          'SELECT payload FROM job_order_status_history WHERE branch_id = ? COLLATE NOCASE AND module_id = ? COLLATE NOCASE ORDER BY changed_at DESC'
         )
       };
       break;
