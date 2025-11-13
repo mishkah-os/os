@@ -1604,6 +1604,16 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
     });
   }
 
+  // ✅ FIX: Handle multilingual name/description (object) or simple string
+  const normalizeName = (value) => {
+    if (typeof value === 'string') return value || null;
+    if (value && typeof value === 'object') {
+      // Try common language keys
+      return value.ar || value.en || value.name || value.label || null;
+    }
+    return null;
+  };
+
   const record = {
     uid,
     id,
@@ -1611,15 +1621,15 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
     itemId,
     item_id: itemId,  // ✅ Also send snake_case for backend compatibility
     name:
-      line.name ||
-      line.itemName ||
+      normalizeName(line.name) ||
+      normalizeName(line.itemName) ||
       line.item_name ||
       line.item_label ||
       line.label ||
       null,
     description:
-      line.description ||
-      line.itemDescription ||
+      normalizeName(line.description) ||
+      normalizeName(line.itemDescription) ||
       line.item_description ||
       line.lineDescription ||
       line.line_description ||
@@ -1639,6 +1649,10 @@ function normalizeOrderLineRecord(orderId, line, defaults) {
     updatedAt,
     statusLogs
   };
+  // ✅ FIX: Preserve metadata field if present (required for some POS systems)
+  if (line.metadata && typeof line.metadata === 'object') {
+    record.metadata = { ...line.metadata };
+  }
   if (Number.isFinite(versionValue) && versionValue > 0) {
     record.version = Math.trunc(versionValue);
   } else {

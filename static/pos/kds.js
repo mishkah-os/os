@@ -1309,11 +1309,49 @@
     const stationMap = db?.data?.stationMap || {};
     const menuIndex = db?.data?.menuIndex || {};
 
-    // ✅ CRITICAL FIX: DON'T filter by job progressState!
-    // Jobs with progressState='completed' should STAY in Expo/Handoff
-    // Only filter when ORDER is delivered (assembled/served)
-    // We check order status in getExpoOrders/getHandoffOrders filters
-    const activeJobHeaders = jobHeaders;
+    // ✅ CRITICAL FIX: Filter out FULLY COMPLETED batches
+    // A batch is "fully completed" when ALL its jobs have status='completed'
+    // This prevents old batches from reappearing when page reloads
+    const batchStatusMap = new Map();
+    jobHeaders.forEach(header => {
+      const batchId = header.batchId || header.batch_id || 'no-batch';
+      const status = header.status;
+
+      if (!batchStatusMap.has(batchId)) {
+        batchStatusMap.set(batchId, { total: 0, completed: 0, delivered: 0 });
+      }
+
+      const stats = batchStatusMap.get(batchId);
+      stats.total++;
+
+      if (status === 'completed') {
+        stats.completed++;
+      }
+
+      // Check if order is delivered via handoff
+      const orderId = header.orderId || header.order_id;
+      const orderKey = normalizeOrderKey(orderId);
+      const handoffStatus = (orderKey && (handoff[orderKey] || handoff[orderId]))?.status;
+      if (handoffStatus === 'assembled' || handoffStatus === 'served' || handoffStatus === 'delivered' || handoffStatus === 'settled') {
+        stats.delivered++;
+      }
+    });
+
+    // ✅ Filter: Keep batches that are NOT fully completed AND NOT fully delivered
+    const activeJobHeaders = jobHeaders.filter(header => {
+      const batchId = header.batchId || header.batch_id || 'no-batch';
+      const stats = batchStatusMap.get(batchId);
+
+      if (!stats) return true;  // Safety: keep if no stats
+
+      // Keep batch if:
+      // 1. NOT all jobs are completed, OR
+      // 2. NOT all orders are delivered
+      const allCompleted = stats.completed === stats.total;
+      const allDelivered = stats.delivered === stats.total;
+
+      return !(allCompleted && allDelivered);
+    });
 
     // ✅ Group job_order_header by batchId ONLY (for static tabs)
     // All jobs from same save operation → one ticket
@@ -3028,8 +3066,40 @@
   };
   const initialMenuIndex = buildMenuIndex(initialMenuItems);
   // ✅ Read job order tables from flat structure (database or kdsSource)
+  const rawJobOrderHeaders = cloneDeep(database.job_order_header || kdsSource.jobOrders?.job_order_header || kdsSource.jobOrders?.headers || []);
+
+  // ✅ CRITICAL FIX: Filter out stale job_order_header entries
+  // Only keep job_order_header from last 24 hours to prevent old batches from accumulating
+  const now = Date.now();
+  const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000);
+
+  const filteredJobOrderHeaders = rawJobOrderHeaders.filter(header => {
+    // Keep if created recently (within last 24 hours)
+    const createdAt = typeof header.createdAt === 'number' ? header.createdAt
+      : typeof header.createdAt === 'string' ? new Date(header.createdAt).getTime()
+      : 0;
+
+    const updatedAt = typeof header.updatedAt === 'number' ? header.updatedAt
+      : typeof header.updatedAt === 'string' ? new Date(header.updatedAt).getTime()
+      : 0;
+
+    const latestTime = Math.max(createdAt, updatedAt);
+
+    // Keep if recent OR if status is not completed
+    const isRecent = latestTime >= twentyFourHoursAgo;
+    const isNotCompleted = header.status !== 'completed';
+
+    return isRecent || isNotCompleted;
+  });
+
+  console.log('🧹 [KDS INIT] Filtered job_order_header:', {
+    total: rawJobOrderHeaders.length,
+    filtered: filteredJobOrderHeaders.length,
+    removed: rawJobOrderHeaders.length - filteredJobOrderHeaders.length
+  });
+
   const rawJobOrders = {
-    job_order_header: cloneDeep(database.job_order_header || kdsSource.jobOrders?.job_order_header || kdsSource.jobOrders?.headers || []),
+    job_order_header: filteredJobOrderHeaders,
     job_order_detail: cloneDeep(database.job_order_detail || kdsSource.jobOrders?.job_order_detail || kdsSource.jobOrders?.details || []),
     job_order_detail_modifier: cloneDeep(database.job_order_detail_modifier || kdsSource.jobOrders?.job_order_detail_modifier || kdsSource.jobOrders?.modifiers || []),
     job_order_status_history: cloneDeep(database.job_order_status_history || kdsSource.jobOrders?.job_order_status_history || kdsSource.jobOrders?.statusHistory || [])
