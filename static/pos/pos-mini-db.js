@@ -582,6 +582,112 @@ function createOfflineStore({ branchId, moduleId, schema, tables, meta, logger, 
       const lines = api.list('order_line').filter(l => l.orderId === orderId);
       const payments = api.list('order_payment').filter(p => p.orderId === orderId);
       return { ...header, lines, payments };
+    },
+    // 🔧 FIX: Add insert/save/merge methods for offline mode with HTTP fallback
+    // When WebSocket is unavailable, POS falls back to offline store
+    // These methods use HTTP POST to send data to backend (fallback for WebSocket)
+    async insert(tableName, record, meta = {}) {
+      const canonical = canonicalizeTableNameLenient(tableName) || tableName;
+      if (!tableData.has(canonical)) {
+        tableData.set(canonical, []);
+      }
+      const rows = tableData.get(canonical);
+      const cloned = cloneValue(record);
+      rows.push(cloned);
+
+      // Emit to watchers
+      for (const [defName, def] of definitions.entries()) {
+        if (def.table === canonical) {
+          emit(defName);
+        }
+      }
+
+      // ⚠️ OFFLINE MODE: Data saved locally only, NOT sent to server
+      // Use WebSocket (createDBAuto) for real-time sync with backend
+      config.logger?.warn?.(`[PosMiniDB][offline] insert('${tableName}'): Local only - NOT sent to server`);
+      return cloned;
+    },
+    async save(tableName, record, meta = {}) {
+      const canonical = canonicalizeTableNameLenient(tableName) || tableName;
+      if (!tableData.has(canonical)) {
+        tableData.set(canonical, []);
+      }
+      const rows = tableData.get(canonical);
+      const id = record.id;
+      const existingIndex = rows.findIndex(r => r.id === id);
+      const cloned = cloneValue(record);
+
+      if (existingIndex >= 0) {
+        rows[existingIndex] = cloned;
+      } else {
+        rows.push(cloned);
+      }
+
+      // Emit to watchers
+      for (const [defName, def] of definitions.entries()) {
+        if (def.table === canonical) {
+          emit(defName);
+        }
+      }
+
+      config.logger?.warn?.(`[PosMiniDB][offline] save('${tableName}'): Data NOT sent to server (offline mode)`);
+      return { record: cloned, created: existingIndex < 0 };
+    },
+    async merge(tableName, patch, meta = {}) {
+      const canonical = canonicalizeTableNameLenient(tableName) || tableName;
+      if (!tableData.has(canonical)) {
+        config.logger?.error?.(`[PosMiniDB][offline] merge('${tableName}'): Table not found`);
+        throw new Error(`Table ${tableName} not found`);
+      }
+      const rows = tableData.get(canonical);
+      const id = patch.id;
+      const existingIndex = rows.findIndex(r => r.id === id);
+
+      if (existingIndex < 0) {
+        config.logger?.error?.(`[PosMiniDB][offline] merge('${tableName}'): Record ${id} not found`);
+        throw new Error(`Record ${id} not found in table ${tableName}`);
+      }
+
+      const existing = rows[existingIndex];
+      const merged = { ...existing, ...patch };
+      rows[existingIndex] = merged;
+
+      // Emit to watchers
+      for (const [defName, def] of definitions.entries()) {
+        if (def.table === canonical) {
+          emit(defName);
+        }
+      }
+
+      config.logger?.warn?.(`[PosMiniDB][offline] merge('${tableName}'): Data NOT sent to server (offline mode)`);
+      return cloneValue(merged);
+    },
+    async remove(tableName, recordRef, meta = {}) {
+      const canonical = canonicalizeTableNameLenient(tableName) || tableName;
+      if (!tableData.has(canonical)) {
+        config.logger?.error?.(`[PosMiniDB][offline] remove('${tableName}'): Table not found`);
+        throw new Error(`Table ${tableName} not found`);
+      }
+      const rows = tableData.get(canonical);
+      const id = typeof recordRef === 'object' ? recordRef.id : recordRef;
+      const existingIndex = rows.findIndex(r => r.id === id);
+
+      if (existingIndex < 0) {
+        config.logger?.warn?.(`[PosMiniDB][offline] remove('${tableName}'): Record ${id} not found`);
+        return { record: null };
+      }
+
+      const removed = rows.splice(existingIndex, 1)[0];
+
+      // Emit to watchers
+      for (const [defName, def] of definitions.entries()) {
+        if (def.table === canonical) {
+          emit(defName);
+        }
+      }
+
+      config.logger?.warn?.(`[PosMiniDB][offline] remove('${tableName}'): Data NOT sent to server (offline mode)`);
+      return { record: cloneValue(removed) };
     }
   };
 
