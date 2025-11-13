@@ -6193,6 +6193,25 @@ async function handleMessage(client, raw) {
       }
       try {
         await handleModuleEvent(branchId, moduleId, parsed, client, { source: parsed.source || 'ws-client' });
+
+        // ✅ CRITICAL FIX: Broadcast sync update after handleModuleEvent
+        // This ensures all connected clients (including KDS) receive the update in real-time
+        // Without this, clients need to refresh to see changes from other devices
+        const state = await ensureSyncState(branchId, moduleId);
+        await broadcastSyncUpdate(branchId, moduleId, state, {
+          action: parsed.action || 'module:insert',
+          mutationId: parsed.mutationId || parsed.id || null,
+          meta: {
+            table: tableName,
+            source: 'ws-client-insert',
+            clientId: client.id
+          }
+        });
+
+        // 🔍 DEBUG: Log broadcasting for job_order tables
+        if (tableName && tableName.startsWith('job_order_')) {
+          console.log(`✅ [WebSocket][Broadcasting] Broadcasted ${tableName} update to all clients`);
+        }
       } catch (error) {
         logger.warn({ err: error, clientId: client.id, branchId, moduleId, table: tableName }, 'Module event failed');
         sendServerLog(client, 'error', error.message || 'Module event failed');
