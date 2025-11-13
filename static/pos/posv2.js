@@ -7243,7 +7243,7 @@
                     version: orderHeader.version
                   });
                   return retryWithBackoff(
-                    () => store.insert('order_header', orderHeader),
+                    () => store.insert('order_header', orderHeader, { silent: false }),
                     `INSERT order_header: ${orderHeader.id}`
                   );
                 }
@@ -7253,7 +7253,7 @@
               // For new orders: insert all lines
               ...(kdsPayload.order_line || []).map(orderLine =>
                 retryWithBackoff(
-                  () => store.insert('order_line', orderLine),
+                  () => store.insert('order_line', orderLine, { silent: false }),
                   `INSERT order_line: ${orderLine.id}`
                 )
               ),
