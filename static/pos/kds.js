@@ -4400,8 +4400,9 @@
 
     try {
       const baseUrl = window.basedomain || '';
-      const branchId = BRANCH_ID || 'dar';
-      const moduleId = MODULE_ID || 'pos';
+      // ✅ Get branchId and moduleId from store or window or fallback to defaults
+      const branchId = (store && store.branchId) || window.BRANCH_ID || 'dar';
+      const moduleId = (store && store.moduleId) || 'pos';
 
       // ✅ STEP 1: Update job_order_header
       const headerPayload = {
