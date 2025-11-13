@@ -7199,6 +7199,22 @@
                   const currentVersion = existingOrderHeader?.version || order.version || order.currentVersion || 1;
                   const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
 
+                  // ✅ CRITICAL VALIDATION: Ensure version exists - update WILL FAIL without it!
+                  if (!Number.isFinite(nextVersion) || nextVersion < 1) {
+                    console.error('❌ [POS V2] FATAL: Cannot update order_header without valid version!', {
+                      orderId: orderHeader.id,
+                      currentVersion,
+                      nextVersion,
+                      existingOrderHeader: !!existingOrderHeader,
+                      fallbackToInsert: false
+                    });
+                    // Return failed result - don't attempt update without version
+                    return Promise.resolve({
+                      success: false,
+                      error: new Error(`Missing valid version for update (currentVersion: ${currentVersion})`)
+                    });
+                  }
+
                   const updatePayload = {
                     ...orderHeader,
                     version: nextVersion  // ✅ REQUIRED for update to work!
@@ -7211,11 +7227,12 @@
                     notes: updatePayload.notes,  // ✅ DEBUG: Log notes in update payload
                     notesType: typeof updatePayload.notes,
                     currentVersion,
-                    nextVersion
+                    nextVersion,
+                    versionValid: true  // ✅ Confirmed version is valid
                   });
                   return retryWithBackoff(
                     () => store.update('order_header', updatePayload),
-                    `UPDATE order_header: ${orderHeader.id}`
+                    `UPDATE order_header: ${orderHeader.id} (v${currentVersion}→v${nextVersion})`
                   );
                 } else {
                   console.log('✨ [POS V2] INSERTING order_header (new order):', orderHeader.id, {
@@ -7374,21 +7391,40 @@
 
               if (existingOrderHeader && typeof store.update === 'function') {
                 const currentVersion = existingOrderHeader.version || 1;
-                const nextVersion = currentVersion + 1;
+                const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
                 const nowIso = new Date().toISOString();
 
-                // Update order_header to closed
-                store.update('order_header', {
-                  id: orderPayload.id,
-                  fulfillmentStage: 'closed',
-                  status: 'closed',
-                  version: nextVersion,
-                  updatedAt: nowIso
-                }).then(() => {
-                  console.log('[POS V2] ✅ Dine-in order closed successfully');
-                }).catch(err => {
-                  console.error('[POS V2] ❌ Failed to close dine-in order:', err);
-                });
+                // ✅ CRITICAL VALIDATION: Ensure version exists - update WILL FAIL without it!
+                if (!Number.isFinite(nextVersion) || nextVersion < 1) {
+                  console.error('❌ [POS V2] FATAL: Cannot close order_header without valid version!', {
+                    orderId: orderPayload.id,
+                    currentVersion,
+                    nextVersion
+                  });
+                } else {
+                  // Update order_header to closed (with retry logic)
+                  const updateOperation = async () => {
+                    return store.update('order_header', {
+                      id: orderPayload.id,
+                      fulfillmentStage: 'closed',
+                      status: 'closed',
+                      version: nextVersion,
+                      updatedAt: nowIso
+                    });
+                  };
+
+                  retryWithBackoff(updateOperation, `CLOSE order_header: ${orderPayload.id} (v${currentVersion}→v${nextVersion})`)
+                    .then(result => {
+                      if (result.success) {
+                        console.log('[POS V2] ✅ Dine-in order closed successfully');
+                      } else {
+                        console.error('[POS V2] ❌ Failed to close dine-in order after retries:', result.error);
+                      }
+                    })
+                    .catch(err => {
+                      console.error('[POS V2] ❌ Unexpected error closing dine-in order:', err);
+                    });
+                }
               }
             }
           }
