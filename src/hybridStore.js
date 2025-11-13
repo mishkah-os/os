@@ -37,8 +37,11 @@ export default class HybridStore extends ModuleStore {
   }
 
   bootstrapPersistedTables() {
-    if (!this.persistedTables.size) {
+    if (!this.persistedTables || !this.persistedTables.size) {
       return;
+    }
+    if (!this.tableCache) {
+      this.tableCache = new Map();
     }
     const context = { branchId: this.branchId, moduleId: this.moduleId };
     const now = Date.now();
@@ -90,15 +93,17 @@ export default class HybridStore extends ModuleStore {
     this.version = snapshot.version;
     this.meta = snapshot.meta;
     this.data[tableName] = snapshot.rows.map((entry) => deepClone(entry));
-    this.tableCache.delete(tableName);
+    if (this.tableCache) {
+      this.tableCache.delete(tableName);
+    }
   }
 
   refreshTableIfNeeded(tableName, { force = false } = {}) {
-    if (!this.persistedTables.has(tableName)) {
+    if (!this.persistedTables || !this.persistedTables.has(tableName)) {
       return { refreshed: false, reason: 'non-persisted' };
     }
     const now = Date.now();
-    const entry = this.tableCache.get(tableName);
+    const entry = this.tableCache ? this.tableCache.get(tableName) : null;
     if (!force && entry && entry.expiresAt > now && Array.isArray(this.data?.[tableName])) {
       this.cacheHits += 1;
       return { refreshed: false, reason: 'cache-hit' };
@@ -111,12 +116,17 @@ export default class HybridStore extends ModuleStore {
       normalized.push(clone);
     }
     this.data[tableName] = normalized;
-    this.tableCache.set(tableName, { expiresAt: now + this.cacheTtlMs, size: normalized.length, loadedAt: now });
+    if (this.tableCache) {
+      this.tableCache.set(tableName, { expiresAt: now + this.cacheTtlMs, size: normalized.length, loadedAt: now });
+    }
     return { refreshed: true, reason: force ? 'forced' : 'expired', size: normalized.length };
   }
 
   refreshPersistedTables(force = false) {
     const results = [];
+    if (!this.persistedTables || typeof this.persistedTables[Symbol.iterator] !== 'function') {
+      return results;
+    }
     for (const tableName of this.persistedTables) {
       results.push(this.refreshTableIfNeeded(tableName, { force }));
     }
@@ -124,7 +134,8 @@ export default class HybridStore extends ModuleStore {
   }
 
   invalidateCache(tableName) {
-    if (!this.persistedTables.has(tableName)) return;
+    if (!this.persistedTables || !this.persistedTables.has(tableName)) return;
+    if (!this.tableCache) return; // Cache not initialized yet (during super() constructor call)
     this.tableCache.delete(tableName);
   }
 
@@ -169,9 +180,11 @@ export default class HybridStore extends ModuleStore {
 
   reset() {
     super.reset();
-    for (const tableName of this.persistedTables) {
-      truncateSqlTable(tableName, { branchId: this.branchId, moduleId: this.moduleId });
-      this.invalidateCache(tableName);
+    if (this.persistedTables && typeof this.persistedTables[Symbol.iterator] === 'function') {
+      for (const tableName of this.persistedTables) {
+        truncateSqlTable(tableName, { branchId: this.branchId, moduleId: this.moduleId });
+        this.invalidateCache(tableName);
+      }
     }
   }
 
