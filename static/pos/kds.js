@@ -1315,21 +1315,31 @@
     // We check order status in getExpoOrders/getHandoffOrders filters
     const activeJobHeaders = jobHeaders;
 
-    // ✅ Group job_order_header by orderId
-    const jobsByOrder = new Map();
+    // ✅ Group job_order_header by orderId + batchId (for static tabs)
+    // Each batch → separate ticket (batch جديد القديم مش لازم يظهر)
+    const jobsByOrderAndBatch = new Map();
     activeJobHeaders.forEach(header => {
       const orderId = header.orderId || header.order_id;
+      const batchId = header.batchId || header.batch_id || 'no-batch';
       if (!orderId) return;
 
-      if (!jobsByOrder.has(orderId)) {
-        jobsByOrder.set(orderId, []);
+      // Create unique key: orderId::batchId
+      const key = `${orderId}::${batchId}`;
+
+      if (!jobsByOrderAndBatch.has(key)) {
+        jobsByOrderAndBatch.set(key, {
+          orderId,
+          batchId: batchId === 'no-batch' ? null : batchId,
+          headers: []
+        });
       }
-      jobsByOrder.get(orderId).push(header);
+      jobsByOrderAndBatch.get(key).headers.push(header);
     });
 
-    // ✅ Build orders from grouped job_order_header
+    // ✅ Build orders from grouped job_order_header (by orderId + batchId)
     const orders = [];
-    jobsByOrder.forEach((headers, orderId) => {
+    jobsByOrderAndBatch.forEach((group) => {
+      const { orderId, batchId, headers } = group;
       // Use first header for order-level info
       const firstHeader = headers[0];
       const orderKey = normalizeOrderKey(orderId);
@@ -1419,6 +1429,7 @@
 
       orders.push({
         orderId,
+        batchId,  // ✅ Track which batch this order ticket represents
         orderNumber: firstHeader.orderNumber || firstHeader.order_number || orderId,
         serviceMode: firstHeader.serviceMode || firstHeader.service_mode || 'dine_in',
         tableLabel: firstHeader.tableLabel || firstHeader.table_label || null,
@@ -1431,6 +1442,7 @@
         pendingItems,
         detailRows,
         jobs,
+        jobCount: headers.length,  // ✅ Number of jobs (stations) in this batch
         createdAt: firstHeader.createdAt || firstHeader.created_at,
         updatedAt: firstHeader.updatedAt || firstHeader.updated_at,
         createdMs: parseTime(firstHeader.createdAt || firstHeader.created_at)
