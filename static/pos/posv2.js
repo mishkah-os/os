@@ -3006,12 +3006,12 @@
       // ✅ Build snapshot with job_orders ONLY for backend persistence
       // Backend now supports PARTIAL SNAPSHOTS (only updates tables present in snapshot)
       // This prevents erasing master tables and reduces payload size
-      const jobOrders = payload.jobOrders || {};
+      // 🔧 FIX: job_order data is at ROOT level, not inside jobOrders property
       const snapshot = {
-        job_order_header: jobOrders.headers || [],
-        job_order_detail: jobOrders.details || [],
-        job_order_detail_modifier: jobOrders.modifiers || [],
-        job_order_status_history: jobOrders.statusHistory || []
+        job_order_header: payload.job_order_header || [],
+        job_order_detail: payload.job_order_detail || [],
+        job_order_detail_modifier: payload.job_order_detail_modifier || [],
+        job_order_status_history: payload.job_order_status_history || []
       };
       payload.snapshot = snapshot;
 
@@ -3054,13 +3054,14 @@
 
             // ⚠️ FALLBACK MODE: No WebSocket - job_orders stored in offline store only
             // Data will NOT persist to backend - consider implementing HTTP POST fallback
-            const jobOrders = envelope.payload?.jobOrders;
-            if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
+            // 🔧 FIX: job_order data is at ROOT level of payload, not inside jobOrders property
+            const payload = envelope.payload || {};
+            if (payload && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
               const store = window.__POS_DB__;
-              const headers = jobOrders.headers || [];
-              const details = jobOrders.details || [];
-              const modifiers = jobOrders.modifiers || [];
-              const statusHistory = jobOrders.statusHistory || [];
+              const headers = payload.job_order_header || [];
+              const details = payload.job_order_detail || [];
+              const modifiers = payload.job_order_detail_modifier || [];
+              const statusHistory = payload.job_order_status_history || [];
 
               console.warn('[POS][KDS][Fallback] WebSocket unavailable - job_orders will NOT persist! Consider HTTP POST:', {
                 headers: headers.length,
@@ -3193,13 +3194,14 @@
           // 2. Persist to disk
           // 3. Broadcast to all connected clients (including KDS)
           // No need for separate sendEnvelope!
-          const jobOrders = envelope.payload?.jobOrders;
-          if (jobOrders && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
+          // 🔧 FIX: job_order data is at ROOT level of payload, not inside jobOrders property
+          const payload = envelope.payload || {};
+          if (payload && typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.insert === 'function') {
             const store = window.__POS_DB__;
-            const headers = jobOrders.headers || [];
-            const details = jobOrders.details || [];
-            const modifiers = jobOrders.modifiers || [];
-            const statusHistory = jobOrders.statusHistory || [];
+            const headers = payload.job_order_header || [];
+            const details = payload.job_order_detail || [];
+            const modifiers = payload.job_order_detail_modifier || [];
+            const statusHistory = payload.job_order_status_history || [];
 
             console.log('[POS][KDS] Persisting job_orders via WebSocket store:', {
               headers: headers.length,
