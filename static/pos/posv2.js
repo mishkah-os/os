@@ -241,15 +241,19 @@
     };
     const TABLE_ALIAS_GROUPS = {
       dataset:{ canonical:'pos_database', aliases:['pos_dataset','pos_data','dataset','pos_snapshot'] },
+      // ✅ UNIFIED: Removed aliases - use canonical names only
       orderHeader:{
         canonical:'order_header',
-        aliases:['orders','order_headers','orderHeader','order_header_live','pos_order_header','pos_orders']
+        aliases:[]  // ✅ Removed: ['orders','order_headers','orderHeader','order_header_live','pos_order_header','pos_orders']
       },
       orderLine:{
         canonical:'order_line',
-        aliases:['order_lines','order_line_items','orderLineItems','orderDetails','order_items','orderLines']
+        aliases:[]  // ✅ Removed: ['order_lines','order_line_items','orderLineItems','orderDetails','order_items','orderLines']
       },
-      orderPayment:{ canonical:'order_payment', aliases:['order_payments','payments','orderPayments','payment_transactions'] },
+      orderPayment:{
+        canonical:'order_payment',
+        aliases:[]  // ✅ Removed: ['order_payments','payments','orderPayments','payment_transactions']
+      },
       orderLineModifier:{
         canonical:'order_line_modifier',
         aliases:['order_line_modifiers','orderModifiers','order_line_addons','orderLines_modifier','orderLines_modifiers']
@@ -260,13 +264,23 @@
         aliases:['order_line_status_history','line_status_history','orderLines_status_log','orderLines_status_history']
       },
       posShift:{ canonical:'pos_shift', aliases:['pos_shifts','shifts','shift_header','shiftHeaders'] },
+      // ✅ UNIFIED: Removed aliases - use canonical names only
       jobOrderHeader:{
         canonical:'job_order_header',
-        aliases:['job_orders','job_order_headers','production_orders','production_order_header','jobOrders']
+        aliases:[]  // ✅ Removed: ['job_orders','job_order_headers','production_orders','production_order_header','jobOrders']
       },
-      jobOrderDetail:{ canonical:'job_order_detail', aliases:['job_order_details','jobOrderDetails','production_order_detail'] },
-      jobOrderDetailModifier:{ canonical:'job_order_detail_modifier', aliases:['job_order_modifiers','jobOrderModifiers'] },
-      jobOrderStatusHistory:{ canonical:'job_order_status_history', aliases:['job_order_status_log','jobStatusHistory'] },
+      jobOrderDetail:{
+        canonical:'job_order_detail',
+        aliases:[]  // ✅ Removed: ['job_order_details','jobOrderDetails','production_order_detail']
+      },
+      jobOrderDetailModifier:{
+        canonical:'job_order_detail_modifier',
+        aliases:[]  // ✅ Removed: ['job_order_modifiers','jobOrderModifiers']
+      },
+      jobOrderStatusHistory:{
+        canonical:'job_order_status_history',
+        aliases:[]  // ✅ Removed: ['job_order_status_log','jobStatusHistory']
+      },
       expoPassTicket:{ canonical:'expo_pass_ticket', aliases:['expo_pass_tickets','expo_tickets','expoPassTickets'] },
       kitchenSection:{ canonical:'kitchen_section', aliases:['kitchen_sections','kitchenStations'] },
       diningTable:{ canonical:'dining_table', aliases:['tables','dining_tables','restaurant_tables'] },
@@ -2563,9 +2577,17 @@
               where: { jobOrderId }
             });
 
+            console.log(`🔍 [DATABASE CHECK] Found existing job_order_detail for job ${jobOrderId}:`, {
+              count: existingJobDetails.length,
+              details: existingJobDetails.map(d => ({ id: d.id, orderLineId: d.orderLineId || d.order_line_id, itemName: d.itemNameEn }))
+            });
+
             existingJobDetails.forEach(detail => {
               const lineId = detail.orderLineId || detail.order_line_id;
-              if (lineId) alreadySentLineIds.add(String(lineId));
+              if (lineId) {
+                alreadySentLineIds.add(String(lineId));
+                console.log(`➕ [DATABASE CHECK] Added lineId to alreadySent set:`, lineId);
+              }
             });
           }
 
@@ -2582,9 +2604,23 @@
       // ✅ CRITICAL: Filter out lines that already have job_order_detail
       const linesToSendToKitchen = lines.filter((line, index) => {
         const lineIndex = index + 1;
-        // ✅ Use same logic as baseLineId to ensure matching
-        const lineId = toIdentifier(line.id, line.uid, line.storageId, `${order.id}-line-${lineIndex}`) || `${order.id}-line-${lineIndex}`;
-        const alreadySent = alreadySentLineIds.has(lineId);
+        // ✅ CRITICAL FIX: Check using BOTH line.id AND fallback pattern
+        // Line ID should be stable - don't rely on lineIndex which changes when lines are added/removed
+        const primaryLineId = toIdentifier(line.id, line.uid, line.storageId);
+        const fallbackLineId = `${order.id}-line-${lineIndex}`;
+        const lineId = primaryLineId || fallbackLineId;
+
+        // ✅ Check if EITHER the primary ID or fallback ID was already sent
+        const alreadySent = primaryLineId ? alreadySentLineIds.has(primaryLineId) : alreadySentLineIds.has(fallbackLineId);
+
+        console.log('🔍 [LINE CHECK]', {
+          lineId,
+          primaryLineId,
+          fallbackLineId,
+          itemName: line.name,
+          alreadySent,
+          'line.isPersisted': line.isPersisted
+        });
 
         if (alreadySent) {
           console.log('⏭️ [SKIP LINE] Line already sent to kitchen:', {
@@ -4163,10 +4199,10 @@
       const registeredObjects = Object.keys(store.config?.objects || {});
       console.log('[POS][installRealtimeOrderWatchers] Registered objects:', registeredObjects);
 
-      // استخدام نفس aliases المستخدمة في pos_finance للتوافق
-      const headerTableName = 'orders';        // alias لـ order_header
-      const lineTableName = 'lines';           // alias لـ order_line
-      const paymentTableName = 'payments';     // alias لـ order_payment
+      // ✅ UNIFIED: استخدام canonical names فقط (matching Backend)
+      const headerTableName = 'order_header';   // ✅ Canonical name
+      const lineTableName = 'order_line';       // ✅ Canonical name
+      const paymentTableName = 'order_payment'; // ✅ Canonical name
 
       // تسجيل الجداول إذا لم تكن مسجلة
       if(typeof store.register === 'function'){
@@ -7085,21 +7121,28 @@
                 )
               ),
               // Save job_order_header (for dynamic station tabs)
+              // ✅ CRITICAL: silent: false to broadcast changes to KDS immediately!
               ...kdsPayload.job_order_header.map(jobHeader =>
-                store.insert('job_order_header', jobHeader).catch(err =>
+                store.insert('job_order_header', jobHeader, { silent: false }).catch(err =>
                   console.error('[POS V2] Failed to save job_order_header:', jobHeader.id, err)
                 )
               ),
               // Save details
               ...(kdsPayload.job_order_detail || []).map(jobDetail =>
-                store.insert('job_order_detail', jobDetail).catch(err =>
+                store.insert('job_order_detail', jobDetail, { silent: false }).catch(err =>
                   console.error('[POS V2] Failed to save job_order_detail:', jobDetail.id, err)
                 )
               ),
               // Save modifiers
               ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
-                store.insert('job_order_detail_modifier', modifier).catch(err =>
+                store.insert('job_order_detail_modifier', modifier, { silent: false }).catch(err =>
                   console.error('[POS V2] Failed to save job_order_detail_modifier:', modifier.id, err)
+                )
+              ),
+              // Save status history
+              ...(kdsPayload.job_order_status_history || []).map(history =>
+                store.insert('job_order_status_history', history, { silent: false }).catch(err =>
+                  console.error('[POS V2] Failed to save job_order_status_history:', history.id, err)
                 )
               )
             ]).then(() => {

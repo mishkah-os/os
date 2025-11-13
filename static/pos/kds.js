@@ -1695,10 +1695,12 @@
     .filter(order=>{
       if(!order) return false;
       const status = order.handoffStatus;
-      // ✅ CRITICAL FIX: Show ALL orders except assembled/served/delivered
-      // Orders should appear here from the beginning (even while cooking)
-      // and only disappear when assembled (moved to delivery queue)
-      if(status === 'assembled' || status === 'served' || status === 'delivered' || status === 'settled') return false;
+      // ✅ CRITICAL FIX: Show orders until they are served (assembled should appear!)
+      // - pending/ready: Show in handoff (cooking/ready for assembly)
+      // - assembled: SHOW in handoff (ready for customer pickup/serving) ✅
+      // - served: Hide (already handed to customer)
+      // - delivered/settled: Hide (completed)
+      if(status === 'served' || status === 'delivered' || status === 'settled') return false;
       const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
       return serviceMode !== 'delivery';
     });
