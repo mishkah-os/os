@@ -4517,50 +4517,65 @@ async function handleBranchesApi(req, res, url) {
 
       console.log(`📈 [RESET] Max existing ID: ${maxId}, Next ID will be: ${nextId}`);
 
-      // Force sequence manager to use this value
-      // We'll call nextValue multiple times until it catches up
-      let attempts = 0;
-      let currentValue = 0;
-      const maxAttempts = nextId + 10; // Safety limit
+      // ✅ DIRECT FILE WRITE - Much faster than calling nextValue() repeatedly
+      const { readFile: fsRead, writeFile: fsWrite, mkdir: fsMkdir } = await import('fs/promises');
+      const path = await import('path');
 
-      while (currentValue < nextId && attempts < maxAttempts) {
-        attempts++;
-        const allocation = await sequenceManager.nextValue(branchId, moduleId, 'order_header', 'id', {
-          record: {},
-          autoCreate: true
-        });
+      const branchKey = encodeURIComponent(branchId);
+      const stateFilePath = path.join(BRANCHES_DIR, branchKey, 'sequence-state.json');
+      const sequenceKey = `${moduleId}:order_header:id`;
 
-        if (allocation) {
-          currentValue = allocation.value;
-          console.log(`🔢 [RESET ATTEMPT ${attempts}] Current sequence: ${currentValue}, Target: ${nextId}`);
+      console.log(`📁 [RESET] State file path: ${stateFilePath}`);
 
-          if (currentValue >= nextId) {
-            console.log(`✅ [RESET] Sequence reset successful! Next ID: ${allocation.formatted}`);
-            jsonResponse(res, 200, {
-              success: true,
-              maxExistingId: maxId,
-              newSequenceValue: currentValue,
-              nextInvoiceId: allocation.formatted,
-              attempts
-            });
-            return;
-          }
-        }
+      // Read current state
+      let currentState = {};
+      try {
+        const raw = await fsRead(stateFilePath, 'utf8');
+        currentState = JSON.parse(raw);
+        console.log(`📖 [RESET] Current state:`, currentState);
+      } catch (err) {
+        console.log(`📝 [RESET] No existing state file, will create new one`);
       }
 
-      // If we couldn't catch up, return partial success
+      // Update the counter
+      currentState[sequenceKey] = {
+        last: nextId,
+        updatedAt: new Date().toISOString()
+      };
+
+      // Ensure directory exists
+      await fsMkdir(path.dirname(stateFilePath), { recursive: true });
+
+      // Write updated state
+      await fsWrite(stateFilePath, JSON.stringify(currentState, null, 2), 'utf8');
+
+      console.log(`✅ [RESET] Sequence reset successful! File written with counter: ${nextId}`);
+
+      // ✅ Clear sequence manager cache so it re-reads the file
+      if (sequenceManager.branchStateCache) {
+        sequenceManager.branchStateCache.delete(branchId);
+        sequenceManager.branchStateCache.delete('default');
+        console.log(`🗑️ [RESET] Cleared sequence manager cache`);
+      }
+
+      // Test allocation to verify
+      const testAllocation = await sequenceManager.nextValue(branchId, moduleId, 'order_header', 'id', {
+        record: {},
+        autoCreate: true
+      });
+
       jsonResponse(res, 200, {
         success: true,
-        warning: 'Could not fully reset sequence, but advanced it',
         maxExistingId: maxId,
-        newSequenceValue: currentValue,
-        targetValue: nextId,
-        attempts
+        resetToValue: nextId,
+        nextInvoiceId: testAllocation?.formatted || `unknown`,
+        actualNextValue: testAllocation?.value || nextId + 1,
+        stateFilePath
       });
 
     } catch (error) {
       logger.error({ err: error, branchId, moduleId }, 'Failed to reset sequence');
-      jsonResponse(res, 500, { error: 'reset-failed', message: error.message });
+      jsonResponse(res, 500, { error: 'reset-failed', message: error.message, stack: error.stack });
     }
     return;
   }
