@@ -4388,128 +4388,197 @@
 
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
-    if (!store || typeof store.update !== 'function' || typeof store.insert !== 'function') {
-      console.warn('[KDS][persistJobOrderStatusChange] Store not available, will try REST API instead');
+    // ✅ CRITICAL FIX: Use REST API exclusively for status updates (more reliable than WebSocket store.update)
+    // Reason: store.update() often times out in KDS, causing job_order_detail to not update
+    // REST API is slower but much more stable for critical operations
 
-      // ✅ Fallback: Use REST API directly if store is not available
-      try {
-        const baseUrl = '/api/v1';
+    console.log('[KDS][persistJobOrderStatusChange] Starting status change via REST API:', {
+      jobId,
+      status: statusPayload.status,
+      progressState: statusPayload.progressState
+    });
 
-        // Update job_order_header
-        // ✅ CRITICAL FIX: Include startedAt, readyAt, completedAt for timer to work!
-        const headerPayload = {
-          status: statusPayload.status,
-          progressState: statusPayload.progressState,
-          updatedAt: statusPayload.updatedAt || new Date().toISOString()
-        };
-        // ✅ Add timestamp fields if present (needed for timer!)
-        if (statusPayload.startedAt) {
-          headerPayload.startedAt = statusPayload.startedAt;
-          headerPayload.started_at = statusPayload.startedAt;  // snake_case for backend
-        }
-        if (statusPayload.readyAt) {
-          headerPayload.readyAt = statusPayload.readyAt;
-          headerPayload.ready_at = statusPayload.readyAt;
-        }
-        if (statusPayload.completedAt) {
-          headerPayload.completedAt = statusPayload.completedAt;
-          headerPayload.completed_at = statusPayload.completedAt;
-        }
-        await fetch(`${baseUrl}/job_order_header/${jobId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(headerPayload)
-        });
+    try {
+      const baseUrl = window.basedomain || '';
+      const branchId = BRANCH_ID || 'dar';
+      const moduleId = MODULE_ID || 'pos';
 
-        // Update order_line (only for items in this job)
-        const baseOrderId = extractBaseOrderId(jobId);
-        if (baseOrderId && statusPayload.status) {
-          // Get itemIds from job_order_detail
-          const allJobDetails = watcherState.lines || [];
-          const jobDetails = allJobDetails.filter(detail =>
-            String(detail.jobOrderId || detail.job_order_id) === jobId
-          );
-          const jobItemIds = jobDetails.map(detail =>
-            String(detail.itemId || detail.item_id || '')
-          ).filter(id => id);
+      // ✅ STEP 1: Update job_order_header
+      const headerPayload = {
+        status: statusPayload.status,
+        progressState: statusPayload.progressState,
+        progress_state: statusPayload.progressState,  // snake_case
+        updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+        updated_at: statusPayload.updatedAt || new Date().toISOString()
+      };
 
-          const orderLines = watcherState.orderLines || [];
-          const matchingLines = orderLines.filter(line => {
-            const lineOrderId = String(line.orderId || line.order_id || '');
-            const lineItemId = String(line.itemId || line.item_id || '');
-            return lineOrderId === baseOrderId && jobItemIds.includes(lineItemId);
+      // ✅ Add timestamp fields if present (needed for timer!)
+      if (statusPayload.startedAt) {
+        headerPayload.startedAt = statusPayload.startedAt;
+        headerPayload.started_at = statusPayload.startedAt;
+      }
+      if (statusPayload.readyAt) {
+        headerPayload.readyAt = statusPayload.readyAt;
+        headerPayload.ready_at = statusPayload.readyAt;
+      }
+      if (statusPayload.completedAt) {
+        headerPayload.completedAt = statusPayload.completedAt;
+        headerPayload.completed_at = statusPayload.completedAt;
+      }
+
+      console.log('[KDS][persistJobOrderStatusChange] Updating job_order_header:', jobId, headerPayload);
+
+      const headerResponse = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_header/${jobId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(headerPayload)
+      });
+
+      if (!headerResponse.ok) {
+        throw new Error(`Failed to update job_order_header: ${headerResponse.status} ${headerResponse.statusText}`);
+      }
+
+      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated successfully');
+
+      // ✅ STEP 2: Update all job_order_detail for this job (in parallel)
+      const allJobDetails = watcherState.lines || [];
+      const jobDetails = allJobDetails.filter(detail =>
+        String(detail.jobOrderId || detail.job_order_id) === jobId
+      );
+
+      console.log('[KDS][persistJobOrderStatusChange] Updating job_order_detail:', {
+        jobId,
+        detailsCount: jobDetails.length,
+        detailIds: jobDetails.map(d => d.id)
+      });
+
+      const detailPayload = {
+        status: statusPayload.status,
+        updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+        updated_at: statusPayload.updatedAt || new Date().toISOString()
+      };
+
+      // ✅ Add startAt if this is the first time starting
+      if (statusPayload.status === 'in_progress' && statusPayload.startedAt) {
+        detailPayload.startAt = statusPayload.startedAt;
+        detailPayload.start_at = statusPayload.startedAt;
+      }
+
+      // ✅ Update all details in parallel (faster)
+      const detailUpdatePromises = jobDetails.map(async (detail) => {
+        try {
+          const response = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_detail/${detail.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(detailPayload)
           });
 
-          for (const line of matchingLines) {
-            await fetch(`${baseUrl}/order_line/${line.id}`, {
+          if (!response.ok) {
+            throw new Error(`Failed to update job_order_detail ${detail.id}: ${response.status}`);
+          }
+
+          console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail updated: ${detail.id}`);
+          return { success: true, id: detail.id };
+        } catch (error) {
+          console.error(`[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail ${detail.id}:`, error);
+          return { success: false, id: detail.id, error };
+        }
+      });
+
+      const detailResults = await Promise.all(detailUpdatePromises);
+      const successCount = detailResults.filter(r => r.success).length;
+
+      console.log('[KDS][persistJobOrderStatusChange] job_order_detail updates completed:', {
+        total: detailResults.length,
+        success: successCount,
+        failed: detailResults.length - successCount
+      });
+
+      // ✅ STEP 3: Update order_line (only for items in this job)
+      const baseOrderId = extractBaseOrderId(jobId);
+
+      if (baseOrderId && statusPayload.status) {
+        const jobItemIds = jobDetails.map(detail =>
+          String(detail.itemId || detail.item_id || '')
+        ).filter(id => id);
+
+        const orderLines = watcherState.orderLines || [];
+        const matchingLines = orderLines.filter(line => {
+          const lineOrderId = String(line.orderId || line.order_id || '');
+          const lineItemId = String(line.itemId || line.item_id || '');
+          return lineOrderId === baseOrderId && jobItemIds.includes(lineItemId);
+        });
+
+        console.log('[KDS][persistJobOrderStatusChange] Updating order_line:', {
+          baseOrderId,
+          matchingLines: matchingLines.length,
+          lineIds: matchingLines.map(l => l.id)
+        });
+
+        // ✅ Update all matching lines in parallel
+        const lineUpdatePromises = matchingLines.map(async (line) => {
+          try {
+            const response = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/order_line/${line.id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 statusId: statusPayload.status,
                 status: statusPayload.status,
-                updatedAt: statusPayload.updatedAt || new Date().toISOString()
+                status_id: statusPayload.status,
+                updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+                updated_at: statusPayload.updatedAt || new Date().toISOString()
               })
             });
-          }
 
-          // ✅ Check if ALL order_lines ready, then update order_header
-          const orderAllLines = orderLines.filter(line =>
-            String(line.orderId || line.order_id) === baseOrderId
-          );
-          const allLinesReady = orderAllLines.every(line => {
-            const lineStatus = String(line.status || line.statusId || '');
-            return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
+            if (!response.ok) {
+              throw new Error(`Failed to update order_line ${line.id}: ${response.status}`);
+            }
+
+            console.log(`[KDS][persistJobOrderStatusChange] ✅ order_line updated: ${line.id}`);
+            return { success: true, id: line.id };
+          } catch (error) {
+            console.error(`[KDS][persistJobOrderStatusChange] ❌ Failed to update order_line ${line.id}:`, error);
+            return { success: false, id: line.id, error };
+          }
+        });
+
+        await Promise.all(lineUpdatePromises);
+
+        // ✅ STEP 4: Check if ALL order_lines ready, then update order_header
+        const orderAllLines = orderLines.filter(line =>
+          String(line.orderId || line.order_id) === baseOrderId
+        );
+        const allLinesReady = orderAllLines.every(line => {
+          const lineStatus = String(line.status || line.statusId || '');
+          return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
+        });
+
+        if (allLinesReady && orderAllLines.length > 0) {
+          console.log('[KDS][persistJobOrderStatusChange] All lines ready, updating order_header:', baseOrderId);
+
+          await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/order_header/${baseOrderId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'ready',
+              statusId: 'ready',
+              status_id: 'ready',
+              updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+              updated_at: statusPayload.updatedAt || new Date().toISOString()
+            })
           });
 
-          if (allLinesReady && orderAllLines.length > 0) {
-            await fetch(`${baseUrl}/order_header/${baseOrderId}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                status: 'ready',
-                statusId: 'ready',
-                updatedAt: statusPayload.updatedAt || new Date().toISOString()
-              })
-            });
-          }
+          console.log('[KDS][persistJobOrderStatusChange] ✅ order_header updated to ready');
         }
-
-        return;
-      } catch (apiError) {
-        console.error('[KDS][persistJobOrderStatusChange] ❌ REST API fallback also failed:', apiError);
-        return;
       }
-    }
 
-    try {
+      console.log('[KDS][persistJobOrderStatusChange] ✅ All updates completed successfully');
 
-      // 1. Update job_order_header with new status
-      // ✅ CRITICAL: Get version from watcherState
-      const existingHeaders = watcherState.headers || [];
-      const existingHeader = existingHeaders.find(h => String(h.id) === String(jobId));
-      const currentVersion = existingHeader?.version || 1;
-      const nextVersion = currentVersion + 1;
-
-      const headerUpdate = {
-        id: jobId,
-        ...statusPayload,
-        version: nextVersion,  // ✅ CRITICAL: version is required!
-        // ✅ Try both camelCase and snake_case for compatibility
-        startedAt: statusPayload.startedAt,
-        started_at: statusPayload.startedAt,
-        updatedAt: statusPayload.updatedAt || new Date().toISOString(),
-        updated_at: statusPayload.updatedAt || new Date().toISOString()
-      };
-
-      await store.update('job_order_header', headerUpdate);
-
-      // ✅ CRITICAL FIX: Update watcherState.headers with immutable update
-      // Mutating existingHeader doesn't trigger re-render!
+      // ✅ STEP 5: Update local watcherState for immediate UI update
       watcherState.headers = (watcherState.headers || []).map(h => {
         if (String(h.id) === String(jobId)) {
           return {
             ...h,
-            version: nextVersion,
             status: statusPayload.status,
             progressState: statusPayload.progressState,
             progress_state: statusPayload.progressState,
@@ -4526,202 +4595,28 @@
         return h;
       });
 
-      // ✅ CRITICAL: Trigger re-render by calling updateFromWatchers
-      updateFromWatchers();
-
-      // 2. ✅ Update all job_order_detail for this job
-      const allJobDetails = watcherState.lines || [];
-      const jobDetails = allJobDetails.filter(detail =>
-        String(detail.jobOrderId || detail.job_order_id) === jobId
-      );
-
-      for (const detail of jobDetails) {
-        try {
-          // ✅ CRITICAL: Get version for each detail
-          const currentDetailVersion = detail.version || 1;
-          const nextDetailVersion = currentDetailVersion + 1;
-
-          const detailUpdate = {
-            id: detail.id,
+      // ✅ Update watcherState.lines immediately
+      watcherState.lines = (watcherState.lines || []).map(detail => {
+        const detailJobId = String(detail.jobOrderId || detail.job_order_id);
+        if (detailJobId === String(jobId)) {
+          return {
+            ...detail,
             status: statusPayload.status,
-            version: nextDetailVersion,  // ✅ CRITICAL: version is required!
+            startAt: statusPayload.startedAt || detail.startAt,
+            start_at: statusPayload.startedAt || detail.start_at,
             updatedAt: statusPayload.updatedAt || new Date().toISOString(),
             updated_at: statusPayload.updatedAt || new Date().toISOString()
           };
-
-          // ✅ Add startAt if this is the first time starting
-          if(statusPayload.status === 'in_progress' && statusPayload.startedAt) {
-            detailUpdate.startAt = statusPayload.startedAt;
-            detailUpdate.start_at = statusPayload.startedAt;
-          }
-
-          console.log('[KDS][persistJobOrderStatusChange] Updating job_order_detail:', detail.id, detailUpdate);
-          await store.update('job_order_detail', detailUpdate);
-          console.log('[KDS][persistJobOrderStatusChange] ✅ Successfully updated job_order_detail:', detail.id);
-
-          // ✅ Update watcherState.lines immediately (optimistic update)
-          detail.version = nextDetailVersion;
-          detail.status = statusPayload.status;
-          if (statusPayload.startedAt && statusPayload.status === 'in_progress') {
-            detail.startAt = statusPayload.startedAt;
-            detail.start_at = statusPayload.startedAt;
-          }
-        } catch (detailError) {
-          console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail:', detail.id, detailError);
         }
-      }
+        return detail;
+      });
 
-      // 3. ✅ Update order_line status using orderId from job + itemId matching
-      const baseOrderId = extractBaseOrderId(jobId);
-
-      if (baseOrderId && statusPayload.status) {
-        // ✅ Get itemIds from job_order_detail for this specific job
-        const allJobDetails = watcherState.lines || [];
-        const jobDetails = allJobDetails.filter(detail =>
-          String(detail.jobOrderId || detail.job_order_id) === jobId
-        );
-
-        const jobItemIds = jobDetails.map(detail =>
-          String(detail.itemId || detail.item_id || '')
-        ).filter(id => id);
-
-
-        const orderLines = watcherState.orderLines || [];
-
-        // ✅ Match order_line by: orderId = baseOrderId AND itemId in jobItemIds
-        const matchingLines = orderLines.filter(line => {
-          const lineOrderId = String(line.orderId || line.order_id || '');
-          const lineItemId = String(line.itemId || line.item_id || '');
-
-          const orderMatches = lineOrderId === baseOrderId;
-          const itemMatches = jobItemIds.includes(lineItemId);
-          const matches = orderMatches && itemMatches;
-
-          if (!matches && orderLines.length < 10) {
-          }
-
-          return matches;
-        });
-
-
-        for (const line of matchingLines) {
-          try {
-            // ✅ CRITICAL: Get version for each line
-            const currentLineVersion = line.version || 1;
-            const nextLineVersion = currentLineVersion + 1;
-
-            const updatePayload = {
-              id: line.id,
-              statusId: statusPayload.status,
-              status: statusPayload.status,
-              version: nextLineVersion,  // ✅ CRITICAL: version is required!
-              updatedAt: statusPayload.updatedAt || new Date().toISOString()
-            };
-
-            await store.update('order_line', updatePayload);
-
-            // ✅ Update watcherState.orderLines immediately (optimistic update)
-            line.version = nextLineVersion;
-            line.status = statusPayload.status;
-            line.statusId = statusPayload.status;
-          } catch (lineError) {
-            console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update order_line:', line.id, lineError);
-          }
-        }
-
-
-        // 3b. ✅ Smart order_header update: Only update when ALL order_lines are ready
-        if (matchingLines.length > 0 && baseOrderId) {
-          try {
-            const orderHeaders = watcherState.orderHeaders || [];
-            const matchingHeader = orderHeaders.find(header =>
-              String(header.id || header.orderId) === baseOrderId
-            );
-
-            if (matchingHeader) {
-              // ✅ Check if ALL order_lines for this order are ready
-              // IMPORTANT: Build updated state by applying our changes to watcherState
-              const allOrderLines = watcherState.orderLines || [];
-              const orderAllLines = allOrderLines.filter(line =>
-                String(line.orderId || line.order_id) === baseOrderId
-              );
-
-              // Create updated line IDs set for quick lookup
-              const updatedLineIds = new Set(matchingLines.map(l => l.id));
-
-              const allLinesReady = orderAllLines.every(line => {
-                // If we just updated this line, use the new status
-                const lineStatus = updatedLineIds.has(line.id)
-                  ? statusPayload.status
-                  : String(line.status || line.statusId || '');
-                return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
-              });
-
-              const readyCount = orderAllLines.filter(line => {
-                const lineStatus = updatedLineIds.has(line.id)
-                  ? statusPayload.status
-                  : String(line.status || line.statusId || '');
-                return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
-              }).length;
-
-              // ✅ Only update order_header if ALL lines are ready
-              if (allLinesReady && orderAllLines.length > 0) {
-                // ✅ CRITICAL: Get version from matchingHeader
-                const currentHeaderVersion = matchingHeader.version || 1;
-                const nextHeaderVersion = currentHeaderVersion + 1;
-
-                const headerUpdatePayload = {
-                  id: matchingHeader.id,
-                  status: 'ready',  // Always 'ready' when all lines are ready
-                  statusId: 'ready',
-                  version: nextHeaderVersion,  // ✅ CRITICAL: version is required!
-                  updatedAt: statusPayload.updatedAt || new Date().toISOString()
-                };
-
-                await store.update('order_header', headerUpdatePayload);
-
-                // ✅ Update watcherState.orderHeaders immediately (optimistic update)
-                matchingHeader.version = nextHeaderVersion;
-                matchingHeader.status = 'ready';
-                matchingHeader.statusId = 'ready';
-              }
-              // else: Not all lines ready yet, keeping order_header unchanged
-            } else {
-              console.warn('[KDS][persistJobOrderStatusChange] ⚠️ order_header not found for orderId:', baseOrderId);
-            }
-          } catch (headerError) {
-            console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update order_header:', headerError);
-          }
-        }
-      } else {
-        console.warn('[KDS][persistJobOrderStatusChange] ⚠️ Skipping order_line update:', {
-          baseOrderId,
-          hasStatus: !!statusPayload.status,
-          reason: !baseOrderId ? 'No baseOrderId' : 'No status'
-        });
-      }
-
-      // 4. Insert status history entry
-      const historyEntry = {
-        id: `HIS-${jobId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        jobOrderId: jobId,
-        status: statusPayload.status || 'unknown',
-        actorId: actorInfo.actorId || 'kds',
-        actorName: actorInfo.actorName || 'KDS',
-        actorRole: actorInfo.actorRole || 'kds',
-        changedAt: statusPayload.updatedAt || new Date().toISOString(),
-        reason: actorInfo.reason || null,
-        meta: {
-          source: 'kds',
-          progressState: statusPayload.progressState || null,
-          ...actorInfo.meta
-        }
-      };
-
-      await store.insert('job_order_status_history', historyEntry);
+      // ✅ Trigger re-render
+      updateFromWatchers();
 
     } catch (error) {
       console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to persist status change:', error);
+      throw error;  // Re-throw to let caller handle
     }
   };
 
