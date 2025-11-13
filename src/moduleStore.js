@@ -61,7 +61,7 @@ export default class ModuleStore {
 
   /**
    * Attempts to find canonical table name from provided name.
-   * Handles common variations like plural/singular (job_order_details → job_order_detail)
+   * Handles common variations and aliases (matching pos-mini-db.js aliases)
    * @param {string} tableName - Table name to canonicalize
    * @returns {string|null} Canonical table name if found, null otherwise
    */
@@ -74,17 +74,36 @@ export default class ModuleStore {
       return tableName;
     }
 
-    // Try removing trailing 's' (plural → singular)
-    // e.g., 'job_order_details' → 'job_order_detail'
-    if (tableName.endsWith('s')) {
-      const singular = tableName.slice(0, -1);
+    const name = tableName.toLowerCase();
+
+    // Common alias mappings (matching frontend aliases in pos-mini-db.js)
+    const aliasMap = {
+      'orders': 'order_header',
+      'job_orders': 'job_order_header',
+      'order_lines': 'order_line',
+      'order_payments': 'order_payment',
+      'job_order_details': 'job_order_detail',
+      'job_order_headers': 'job_order_header',
+      'payments': 'order_payment',
+      'deliveries': 'order_delivery',
+      'order_deliveries': 'order_delivery'
+    };
+
+    // Check alias map
+    if (aliasMap[name] && this.tables.includes(aliasMap[name])) {
+      return aliasMap[name];
+    }
+
+    // Generic: try removing trailing 's' (for simple plurals)
+    if (name.endsWith('s') && !name.endsWith('ss')) {
+      const singular = name.slice(0, -1);
       if (this.tables.includes(singular)) {
         return singular;
       }
     }
 
-    // Try adding trailing 's' (singular → plural)
-    const plural = tableName + 's';
+    // Generic: try adding trailing 's' (singular → plural)
+    const plural = name + 's';
     if (this.tables.includes(plural)) {
       return plural;
     }
