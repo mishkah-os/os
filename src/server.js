@@ -4489,7 +4489,7 @@ async function handleBranchesApi(req, res, url) {
     return;
   }
 
-  // ✅ NEW: Reset sequence counter based on existing orders
+  // ✅ RESET: Reset module to initial data + reset sequence counter
   if (tail.length === 1 && tail[0] === 'reset') {
     if (req.method !== 'POST' && req.method !== 'GET') {
       jsonResponse(res, 405, { error: 'method-not-allowed' });
@@ -4497,27 +4497,13 @@ async function handleBranchesApi(req, res, url) {
     }
 
     try {
-      console.log('🔄 [RESET] Resetting sequence counter for', { branchId, moduleId });
+      console.log('🔄 [RESET] Full module reset for', { branchId, moduleId });
 
-      // Get all order_header IDs
-      const orderHeaders = store.listTable('order_header');
-      console.log(`📊 [RESET] Found ${orderHeaders.length} orders in store`);
+      // 1️⃣ RESET MODULE DATA (restore to initial seed data)
+      await resetModule(branchId, moduleId, { reason: 'branch-api-reset' });
+      console.log('✅ [RESET] Module data reset to initial state');
 
-      // Extract numeric part from IDs (assuming format: PREFIX-NNNNNN)
-      const numericIds = orderHeaders
-        .map(h => {
-          const id = String(h.id || '');
-          const match = id.match(/(\d+)$/); // Extract trailing numbers
-          return match ? parseInt(match[1], 10) : 0;
-        })
-        .filter(n => n > 0);
-
-      const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 0;
-      const nextId = maxId + 1;
-
-      console.log(`📈 [RESET] Max existing ID: ${maxId}, Next ID will be: ${nextId}`);
-
-      // ✅ DIRECT FILE WRITE - Much faster than calling nextValue() repeatedly
+      // 2️⃣ RESET SEQUENCE COUNTER to 0 (so next order starts fresh)
       const { readFile: fsRead, writeFile: fsWrite, mkdir: fsMkdir } = await import('fs/promises');
       const path = await import('path');
 
@@ -4525,56 +4511,39 @@ async function handleBranchesApi(req, res, url) {
       const stateFilePath = path.join(BRANCHES_DIR, branchKey, 'sequence-state.json');
       const sequenceKey = `${moduleId}:order_header:id`;
 
-      console.log(`📁 [RESET] State file path: ${stateFilePath}`);
-
-      // Read current state
-      let currentState = {};
-      try {
-        const raw = await fsRead(stateFilePath, 'utf8');
-        currentState = JSON.parse(raw);
-        console.log(`📖 [RESET] Current state:`, currentState);
-      } catch (err) {
-        console.log(`📝 [RESET] No existing state file, will create new one`);
-      }
-
-      // Update the counter
+      // Reset sequence to 0 (or to start value from rules)
+      const currentState = {};
       currentState[sequenceKey] = {
-        last: nextId,
+        last: 0,
         updatedAt: new Date().toISOString()
       };
 
       // Ensure directory exists
       await fsMkdir(path.dirname(stateFilePath), { recursive: true });
 
-      // Write updated state
+      // Write reset state
       await fsWrite(stateFilePath, JSON.stringify(currentState, null, 2), 'utf8');
 
-      console.log(`✅ [RESET] Sequence reset successful! File written with counter: ${nextId}`);
+      console.log(`✅ [RESET] Sequence counter reset to 0`);
 
-      // ✅ Clear sequence manager cache so it re-reads the file
+      // Clear sequence manager cache
       if (sequenceManager.branchStateCache) {
         sequenceManager.branchStateCache.delete(branchId);
         sequenceManager.branchStateCache.delete('default');
-        console.log(`🗑️ [RESET] Cleared sequence manager cache`);
       }
 
-      // Test allocation to verify
-      const testAllocation = await sequenceManager.nextValue(branchId, moduleId, 'order_header', 'id', {
-        record: {},
-        autoCreate: true
-      });
+      // 3️⃣ BUILD SNAPSHOT and return
+      const snapshot = await buildBranchSnapshot(branchId);
+      console.log('✅ [RESET] Full reset completed successfully');
 
       jsonResponse(res, 200, {
         success: true,
-        maxExistingId: maxId,
-        resetToValue: nextId,
-        nextInvoiceId: testAllocation?.formatted || `unknown`,
-        actualNextValue: testAllocation?.value || nextId + 1,
-        stateFilePath
+        message: 'Module reset to initial data and sequence counter reset',
+        ...snapshot
       });
 
     } catch (error) {
-      logger.error({ err: error, branchId, moduleId }, 'Failed to reset sequence');
+      logger.error({ err: error, branchId, moduleId }, 'Failed to reset module');
       jsonResponse(res, 500, { error: 'reset-failed', message: error.message, stack: error.stack });
     }
     return;

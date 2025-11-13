@@ -2970,7 +2970,7 @@
       }
 
       // ✅ Flat structure: job order tables at root level (consistent with REST API)
-      return {
+      const result = {
         order: orderSummary,
         order_header: [orderHeader],  // ✅ For static tabs
         order_line: orderLines,        // ✅ For static tabs
@@ -2985,6 +2985,17 @@
         meta:{ channel: masterSnapshot.channel, branch: BRANCH_CHANNEL, posId: POS_INFO.id, emittedAt: new Date().toISOString() },
         isReopenedOrder: isReopenedOrderForHeader  // ✅ CRITICAL: Pass flag to indicate reopened order
       };
+
+      console.log('🎯 [serializeOrderForKDS] RETURNING:', {
+        orderId: order.id,
+        job_order_header_count: headers.length,
+        job_order_detail_count: jobDetails.length,
+        order_line_count: orderLines.length,
+        firstJobHeader: headers[0],
+        firstJobDetail: jobDetails[0]
+      });
+
+      return result;
     }
 
     const buildOrderEnvelope = async (orderPayload, state)=>{
@@ -6880,8 +6891,11 @@
           totalDue: persistableOrder.totalDue
         });
         let savedOrder = null;
+        let saveOrderSuccess = false;
         try {
+          console.log('📡 [POS] Calling posDB.saveOrder...');
           savedOrder = await posDB.saveOrder(persistableOrder);
+          saveOrderSuccess = true;
           console.log('✅ [CLAUDE FIX v2] REST API responded successfully');
           console.log('[Mishkah][POS] Order saved to DB, returned data:', {
             orderId: savedOrder?.id,
@@ -6947,6 +6961,9 @@
           }
           throw error;
         }
+
+        console.log('🎯 [DEBUG] After saveOrder - success:', saveOrderSuccess, 'savedOrder:', !!savedOrder);
+
         if(posDB.available && typeof posDB.deleteTempOrder === 'function'){
           try { await posDB.deleteTempOrder(orderPayload.id); } catch(_tempErr){ }
           if(idChanged && previousOrderId){
@@ -6957,9 +6974,20 @@
         // posv2.html watchers will update window.database automatically (same as KDS)
         console.log('🔥 [POS V2] Saving job_order tables...');
         const store = window.__POS_DB__;
+        console.log('🔍 [DEBUG] store available?', !!store, 'insert function?', typeof store?.insert);
+
         if(store && typeof store.insert === 'function'){
+          console.log('✅ [POS V2] store.insert is available, generating KDS payload...');
           // Generate KDS payload
           const kdsPayload = await serializeOrderForKDS(orderPayload, state);
+
+          console.log('🔍 [DEBUG] serializeOrderForKDS returned:', {
+            hasPayload: !!kdsPayload,
+            hasJobHeaders: !!kdsPayload?.job_order_header,
+            jobHeadersCount: kdsPayload?.job_order_header?.length || 0,
+            hasJobDetails: !!kdsPayload?.job_order_detail,
+            jobDetailsCount: kdsPayload?.job_order_detail?.length || 0
+          });
 
           if(kdsPayload && kdsPayload.job_order_header){
             console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
