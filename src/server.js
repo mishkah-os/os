@@ -2174,13 +2174,31 @@ async function savePosOrder(branchId, moduleId, orderPayload, options = {}) {
       console.log('⚠️ [CLAUDE BACKEND FIX] Order already exists in store:', {
         orderId: baseOrder.id,
         existingVersion: existingOrder.version,
-        incomingVersion: baseOrder.version
+        incomingVersion: baseOrder.version,
+        existingStatus: existingOrder.status,
+        incomingStatus: baseOrder.status,
+        existingLinesCount: store.listTable('order_line').filter(l => l.orderId === baseOrder.id).length
       });
 
-      // If versions match exactly, this is likely a duplicate request - REJECT IT
+      // If versions match exactly, this is likely a duplicate request
+      // BUT: Allow if incoming order has MORE lines (adding items to existing order)
       if (baseOrder.version && existingOrder.version === baseOrder.version) {
-        console.error('❌ [CLAUDE BACKEND FIX] DUPLICATE SAVE BLOCKED - Same version!');
-        throw new Error('DUPLICATE_SAVE_DETECTED: Order with same ID and version already exists');
+        const existingLinesCount = store.listTable('order_line').filter(l => l.orderId === baseOrder.id).length;
+        const incomingLinesCount = baseOrder.lines?.length || 0;
+
+        console.log('🔍 [DUPLICATE CHECK]:', {
+          existingLinesCount,
+          incomingLinesCount,
+          hasMoreLines: incomingLinesCount > existingLinesCount
+        });
+
+        // ALLOW if adding new items (more lines than before)
+        if (incomingLinesCount > existingLinesCount) {
+          console.log('✅ [CLAUDE BACKEND FIX] ALLOWING save - adding new items to order');
+        } else {
+          console.error('❌ [CLAUDE BACKEND FIX] DUPLICATE SAVE BLOCKED - Same version, same or fewer lines!');
+          throw new Error('DUPLICATE_SAVE_DETECTED: Order with same ID and version already exists');
+        }
       }
     }
   }
@@ -2198,6 +2216,8 @@ async function savePosOrder(branchId, moduleId, orderPayload, options = {}) {
   try {
     // ✅ Only allocate sequence for truly NEW orders (no ID OR draft ID)
     const isDraftId = baseOrder.id && String(baseOrder.id).startsWith('draft-');
+    const previousId = baseOrder.id;
+
     if (!baseOrder.id || isDraftId) {
       console.log('═══════════════════════════════════════════════════════');
       console.log('🔢 [CLAUDE BACKEND FIX] ALLOCATING SEQUENCE (NEW ORDER)');
@@ -2205,16 +2225,33 @@ async function savePosOrder(branchId, moduleId, orderPayload, options = {}) {
 
       const allocation = await sequenceManager.nextValue(branchId, moduleId, 'order_header', 'id', { record: baseOrder });
       if (allocation?.formatted) {
+        const oldId = baseOrder.id;
         baseOrder.id = allocation.formatted;
         if (!baseOrder.metadata || typeof baseOrder.metadata !== 'object') baseOrder.metadata = {};
         baseOrder.metadata.invoiceSequence = allocation.value;
         baseOrder.metadata.sequenceRule = allocation.rule || null;
 
         console.log('✅ [CLAUDE BACKEND FIX] Sequence allocated:', {
-          oldId: isDraftId ? requestKey : 'none',
+          oldId: isDraftId ? oldId : 'none',
           newId: baseOrder.id,
           sequence: allocation.value
         });
+
+        // 🔍 Check if this ID already exists (shouldn't happen!)
+        const store = await ensureModuleStore(branchId, moduleId);
+        const duplicateCheck = store.listTable('order_header').find(h => h.id === baseOrder.id);
+        if (duplicateCheck) {
+          console.error('🚨 [SEQUENCE MANAGER BUG] Allocated ID already exists in store!', {
+            allocatedId: baseOrder.id,
+            existingOrder: {
+              id: duplicateCheck.id,
+              version: duplicateCheck.version,
+              status: duplicateCheck.status,
+              createdAt: duplicateCheck.createdAt
+            }
+          });
+          throw new Error(`SEQUENCE_COLLISION: Allocated ID ${baseOrder.id} already exists in store!`);
+        }
       }
     } else {
       console.log('♻️ [CLAUDE BACKEND FIX] Using existing ID (update):', baseOrder.id);
