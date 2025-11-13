@@ -2663,7 +2663,10 @@
       }
 
       linesToSendToKitchen.forEach((line, index)=>{
-        const lineIndex = index + 1;
+        // ✅ CRITICAL FIX: Use original line index from 'lines' array, NOT from 'linesToSendToKitchen'
+        // This ensures orderLineId stays consistent when reopening orders
+        const originalLineIndex = lines.indexOf(line);
+        const lineIndex = originalLineIndex >= 0 ? originalLineIndex + 1 : index + 1;
         // ✅ Check all variants of kitchenSection field
         const kitchenSectionSource = line.kitchenSection || line.kitchenSectionId || line.kitchen_section_id || line.kitchen_section;
         const resolvedStation = toIdentifier(kitchenSectionSource);
@@ -2711,6 +2714,7 @@
           serviceMode,
           stationId,
           stationCode,
+          batchId,  // ✅ Add batch_id to group job_orders from same save operation
           status:'queued',
           progressState:'awaiting',
           totalItems:0,
@@ -3106,10 +3110,11 @@
               });
 
               // Insert to offline store (NOT persistent - data lost on refresh!)
-              headers.forEach(h => { try { store.insert('job_order_header', h, { silent: true }); } catch (e) {} });
-              details.forEach(d => { try { store.insert('job_order_detail', d, { silent: true }); } catch (e) {} });
-              modifiers.forEach(m => { try { store.insert('job_order_detail_modifier', m, { silent: true }); } catch (e) {} });
-              statusHistory.forEach(s => { try { store.insert('job_order_status_history', s, { silent: true }); } catch (e) {} });
+              // ✅ FIX: Remove { silent: true } to ensure broadcasts happen even in fallback mode
+              headers.forEach(h => { try { store.insert('job_order_header', h); } catch (e) {} });
+              details.forEach(d => { try { store.insert('job_order_detail', d); } catch (e) {} });
+              modifiers.forEach(m => { try { store.insert('job_order_detail_modifier', m); } catch (e) {} });
+              statusHistory.forEach(s => { try { store.insert('job_order_status_history', s); } catch (e) {} });
             }
 
             pushLocal('orders:payload', { payload: envelope.payload }, { channel: envelope.channel, publishedAt: envelope.publishedAt });

@@ -135,7 +135,16 @@ const CONTENT_TYPES = {
   '.txt': 'text/plain; charset=utf-8'
 };
 
-const DEFAULT_TRANSACTION_TABLES = ['order_header', 'order_line', 'order_payment', 'pos_shift'];
+const DEFAULT_TRANSACTION_TABLES = [
+  'order_header',
+  'order_line',
+  'order_payment',
+  'pos_shift',
+  'job_order_header',
+  'job_order_detail',
+  'job_order_detail_modifier',
+  'job_order_status_history'
+];
 
 const sequenceManager = new SequenceManager({
   rulesPath: SEQUENCE_RULES_PATH,

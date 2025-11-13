@@ -1735,6 +1735,18 @@
             "notes": ""
           },
           {
+            "name": "batchId",
+            "columnName": "batch_id",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Groups job_orders from same save operation for unified display in static tabs",
+            "notes": ""
+          },
+          {
             "name": "status",
             "columnName": "status",
             "type": "string",
