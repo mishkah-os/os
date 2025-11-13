@@ -2472,6 +2472,34 @@
       }
     }
 
+    /**
+     * Extracts display-friendly order number prefix from full unique ID
+     * Example: "DAR-001005-1e7a48ec-425a-4268-81db-c8f3fd4d432e-1763040999484" → "DAR-001005"
+     * @param {string} fullOrderNumber - Full unique order ID
+     * @returns {string} Display-friendly order number prefix
+     */
+    function extractOrderNumberPrefix(fullOrderNumber){
+      if(!fullOrderNumber || typeof fullOrderNumber !== 'string') return '';
+      const str = fullOrderNumber.trim();
+
+      // Pattern: PREFIX-NUMBER-UUID-UUID-TIMESTAMP
+      // We want only: PREFIX-NUMBER
+      const parts = str.split('-');
+
+      // If it's a simple number or already short, return as is
+      if(parts.length <= 2) return str;
+
+      // Check if 3rd part looks like UUID (hex characters, length >= 8)
+      const thirdPart = parts[2];
+      if(thirdPart && thirdPart.length >= 8 && /^[0-9a-f]+$/i.test(thirdPart)){
+        // Return only first two parts (PREFIX-NUMBER)
+        return `${parts[0]}-${parts[1]}`;
+      }
+
+      // Otherwise return as is
+      return str;
+    }
+
     function deriveTableLabel(order, state){
       const tableIds = Array.isArray(order.tableIds) ? order.tableIds : [];
       if(!tableIds.length) return null;
@@ -2670,10 +2698,14 @@
         const jobId = `${order.id}-${stationId}-${batchId}`;
         const section = sectionMap.get(stationId) || {};
         const stationCode = section.code || (stationId ? String(stationId).toUpperCase() : 'KDS');
+        // ✅ Extract display-friendly order number (DAR-001005 instead of full UUID)
+        const fullOrderNumber = order.orderNumber || order.invoiceId || order.id;
+        const displayOrderNumber = extractOrderNumberPrefix(fullOrderNumber);
+
         const existing = jobsMap.get(jobId) || {
           id: jobId,
           orderId: order.id,
-          orderNumber: order.orderNumber || order.invoiceId || order.id,
+          orderNumber: displayOrderNumber,  // ✅ Use display-friendly prefix only
           posRevision: `${order.id}@${order.updatedAt || Date.now()}`,
           orderTypeId: serviceMode,
           serviceMode,
@@ -2819,9 +2851,12 @@
         }, {})
       });
 
+      // ✅ Extract display-friendly order number for summary
+      const summaryOrderNumber = extractOrderNumberPrefix(order.orderNumber || order.invoiceId || order.id);
+
       const orderSummary = {
         orderId: order.id,
-        orderNumber: order.orderNumber || order.invoiceId || order.id,
+        orderNumber: summaryOrderNumber,  // ✅ Use display-friendly prefix only
         serviceMode,
         tableLabel: tableLabel || null,
         customerName: customerName || null,
@@ -3217,16 +3252,20 @@
               wsConnected: store?.connected || 'unknown'
             });
 
+            console.log('🔍🔍🔍 [DEBUG] About to insert job_order_header:', {
+              headersCount: headers.length,
+              detailsCount: details.length,
+              headers: headers.map(h => ({ id: h.id, orderId: h.orderId, orderNumber: h.orderNumber, stationId: h.stationId }))
+            });
+
             headers.forEach((header, index) => {
               try {
+                console.log(`📤 [POS][KDS] Inserting job_order_header ${index + 1}/${headers.length}:`, header);
                 store.insert('job_order_header', header);
-                console.log(`✅ [POS][KDS] Sent job_order_header ${index + 1}/${headers.length}:`, {
-                  id: header.id,
-                  orderId: header.orderId,
-                  stationId: header.stationId
-                });
+                console.log(`✅ [POS][KDS] Successfully inserted job_order_header ${index + 1}/${headers.length}`);
               } catch (err) {
                 console.error(`❌ [POS][KDS] Failed to insert job_order_header ${index + 1}:`, err, header);
+                console.error('[POS][KDS] Error details:', err.stack);
               }
             });
 
