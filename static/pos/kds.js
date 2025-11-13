@@ -1695,12 +1695,10 @@
     .filter(order=>{
       if(!order) return false;
       const status = order.handoffStatus;
-      // ✅ CRITICAL FIX: Show orders until they are served (assembled should appear!)
-      // - pending/ready: Show in handoff (cooking/ready for assembly)
-      // - assembled: SHOW in handoff (ready for customer pickup/serving) ✅
-      // - served: Hide (already handed to customer)
-      // - delivered/settled: Hide (completed)
-      if(status === 'served' || status === 'delivered' || status === 'settled') return false;
+      // ✅ CRITICAL: Show ONLY 'assembled' orders (تم تجميعها في Expo)
+      // Workflow: Expo → "تم التجميع" → status='assembled' → يظهر في Handoff
+      // Handoff → "تم التسليم" → status='served' → يختفي
+      if(status !== 'assembled') return false;
       const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
       return serviceMode !== 'delivery';
     });
@@ -6025,12 +6023,18 @@
 
       watcherUnsubscribers.push(
         store.watch('job_order_header', (rows) => {
+          console.log('🔔🔔🔔 [KDS] job_order_header WATCHER triggered!', {
+            rowsCount: rows?.length || 0,
+            storeConnected: store?.connected || 'unknown',
+            timestamp: new Date().toISOString()
+          });
           // ✅ CRITICAL FIX: DON'T filter by progressState='completed'!
           // Jobs that finished cooking (progressState='completed') should STAY visible
           // in Expo/Handoff until ORDER is delivered (assembled/served)
           // Filtering happens at UI layer based on order.handoffStatus
           const allHeaders = ensureArray(rows);
           watcherState.headers = allHeaders;  // Keep ALL jobs
+          console.log('✅ [KDS] Updated watcherState.headers:', allHeaders.length, 'jobs');
 
           updateFromWatchers();
         })

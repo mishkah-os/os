@@ -7122,11 +7122,24 @@
               ),
               // Save job_order_header (for dynamic station tabs)
               // ✅ CRITICAL: silent: false to broadcast changes to KDS immediately!
-              ...kdsPayload.job_order_header.map(jobHeader =>
-                store.insert('job_order_header', jobHeader, { silent: false }).catch(err =>
-                  console.error('[POS V2] Failed to save job_order_header:', jobHeader.id, err)
-                )
-              ),
+              ...kdsPayload.job_order_header.map(jobHeader => {
+                console.log('🚀🚀🚀 [POS V2] INSERTING job_order_header:', {
+                  id: jobHeader.id,
+                  orderId: jobHeader.orderId,
+                  stationId: jobHeader.stationId,
+                  batchId: jobHeader.batchId,
+                  silent: false,
+                  storeConnected: store?.connected || 'unknown',
+                  timestamp: new Date().toISOString()
+                });
+                return store.insert('job_order_header', jobHeader, { silent: false })
+                  .then(() => {
+                    console.log('✅ [POS V2] Successfully inserted job_order_header:', jobHeader.id);
+                  })
+                  .catch(err => {
+                    console.error('❌ [POS V2] Failed to save job_order_header:', jobHeader.id, err);
+                  });
+              }),
               // Save details
               ...(kdsPayload.job_order_detail || []).map(jobDetail =>
                 store.insert('job_order_detail', jobDetail, { silent: false }).catch(err =>
