@@ -4489,6 +4489,82 @@ async function handleBranchesApi(req, res, url) {
     return;
   }
 
+  // ✅ NEW: Reset sequence counter based on existing orders
+  if (tail.length === 1 && tail[0] === 'reset') {
+    if (req.method !== 'POST') {
+      jsonResponse(res, 405, { error: 'method-not-allowed' });
+      return;
+    }
+
+    try {
+      console.log('🔄 [RESET] Resetting sequence counter for', { branchId, moduleId });
+
+      // Get all order_header IDs
+      const orderHeaders = store.listTable('order_header');
+      console.log(`📊 [RESET] Found ${orderHeaders.length} orders in store`);
+
+      // Extract numeric part from IDs (assuming format: PREFIX-NNNNNN)
+      const numericIds = orderHeaders
+        .map(h => {
+          const id = String(h.id || '');
+          const match = id.match(/(\d+)$/); // Extract trailing numbers
+          return match ? parseInt(match[1], 10) : 0;
+        })
+        .filter(n => n > 0);
+
+      const maxId = numericIds.length > 0 ? Math.max(...numericIds) : 0;
+      const nextId = maxId + 1;
+
+      console.log(`📈 [RESET] Max existing ID: ${maxId}, Next ID will be: ${nextId}`);
+
+      // Force sequence manager to use this value
+      // We'll call nextValue multiple times until it catches up
+      let attempts = 0;
+      let currentValue = 0;
+      const maxAttempts = nextId + 10; // Safety limit
+
+      while (currentValue < nextId && attempts < maxAttempts) {
+        attempts++;
+        const allocation = await sequenceManager.nextValue(branchId, moduleId, 'order_header', 'id', {
+          record: {},
+          autoCreate: true
+        });
+
+        if (allocation) {
+          currentValue = allocation.value;
+          console.log(`🔢 [RESET ATTEMPT ${attempts}] Current sequence: ${currentValue}, Target: ${nextId}`);
+
+          if (currentValue >= nextId) {
+            console.log(`✅ [RESET] Sequence reset successful! Next ID: ${allocation.formatted}`);
+            jsonResponse(res, 200, {
+              success: true,
+              maxExistingId: maxId,
+              newSequenceValue: currentValue,
+              nextInvoiceId: allocation.formatted,
+              attempts
+            });
+            return;
+          }
+        }
+      }
+
+      // If we couldn't catch up, return partial success
+      jsonResponse(res, 200, {
+        success: true,
+        warning: 'Could not fully reset sequence, but advanced it',
+        maxExistingId: maxId,
+        newSequenceValue: currentValue,
+        targetValue: nextId,
+        attempts
+      });
+
+    } catch (error) {
+      logger.error({ err: error, branchId, moduleId }, 'Failed to reset sequence');
+      jsonResponse(res, 500, { error: 'reset-failed', message: error.message });
+    }
+    return;
+  }
+
   if (moduleId === 'pos' && tail.length >= 1 && tail[0] === 'orders') {
     if (tail.length === 1 && req.method === 'GET') {
       const params = url.searchParams;
