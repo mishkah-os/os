@@ -1,8 +1,8 @@
 
 (async function(){
-    console.log('═══════════════════════════════════════════════════════');
+    // console.log('═══════════════════════════════════════════════════════');
     console.log('🚀🚀🚀 [POS V2] WEBSOCKET VERSION LOADED 🚀🚀🚀');
-    console.log('═══════════════════════════════════════════════════════');
+    // console.log('═══════════════════════════════════════════════════════');
 
     const M = Mishkah;
     const UI = M.UI;
@@ -5402,7 +5402,7 @@
       const itemId = String(rawItemId);
 
       // 🔍 DEBUG: Log itemId extraction
-      console.log('[POS][normalizeOrderLine] itemId extracted:', {
+      // console.log('[POS][normalizeOrderLine] itemId extracted:', {
         rawItemId,
         itemId,
         rawItemIdType: typeof rawItemId,
@@ -5828,23 +5828,23 @@
 
     if(typeof window !== 'undefined' && window.console){
       console.group('[Mishkah][POS] 🚀 INITIAL DATA LOAD - COMPLETE STRUCTURE');
-      console.log('═══════════════════════════════════════════════════════════');
+      // console.log('═══════════════════════════════════════════════════════════');
       console.log('📦 MOCK DATA SOURCE (window.database):');
       console.log('  • Complete MOCK object:', MOCK);
       console.log('  • Keys in MOCK:', Object.keys(MOCK));
-      console.log('═══════════════════════════════════════════════════════════');
+      // console.log('═══════════════════════════════════════════════════════════');
       console.log('👥 EMPLOYEES DATA:');
       console.log('  • rawEmployees (from resolveEmployeeList):', rawEmployees);
       console.log('  • employees (normalized):', employees);
       console.log('  • defaultCashier:', defaultCashier);
       console.log('  • cashier (final):', cashier);
       console.table(employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false })));
-      console.log('═══════════════════════════════════════════════════════════');
+      // console.log('═══════════════════════════════════════════════════════════');
       console.log('🔑 SHIFT SETTINGS:');
       console.log('  • SHIFT_SETTINGS:', SHIFT_SETTINGS);
       console.log('  • SHIFT_PIN_FALLBACK:', SHIFT_PIN_FALLBACK);
       console.log('  • SHIFT_PIN_LENGTH:', SHIFT_PIN_LENGTH);
-      console.log('═══════════════════════════════════════════════════════════');
+      // console.log('═══════════════════════════════════════════════════════════');
       console.groupEnd();
     }
 
@@ -6278,9 +6278,9 @@
     }
 
     async function persistOrderFlow(ctx, rawMode, options={}){
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('🔥 [CLAUDE FIX v3] persistOrderFlow STARTED');
-      console.log('═══════════════════════════════════════════════════════');
+      // console.log('═══════════════════════════════════════════════════════');
+      // console.log('🔥 [CLAUDE FIX v3] persistOrderFlow STARTED');
+      // console.log('═══════════════════════════════════════════════════════');
 
       // ✅ NOTE: IS_SAVING_ORDER check is ONLY in button handler (Line 11037-11040)
       // We don't check here because:
@@ -6353,7 +6353,7 @@
       const lines = order.lines || [];
       const validLines = lines.filter(line => !line.cancelled && !line.voided);
 
-      console.log('🔍 [POS V2] EMPTY ORDER CHECK:', {
+      // console.log('🔍 [POS V2] EMPTY ORDER CHECK:', {
         totalLines: lines.length,
         validLines: validLines.length,
         isPersisted: order.isPersisted,
@@ -6675,7 +6675,7 @@
       const allowAdditions = finalize ? false : !!typeConfig.allowsLineAdditions;
       const orderNotes = Array.isArray(order.notes) ? order.notes : (order.notes ? [order.notes] : []);
 
-      console.log('📝📝📝 [NOTES CRITICAL] Order notes before save:', {
+      // console.log('📝📝📝 [NOTES CRITICAL] Order notes before save:', {
         'order.notes': order.notes,
         'order.notes type': typeof order.notes,
         'order.notes isArray': Array.isArray(order.notes),
@@ -6688,10 +6688,10 @@
       // Check if current ID is a draft (local-only) ID
       const isDraftId = previousOrderId && String(previousOrderId).startsWith('draft-');
 
-      console.log('═══════════════════════════════════════════════════════');
+      // console.log('═══════════════════════════════════════════════════════');
       console.log('🔍 [CLAUDE FIX v3] INVOICE ID ALLOCATION DECISION');
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('[ALLOCATION CHECK] Current state:', {
+      // console.log('═══════════════════════════════════════════════════════');
+      // console.log('[ALLOCATION CHECK] Current state:', {
         isPersisted: order.isPersisted,
         previousOrderId,
         isDraftId,
@@ -6709,13 +6709,13 @@
       // ❌ DO NOT allocate if order already has real ID (persisted order with additions)
       const needsNewId = !previousOrderId || previousOrderId === '' || previousOrderId === 'undefined' || isDraftId;
 
-      console.log('[ALLOCATION CHECK] Decision:', needsNewId ? '🔢 WILL ALLOCATE NEW ID' : '♻️ WILL USE EXISTING ID');
+      // console.log('[ALLOCATION CHECK] Decision:', needsNewId ? '🔢 WILL ALLOCATE NEW ID' : '♻️ WILL USE EXISTING ID');
 
       if(needsNewId){
-        console.log('═══════════════════════════════════════════════════════');
-        console.log('🔢 [CLAUDE FIX v3] ALLOCATING NEW INVOICE ID (sequence call)');
-        console.log('⚠️  THIS SHOULD ONLY HAPPEN ONCE PER NEW ORDER!');
-        console.log('═══════════════════════════════════════════════════════');
+        // console.log('═══════════════════════════════════════════════════════');
+        // console.log('🔢 [CLAUDE FIX v3] ALLOCATING NEW INVOICE ID (sequence call)');
+        // console.log('⚠️  THIS SHOULD ONLY HAPPEN ONCE PER NEW ORDER!');
+        // console.log('═══════════════════════════════════════════════════════');
         console.log('[Mishkah][POS] 🆕 Allocating NEW invoice ID', {
           isPersisted: order.isPersisted,
           previousOrderId,
@@ -6733,7 +6733,7 @@
             retryAttempt: retryCount,
             timestamp: new Date().toISOString()
           });
-          console.log('═══════════════════════════════════════════════════════');
+          // console.log('═══════════════════════════════════════════════════════');
         } catch(allocError){
           console.error('❌❌❌ [CLAUDE FIX v3] Invoice allocation FAILED', {
             error: allocError,
@@ -6752,7 +6752,7 @@
           expectedVersion: order.expectedVersion,
           retryCount
         });
-        console.log('═══════════════════════════════════════════════════════');
+        // console.log('═══════════════════════════════════════════════════════');
       }
       const idChanged = previousOrderId !== finalOrderId;
       const primaryTableId = assignedTables.length ? assignedTables[0] : (order.tableId || null);
@@ -6765,7 +6765,7 @@
         : (order.isPersisted && Number.isFinite(currentVersion) && currentVersion > 0
           ? Math.trunc(currentVersion) + 1  // Increment version for updates
           : 1);  // Fallback to version 1
-      console.log('[Mishkah][POS] VERSION DECISION', {
+      // console.log('[Mishkah][POS] VERSION DECISION', {
         idChanged,
         isDraftId,
         isPersisted: order.isPersisted,
@@ -6776,7 +6776,7 @@
           ? 'new order - start at v1'
           : (order.isPersisted ? `update existing - increment from v${currentVersion} to v${outgoingVersion}` : 'fallback to v1')
       });
-      console.log('🏷️🏷️🏷️ [TABLE CRITICAL] BEFORE creating orderPayload:', {
+      // console.log('🏷️🏷️🏷️ [TABLE CRITICAL] BEFORE creating orderPayload:', {
         'order.tableIds': order.tableIds,
         'assignedTables': assignedTables,
         'primaryTableId': primaryTableId
@@ -6842,14 +6842,14 @@
         }
       };
 
-      console.log('🏷️🏷️🏷️ [TABLE CRITICAL] AFTER creating orderPayload:', {
+      // console.log('🏷️🏷️🏷️ [TABLE CRITICAL] AFTER creating orderPayload:', {
         'orderPayload.tableIds': orderPayload.tableIds,
         'orderPayload.table_ids': orderPayload.table_ids,
         'orderPayload.tableId': orderPayload.tableId,
         'orderPayload.metadata.tableIds': orderPayload.metadata.tableIds
       });
 
-      console.log('📝📝📝 [NOTES CRITICAL] orderPayload notes:', {
+      // console.log('📝📝📝 [NOTES CRITICAL] orderPayload notes:', {
         'orderPayload.notes': orderPayload.notes,
         'orderPayload.notes type': typeof orderPayload.notes,
         'orderPayload.notes isArray': Array.isArray(orderPayload.notes),
@@ -6868,9 +6868,9 @@
       try{
         const persistableOrder = { ...orderPayload };
         delete persistableOrder.dirty;
-        console.log('═══════════════════════════════════════════════════════');
+        // console.log('═══════════════════════════════════════════════════════');
         console.log('💾 [CLAUDE FIX v2] SENDING ORDER TO REST API (NOT IndexedDB)');
-        console.log('═══════════════════════════════════════════════════════');
+        // console.log('═══════════════════════════════════════════════════════');
         console.log('[Mishkah][POS] Saving order to DB:', {
           orderId: persistableOrder.id,
           totals: persistableOrder.totals,
@@ -6892,7 +6892,7 @@
             totalDue: savedOrder?.totalDue
           });
 
-          console.log('📝📝📝 [NOTES CRITICAL] Backend response notes:', {
+          // console.log('📝📝📝 [NOTES CRITICAL] Backend response notes:', {
             'savedOrder.notes': savedOrder?.notes,
             'savedOrder.notes type': typeof savedOrder?.notes,
             'savedOrder.notes isArray': Array.isArray(savedOrder?.notes),
@@ -12116,29 +12116,29 @@
           if(typeof window !== 'undefined' && window.console){
             const debugEmployees = employees.map(emp=>({ id: emp.id, name: emp.name, role: emp.role, pin: emp.pin, fallback: emp.isFallback || false }));
             console.group('[Mishkah][POS] 🔐 SHIFT PIN VALIDATION - DETAILED DEBUGGING');
-            console.log('═══════════════════════════════════════════════════════════');
+            // console.log('═══════════════════════════════════════════════════════════');
             console.log('📌 ENTERED PIN:', { raw: rawPin, normalized: normalizedPin, pinLength: normalizedPin.length });
-            console.log('═══════════════════════════════════════════════════════════');
+            // console.log('═══════════════════════════════════════════════════════════');
             console.log('📊 DATA SOURCES:');
             console.log('  • state.data.employees:', stateEmployees);
             console.log('  • state.data.remotes:', state.data?.remotes);
             console.log('  • remoteSource (posDatabase):', remoteSource);
-            console.log('═══════════════════════════════════════════════════════════');
+            // console.log('═══════════════════════════════════════════════════════════');
             console.log('🔍 RESOLVED DATA:');
             console.log('  • resolveEmployeeList(remoteSource) returned:', resolveEmployeeList(remoteSource));
             console.log('  • remoteEmployees (normalized):', remoteEmployees);
             console.log('  • stateEmployees:', stateEmployees);
             console.log('  • FINAL employees array (combined & normalized):', employees);
-            console.log('═══════════════════════════════════════════════════════════');
+            // console.log('═══════════════════════════════════════════════════════════');
             console.log('👥 EMPLOYEES TABLE:');
             console.table(debugEmployees);
-            console.log('═══════════════════════════════════════════════════════════');
+            // console.log('═══════════════════════════════════════════════════════════');
             console.log('🔑 SHIFT SETTINGS:');
             console.log('  • SHIFT_PIN_FALLBACK (global):', SHIFT_PIN_FALLBACK);
             console.log('  • remoteShiftSettings:', remoteShiftSettings);
             console.log('  • state.data.shift.config:', config);
             console.log('  • Fallback PINs (Set):', Array.from(fallbackPins));
-            console.log('═══════════════════════════════════════════════════════════');
+            // console.log('═══════════════════════════════════════════════════════════');
             console.log('✅ PIN MATCHING:');
             console.log('  • Entered PIN (normalized):', normalizedPin);
             console.log('  • Matched Employee:', matchedEmployee);
@@ -12153,7 +12153,7 @@
             } else {
               console.log('✅ EMPLOYEE MATCHED:', matchedEmployee);
             }
-            console.log('═══════════════════════════════════════════════════════════');
+            // console.log('═══════════════════════════════════════════════════════════');
             console.groupEnd();
           }
           let effectiveEmployee = matchedEmployee;
