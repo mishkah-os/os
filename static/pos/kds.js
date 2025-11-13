@@ -6003,6 +6003,12 @@
     // لما الـ cache يكون فاضي عند أول watch() call
     // مش محتاجين نعمل fetch يدوي بعد كده! 🎉
     const setupWatchers = () => {
+      // ✅ DEBUG: Log registered tables to verify job_order_header exists
+      console.log('🔍🔍🔍 [KDS] Store configuration:', {
+        configObjects: Object.keys(store.config?.objects || {}),
+        hasJobOrderHeader: store.config?.objects?.hasOwnProperty('job_order_header'),
+        connected: store?.connected || 'unknown'
+      });
 
       watcherUnsubscribers.push(
         store.status((status) => {
