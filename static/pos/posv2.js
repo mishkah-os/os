@@ -7161,6 +7161,34 @@
             const existingOrderHeaders = window.database?.order_header || [];
             const existingOrderHeader = existingOrderHeaders.find(h => String(h.id) === String(order.id));
 
+            // ✅ Helper: Retry logic with exponential backoff for timeout errors
+            const retryWithBackoff = async (operation, operationName, maxRetries = 3) => {
+              let lastError;
+              for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                  const result = await operation();
+                  if (attempt > 0) {
+                    console.log(`✅ [POS V2] ${operationName} succeeded on retry ${attempt}`);
+                  }
+                  return { success: true, result };
+                } catch (err) {
+                  lastError = err;
+                  const isTimeout = err?.message?.includes('timed out');
+
+                  if (isTimeout && attempt < maxRetries) {
+                    const delayMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+                    console.warn(`⏱️ [POS V2] ${operationName} timed out (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+                  } else {
+                    break;
+                  }
+                }
+              }
+              console.error(`❌ [POS V2] ${operationName} failed after ${maxRetries + 1} attempts:`, lastError);
+              return { success: false, error: lastError };
+            };
+
+            // ✅ Execute all operations with retry logic and track results
             Promise.all([
               // ✅ CRITICAL: Only save order_header for NEW orders
               // For existing orders with new items, skip order_header update to preserve job_orders
@@ -7185,8 +7213,9 @@
                     currentVersion,
                     nextVersion
                   });
-                  return store.update('order_header', updatePayload).catch(err =>
-                    console.error('[POS V2] Failed to update order_header:', orderHeader.id, err)
+                  return retryWithBackoff(
+                    () => store.update('order_header', updatePayload),
+                    `UPDATE order_header: ${orderHeader.id}`
                   );
                 } else {
                   console.log('✨ [POS V2] INSERTING order_header (new order):', orderHeader.id, {
@@ -7196,8 +7225,9 @@
                     notesType: typeof orderHeader.notes,
                     version: orderHeader.version
                   });
-                  return store.insert('order_header', orderHeader).catch(err =>
-                    console.error('[POS V2] Failed to insert order_header:', orderHeader.id, err)
+                  return retryWithBackoff(
+                    () => store.insert('order_header', orderHeader),
+                    `INSERT order_header: ${orderHeader.id}`
                   );
                 }
               })),
@@ -7205,8 +7235,9 @@
               // For reopened orders: only insert new lines (filtered in serializeOrderForKDS)
               // For new orders: insert all lines
               ...(kdsPayload.order_line || []).map(orderLine =>
-                store.insert('order_line', orderLine).catch(err =>
-                  console.error('[POS V2] Failed to save order_line:', orderLine.id, err)
+                retryWithBackoff(
+                  () => store.insert('order_line', orderLine),
+                  `INSERT order_line: ${orderLine.id}`
                 )
               ),
               // ✅ Save job_order_batch (CRITICAL: must be saved before job_order_header!)
@@ -7216,13 +7247,10 @@
                   totalJobs: batch.totalJobs,
                   batchType: batch.batchType
                 });
-                return store.insert('job_order_batch', batch, { silent: false })
-                  .then(() => {
-                    console.log('✅ [POS V2] Successfully inserted job_order_batch:', batch.id);
-                  })
-                  .catch(err => {
-                    console.error('❌ [POS V2] Failed to save job_order_batch:', batch.id, err);
-                  });
+                return retryWithBackoff(
+                  () => store.insert('job_order_batch', batch, { silent: false }),
+                  `INSERT job_order_batch: ${batch.id}`
+                );
               }),
               // Save job_order_header (for dynamic station tabs)
               // ✅ CRITICAL: silent: false to broadcast changes to KDS immediately!
@@ -7236,37 +7264,47 @@
                   storeConnected: store?.connected || 'unknown',
                   timestamp: new Date().toISOString()
                 });
-                return store.insert('job_order_header', jobHeader, { silent: false })
-                  .then(() => {
-                    console.log('✅ [POS V2] Successfully inserted job_order_header:', jobHeader.id);
-                  })
-                  .catch(err => {
-                    console.error('❌ [POS V2] Failed to save job_order_header:', jobHeader.id, err);
-                  });
+                return retryWithBackoff(
+                  () => store.insert('job_order_header', jobHeader, { silent: false }),
+                  `INSERT job_order_header: ${jobHeader.id}`
+                );
               }),
               // Save details
               ...(kdsPayload.job_order_detail || []).map(jobDetail =>
-                store.insert('job_order_detail', jobDetail, { silent: false }).catch(err =>
-                  console.error('[POS V2] Failed to save job_order_detail:', jobDetail.id, err)
+                retryWithBackoff(
+                  () => store.insert('job_order_detail', jobDetail, { silent: false }),
+                  `INSERT job_order_detail: ${jobDetail.id}`
                 )
               ),
               // Save modifiers
               ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
-                store.insert('job_order_detail_modifier', modifier, { silent: false }).catch(err =>
-                  console.error('[POS V2] Failed to save job_order_detail_modifier:', modifier.id, err)
+                retryWithBackoff(
+                  () => store.insert('job_order_detail_modifier', modifier, { silent: false }),
+                  `INSERT job_order_detail_modifier: ${modifier.id}`
                 )
               ),
               // Save status history
               ...(kdsPayload.job_order_status_history || []).map(history =>
-                store.insert('job_order_status_history', history, { silent: false }).catch(err =>
-                  console.error('[POS V2] Failed to save job_order_status_history:', history.id, err)
+                retryWithBackoff(
+                  () => store.insert('job_order_status_history', history, { silent: false }),
+                  `INSERT job_order_status_history: ${history.id}`
                 )
               )
-            ]).then(() => {
-              console.log('✅ [POS V2] All KDS tables saved (order_header, order_line, job_order_*)!');
-              console.log('📡 [POS V2] window.database updated - KDS will show notes');
+            ]).then(results => {
+              // ✅ Track success/failure statistics
+              const successCount = results.filter(r => r?.success).length;
+              const failureCount = results.filter(r => !r?.success).length;
+              const totalCount = results.length;
+
+              if (failureCount === 0) {
+                console.log(`✅ [POS V2] All ${totalCount} KDS operations saved successfully!`);
+                console.log('📡 [POS V2] window.database updated - KDS will show notes');
+              } else {
+                console.warn(`⚠️ [POS V2] KDS operations completed: ${successCount}/${totalCount} succeeded, ${failureCount} failed`);
+                console.warn('⚠️ [POS V2] Some data may not appear in KDS - check errors above');
+              }
             }).catch(err => {
-              console.error('[POS V2] ❌ Some KDS table saves failed:', err);
+              console.error('[POS V2] ❌ Unexpected error in KDS operations:', err);
             });
             // Don't wait - continue immediately to open print modal
 
