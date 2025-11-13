@@ -2140,7 +2140,14 @@ async function syncJobOrders(branchId, moduleId, store, orderId, header, lines, 
   // ✅ No duplicate cooking (completed jobs preserved)
   // ✅ Timers work correctly (startedAt preserved)
 
-  logger.debug({ orderId }, '[syncJobOrders] DISABLED - job_order managed by posv2.js via WebSocket');
+  // 🔍 Log when this function is called (should be rare now)
+  const existingHeaders = store.listTable('job_order_header').filter(h => h.orderId === orderId);
+  logger.info({
+    orderId,
+    existingJobHeaders: existingHeaders.length,
+    sampleIds: existingHeaders.slice(0, 3).map(h => ({ id: h.id, stationId: h.stationId }))
+  }, '⚠️ [syncJobOrders] Called but DISABLED - existing job_order_header count');
+
   return;
 }
 
@@ -5661,6 +5668,16 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
   switch (action) {
     case 'module:insert': {
       recordResult = store.insert(tableName, recordPayload, contextInfo);
+      // 🔍 Log job_order_header insertions
+      if (tableName === 'job_order_header') {
+        logger.info({
+          table: tableName,
+          action,
+          recordId: recordPayload.id,
+          orderId: recordPayload.orderId,
+          stationId: recordPayload.stationId
+        }, '🚀 [BACKEND] Received job_order_header via WebSocket - inserted to store');
+      }
       break;
     }
     case 'module:merge': {
@@ -5677,6 +5694,15 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
       const removal = store.remove(tableName, recordPayload, contextInfo);
       removedRecord = removal?.record || null;
       effectiveAction = 'module:delete';
+      // 🔍 Log job_order_header deletions
+      if (tableName === 'job_order_header') {
+        logger.warn({
+          table: tableName,
+          action,
+          recordId: recordPayload.id,
+          orderId: removedRecord?.orderId
+        }, '❌ [BACKEND] job_order_header DELETED');
+      }
       break;
     }
     default:
@@ -5684,6 +5710,17 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
   }
 
   await persistModuleStore(store);
+
+  // 🔍 Log after persist
+  if (tableName === 'job_order_header') {
+    const allJobHeaders = store.listTable('job_order_header');
+    logger.info({
+      table: tableName,
+      action: effectiveAction,
+      totalInStore: allJobHeaders.length,
+      sampleIds: allJobHeaders.slice(0, 3).map(h => ({ id: h.id, orderId: h.orderId }))
+    }, '✅ [BACKEND] job_order_header count after persist');
+  }
 
   const timestamp = nowIso();
   const baseMeta = {

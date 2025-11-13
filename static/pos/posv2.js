@@ -3209,11 +3209,22 @@
             });
 
             // Insert WITHOUT silent - backend will persist AND broadcast
-            headers.forEach(header => {
+            console.log('🚀 [POS][KDS] Sending job_order_header to backend via WebSocket:', {
+              count: headers.length,
+              firstHeader: headers[0],
+              wsConnected: store?.connected || 'unknown'
+            });
+
+            headers.forEach((header, index) => {
               try {
                 store.insert('job_order_header', header);
+                console.log(`✅ [POS][KDS] Sent job_order_header ${index + 1}/${headers.length}:`, {
+                  id: header.id,
+                  orderId: header.orderId,
+                  stationId: header.stationId
+                });
               } catch (err) {
-                console.warn('[POS][KDS] Failed to insert job_order_header:', err);
+                console.error(`❌ [POS][KDS] Failed to insert job_order_header ${index + 1}:`, err, header);
               }
             });
 
@@ -3240,6 +3251,8 @@
                 console.warn('[POS][KDS] Failed to insert job_order_status_history:', err);
               }
             });
+
+            console.log('✅ [POS][KDS] All job_order data sent via WebSocket');
           }
 
           // Still send envelope for other data (order, master, deliveries, handoff)
