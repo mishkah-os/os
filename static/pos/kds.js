@@ -4381,9 +4381,66 @@
     posPayload: database,
     headers: [],           // job_order_header
     lines: [],             // job_order_detail
+    batches: [],           // ✅ job_order_batch
     orderHeaders: [],      // ✅ order_header for static tabs
     orderLines: [],        // ✅ order_line for static tabs
     deliveries: []
+  };
+
+  /**
+   * ✅ Compute batch status dynamically from job_order_header records
+   *
+   * Batch Lifecycle:
+   * - queued: لم يبدأ أي job بعد
+   * - cooking: بدأ job واحد أو أكثر (in_progress)
+   * - ready: كل jobs جاهزة (ready/completed)
+   * - assembled: تم التجميع في Expo
+   * - served: تم التسليم للعميل
+   *
+   * @param {Array} jobHeaders - All job_order_header records for this batch
+   * @returns {Object} { status, totalJobs, readyJobs, cookingJobs, queuedJobs, progress }
+   */
+  const computeBatchStatus = (jobHeaders) => {
+    if (!Array.isArray(jobHeaders) || jobHeaders.length === 0) {
+      return { status: 'unknown', totalJobs: 0, readyJobs: 0, cookingJobs: 0, queuedJobs: 0, progress: 0 };
+    }
+
+    const totalJobs = jobHeaders.length;
+    let readyJobs = 0;
+    let cookingJobs = 0;
+    let queuedJobs = 0;
+
+    // Count jobs by status
+    jobHeaders.forEach(job => {
+      const status = String(job.status || '').toLowerCase();
+      if (status === 'ready' || status === 'completed') {
+        readyJobs++;
+      } else if (status === 'in_progress') {
+        cookingJobs++;
+      } else if (status === 'queued' || status === 'pending') {
+        queuedJobs++;
+      }
+    });
+
+    // ✅ Determine batch status
+    let batchStatus = 'queued';
+
+    if (readyJobs === totalJobs) {
+      // كل الـ jobs جاهزة
+      batchStatus = 'ready';
+    } else if (cookingJobs > 0 || readyJobs > 0) {
+      // بعض الـ jobs بدأت
+      batchStatus = 'cooking';
+    }
+
+    return {
+      status: batchStatus,
+      totalJobs,
+      readyJobs,
+      cookingJobs,
+      queuedJobs,
+      progress: totalJobs > 0 ? Math.round((readyJobs / totalJobs) * 100) : 0
+    };
   };
 
   // ✅ Helper function to persist job order status changes to server
@@ -4611,6 +4668,62 @@
         }
         return detail;
       });
+
+      // ✅ STEP 6: Update job_order_batch status dynamically
+      // Extract batchId from the updated job
+      const updatedJob = watcherState.headers.find(h => String(h.id) === String(jobId));
+      const batchId = updatedJob ? (updatedJob.batchId || updatedJob.batch_id) : null;
+
+      if (batchId) {
+        // Get all jobs in this batch
+        const batchJobs = watcherState.headers.filter(h =>
+          String(h.batchId || h.batch_id) === String(batchId)
+        );
+
+        // Compute batch status
+        const batchInfo = computeBatchStatus(batchJobs);
+
+        console.log('[KDS][persistJobOrderStatusChange] Batch status computed:', {
+          batchId,
+          status: batchInfo.status,
+          progress: `${batchInfo.readyJobs}/${batchInfo.totalJobs}`,
+          progressPercent: batchInfo.progress
+        });
+
+        // Update batch record via REST API
+        try {
+          await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_batch/${batchId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: batchInfo.status,
+              readyJobs: batchInfo.readyJobs,
+              ready_jobs: batchInfo.readyJobs,
+              updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+              updated_at: statusPayload.updatedAt || new Date().toISOString()
+            })
+          });
+
+          console.log('[KDS][persistJobOrderStatusChange] ✅ Batch status updated:', batchInfo.status);
+
+          // Update local watcherState.batches
+          watcherState.batches = (watcherState.batches || []).map(batch => {
+            if (String(batch.id) === String(batchId)) {
+              return {
+                ...batch,
+                status: batchInfo.status,
+                readyJobs: batchInfo.readyJobs,
+                ready_jobs: batchInfo.readyJobs,
+                updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+                updated_at: statusPayload.updatedAt || new Date().toISOString()
+              };
+            }
+            return batch;
+          });
+        } catch (batchError) {
+          console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update batch:', batchError);
+        }
+      }
 
       // ✅ Trigger re-render
       updateFromWatchers();
@@ -6018,6 +6131,18 @@
           // Details should stay visible in Expo/Handoff even after cooking is done
           const allDetails = ensureArray(rows);
           watcherState.lines = allDetails;  // Keep ALL details
+          updateFromWatchers();
+        })
+      );
+
+      // ✅ Watch job_order_batch for batch workflow
+      watcherUnsubscribers.push(
+        store.watch('job_order_batch', (rows) => {
+          console.log('📦 [KDS] job_order_batch WATCHER triggered!', {
+            rowsCount: rows?.length || 0,
+            timestamp: new Date().toISOString()
+          });
+          watcherState.batches = ensureArray(rows);
           updateFromWatchers();
         })
       );
