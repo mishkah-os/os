@@ -4722,26 +4722,56 @@
     };
   };
 
+  // ✅ Helper: Retry logic with exponential backoff (same as posv2.js)
+  const retryWithBackoff = async (operation, operationName, maxRetries = 3) => {
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await operation();
+        if (attempt > 0) {
+          console.log(`✅ [KDS] ${operationName} succeeded on retry ${attempt}`);
+        }
+        return { success: true, result };
+      } catch (err) {
+        lastError = err;
+        const isTimeout = err?.message?.includes('timed out') || err?.message?.includes('timeout');
+
+        if (isTimeout && attempt < maxRetries) {
+          const delayMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+          console.warn(`⏱️ [KDS] ${operationName} timed out (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          break;
+        }
+      }
+    }
+    console.error(`❌ [KDS] ${operationName} failed after ${maxRetries + 1} attempts:`, lastError);
+    return { success: false, error: lastError };
+  };
+
   // ✅ Helper function to persist job order status changes to server
   const persistJobOrderStatusChange = async (jobId, statusPayload, actorInfo = {}) => {
-    // ✅ CRITICAL FIX: Use REST API exclusively for status updates (more reliable than WebSocket store.update)
-    // Reason: store.update() often times out in KDS, causing job_order_detail to not update
-    // REST API is slower but much more stable for critical operations
+    // ✅ CRITICAL FIX: Use store.update() with WebSocket for INSTANT real-time broadcast!
+    // This is much better than REST API because:
+    // 1. WebSocket broadcasts changes to all KDS instances immediately
+    // 2. Faster than HTTP requests
+    // 3. With retry logic, timeouts are handled gracefully
 
-    console.log('[KDS][persistJobOrderStatusChange] Starting status change via REST API:', {
+    console.log('[KDS][persistJobOrderStatusChange] Starting status change via WebSocket:', {
       jobId,
       status: statusPayload.status,
       progressState: statusPayload.progressState
     });
 
     try {
-      const baseUrl = window.basedomain || '';
-      // ✅ Get branchId and moduleId from store or window or fallback to defaults
-      const branchId = (store && store.branchId) || window.BRANCH_ID || 'dar';
-      const moduleId = (store && store.moduleId) || 'pos';
+      if (!store || typeof store.update !== 'function') {
+        console.error('[KDS][persistJobOrderStatusChange] ❌ Store not available!');
+        return;
+      }
 
-      // ✅ STEP 1: Update job_order_header
+      // ✅ STEP 1: Update job_order_header via WebSocket
       const headerPayload = {
+        id: jobId,  // ✅ CRITICAL: must include id for update
         status: statusPayload.status,
         progressState: statusPayload.progressState,
         progress_state: statusPayload.progressState,  // snake_case
@@ -4763,54 +4793,40 @@
         headerPayload.completed_at = statusPayload.completedAt;
       }
 
-      console.log('[KDS][persistJobOrderStatusChange] Updating job_order_header:', jobId, headerPayload);
+      console.log('[KDS][persistJobOrderStatusChange] 📤 Updating job_order_header via WebSocket:', jobId, headerPayload);
 
-      let headerResponse = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_header/${jobId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(headerPayload)
-      });
+      // ✅ Update with retry logic (job_order_header is NOT versioned - no version needed)
+      const headerResult = await retryWithBackoff(
+        () => store.update('job_order_header', headerPayload),
+        `UPDATE job_order_header: ${jobId}`
+      );
 
-      // ✅ CRITICAL FIX: If PATCH returns 404, fallback to INSERT
-      // This happens when initial insert failed due to timeout in posv2.js
-      if (headerResponse.status === 404) {
-        console.warn('[KDS][persistJobOrderStatusChange] ⚠️ job_order_header not found (404), attempting INSERT fallback...');
+      // ✅ If update failed, try INSERT fallback (record may not exist due to previous timeout)
+      if (!headerResult.success) {
+        console.warn('[KDS][persistJobOrderStatusChange] ⚠️ UPDATE failed, attempting INSERT fallback...');
 
-        // ✅ Find the full record from window.database or state
         const allJobHeaders = (window.database?.job_order_header || []);
         const existingHeader = allJobHeaders.find(h => String(h.id) === String(jobId));
 
         if (existingHeader) {
-          // ✅ Merge existing record with new status updates
           const insertPayload = {
             ...existingHeader,
-            ...headerPayload,
-            // ✅ Ensure critical fields are present
-            id: jobId,
-            orderId: existingHeader.orderId || existingHeader.order_id,
-            stationId: existingHeader.stationId || existingHeader.station_id,
-            orderNumber: existingHeader.orderNumber || existingHeader.order_number,
-            batchId: existingHeader.batchId || existingHeader.batch_id
+            ...headerPayload
           };
 
-          console.log('[KDS][persistJobOrderStatusChange] 🔄 Attempting INSERT with full record:', jobId);
+          const insertResult = await retryWithBackoff(
+            () => store.insert('job_order_header', insertPayload, { silent: false }),
+            `INSERT job_order_header: ${jobId}`
+          );
 
-          headerResponse = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_header`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(insertPayload)
-          });
-
-          if (!headerResponse.ok) {
-            throw new Error(`Failed to INSERT job_order_header: ${headerResponse.status} ${headerResponse.statusText}`);
+          if (!insertResult.success) {
+            throw new Error(`Failed to INSERT job_order_header after UPDATE failed: ${insertResult.error?.message}`);
           }
 
           console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header inserted successfully (fallback)');
         } else {
-          throw new Error(`Failed to update job_order_header: 404 (not found) and no fallback record available in window.database`);
+          throw new Error(`Failed to update job_order_header and no fallback record available in window.database`);
         }
-      } else if (!headerResponse.ok) {
-        throw new Error(`Failed to update job_order_header: ${headerResponse.status} ${headerResponse.statusText}`);
       } else {
         console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated successfully');
       }
@@ -4839,52 +4855,44 @@
         detailPayload.start_at = statusPayload.startedAt;
       }
 
-      // ✅ Update all details in parallel (faster)
+      // ✅ Update all details in parallel via WebSocket (faster + broadcasts instantly!)
       const detailUpdatePromises = jobDetails.map(async (detail) => {
-        try {
-          let response = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_detail/${detail.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(detailPayload)
-          });
+        const detailUpdatePayload = {
+          id: detail.id,  // ✅ CRITICAL: must include id
+          ...detailPayload
+        };
 
-          // ✅ CRITICAL FIX: If PATCH returns 404, fallback to INSERT
-          if (response.status === 404) {
-            console.warn(`[KDS][persistJobOrderStatusChange] ⚠️ job_order_detail ${detail.id} not found (404), attempting INSERT fallback...`);
+        // ✅ Update with retry logic (job_order_detail is NOT versioned)
+        const result = await retryWithBackoff(
+          () => store.update('job_order_detail', detailUpdatePayload),
+          `UPDATE job_order_detail: ${detail.id}`
+        );
 
-            // ✅ Merge full detail record with status updates
-            const insertPayload = {
-              ...detail,
-              ...detailPayload,
-              id: detail.id,
-              jobOrderId: detail.jobOrderId || detail.job_order_id,
-              job_order_id: detail.jobOrderId || detail.job_order_id,
-              itemId: detail.itemId || detail.item_id,
-              item_id: detail.itemId || detail.item_id
-            };
+        // ✅ If update failed, try INSERT fallback
+        if (!result.success) {
+          console.warn(`[KDS][persistJobOrderStatusChange] ⚠️ UPDATE failed for detail ${detail.id}, attempting INSERT fallback...`);
 
-            response = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_detail`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(insertPayload)
-            });
+          const insertPayload = {
+            ...detail,
+            ...detailPayload
+          };
 
-            if (!response.ok) {
-              throw new Error(`Failed to INSERT job_order_detail ${detail.id}: ${response.status}`);
-            }
+          const insertResult = await retryWithBackoff(
+            () => store.insert('job_order_detail', insertPayload, { silent: false }),
+            `INSERT job_order_detail: ${detail.id}`
+          );
 
-            console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail inserted (fallback): ${detail.id}`);
-          } else if (!response.ok) {
-            throw new Error(`Failed to update job_order_detail ${detail.id}: ${response.status}`);
-          } else {
-            console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail updated: ${detail.id}`);
+          if (!insertResult.success) {
+            console.error(`[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail ${detail.id}:`, insertResult.error);
+            return { success: false, id: detail.id, error: insertResult.error };
           }
 
-          return { success: true, id: detail.id };
-        } catch (error) {
-          console.error(`[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail ${detail.id}:`, error);
-          return { success: false, id: detail.id, error };
+          console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail inserted (fallback): ${detail.id}`);
+        } else {
+          console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail updated: ${detail.id}`);
         }
+
+        return { success: true, id: detail.id };
       });
 
       const detailResults = await Promise.all(detailUpdatePromises);
@@ -4917,31 +4925,44 @@
           lineIds: matchingLines.map(l => l.id)
         });
 
-        // ✅ Update all matching lines in parallel
+        // ✅ Update all matching lines in parallel via WebSocket
+        // ⚠️ order_line is VERSIONED table - must include version!
         const lineUpdatePromises = matchingLines.map(async (line) => {
-          try {
-            const response = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/order_line/${line.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                statusId: statusPayload.status,
-                status: statusPayload.status,
-                status_id: statusPayload.status,
-                updatedAt: statusPayload.updatedAt || new Date().toISOString(),
-                updated_at: statusPayload.updatedAt || new Date().toISOString()
-              })
+          // ✅ Calculate version (order_line IS versioned!)
+          const currentVersion = line.version || 1;
+          const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+          if (!Number.isFinite(nextVersion) || nextVersion < 1) {
+            console.error(`❌ [KDS] Cannot update order_line without valid version!`, {
+              lineId: line.id,
+              currentVersion,
+              nextVersion
             });
-
-            if (!response.ok) {
-              throw new Error(`Failed to update order_line ${line.id}: ${response.status}`);
-            }
-
-            console.log(`[KDS][persistJobOrderStatusChange] ✅ order_line updated: ${line.id}`);
-            return { success: true, id: line.id };
-          } catch (error) {
-            console.error(`[KDS][persistJobOrderStatusChange] ❌ Failed to update order_line ${line.id}:`, error);
-            return { success: false, id: line.id, error };
+            return { success: false, id: line.id, error: new Error('Invalid version') };
           }
+
+          const lineUpdatePayload = {
+            id: line.id,
+            statusId: statusPayload.status,
+            status: statusPayload.status,
+            status_id: statusPayload.status,
+            version: nextVersion,  // ✅ CRITICAL: order_line needs version!
+            updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+            updated_at: statusPayload.updatedAt || new Date().toISOString()
+          };
+
+          const result = await retryWithBackoff(
+            () => store.update('order_line', lineUpdatePayload),
+            `UPDATE order_line: ${line.id} (v${currentVersion}→v${nextVersion})`
+          );
+
+          if (!result.success) {
+            console.error(`[KDS][persistJobOrderStatusChange] ❌ Failed to update order_line ${line.id}:`, result.error);
+            return { success: false, id: line.id, error: result.error };
+          }
+
+          console.log(`[KDS][persistJobOrderStatusChange] ✅ order_line updated: ${line.id} (v${nextVersion})`);
+          return { success: true, id: line.id };
         });
 
         await Promise.all(lineUpdatePromises);
@@ -4956,19 +4977,45 @@
         });
 
         if (allLinesReady && orderAllLines.length > 0) {
-          console.log('[KDS][persistJobOrderStatusChange] All lines ready, updating order_header:', baseOrderId);
+          console.log('[KDS][persistJobOrderStatusChange] All lines ready, updating order_header via WebSocket:', baseOrderId);
 
-          await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/order_header/${baseOrderId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              status: 'ready',
-              statusId: 'ready',
-              status_id: 'ready',
-              updatedAt: statusPayload.updatedAt || new Date().toISOString(),
-              updated_at: statusPayload.updatedAt || new Date().toISOString()
-            })
-          });
+          // ✅ Find order_header to get current version (order_header IS versioned!)
+          const orderHeaders = watcherState.orderHeaders || [];
+          const orderHeader = orderHeaders.find(h =>
+            String(h.id || h.orderId) === baseOrderId
+          );
+
+          if (orderHeader) {
+            const currentVersion = orderHeader.version || 1;
+            const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+            if (Number.isFinite(nextVersion) && nextVersion >= 1) {
+              const orderHeaderUpdate = {
+                id: baseOrderId,
+                status: 'ready',
+                statusId: 'ready',
+                status_id: 'ready',
+                version: nextVersion,  // ✅ CRITICAL: order_header needs version!
+                updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+                updated_at: statusPayload.updatedAt || new Date().toISOString()
+              };
+
+              await retryWithBackoff(
+                () => store.update('order_header', orderHeaderUpdate),
+                `UPDATE order_header: ${baseOrderId} (v${currentVersion}→v${nextVersion})`
+              );
+
+              console.log(`[KDS][persistJobOrderStatusChange] ✅ order_header updated to ready: ${baseOrderId} (v${nextVersion})`);
+            } else {
+              console.error(`❌ [KDS] Cannot update order_header without valid version!`, {
+                orderId: baseOrderId,
+                currentVersion,
+                nextVersion
+              });
+            }
+          } else {
+            console.warn(`[KDS][persistJobOrderStatusChange] ⚠️ order_header not found for: ${baseOrderId}`);
+          }
 
           console.log('[KDS][persistJobOrderStatusChange] ✅ order_header updated to ready');
         }
