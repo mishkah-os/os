@@ -6354,11 +6354,11 @@
       const validLines = lines.filter(line => !line.cancelled && !line.voided);
 
       // console.log('🔍 [POS V2] EMPTY ORDER CHECK:', {
-        totalLines: lines.length,
-        validLines: validLines.length,
-        isPersisted: order.isPersisted,
-        orderId: order.id
-      });
+      //   totalLines: lines.length,
+      //   validLines: validLines.length,
+      //   isPersisted: order.isPersisted,
+      //   orderId: order.id
+      // });
 
       if(!validLines.length){
         console.error('❌ [POS V2] BLOCKED: Cannot save empty order - no valid lines!');
@@ -6676,13 +6676,13 @@
       const orderNotes = Array.isArray(order.notes) ? order.notes : (order.notes ? [order.notes] : []);
 
       // console.log('📝📝📝 [NOTES CRITICAL] Order notes before save:', {
-        'order.notes': order.notes,
-        'order.notes type': typeof order.notes,
-        'order.notes isArray': Array.isArray(order.notes),
-        'orderNotes': orderNotes,
-        'orderNotes.length': orderNotes.length,
-        'orderNotes[0]': orderNotes[0]
-      });
+      //   'order.notes': order.notes,
+      //   'order.notes type': typeof order.notes,
+      //   'order.notes isArray': Array.isArray(order.notes),
+      //   'orderNotes': orderNotes,
+      //   'orderNotes.length': orderNotes.length,
+      //   'orderNotes[0]': orderNotes[0]
+      // });
 
       let finalOrderId = previousOrderId;
       // Check if current ID is a draft (local-only) ID
@@ -6692,13 +6692,13 @@
       console.log('🔍 [CLAUDE FIX v3] INVOICE ID ALLOCATION DECISION');
       // console.log('═══════════════════════════════════════════════════════');
       // console.log('[ALLOCATION CHECK] Current state:', {
-        isPersisted: order.isPersisted,
-        previousOrderId,
-        isDraftId,
-        retryCount,
-        IS_SAVING_ORDER,
-        timestamp: new Date().toISOString()
-      });
+      //   isPersisted: order.isPersisted,
+      //   previousOrderId,
+      //   isDraftId,
+      //   retryCount,
+      //   IS_SAVING_ORDER,
+      //   timestamp: new Date().toISOString()
+      // });
 
       // ✅ CRITICAL FIX: Only allocate sequence for truly NEW orders
       // Allocate new ID ONLY if:
@@ -6766,21 +6766,21 @@
           ? Math.trunc(currentVersion) + 1  // Increment version for updates
           : 1);  // Fallback to version 1
       // console.log('[Mishkah][POS] VERSION DECISION', {
-        idChanged,
-        isDraftId,
-        isPersisted: order.isPersisted,
-        expectedVersion,
-        currentVersion,
-        outgoingVersion,
-        incrementReason: (idChanged || isDraftId)
-          ? 'new order - start at v1'
-          : (order.isPersisted ? `update existing - increment from v${currentVersion} to v${outgoingVersion}` : 'fallback to v1')
-      });
+      //   idChanged,
+      //   isDraftId,
+      //   isPersisted: order.isPersisted,
+      //   expectedVersion,
+      //   currentVersion,
+      //   outgoingVersion,
+      //   incrementReason: (idChanged || isDraftId)
+      //     ? 'new order - start at v1'
+      //     : (order.isPersisted ? `update existing - increment from v${currentVersion} to v${outgoingVersion}` : 'fallback to v1')
+      // });
       // console.log('🏷️🏷️🏷️ [TABLE CRITICAL] BEFORE creating orderPayload:', {
-        'order.tableIds': order.tableIds,
-        'assignedTables': assignedTables,
-        'primaryTableId': primaryTableId
-      });
+      //   'order.tableIds': order.tableIds,
+      //   'assignedTables': assignedTables,
+      //   'primaryTableId': primaryTableId
+      // });
 
       const orderPayload = {
         ...order,
@@ -6843,20 +6843,20 @@
       };
 
       // console.log('🏷️🏷️🏷️ [TABLE CRITICAL] AFTER creating orderPayload:', {
-        'orderPayload.tableIds': orderPayload.tableIds,
-        'orderPayload.table_ids': orderPayload.table_ids,
-        'orderPayload.tableId': orderPayload.tableId,
-        'orderPayload.metadata.tableIds': orderPayload.metadata.tableIds
-      });
+      //   'orderPayload.tableIds': orderPayload.tableIds,
+      //   'orderPayload.table_ids': orderPayload.table_ids,
+      //   'orderPayload.tableId': orderPayload.tableId,
+      //   'orderPayload.metadata.tableIds': orderPayload.metadata.tableIds
+      // });
 
       // console.log('📝📝📝 [NOTES CRITICAL] orderPayload notes:', {
-        'orderPayload.notes': orderPayload.notes,
-        'orderPayload.notes type': typeof orderPayload.notes,
-        'orderPayload.notes isArray': Array.isArray(orderPayload.notes),
-        'orderPayload.notes.length': orderPayload.notes?.length,
-        'orderPayload.metadata.notes': orderPayload.metadata.notes,
-        'orderPayload.metadata.notes_json': orderPayload.metadata.notes_json
-      });
+      //   'orderPayload.notes': orderPayload.notes,
+      //   'orderPayload.notes type': typeof orderPayload.notes,
+      //   'orderPayload.notes isArray': Array.isArray(orderPayload.notes),
+      //   'orderPayload.notes.length': orderPayload.notes?.length,
+      //   'orderPayload.metadata.notes': orderPayload.metadata.notes,
+      //   'orderPayload.metadata.notes_json': orderPayload.metadata.notes_json
+      // });
       if(finalize){
         orderPayload.finalizedAt = now;
         orderPayload.finishedAt = now;
@@ -6893,13 +6893,13 @@
           });
 
           // console.log('📝📝📝 [NOTES CRITICAL] Backend response notes:', {
-            'savedOrder.notes': savedOrder?.notes,
-            'savedOrder.notes type': typeof savedOrder?.notes,
-            'savedOrder.notes isArray': Array.isArray(savedOrder?.notes),
-            'savedOrder.notes.length': savedOrder?.notes?.length,
-            'savedOrder.metadata?.notes': savedOrder?.metadata?.notes,
-            'savedOrder.metadata?.notes_json': savedOrder?.metadata?.notes_json
-          });
+          //   'savedOrder.notes': savedOrder?.notes,
+          //   'savedOrder.notes type': typeof savedOrder?.notes,
+          //   'savedOrder.notes isArray': Array.isArray(savedOrder?.notes),
+          //   'savedOrder.notes.length': savedOrder?.notes?.length,
+          //   'savedOrder.metadata?.notes': savedOrder?.metadata?.notes,
+          //   'savedOrder.metadata?.notes_json': savedOrder?.metadata?.notes_json
+          // });
         } catch(error){
           console.error('[Mishkah][POS] Error saving order to backend:', {
             errorMessage: error?.message,
