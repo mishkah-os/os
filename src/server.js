@@ -6163,11 +6163,25 @@ async function handleMessage(client, raw) {
         sendServerLog(client, 'error', 'Module ID missing in publish payload');
         return;
       }
+      // 🔍 DEBUG: Log job_order WebSocket events
+      const tableName = parsed.table || parsed.tableName;
+      if (tableName && tableName.startsWith('job_order_')) {
+        console.log(`[WebSocket][client:publish] Received ${tableName}:`, {
+          action: parsed.action,
+          recordId: parsed.record?.id,
+          branchId,
+          moduleId
+        });
+      }
       try {
         await handleModuleEvent(branchId, moduleId, parsed, client, { source: parsed.source || 'ws-client' });
       } catch (error) {
-        logger.warn({ err: error, clientId: client.id, branchId, moduleId }, 'Module event failed');
+        logger.warn({ err: error, clientId: client.id, branchId, moduleId, table: tableName }, 'Module event failed');
         sendServerLog(client, 'error', error.message || 'Module event failed');
+        // 🔍 DEBUG: Log job_order errors
+        if (tableName && tableName.startsWith('job_order_')) {
+          console.error(`[WebSocket][client:publish] ERROR for ${tableName}:`, error.message);
+        }
       }
       break;
     }
