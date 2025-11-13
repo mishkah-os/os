@@ -76,23 +76,14 @@ export default class ModuleStore {
 
     const name = tableName.toLowerCase();
 
-    // Common alias mappings (matching frontend aliases in pos-mini-db.js)
-    const aliasMap = {
-      'orders': 'order_header',
-      'job_orders': 'job_order_header',
-      'order_lines': 'order_line',
-      'order_payments': 'order_payment',
-      'job_order_details': 'job_order_detail',
-      'job_order_headers': 'job_order_header',
-      'payments': 'order_payment',
-      'deliveries': 'order_delivery',
-      'order_deliveries': 'order_delivery'
-    };
-
-    // Check alias map
-    if (aliasMap[name] && this.tables.includes(aliasMap[name])) {
-      return aliasMap[name];
-    }
+    // ✅ UNIFIED: Removed aliasMap - Frontend now sends canonical names only
+    // Removed aliasMap:
+    //   'orders' → 'order_header'
+    //   'job_orders' → 'job_order_header'
+    //   'order_lines' → 'order_line'
+    //   'payments' → 'order_payment'
+    //   'deliveries' → 'order_delivery'
+    // Frontend (posv2.js, pos-mini-db.js) now uses canonical names exclusively
 
     // Generic: try removing trailing 's' (for simple plurals)
     if (name.endsWith('s') && !name.endsWith('ss')) {

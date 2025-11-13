@@ -241,15 +241,19 @@
     };
     const TABLE_ALIAS_GROUPS = {
       dataset:{ canonical:'pos_database', aliases:['pos_dataset','pos_data','dataset','pos_snapshot'] },
+      // ✅ UNIFIED: Removed aliases - use canonical names only
       orderHeader:{
         canonical:'order_header',
-        aliases:['orders','order_headers','orderHeader','order_header_live','pos_order_header','pos_orders']
+        aliases:[]  // ✅ Removed: ['orders','order_headers','orderHeader','order_header_live','pos_order_header','pos_orders']
       },
       orderLine:{
         canonical:'order_line',
-        aliases:['order_lines','order_line_items','orderLineItems','orderDetails','order_items','orderLines']
+        aliases:[]  // ✅ Removed: ['order_lines','order_line_items','orderLineItems','orderDetails','order_items','orderLines']
       },
-      orderPayment:{ canonical:'order_payment', aliases:['order_payments','payments','orderPayments','payment_transactions'] },
+      orderPayment:{
+        canonical:'order_payment',
+        aliases:[]  // ✅ Removed: ['order_payments','payments','orderPayments','payment_transactions']
+      },
       orderLineModifier:{
         canonical:'order_line_modifier',
         aliases:['order_line_modifiers','orderModifiers','order_line_addons','orderLines_modifier','orderLines_modifiers']
@@ -260,13 +264,23 @@
         aliases:['order_line_status_history','line_status_history','orderLines_status_log','orderLines_status_history']
       },
       posShift:{ canonical:'pos_shift', aliases:['pos_shifts','shifts','shift_header','shiftHeaders'] },
+      // ✅ UNIFIED: Removed aliases - use canonical names only
       jobOrderHeader:{
         canonical:'job_order_header',
-        aliases:['job_orders','job_order_headers','production_orders','production_order_header','jobOrders']
+        aliases:[]  // ✅ Removed: ['job_orders','job_order_headers','production_orders','production_order_header','jobOrders']
       },
-      jobOrderDetail:{ canonical:'job_order_detail', aliases:['job_order_details','jobOrderDetails','production_order_detail'] },
-      jobOrderDetailModifier:{ canonical:'job_order_detail_modifier', aliases:['job_order_modifiers','jobOrderModifiers'] },
-      jobOrderStatusHistory:{ canonical:'job_order_status_history', aliases:['job_order_status_log','jobStatusHistory'] },
+      jobOrderDetail:{
+        canonical:'job_order_detail',
+        aliases:[]  // ✅ Removed: ['job_order_details','jobOrderDetails','production_order_detail']
+      },
+      jobOrderDetailModifier:{
+        canonical:'job_order_detail_modifier',
+        aliases:[]  // ✅ Removed: ['job_order_modifiers','jobOrderModifiers']
+      },
+      jobOrderStatusHistory:{
+        canonical:'job_order_status_history',
+        aliases:[]  // ✅ Removed: ['job_order_status_log','jobStatusHistory']
+      },
       expoPassTicket:{ canonical:'expo_pass_ticket', aliases:['expo_pass_tickets','expo_tickets','expoPassTickets'] },
       kitchenSection:{ canonical:'kitchen_section', aliases:['kitchen_sections','kitchenStations'] },
       diningTable:{ canonical:'dining_table', aliases:['tables','dining_tables','restaurant_tables'] },
@@ -4185,10 +4199,10 @@
       const registeredObjects = Object.keys(store.config?.objects || {});
       console.log('[POS][installRealtimeOrderWatchers] Registered objects:', registeredObjects);
 
-      // استخدام نفس aliases المستخدمة في pos_finance للتوافق
-      const headerTableName = 'orders';        // alias لـ order_header
-      const lineTableName = 'lines';           // alias لـ order_line
-      const paymentTableName = 'payments';     // alias لـ order_payment
+      // ✅ UNIFIED: استخدام canonical names فقط (matching Backend)
+      const headerTableName = 'order_header';   // ✅ Canonical name
+      const lineTableName = 'order_line';       // ✅ Canonical name
+      const paymentTableName = 'order_payment'; // ✅ Canonical name
 
       // تسجيل الجداول إذا لم تكن مسجلة
       if(typeof store.register === 'function'){
