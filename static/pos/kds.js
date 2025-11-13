@@ -4765,17 +4765,55 @@
 
       console.log('[KDS][persistJobOrderStatusChange] Updating job_order_header:', jobId, headerPayload);
 
-      const headerResponse = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_header/${jobId}`, {
+      let headerResponse = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_header/${jobId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(headerPayload)
       });
 
-      if (!headerResponse.ok) {
-        throw new Error(`Failed to update job_order_header: ${headerResponse.status} ${headerResponse.statusText}`);
-      }
+      // ✅ CRITICAL FIX: If PATCH returns 404, fallback to INSERT
+      // This happens when initial insert failed due to timeout in posv2.js
+      if (headerResponse.status === 404) {
+        console.warn('[KDS][persistJobOrderStatusChange] ⚠️ job_order_header not found (404), attempting INSERT fallback...');
 
-      console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated successfully');
+        // ✅ Find the full record from window.database or state
+        const allJobHeaders = (window.database?.job_order_header || []);
+        const existingHeader = allJobHeaders.find(h => String(h.id) === String(jobId));
+
+        if (existingHeader) {
+          // ✅ Merge existing record with new status updates
+          const insertPayload = {
+            ...existingHeader,
+            ...headerPayload,
+            // ✅ Ensure critical fields are present
+            id: jobId,
+            orderId: existingHeader.orderId || existingHeader.order_id,
+            stationId: existingHeader.stationId || existingHeader.station_id,
+            orderNumber: existingHeader.orderNumber || existingHeader.order_number,
+            batchId: existingHeader.batchId || existingHeader.batch_id
+          };
+
+          console.log('[KDS][persistJobOrderStatusChange] 🔄 Attempting INSERT with full record:', jobId);
+
+          headerResponse = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_header`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(insertPayload)
+          });
+
+          if (!headerResponse.ok) {
+            throw new Error(`Failed to INSERT job_order_header: ${headerResponse.status} ${headerResponse.statusText}`);
+          }
+
+          console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header inserted successfully (fallback)');
+        } else {
+          throw new Error(`Failed to update job_order_header: 404 (not found) and no fallback record available in window.database`);
+        }
+      } else if (!headerResponse.ok) {
+        throw new Error(`Failed to update job_order_header: ${headerResponse.status} ${headerResponse.statusText}`);
+      } else {
+        console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated successfully');
+      }
 
       // ✅ STEP 2: Update all job_order_detail for this job (in parallel)
       const allJobDetails = watcherState.lines || [];
@@ -4804,17 +4842,44 @@
       // ✅ Update all details in parallel (faster)
       const detailUpdatePromises = jobDetails.map(async (detail) => {
         try {
-          const response = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_detail/${detail.id}`, {
+          let response = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_detail/${detail.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(detailPayload)
           });
 
-          if (!response.ok) {
+          // ✅ CRITICAL FIX: If PATCH returns 404, fallback to INSERT
+          if (response.status === 404) {
+            console.warn(`[KDS][persistJobOrderStatusChange] ⚠️ job_order_detail ${detail.id} not found (404), attempting INSERT fallback...`);
+
+            // ✅ Merge full detail record with status updates
+            const insertPayload = {
+              ...detail,
+              ...detailPayload,
+              id: detail.id,
+              jobOrderId: detail.jobOrderId || detail.job_order_id,
+              job_order_id: detail.jobOrderId || detail.job_order_id,
+              itemId: detail.itemId || detail.item_id,
+              item_id: detail.itemId || detail.item_id
+            };
+
+            response = await fetch(`${baseUrl}/api/branches/${branchId}/modules/${moduleId}/tables/job_order_detail`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(insertPayload)
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to INSERT job_order_detail ${detail.id}: ${response.status}`);
+            }
+
+            console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail inserted (fallback): ${detail.id}`);
+          } else if (!response.ok) {
             throw new Error(`Failed to update job_order_detail ${detail.id}: ${response.status}`);
+          } else {
+            console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail updated: ${detail.id}`);
           }
 
-          console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail updated: ${detail.id}`);
           return { success: true, id: detail.id };
         } catch (error) {
           console.error(`[KDS][persistJobOrderStatusChange] ❌ Failed to update job_order_detail ${detail.id}:`, error);
