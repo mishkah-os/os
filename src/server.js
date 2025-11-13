@@ -3147,25 +3147,70 @@ async function broadcastBranchTopics(branchId, suffixes, detail = {}) {
   }
 }
 
-async function broadcastTableNotice(branchId, moduleId, tableName, notice = {}) {
-  const payload = {
-    type: 'table:update',
-    branchId,
-    moduleId,
-    table: tableName,
-    ...deepClone(notice)
+/**
+ * ✅ CRITICAL FIX: Get all possible names for a table (canonical + all known aliases)
+ * This ensures broadcasting reaches clients listening to ANY variation of the table name
+ *
+ * @param {string} tableName - The canonical or alias table name
+ * @returns {string[]} Array of all possible names (canonical + aliases)
+ */
+function getAllTableNames(tableName) {
+  if (!tableName) return [tableName];
+
+  const name = String(tableName).toLowerCase();
+
+  // ✅ Alias map (reverse of moduleStore.js aliasMap)
+  const aliasGroups = {
+    'order_header': ['order_header', 'orders', 'orderHeader'],
+    'order_line': ['order_line', 'order_lines', 'orderLine'],
+    'order_payment': ['order_payment', 'order_payments', 'payments', 'orderPayment'],
+    'order_delivery': ['order_delivery', 'deliveries', 'order_deliveries', 'orderDelivery'],
+    'job_order_header': ['job_order_header', 'job_orders', 'job_order_headers', 'jobOrderHeader'],
+    'job_order_detail': ['job_order_detail', 'job_order_details', 'jobOrderDetail'],
+    'job_order_detail_modifier': ['job_order_detail_modifier', 'jobOrderDetailModifier'],
+    'job_order_status_history': ['job_order_status_history', 'jobOrderStatusHistory']
   };
-  const topics = getTableNoticeTopics(branchId, moduleId, tableName);
-  for (const topic of topics) {
-    await broadcastPubsub(topic, payload);
+
+  // Find the canonical name first
+  let canonical = name;
+  for (const [canonicalName, aliases] of Object.entries(aliasGroups)) {
+    if (aliases.some(alias => alias.toLowerCase() === name)) {
+      canonical = canonicalName;
+      break;
+    }
   }
+
+  // Return all names for this canonical table
+  return aliasGroups[canonical] || [tableName];
+}
+
+async function broadcastTableNotice(branchId, moduleId, tableName, notice = {}) {
+  // ✅ CRITICAL FIX: Broadcast to ALL table name variations (canonical + aliases)
+  // This ensures clients listening to ANY name receive the update
+  const allTableNames = getAllTableNames(tableName);
+
+  for (const tableNameVariant of allTableNames) {
+    const payload = {
+      type: 'table:update',
+      branchId,
+      moduleId,
+      table: tableNameVariant,
+      ...deepClone(notice)
+    };
+    const topics = getTableNoticeTopics(branchId, moduleId, tableNameVariant);
+    for (const topic of topics) {
+      await broadcastPubsub(topic, payload);
+    }
+  }
+
+  // ✅ Also broadcast branch topics (using canonical name)
   const branchSuffix = resolveBranchTopicSuffixFromTable(tableName);
   if (branchSuffix) {
     const detail = {
       type: 'branch:table-notice',
       table: normalizeTableIdentifier(tableName),
       moduleId,
-      action: notice.action || payload.action || 'table:update',
+      action: notice.action || 'table:update',
       eventId: notice.eventId || null,
       sequence: notice.sequence || null,
       recordRef: notice.recordRef || null
@@ -3175,7 +3220,8 @@ async function broadcastTableNotice(branchId, moduleId, tableName, notice = {}) 
     }
     await broadcastBranchTopics(branchId, new Set([branchSuffix]), detail);
   }
-  return payload;
+
+  return { type: 'table:update', branchId, moduleId, table: tableName };
 }
 
 async function handlePubsubFrame(client, frame) {

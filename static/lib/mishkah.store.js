@@ -263,6 +263,37 @@ class MishkahRealtimeStore extends EventEmitter {
     return this.#publish('module:delete', table, recordRef, meta);
   }
 
+  async update(table, record, meta = {}) {
+    // ✅ CRITICAL VALIDATION: Prevent update without version for versioned tables
+    // Only order_header and order_line use version-based optimistic locking
+    const versionedTables = ['order_header', 'order_line'];
+    const isVersionedTable = versionedTables.includes(table);
+
+    if (isVersionedTable) {
+      if (!record.version || typeof record.version !== 'number') {
+        const errorMsg = `❌ [Mishkah Store] CRITICAL ERROR: Cannot update "${table}" without version field!\n\n` +
+          `The "${table}" table uses optimistic locking and REQUIRES a version field.\n\n` +
+          `How to fix:\n` +
+          `1. Read current record to get its current version\n` +
+          `2. Calculate nextVersion = currentVersion + 1\n` +
+          `3. Include version: nextVersion in your update payload\n\n` +
+          `Example:\n` +
+          `  const current = state.order_header.find(h => h.id === orderId);\n` +
+          `  const nextVersion = (current.version || 1) + 1;\n` +
+          `  await store.update('${table}', { id: ..., version: nextVersion, ... });\n\n` +
+          `See docs/MISHKAH_STORE_UPDATE_GUIDE.md for more details.`;
+
+        console.error(errorMsg);
+        throw new Error(`Update rejected: "${table}" requires version field (current value: ${record.version})`);
+      }
+
+      // ✅ Log version for debugging
+      this.logger.info?.(`[Mishkah][Store] Updating ${table} with version ${record.version}`, { id: record.id });
+    }
+
+    return this.#publish('module:update', table, record, meta);
+  }
+
   requestSnapshot() {
     this.#queueMessage({
       type: 'client:request:snapshot',
