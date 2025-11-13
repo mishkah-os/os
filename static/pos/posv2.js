@@ -7045,6 +7045,13 @@
             console.log('[POS V2] order_header count:', kdsPayload.order_header?.length || 0);
             console.log('[POS V2] order_line count:', kdsPayload.order_line?.length || 0);
 
+            // ✅ DEBUG: Log store configuration
+            console.log('🔍🔍🔍 [POS V2] Store configuration:', {
+              configObjects: Object.keys(store.config?.objects || {}),
+              hasJobOrderHeader: store.config?.objects?.hasOwnProperty('job_order_header'),
+              connected: store?.connected || 'unknown'
+            });
+
             // ✅ DEBUG: Log order_header notes BEFORE save
             if(kdsPayload.order_header && kdsPayload.order_header.length > 0) {
               console.log('📝 [DEBUG] order_header[0] BEFORE save:', {
