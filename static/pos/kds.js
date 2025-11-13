@@ -5032,7 +5032,26 @@
 
     // ✅ Calculate next version (CRITICAL for versioned tables!)
     const currentVersion = matchingHeader.version || 1;
-    const nextVersion = currentVersion + 1;
+    const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+    // ✅ CRITICAL VALIDATION: Ensure version exists - update WILL FAIL without it!
+    if (!Number.isFinite(nextVersion) || nextVersion < 1) {
+      console.error('❌ [KDS] FATAL: Cannot update order_header without valid version!', {
+        orderId,
+        currentVersion,
+        nextVersion,
+        matchingHeader: !!matchingHeader
+      });
+      return; // Abort update - will fail anyway
+    }
+
+    console.log('🔄 [KDS] Updating order_header status:', {
+      orderId,
+      status,
+      currentVersion,
+      nextVersion,
+      versionValid: true
+    });
 
     // ✅ Apply optimistic update (only on first attempt)
     if (retryCount === 0) {
@@ -5101,11 +5120,20 @@
         }
       }
 
+      console.log('[KDS] 📤 Sending order_header update:', {
+        orderId: headerUpdate.id,
+        status: headerUpdate.status,
+        version: `${currentVersion}→${nextVersion}`,
+        fulfillmentStage: headerUpdate.fulfillmentStage
+      });
+
       // ✅ Increase timeout to 10 seconds for order_header updates
       await Promise.race([
         store.update('order_header', headerUpdate),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
       ]);
+
+      console.log('[KDS] ✅ order_header update successful:', orderId, 'version:', nextVersion);
 
       // ✅ Broadcast the change to other KDS instances
       if (syncClient && typeof syncClient.publishHandoffUpdate === 'function') {
@@ -5116,7 +5144,16 @@
       }
 
     } catch (error) {
-      console.error('[KDS][persistOrderHeaderStatus] ❌ Failed (attempt ' + (retryCount + 1) + '):', error);
+      const isTimeout = error?.message?.includes('timeout') || error?.message?.includes('timed out');
+      const isVersionConflict = error?.code === 'VERSION_CONFLICT';
+
+      console.error('[KDS][persistOrderHeaderStatus] ❌ Failed (attempt ' + (retryCount + 1) + '):', {
+        error: error.message,
+        isTimeout,
+        isVersionConflict,
+        orderId,
+        version: `${currentVersion}→${nextVersion}`
+      });
 
       // ✅ Retry with exponential backoff
       if (retryCount < maxRetries) {
@@ -5171,17 +5208,22 @@
         ]);
       } catch (insertError) {
         // If insert failed (likely duplicate), try update
-        // ✅ CRITICAL: Need to get existing version first for update
-        // Since this is an update scenario, read from database to get current version
-        // For now, use version: 1 as fallback (delivery records don't get updated often)
+        // ℹ️ NOTE: delivery_driver is NOT a versioned table (per MISHKAH_STORE_UPDATE_GUIDE.md)
+        // Only order_header and order_line require version field
+        // However, we still include version field for compatibility with backend
+        console.log('[KDS][persistDeliveryAssignment] Insert failed, trying update:', insertError.message);
+
         const updateRecord = {
-          ...deliveryRecord,
-          version: 2  // Simple increment since we don't track delivery versions actively
+          ...deliveryRecord
+          // ℹ️ delivery_driver is NOT versioned - version field not required
         };
+
         await Promise.race([
           store.update('delivery_driver', updateRecord),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
         ]);
+
+        console.log('[KDS][persistDeliveryAssignment] ✅ Update successful');
       }
 
     } catch (error) {
