@@ -5734,6 +5734,47 @@ async function resetModule(branchId, moduleId, options = {}) {
       logger.warn({ err: error, branchId, moduleId }, 'Failed to refresh persisted tables before reset');
     }
   }
+
+  // 🔄 [RESET FIX] Purge live transaction data BEFORE resetting sequences
+  // This ensures both live data AND sequences are reset, not just sequences alone
+  const transactionTables = normalizeTransactionTableList(null, { fallbackToDefaults: true });
+  logger.info({ branchId, moduleId, tables: transactionTables }, 'Purging transaction tables before reset');
+
+  let purgeHistoryEntry = null;
+  try {
+    purgeHistoryEntry = await recordPurgeHistoryEntry(store, transactionTables, {
+      reason: options.reason || 'module-reset',
+      requestedBy: options.requestedBy || null
+    });
+  } catch (error) {
+    logger.warn({ err: error, branchId, moduleId }, 'Failed to record purge history entry before reset');
+  }
+
+  // Clear transaction tables
+  const { cleared, totalRemoved } = store.clearTables(transactionTables);
+  logger.info({ branchId, moduleId, cleared, totalRemoved }, 'Cleared transaction tables during reset');
+
+  // Broadcast purge event for live data clearance
+  if (totalRemoved > 0) {
+    broadcastToBranch(branchId, {
+      type: 'server:event',
+      action: 'module:purge',
+      branchId,
+      moduleId,
+      version: store.version,
+      tables: cleared,
+      totalRemoved,
+      meta: {
+        serverId: SERVER_ID,
+        reason: options.reason || 'module-reset',
+        historyEntryId: purgeHistoryEntry?.id || null,
+        requestedBy: options.requestedBy || null,
+        stage: 'pre-reset'
+      }
+    });
+  }
+
+  // 🔄 [RESET FIX] Now perform module reset (sequences + apply seed data)
   let historyEntry = null;
   try {
     historyEntry = await recordPurgeHistoryEntry(store, store.tables, {
@@ -5763,10 +5804,12 @@ async function resetModule(branchId, moduleId, options = {}) {
       reason: options.reason || 'module-reset',
       moduleId,
       historyEntryId: historyEntry?.id || null,
-      requestedBy: options.requestedBy || null
+      requestedBy: options.requestedBy || null,
+      purgedTables: cleared,
+      totalPurged: totalRemoved
     }
   });
-  return { store, historyEntry };
+  return { store, historyEntry, purgeHistoryEntry, totalRemoved };
 }
 
 async function handleModuleEvent(branchId, moduleId, payload = {}, client = null, options = {}) {
