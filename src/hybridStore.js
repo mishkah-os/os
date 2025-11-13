@@ -135,7 +135,18 @@ export default class HybridStore extends ModuleStore {
 
   getSnapshot() {
     this.refreshPersistedTables();
-    return super.getSnapshot();
+    const snapshot = super.getSnapshot();
+    // 🔍 DEBUG: Log job_order counts in snapshot
+    if (snapshot.tables) {
+      const jobOrderCounts = {
+        job_order_header: (snapshot.tables.job_order_header || []).length,
+        job_order_detail: (snapshot.tables.job_order_detail || []).length
+      };
+      if (jobOrderCounts.job_order_header > 0 || jobOrderCounts.job_order_detail > 0) {
+        console.log('[HybridStore][getSnapshot] job_order tables:', jobOrderCounts);
+      }
+    }
+    return snapshot;
   }
 
   toJSON() {
@@ -170,6 +181,11 @@ export default class HybridStore extends ModuleStore {
     try {
       const created = super.insert(tableName, record, context);
       this.writeThrough(tableName, created);
+      // 🔍 DEBUG: Log job_order inserts
+      if (tableName.startsWith('job_order_')) {
+        const count = (this.data[tableName] || []).length;
+        console.log(`[HybridStore][insert] ${tableName}: now has ${count} records (inserted id: ${created.id})`);
+      }
       return created;
     } catch (error) {
       this.restoreTableBackup(tableName, backup);
