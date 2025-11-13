@@ -3165,6 +3165,7 @@ function getAllTableNames(tableName) {
     'order_line': ['order_line', 'order_lines', 'orderLine'],
     'order_payment': ['order_payment', 'order_payments', 'payments', 'orderPayment'],
     'order_delivery': ['order_delivery', 'deliveries', 'order_deliveries', 'orderDelivery'],
+    'job_order_batch': ['job_order_batch', 'job_order_batches', 'batches', 'jobOrderBatch'],
     'job_order_header': ['job_order_header', 'job_orders', 'job_order_headers', 'jobOrderHeader'],
     'job_order_detail': ['job_order_detail', 'job_order_details', 'jobOrderDetail'],
     'job_order_detail_modifier': ['job_order_detail_modifier', 'jobOrderDetailModifier'],
