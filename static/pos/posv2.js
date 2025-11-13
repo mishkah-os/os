@@ -7091,6 +7091,10 @@
               connected: store?.connected || 'unknown'
             });
 
+            // ✅ CRITICAL FIX: Declare isPersistedOrder and hasOnlyNewItems BEFORE using them
+            const isPersistedOrder = order.isPersisted === true;
+            const hasOnlyNewItems = kdsPayload.isReopenedOrder || false; // Order has new unpersisted items
+
             // ✅ CRITICAL: Create job_order_batch record
             // Extract batchId from first job_order_header (all jobs in same save share same batchId)
             const firstJob = kdsPayload.job_order_header[0];
@@ -7152,8 +7156,6 @@
             // ✅ CRITICAL FIX: DO NOT update order_header when adding new items to existing order
             // Updating order_header causes backend to DELETE existing job_orders!
             // Only insert new job_orders for new items - leave order_header untouched
-            const isPersistedOrder = order.isPersisted === true;
-            const hasOnlyNewItems = kdsPayload.isReopenedOrder || false; // Order has new unpersisted items
 
             // ✅ Get existing order_header from window.database to read current version
             const existingOrderHeaders = window.database?.order_header || [];
