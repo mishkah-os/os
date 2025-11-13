@@ -2135,6 +2135,191 @@
         ]
       },
       {
+        "name": "job_order_batch",
+        "label": "Job Order Batch",
+        "comment": "Represents a group of job_orders created together in a single save operation. Used to track workflow for order additions and modifications.",
+        "sqlName": "job_order_batch",
+        "layout": {
+          "x": 80,
+          "y": 560
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "batch_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 128,
+            "primaryKey": true,
+            "unique": true,
+            "index": false,
+            "comment": "Unique batch identifier",
+            "notes": "Format: BATCH-{orderId}-{timestamp}-{random}"
+          },
+          {
+            "name": "orderId",
+            "columnName": "order_id",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Parent order ID",
+            "notes": "References order_header.id"
+          },
+          {
+            "name": "orderNumber",
+            "columnName": "order_number",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Human-readable order number",
+            "notes": "e.g., DAR-001"
+          },
+          {
+            "name": "status",
+            "columnName": "status",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "queued",
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Aggregated batch status",
+            "notes": "Values: queued|cooking|ready|assembled|served"
+          },
+          {
+            "name": "totalJobs",
+            "columnName": "total_jobs",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 0,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Total number of job_order_header records in this batch",
+            "notes": ""
+          },
+          {
+            "name": "readyJobs",
+            "columnName": "ready_jobs",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 0,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Number of jobs that are ready/completed",
+            "notes": "Used to calculate batch progress"
+          },
+          {
+            "name": "batchType",
+            "columnName": "batch_type",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "initial",
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Type of batch",
+            "notes": "Values: initial|addition|modification"
+          },
+          {
+            "name": "assembledAt",
+            "columnName": "assembled_at",
+            "type": "timestamp",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "When batch was assembled in Expo",
+            "notes": ""
+          },
+          {
+            "name": "servedAt",
+            "columnName": "served_at",
+            "type": "timestamp",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "When batch was served to customer",
+            "notes": ""
+          },
+          {
+            "name": "notes",
+            "columnName": "notes",
+            "type": "text",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Additional notes for this batch",
+            "notes": ""
+          },
+          {
+            "name": "meta",
+            "columnName": "meta",
+            "type": "json",
+            "nullable": false,
+            "defaultValue": {},
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Additional metadata",
+            "notes": ""
+          },
+          {
+            "name": "createdAt",
+            "columnName": "created_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "updatedAt",
+            "columnName": "updated_at",
+            "type": "timestamp",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_job_order_batch_order_status",
+            "columns": [
+              "order_id",
+              "status",
+              "created_at"
+            ],
+            "unique": false
+          },
+          {
+            "name": "idx_job_order_batch_status",
+            "columns": [
+              "status",
+              "created_at"
+            ],
+            "unique": false
+          }
+        ]
+      },
+      {
         "name": "kitchen_sections",
         "label": "Kitchen Section",
         "comment": "Production areas used for routing kitchen tickets.",

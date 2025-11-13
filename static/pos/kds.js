@@ -6022,6 +6022,18 @@
         })
       );
 
+      // ✅ Watch job_order_batch for batch workflow
+      watcherUnsubscribers.push(
+        store.watch('job_order_batch', (rows) => {
+          console.log('📦 [KDS] job_order_batch WATCHER triggered!', {
+            rowsCount: rows?.length || 0,
+            timestamp: new Date().toISOString()
+          });
+          watcherState.batches = ensureArray(rows);
+          updateFromWatchers();
+        })
+      );
+
       // ✅ Watch order_header for static tabs
       watcherUnsubscribers.push(
         store.watch('order_header', (rows) => {

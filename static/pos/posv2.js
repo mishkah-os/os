@@ -4430,6 +4430,17 @@
         console.log('🔍 [job_order_header WATCHER] Stored in Map:', realtimeJobOrders.headers.size, 'headers');
         scheduleRealtimeJobOrdersSnapshot();
       });
+      const unsubBatches = store.watch('job_order_batch', (rows)=>{
+        console.log('📦 [job_order_batch WATCHER] Received rows:', rows?.length || 0);
+        if(!realtimeJobOrders.batches) realtimeJobOrders.batches = new Map();
+        realtimeJobOrders.batches.clear();
+        (rows || []).forEach(row=>{
+          if(!row || !row.id) return;
+          realtimeJobOrders.batches.set(String(row.id), row);
+        });
+        console.log('📦 [job_order_batch WATCHER] Stored in Map:', realtimeJobOrders.batches.size, 'batches');
+        scheduleRealtimeJobOrdersSnapshot();
+      });
       const unsubDetails = store.watch(jobDetailTable, (rows)=>{
         console.log('🔍 [job_order_detail WATCHER] Received rows:', rows?.length || 0);
         logIndexedDbSample(realtimeJobOrders.debugLogged, 'job_order_detail', rows, sanitizeJobOrderDetailRow);
@@ -7052,6 +7063,47 @@
               connected: store?.connected || 'unknown'
             });
 
+            // ✅ CRITICAL: Create job_order_batch record
+            // Extract batchId from first job_order_header (all jobs in same save share same batchId)
+            const firstJob = kdsPayload.job_order_header[0];
+            if (firstJob && firstJob.batchId) {
+              const batchId = firstJob.batchId;
+              const batchJobs = kdsPayload.job_order_header.filter(j => j.batchId === batchId);
+
+              // Determine batch type: initial or addition
+              const batchType = isPersistedOrder ? 'addition' : 'initial';
+
+              const batchRecord = {
+                id: batchId,
+                orderId: orderPayload.id,
+                orderNumber: orderPayload.orderNumber || orderPayload.number || 'N/A',
+                status: 'queued',  // Initial status
+                totalJobs: batchJobs.length,
+                readyJobs: 0,
+                batchType: batchType,
+                assembledAt: null,
+                servedAt: null,
+                notes: null,
+                meta: {
+                  createdBy: 'posv2',
+                  orderType: orderPayload.orderTypeId || orderPayload.type || 'dine_in',
+                  tableLabel: orderPayload.tableLabel || null
+                },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+
+              console.log('📦 [POS V2] Creating job_order_batch:', {
+                batchId,
+                totalJobs: batchJobs.length,
+                batchType,
+                orderId: orderPayload.id
+              });
+
+              // Add batch to kdsPayload for saving
+              kdsPayload.job_order_batch = [batchRecord];
+            }
+
             // ✅ DEBUG: Log order_header notes BEFORE save
             if(kdsPayload.order_header && kdsPayload.order_header.length > 0) {
               console.log('📝 [DEBUG] order_header[0] BEFORE save:', {
@@ -7127,6 +7179,21 @@
                   console.error('[POS V2] Failed to save order_line:', orderLine.id, err)
                 )
               ),
+              // ✅ Save job_order_batch (CRITICAL: must be saved before job_order_header!)
+              ...(kdsPayload.job_order_batch || []).map(batch => {
+                console.log('📦 [POS V2] INSERTING job_order_batch:', {
+                  batchId: batch.id,
+                  totalJobs: batch.totalJobs,
+                  batchType: batch.batchType
+                });
+                return store.insert('job_order_batch', batch, { silent: false })
+                  .then(() => {
+                    console.log('✅ [POS V2] Successfully inserted job_order_batch:', batch.id);
+                  })
+                  .catch(err => {
+                    console.error('❌ [POS V2] Failed to save job_order_batch:', batch.id, err);
+                  });
+              }),
               // Save job_order_header (for dynamic station tabs)
               // ✅ CRITICAL: silent: false to broadcast changes to KDS immediately!
               ...kdsPayload.job_order_header.map(jobHeader => {
