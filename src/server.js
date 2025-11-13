@@ -1956,6 +1956,9 @@ function generateJobOrderRecords(store, header, lines) {
   const createdAt = header.createdAt || Date.now();
   const updatedAt = header.updatedAt || createdAt;
 
+  // ✅ Generate unique batch_id for this group of job_orders (same save operation)
+  const batchId = `BATCH-${orderId}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
   // ✅ Query kitchen_sections from store
   const kitchenSections = store.listTable('kitchen_sections') || [];
   const sectionMap = new Map();
@@ -2041,6 +2044,7 @@ function generateJobOrderRecords(store, header, lines) {
       expoAt: null,
       syncChecksum: `${orderId}-${stationId}`,
       notes: Array.isArray(line.notes) ? line.notes.join('; ') : '',
+      batchId,  // ✅ Add batch_id to group related job_orders
       meta: { orderSource: 'pos', kdsTab: stationId },
       createdAt,
       updatedAt

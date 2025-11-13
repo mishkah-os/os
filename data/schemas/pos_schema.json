@@ -1932,6 +1932,18 @@
             "notes": ""
           },
           {
+            "name": "batchId",
+            "columnName": "batch_id",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Groups job_orders that were saved together in the same save operation for static stage display",
+            "notes": "All job_orders from the same order save operation share the same batch_id"
+          },
+          {
             "name": "meta",
             "columnName": "meta",
             "type": "json",

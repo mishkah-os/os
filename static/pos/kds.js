@@ -1721,6 +1721,18 @@
     const history = Array.isArray(jobOrders.job_order_status_history) ? jobOrders.job_order_status_history
                   : Array.isArray(jobOrders.statusHistory) ? jobOrders.statusHistory : [];
 
+    // ✅ Group headers by batchId for static stages (concat jobs from same save operation)
+    const batchGroups = new Map();
+    headers.forEach(header => {
+      const batchId = header.batchId || header.batch_id;
+      if (batchId) {
+        if (!batchGroups.has(batchId)) {
+          batchGroups.set(batchId, []);
+        }
+        batchGroups.get(batchId).push(header);
+      }
+    });
+
     const modifiersByDetail = modifiers.reduce((acc, mod)=>{
       const bucket = acc[mod.detailId] || (acc[mod.detailId] = []);
       bucket.push({ ...mod });
@@ -1743,18 +1755,80 @@
       return acc;
     }, {});
 
-    return headers.map(header=>{
+    // ✅ Filter headers: keep only the FIRST job from each batch (to avoid duplicates)
+    const processedBatches = new Set();
+    const filteredHeaders = headers.filter(header => {
+      const batchId = header.batchId || header.batch_id;
+      if (!batchId) return true; // No batch - keep it
+
+      // If batch already processed, skip this header
+      if (processedBatches.has(batchId)) return false;
+
+      // First time seeing this batch - mark as processed and keep it
+      processedBatches.add(batchId);
+      return true;
+    });
+
+    return filteredHeaders.map(header=>{
       const cloned = { ...header };
-      cloned.details = (detailsByJob[header.id] || []).sort((a, b)=>{
-        const aMs = parseTime(a.startAt) || parseTime(a.createdAt) || 0;
-        const bMs = parseTime(b.startAt) || parseTime(b.createdAt) || 0;
-        return aMs - bMs;
-      });
-      cloned.history = (historyByJob[header.id] || []).sort((a, b)=>{
-        const aMs = parseTime(a.changedAt) || 0;
-        const bMs = parseTime(b.changedAt) || 0;
-        return aMs - bMs;
-      });
+      const batchId = header.batchId || header.batch_id;
+
+      // ✅ If this job has a batchId, concat all details from all jobs in the same batch
+      let allDetailsForBatch = [];
+      let allHistoryForBatch = [];
+
+      if (batchId && batchGroups.has(batchId)) {
+        const batchHeaders = batchGroups.get(batchId);
+        // Concat details from all jobs in this batch
+        batchHeaders.forEach(batchHeader => {
+          const headerDetails = detailsByJob[batchHeader.id] || [];
+          allDetailsForBatch.push(...headerDetails);
+          const headerHistory = historyByJob[batchHeader.id] || [];
+          allHistoryForBatch.push(...headerHistory);
+        });
+
+        // Sort combined details
+        allDetailsForBatch.sort((a, b)=>{
+          const aMs = parseTime(a.startAt) || parseTime(a.createdAt) || 0;
+          const bMs = parseTime(b.startAt) || parseTime(b.createdAt) || 0;
+          return aMs - bMs;
+        });
+
+        // Sort combined history
+        allHistoryForBatch.sort((a, b)=>{
+          const aMs = parseTime(a.changedAt) || 0;
+          const bMs = parseTime(b.changedAt) || 0;
+          return aMs - bMs;
+        });
+
+        cloned.details = allDetailsForBatch;
+        cloned.history = allHistoryForBatch;
+
+        // Update totals to reflect all items in batch
+        cloned.totalItems = allDetailsForBatch.reduce((sum, d) => sum + (Number(d.quantity) || 1), 0);
+        cloned.completedItems = allDetailsForBatch.filter(d =>
+          d.status === 'completed' || d.status === 'ready'
+        ).reduce((sum, d) => sum + (Number(d.quantity) || 1), 0);
+        cloned.remainingItems = cloned.totalItems - cloned.completedItems;
+
+        // Mark this as a batch-grouped job
+        cloned.isBatchGrouped = true;
+        cloned.batchSize = batchHeaders.length;
+      } else {
+        // No batch or single job - use individual details/history
+        cloned.details = (detailsByJob[header.id] || []).sort((a, b)=>{
+          const aMs = parseTime(a.startAt) || parseTime(a.createdAt) || 0;
+          const bMs = parseTime(b.startAt) || parseTime(b.createdAt) || 0;
+          return aMs - bMs;
+        });
+        cloned.history = (historyByJob[header.id] || []).sort((a, b)=>{
+          const aMs = parseTime(a.changedAt) || 0;
+          const bMs = parseTime(b.changedAt) || 0;
+          return aMs - bMs;
+        });
+        cloned.isBatchGrouped = false;
+      }
+
       cloned.createdMs = parseTime(cloned.createdAt || cloned.created_at);
       cloned.acceptedMs = parseTime(cloned.acceptedAt || cloned.accepted_at);
 
