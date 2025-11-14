@@ -4797,11 +4797,24 @@
         headerPayload.completed_at = statusPayload.completedAt;
       }
 
-      console.log('[KDS][persistJobOrderStatusChange] 📤 Updating job_order_header via WebSocket:', jobId, headerPayload);
+      // ✅ CRITICAL FIX: Sanitize payload to prevent JSON parsing errors
+      // Remove any non-serializable data (functions, undefined, circular refs, etc.)
+      let sanitizedPayload;
+      try {
+        // This will strip out any problematic fields that can't be serialized
+        sanitizedPayload = JSON.parse(JSON.stringify(headerPayload));
+        console.log('[KDS][persistJobOrderStatusChange] ✅ Payload sanitized successfully');
+      } catch (sanitizeError) {
+        console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to sanitize payload:', sanitizeError);
+        console.error('[KDS][persistJobOrderStatusChange] Original payload:', headerPayload);
+        throw new Error(`Payload contains non-serializable data: ${sanitizeError.message}`);
+      }
+
+      console.log('[KDS][persistJobOrderStatusChange] 📤 Updating job_order_header via WebSocket:', jobId, sanitizedPayload);
 
       // ✅ Update with retry logic (job_order_header is NOT versioned - no version needed)
       const headerResult = await retryWithBackoff(
-        () => store.update('job_order_header', headerPayload),
+        () => store.update('job_order_header', sanitizedPayload),
         `UPDATE job_order_header: ${jobId}`
       );
 
@@ -4813,10 +4826,10 @@
         const existingHeader = allJobHeaders.find(h => String(h.id) === String(jobId));
 
         if (existingHeader) {
-          const insertPayload = {
+          const insertPayload = JSON.parse(JSON.stringify({
             ...existingHeader,
-            ...headerPayload
-          };
+            ...sanitizedPayload
+          }));
 
           const insertResult = await retryWithBackoff(
             () => store.insert('job_order_header', insertPayload, { silent: false }),
@@ -4861,10 +4874,11 @@
 
       // ✅ Update all details in parallel via WebSocket (faster + broadcasts instantly!)
       const detailUpdatePromises = jobDetails.map(async (detail) => {
-        const detailUpdatePayload = {
+        // ✅ Sanitize detail payload
+        const detailUpdatePayload = JSON.parse(JSON.stringify({
           id: detail.id,  // ✅ CRITICAL: must include id
           ...detailPayload
-        };
+        }));
 
         // ✅ Update with retry logic (job_order_detail is NOT versioned)
         const result = await retryWithBackoff(
@@ -4876,10 +4890,10 @@
         if (!result.success) {
           console.warn(`[KDS][persistJobOrderStatusChange] ⚠️ UPDATE failed for detail ${detail.id}, attempting INSERT fallback...`);
 
-          const insertPayload = {
+          const insertPayload = JSON.parse(JSON.stringify({
             ...detail,
             ...detailPayload
-          };
+          }));
 
           const insertResult = await retryWithBackoff(
             () => store.insert('job_order_detail', insertPayload, { silent: false }),

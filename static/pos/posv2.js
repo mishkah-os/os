@@ -4433,11 +4433,15 @@
     }
 
     function scheduleRealtimeJobOrdersSnapshot(){
+      // ✅ NO-OP: posv2.html watchers update window.database directly (lines 162-176)
+      // No need to manually update snapshot - real-time broadcasting works automatically!
+      // This function is kept for backward compatibility with existing code
       if(realtimeJobOrders.pending) return;
       realtimeJobOrders.pending = true;
       Promise.resolve().then(()=>{
         realtimeJobOrders.pending = false;
-        updateRealtimeJobOrdersSnapshot();
+        // ❌ REMOVED: updateRealtimeJobOrdersSnapshot() - deprecated and breaks real-time!
+        // window.database is updated automatically by HTML watchers
       });
     }
 
