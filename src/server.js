@@ -6001,7 +6001,7 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
     eventId: logEntry.id,
     sequence: logEntry.sequence,
     publishState: logEntry.publishState,
-    meta: enrichedMeta,
+    meta: enrichedMeta,  // ✅ enrichedMeta already contains clientMeta.requestId from payload.meta (line 5942)
     entry
   };
   if (entry.created !== undefined) ack.created = entry.created;

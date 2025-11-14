@@ -101,7 +101,19 @@ async function loadMeta(context) {
     const base = defaultMeta(context);
     return mergeDeep(base, parsed);
   } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
+    if (error?.code !== 'ENOENT') {
+      // ✅ DEBUG: Log the problematic JSON content
+      console.error('[eventStore][loadMeta] JSON parse error:', error.message);
+      console.error('[eventStore][loadMeta] File path:', context.metaPath);
+      try {
+        const raw = await readFile(context.metaPath, 'utf8');
+        console.error('[eventStore][loadMeta] Raw content (first 500 chars):', raw.substring(0, 500));
+        console.error('[eventStore][loadMeta] Position 1666:', raw.substring(1660, 1680));
+      } catch (readErr) {
+        console.error('[eventStore][loadMeta] Failed to read file for debugging:', readErr.message);
+      }
+      throw error;
+    }
     const meta = defaultMeta(context);
     await writeMeta(context, meta);
     return meta;
