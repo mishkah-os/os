@@ -1332,29 +1332,34 @@
         stats.completed++;
       }
 
-      // Check if order is delivered via handoff
+      // ✅ CRITICAL FIX: Check if order is FULLY delivered (not just assembled)
+      // 'assembled' means ready for handoff (should still appear in Handoff screen)
+      // Only 'served', 'delivered', 'settled' mean the order is truly done
       const orderId = header.orderId || header.order_id;
       const orderKey = normalizeOrderKey(orderId);
       const handoffStatus = (orderKey && (handoff[orderKey] || handoff[orderId]))?.status;
-      if (handoffStatus === 'assembled' || handoffStatus === 'served' || handoffStatus === 'delivered' || handoffStatus === 'settled') {
+      if (handoffStatus === 'served' || handoffStatus === 'delivered' || handoffStatus === 'settled') {
         stats.delivered++;
       }
     });
 
-    // ✅ Filter: Keep batches that are NOT fully completed AND NOT fully delivered
+    // ✅ CRITICAL FIX: Filter out FULLY COMPLETED AND DELIVERED batches
+    // Hide batch when ALL jobs are completed AND order is fully delivered
+    // This prevents old batches from reappearing when adding new items to same order
     const activeJobHeaders = jobHeaders.filter(header => {
       const batchId = header.batchId || header.batch_id || 'no-batch';
       const stats = batchStatusMap.get(batchId);
 
       if (!stats) return true;  // Safety: keep if no stats
 
-      // Keep batch if:
-      // 1. NOT all jobs are completed, OR
-      // 2. NOT all orders are delivered
+      // ✅ LOGIC: Hide batch if ALL its jobs are completed AND fully delivered
+      // - allCompleted: All jobs in batch have status='ready' or 'completed'
+      // - allDelivered: All jobs have handoffStatus='served' or 'delivered' or 'settled'
+      // - assembled orders (handoffStatus='assembled') are NOT considered delivered → will appear in Handoff
       const allCompleted = stats.completed === stats.total;
       const allDelivered = stats.delivered === stats.total;
 
-      return !(allCompleted && allDelivered);
+      return !(allCompleted && allDelivered);  // Show if NOT (fully completed AND delivered)
     });
 
     // ✅ Group job_order_header by batchId ONLY (for static tabs)
