@@ -2699,6 +2699,10 @@
         });
       }
 
+      // ✅ STEP 1: Group lines by stationId first (CRITICAL for proper 1-to-1 mapping!)
+      // This ensures one job_order_header per station, not per line
+      const linesByStation = new Map();
+
       linesToSendToKitchen.forEach((line, index)=>{
         const lineIndex = index + 1;
         // ✅ Check all variants of kitchenSection field
@@ -2730,22 +2734,31 @@
           });
         }
 
-        // ✅ UNIQUE JOB ID per job_order_header: orderId-stationId-timestamp-random
-        // This ensures each save creates NEW job_orders, not overwrite existing ones
-        // CRITICAL: Don't use batchId in jobId - batchId is for grouping only!
+        // Group lines by station
+        if (!linesByStation.has(stationId)) {
+          linesByStation.set(stationId, []);
+        }
+        linesByStation.get(stationId).push({ line, lineIndex });
+      });
+
+      // ✅ STEP 2: Create ONE job_order_header per station (not per line!)
+      // This fixes the 1-to-1 violation: each order_line gets ONE job_order_detail
+      linesByStation.forEach((linesGroup, stationId) => {
+        // Create jobId ONCE per station (not per line!)
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(2, 8);
         const jobId = `${order.id}-${stationId}-${timestamp}-${random}`;
+
         const section = sectionMap.get(stationId) || {};
         const stationCode = section.code || (stationId ? String(stationId).toUpperCase() : 'KDS');
-        // ✅ Extract display-friendly order number (DAR-001005 instead of full UUID)
         const fullOrderNumber = order.orderNumber || order.invoiceId || order.id;
         const displayOrderNumber = extractOrderNumberPrefix(fullOrderNumber);
 
-        const existing = jobsMap.get(jobId) || {
+        // Create job_order_header for this station
+        const job = {
           id: jobId,
           orderId: order.id,
-          orderNumber: displayOrderNumber,  // ✅ Use display-friendly prefix only
+          orderNumber: displayOrderNumber,
           posRevision: `${order.id}@${order.updatedAt || Date.now()}`,
           orderTypeId: serviceMode,
           serviceMode,
@@ -2761,115 +2774,128 @@
           tableLabel: tableLabel || null,
           customerName: customerName || null,
           dueAt: order.dueAt ? normalizeIso(order.dueAt) : createdIso,
-          acceptedAt: createdIso,  // ✅ Set to creation time
-          startedAt: null,         // ✅ CRITICAL FIX: Don't set until "Start Prep" clicked!
-          readyAt: null,           // ✅ CRITICAL FIX: Don't set until "Mark Ready" clicked!
-          completedAt: null,       // ✅ CRITICAL FIX: Don't set until completed!
-          expoAt: null,            // ✅ Will be set when moved to expo
+          acceptedAt: createdIso,
+          startedAt: null,
+          readyAt: null,
+          completedAt: null,
+          expoAt: null,
           syncChecksum:`${order.id}-${stationId}`,
-          notes: notesToText(order.notes, '; '),  // ✅ Order header notes
-          batchId,  // ✅ Group job_orders from same save operation for static stages
+          notes: notesToText(order.notes, '; '),
+          batchId,  // ✅ For grouping in static tabs (expo/handoff)
           meta:{ orderSource:'pos', kdsTab: stationId },
           createdAt: createdIso,
           updatedAt: updatedIso
         };
-        const quantityValue = coalesce(line.qty, line.quantity, line.count, 1);
-        let quantity = Number(quantityValue);
-        if(!Number.isFinite(quantity) || quantity <= 0){
-          quantity = 1;
-        }
-        existing.totalItems += quantity;
-        existing.remainingItems += quantity;
-        jobsMap.set(jobId, existing);
-        const baseLineId = toIdentifier(line.id, line.uid, line.storageId, `${order.id}-line-${lineIndex}`) || `${order.id}-line-${lineIndex}`;
-        const detailId = `${jobId}-detail-${baseLineId}`;
-        const itemIdentifier = toIdentifier(line.itemId, line.productId, line.menuItemId, line.sku, baseLineId) || baseLineId;
-        const displayIdentifier = itemIdentifier && itemIdentifier !== baseLineId ? itemIdentifier : '';
-        const nameSource = pickLocalizedText(
-          line.name,
-          line.displayName,
-          line.label,
-          toLocaleObject(line.nameAr, line.nameEn),
-          toLocaleObject(line.itemNameAr, line.itemNameEn),
-          line.productName,
-          line.product?.name,
-          line.product?.title,
-          line.menuItem?.name,
-          line.menuItem?.title,
-          line.menuItem?.displayName
-        ) || (displayIdentifier ? displayIdentifier : null);
-        const fallbackNameAr = displayIdentifier || `عنصر ${lineIndex}`;
-        const fallbackNameEn = displayIdentifier || `Item ${lineIndex}`;
-        const detail = {
-          id: detailId,
-          jobOrderId: jobId,
-          orderLineId: baseLineId,  // ✅ CRITICAL: Add orderLineId to track which order_line this came from
-          itemId: itemIdentifier,
-          itemCode: itemIdentifier,
-          quantity,
-          status:'queued',
-          startAt:null,
-          finishAt:null,
-          createdAt: createdIso,
-          updatedAt: updatedIso,
-          itemNameAr: localizeValue(nameSource, 'ar', fallbackNameAr),
-          itemNameEn: localizeValue(nameSource, 'en', fallbackNameEn),
-          prepNotes: notesToText(line.notes, '; '),
-          stationId,  // ✅ Add stationId to detail for proper routing
-          kitchenSectionId: stationId  // ✅ Also add as kitchenSectionId
-        };
-        // 🔍 DEBUG: Log prepNotes to verify conversion
-        if(line.notes){
-          console.log('[POS][serializeOrderForKDS] Line notes:', {
-            lineId: line.id,
-            rawNotes: line.notes,
-            convertedPrepNotes: detail.prepNotes,
-            notesType: typeof line.notes,
-            isArray: Array.isArray(line.notes)
-          });
-        }
-        jobDetails.push(detail);
-        const modifiers = ensureList(line.modifiers).filter(Boolean);
-        modifiers.forEach((mod, idx)=>{
-          const modIndex = idx + 1;
-          const baseModId = toIdentifier(mod.id, mod.uid, `${detailId}-mod-${modIndex}`);
-          const modId = baseModId || `${detailId}-mod-${modIndex}`;
-          const modDisplayId = baseModId && baseModId !== `${detailId}-mod-${modIndex}` ? baseModId : '';
-          const modNameSource = pickLocalizedText(
-            mod.name,
-            mod.label,
-            toLocaleObject(mod.nameAr, mod.nameEn),
-            toLocaleObject(mod.labelAr, mod.labelEn),
-            mod.productName,
-            mod.product?.name,
-            mod.item?.name
-          ) || (modDisplayId ? modDisplayId : null);
-          const modFallbackAr = `إضافة ${modIndex}`;
-          const modFallbackEn = `Modifier ${modIndex}`;
-          const priceCandidate = coalesce(mod.priceChange, mod.amount, mod.price, 0);
-          let priceChange = Number(priceCandidate);
-          if(!Number.isFinite(priceChange)) priceChange = 0;
-          const modifierType = mod.modifierType || mod.type || (priceChange < 0 ? 'remove' : 'add');
-          jobModifiers.push({
-            id: modId,
+
+        // Add all lines for this station
+        linesGroup.forEach(({ line, lineIndex }) => {
+          const quantityValue = coalesce(line.qty, line.quantity, line.count, 1);
+          let quantity = Number(quantityValue);
+          if(!Number.isFinite(quantity) || quantity <= 0){
+            quantity = 1;
+          }
+          job.totalItems += quantity;
+          job.remainingItems += quantity;
+
+          const baseLineId = toIdentifier(line.id, line.uid, line.storageId, `${order.id}-line-${lineIndex}`) || `${order.id}-line-${lineIndex}`;
+          const detailId = `${jobId}-detail-${baseLineId}`;
+          const itemIdentifier = toIdentifier(line.itemId, line.productId, line.menuItemId, line.sku, baseLineId) || baseLineId;
+          const displayIdentifier = itemIdentifier && itemIdentifier !== baseLineId ? itemIdentifier : '';
+          const nameSource = pickLocalizedText(
+            line.name,
+            line.displayName,
+            line.label,
+            toLocaleObject(line.nameAr, line.nameEn),
+            toLocaleObject(line.itemNameAr, line.itemNameEn),
+            line.productName,
+            line.product?.name,
+            line.product?.title,
+            line.menuItem?.name,
+            line.menuItem?.title,
+            line.menuItem?.displayName
+          ) || (displayIdentifier ? displayIdentifier : null);
+          const fallbackNameAr = displayIdentifier || `عنصر ${lineIndex}`;
+          const fallbackNameEn = displayIdentifier || `Item ${lineIndex}`;
+
+          // Create job_order_detail (1-to-1 with order_line!)
+          const detail = {
+            id: detailId,
             jobOrderId: jobId,
-            detailId,
-            nameAr: localizeValue(modNameSource, 'ar', modFallbackAr),
-            nameEn: localizeValue(modNameSource, 'en', modFallbackEn),
-            modifierType,
-            priceChange
+            orderLineId: baseLineId,  // ✅ UNIQUE: Each order_line maps to ONE detail
+            itemId: itemIdentifier,
+            itemCode: itemIdentifier,
+            quantity,
+            status:'queued',
+            startAt:null,
+            finishAt:null,
+            createdAt: createdIso,
+            updatedAt: updatedIso,
+            itemNameAr: localizeValue(nameSource, 'ar', fallbackNameAr),
+            itemNameEn: localizeValue(nameSource, 'en', fallbackNameEn),
+            prepNotes: notesToText(line.notes, '; '),
+            stationId,
+            kitchenSectionId: stationId
+          };
+
+          if(line.notes){
+            console.log('[POS][serializeOrderForKDS] Line notes:', {
+              lineId: line.id,
+              rawNotes: line.notes,
+              convertedPrepNotes: detail.prepNotes,
+              notesType: typeof line.notes,
+              isArray: Array.isArray(line.notes)
+            });
+          }
+          jobDetails.push(detail);
+
+          // Add modifiers
+          const modifiers = ensureList(line.modifiers).filter(Boolean);
+          modifiers.forEach((mod, idx)=>{
+            const modIndex = idx + 1;
+            const baseModId = toIdentifier(mod.id, mod.uid, `${detailId}-mod-${modIndex}`);
+            const modId = baseModId || `${detailId}-mod-${modIndex}`;
+            const modDisplayId = baseModId && baseModId !== `${detailId}-mod-${modIndex}` ? baseModId : '';
+            const modNameSource = pickLocalizedText(
+              mod.name,
+              mod.label,
+              toLocaleObject(mod.nameAr, mod.nameEn),
+              toLocaleObject(mod.labelAr, mod.labelEn),
+              mod.productName,
+              mod.product?.name,
+              mod.item?.name
+            ) || (modDisplayId ? modDisplayId : null);
+            const modFallbackAr = `إضافة ${modIndex}`;
+            const modFallbackEn = `Modifier ${modIndex}`;
+            const priceCandidate = coalesce(mod.priceChange, mod.amount, mod.price, 0);
+            let priceChange = Number(priceCandidate);
+            if(!Number.isFinite(priceChange)) priceChange = 0;
+            const modifierType = mod.modifierType || mod.type || (priceChange < 0 ? 'remove' : 'add');
+            jobModifiers.push({
+              id: modId,
+              jobOrderId: jobId,
+              detailId,
+              nameAr: localizeValue(modNameSource, 'ar', modFallbackAr),
+              nameEn: localizeValue(modNameSource, 'en', modFallbackEn),
+              modifierType,
+              priceChange
+            });
+          });
+
+          // Add history
+          historyEntries.push({
+            id:`HIS-${jobId}-${baseLineId}`,
+            jobOrderId: jobId,
+            status:'queued',
+            actorId:'pos',
+            actorName:'POS',
+            actorRole:'pos',
+            changedAt: createdIso,
+            meta:{ source:'pos', lineId: line.id || baseLineId }
           });
         });
-        historyEntries.push({
-          id:`HIS-${jobId}-${baseLineId}`,
-          jobOrderId: jobId,
-          status:'queued',
-          actorId:'pos',
-          actorName:'POS',
-          actorRole:'pos',
-          changedAt: createdIso,
-          meta:{ source:'pos', lineId: line.id || baseLineId }
-        });
+
+        // Save job_order_header for this station
+        jobsMap.set(jobId, job);
       });
       const headers = Array.from(jobsMap.values());
       if(!headers.length) return null;
