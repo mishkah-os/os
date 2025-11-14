@@ -101,28 +101,95 @@ async function loadMeta(context) {
     const base = defaultMeta(context);
     return mergeDeep(base, parsed);
   } catch (error) {
-    if (error?.code !== 'ENOENT') {
-      // ✅ DEBUG: Log the problematic JSON content
-      console.error('[eventStore][loadMeta] JSON parse error:', error.message);
+    if (error?.code === 'ENOENT') {
+      // File doesn't exist - create new meta
+      const meta = defaultMeta(context);
+      await writeMeta(context, meta);
+      return meta;
+    }
+
+    // Handle corrupted JSON files
+    if (error?.name === 'SyntaxError' || error?.message?.includes('JSON')) {
+      console.error('[eventStore][loadMeta] CORRUPTED FILE DETECTED - Attempting recovery');
+      console.error('[eventStore][loadMeta] Error:', error.message);
       console.error('[eventStore][loadMeta] File path:', context.metaPath);
+
       try {
         const raw = await readFile(context.metaPath, 'utf8');
-        console.error('[eventStore][loadMeta] Raw content (first 500 chars):', raw.substring(0, 500));
-        console.error('[eventStore][loadMeta] Position 1666:', raw.substring(1660, 1680));
-      } catch (readErr) {
-        console.error('[eventStore][loadMeta] Failed to read file for debugging:', readErr.message);
+
+        // Back up the corrupted file for debugging
+        const backupPath = `${context.metaPath}.corrupted.${Date.now()}.bak`;
+        await writeFile(backupPath, raw, 'utf8');
+        console.error('[eventStore][loadMeta] Corrupted file backed up to:', backupPath);
+        console.error('[eventStore][loadMeta] File size:', raw.length, 'bytes');
+
+        // Try to recover by parsing the event log instead
+        console.error('[eventStore][loadMeta] Attempting to rebuild meta from event log...');
+        const events = await readEventLog(context);
+
+        const meta = defaultMeta(context);
+        if (events.length > 0) {
+          const lastEvent = events[events.length - 1];
+          meta.lastEventId = lastEvent.id;
+          meta.lastEventAt = lastEvent.createdAt || lastEvent.recordedAt;
+          meta.totalEvents = events.length;
+          meta.branchId = lastEvent.branchId || context.branchId;
+          meta.moduleId = lastEvent.moduleId || context.moduleId;
+
+          // Rebuild table cursors
+          meta.tableCursors = {};
+          for (const evt of events) {
+            if (evt.table) {
+              const cursor = resolveLineCursor(evt);
+              if (cursor) {
+                meta.tableCursors[evt.table] = {
+                  ...cursor,
+                  eventId: evt.id,
+                  sequence: evt.sequence,
+                  updatedAt: evt.recordedAt
+                };
+              }
+            }
+          }
+          console.error('[eventStore][loadMeta] Recovered meta from', events.length, 'events');
+        }
+
+        // Write the recovered meta
+        await writeMeta(context, meta);
+        console.error('[eventStore][loadMeta] Meta file rebuilt successfully');
+        return meta;
+      } catch (recoveryErr) {
+        console.error('[eventStore][loadMeta] Recovery failed:', recoveryErr.message);
+        throw error; // Throw original error
       }
-      throw error;
     }
-    const meta = defaultMeta(context);
-    await writeMeta(context, meta);
-    return meta;
+
+    // Unknown error - rethrow
+    throw error;
   }
 }
 
 async function writeMeta(context, meta) {
   await ensureDir(path.dirname(context.metaPath));
-  await writeFile(context.metaPath, JSON.stringify(meta, null, 2), 'utf8');
+
+  // Use atomic write pattern: write to temp file, then rename
+  // This prevents corruption from concurrent writes
+  const tempPath = `${context.metaPath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+  const content = JSON.stringify(meta, null, 2);
+
+  try {
+    await writeFile(tempPath, content, 'utf8');
+    // Rename is atomic on most filesystems
+    await rename(tempPath, context.metaPath);
+  } catch (error) {
+    // Clean up temp file if rename failed
+    try {
+      await unlink(tempPath);
+    } catch (cleanupErr) {
+      // Ignore cleanup errors
+    }
+    throw error;
+  }
 }
 
 function normalizePublishState(source, originBranchId, timestamp) {
