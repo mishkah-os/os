@@ -1341,29 +1341,20 @@
       }
     });
 
-    // ✅ CRITICAL FIX: Filter out FULLY COMPLETED batches (regardless of delivery status)
-    // This prevents old batches from reappearing when adding new items to same order
+    // ✅ Filter: Keep batches that are NOT fully completed AND NOT fully delivered
     const activeJobHeaders = jobHeaders.filter(header => {
       const batchId = header.batchId || header.batch_id || 'no-batch';
       const stats = batchStatusMap.get(batchId);
 
       if (!stats) return true;  // Safety: keep if no stats
 
-      // ✅ HIDE batch if ALL its jobs are completed/ready
-      // This ensures one-time display: batch shows until all items are ready, then disappears
+      // Keep batch if:
+      // 1. NOT all jobs are completed, OR
+      // 2. NOT all orders are delivered
       const allCompleted = stats.completed === stats.total;
+      const allDelivered = stats.delivered === stats.total;
 
-      // ✅ Log filtering decision for debugging
-      if (allCompleted) {
-        console.log('[KDS][FILTER] Hiding fully completed batch:', {
-          batchId,
-          total: stats.total,
-          completed: stats.completed,
-          delivered: stats.delivered
-        });
-      }
-
-      return !allCompleted;  // ✅ Hide if fully completed
+      return !(allCompleted && allDelivered);
     });
 
     // ✅ Group job_order_header by batchId ONLY (for static tabs)
