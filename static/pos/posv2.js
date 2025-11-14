@@ -2569,8 +2569,16 @@
       const store = typeof window !== 'undefined' && window.__POS_DB__ ? window.__POS_DB__ : null;
       let alreadySentLineIds = new Set();
 
+      console.log('🔍 [DATABASE CHECK] Store availability:', {
+        hasWindow: typeof window !== 'undefined',
+        hasStore: !!store,
+        hasQueryMethod: store && typeof store.query === 'function'
+      });
+
       if (store && typeof store.query === 'function') {
         try {
+          console.log('🔍 [DATABASE CHECK] Starting query for orderId:', order.id);
+
           // ✅ STEP 1: Query job_order_header to get all jobOrderIds for this order
           const existingJobHeaders = await store.query('job_order_header', {
             where: { orderId: order.id }
@@ -2579,7 +2587,8 @@
           console.log('🔍 [DATABASE CHECK] Found existing job_order_header:', {
             orderId: order.id,
             count: existingJobHeaders.length,
-            jobOrderIds: existingJobHeaders.map(h => h.id)
+            jobOrderIds: existingJobHeaders.map(h => h.id),
+            sample: existingJobHeaders.slice(0, 2)
           });
 
           // ✅ STEP 2: For each jobOrderId, query job_order_detail
@@ -2609,34 +2618,74 @@
             lineIds: Array.from(alreadySentLineIds)
           });
         } catch (err) {
-          console.warn('[KDS] Failed to query existing job_order_detail:', err);
+          console.error('❌ [DATABASE CHECK] Failed to query existing job_order_detail:', err);
+          console.error('❌ [CRITICAL] This will cause RE-MANUFACTURING of all items!');
         }
+      } else {
+        console.error('❌ [DATABASE CHECK] Store not available - cannot check existing job_order_detail');
+        console.error('❌ [CRITICAL] This will cause RE-MANUFACTURING of all items!', {
+          hasWindow: typeof window !== 'undefined',
+          hasStore: !!store,
+          hasQueryMethod: store && typeof store.query === 'function'
+        });
+      }
+
+      // ✅ CRITICAL WARNING: If we couldn't query existing jobs, we're about to duplicate everything!
+      if (alreadySentLineIds.size === 0 && order.isPersisted === true) {
+        console.error('⚠️⚠️⚠️ [CRITICAL WARNING] Order is persisted but no existing job_order_detail found!');
+        console.error('⚠️ This indicates either:');
+        console.error('⚠️ 1. Query failed (check errors above)');
+        console.error('⚠️ 2. Order was saved without job_orders (data inconsistency)');
+        console.error('⚠️ 3. Database is not in sync');
+        console.error('⚠️ Proceeding will RE-MANUFACTURE all items!', {
+          orderId: order.id,
+          isPersisted: order.isPersisted,
+          totalLines: lines.length
+        });
       }
 
       // ✅ CRITICAL: Filter out lines that already have job_order_detail
       const linesToSendToKitchen = lines.filter((line, index) => {
         const lineIndex = index + 1;
-        // ✅ CRITICAL FIX: Check using BOTH line.id AND fallback pattern
-        // Line ID should be stable - don't rely on lineIndex which changes when lines are added/removed
+
+        // ✅ CRITICAL FIX: Use EXACT SAME logic as baseLineId generation below!
+        // This ensures we match what was saved in job_order_detail.orderLineId
         const primaryLineId = toIdentifier(line.id, line.uid, line.storageId);
         const fallbackLineId = `${order.id}-line-${lineIndex}`;
-        const lineId = primaryLineId || fallbackLineId;
 
-        // ✅ Check if EITHER the primary ID or fallback ID was already sent
-        const alreadySent = primaryLineId ? alreadySentLineIds.has(primaryLineId) : alreadySentLineIds.has(fallbackLineId);
+        // ⚠️ CRITICAL WARNING: If line.id is missing, we fall back to lineIndex
+        // This is DANGEROUS because lineIndex changes if lines are added/removed/reordered!
+        // This will cause RE-MANUFACTURING of items that already have job_orders!
+        if (!line.id && !line.uid && !line.storageId) {
+          console.warn('⚠️ [LINE ID MISSING] line.id is not set - using lineIndex fallback (UNSTABLE!):', {
+            lineIndex,
+            fallbackLineId,
+            itemName: line.name,
+            warning: 'This line may be RE-MANUFACTURED if order is modified!'
+          });
+        }
+
+        // ✅ Use same fallback priority as in insert
+        const baseLineId = toIdentifier(line.id, line.uid, line.storageId, fallbackLineId) || fallbackLineId;
+
+        // ✅ Check if this exact ID was already sent
+        const alreadySent = alreadySentLineIds.has(baseLineId);
 
         console.log('🔍 [LINE CHECK]', {
-          lineId,
+          lineIndex,
+          baseLineId,
           primaryLineId,
           fallbackLineId,
           itemName: line.name,
           alreadySent,
-          'line.isPersisted': line.isPersisted
+          'line.isPersisted': line.isPersisted,
+          'line.id': line.id,
+          'alreadySentLineIds': Array.from(alreadySentLineIds)
         });
 
         if (alreadySent) {
           console.log('⏭️ [SKIP LINE] Line already sent to kitchen:', {
-            lineId,
+            baseLineId,
             itemName: line.name,
             reason: 'Found in job_order_detail'
           });
@@ -2834,6 +2883,7 @@
             id: detailId,
             jobOrderId: jobId,
             orderLineId: baseLineId,  // ✅ UNIQUE: Each order_line maps to ONE detail
+            order_line_id: baseLineId,  // ✅ Add snake_case variant for compatibility
             itemId: itemIdentifier,
             itemCode: itemIdentifier,
             quantity,
@@ -2848,6 +2898,15 @@
             stationId,
             kitchenSectionId: stationId
           };
+
+          // ✅ CRITICAL DEBUG: Log job_order_detail creation
+          console.log('📝 [JOB_ORDER_DETAIL] Creating detail:', {
+            detailId,
+            jobOrderId: jobId,
+            orderLineId: baseLineId,
+            originalLineId: line.id,
+            itemName: localizeValue(nameSource, 'ar', fallbackNameAr)
+          });
 
           if(line.notes){
             console.log('[POS][serializeOrderForKDS] Line notes:', {
@@ -7206,8 +7265,10 @@
             const existingOrderHeaders = window.database?.order_header || [];
             const existingOrderHeader = existingOrderHeaders.find(h => String(h.id) === String(order.id));
 
-            // ✅ Helper: Retry logic with exponential backoff for timeout errors
-            const retryWithBackoff = async (operation, operationName, maxRetries = 3) => {
+            // ✅ CRITICAL FIX: Different retry strategies for different operations
+            // INSERT operations should NOT retry on timeout (may cause duplicates!)
+            // QUERY/UPDATE operations can safely retry
+            const retryWithBackoff = async (operation, operationName, maxRetries = 3, allowRetryOnTimeout = true) => {
               let lastError;
               for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
@@ -7219,8 +7280,15 @@
                 } catch (err) {
                   lastError = err;
                   const isTimeout = err?.message?.includes('timed out');
+                  const isInsertOperation = operationName.toUpperCase().startsWith('INSERT');
 
-                  if (isTimeout && attempt < maxRetries) {
+                  // ✅ CRITICAL: Never retry INSERT on timeout - may cause duplicates!
+                  if (isTimeout && isInsertOperation) {
+                    console.warn(`⚠️ [POS V2] ${operationName} timed out - NOT retrying (INSERT operations are not idempotent)`);
+                    break;
+                  }
+
+                  if (isTimeout && allowRetryOnTimeout && attempt < maxRetries) {
                     const delayMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
                     console.warn(`⏱️ [POS V2] ${operationName} timed out (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -7331,13 +7399,36 @@
                   `INSERT job_order_header: ${jobHeader.id}`
                 );
               }),
-              // Save details
-              ...(kdsPayload.job_order_detail || []).map(jobDetail =>
-                retryWithBackoff(
+              // ✅ CRITICAL: Save job_order_detail with duplicate prevention
+              ...(kdsPayload.job_order_detail || []).map(async jobDetail => {
+                // ✅ Check if this orderLineId already exists in job_order_detail
+                const orderLineId = jobDetail.orderLineId || jobDetail.order_line_id;
+
+                try {
+                  const existing = await store.query('job_order_detail', {
+                    where: { orderLineId }
+                  });
+
+                  if (existing && existing.length > 0) {
+                    console.warn(`⚠️ [DUPLICATE PREVENTION] order_line ${orderLineId} already has job_order_detail:`, {
+                      existingDetailIds: existing.map(d => d.id),
+                      attemptedDetailId: jobDetail.id,
+                      action: 'SKIPPED'
+                    });
+                    // Return success without inserting (already exists)
+                    return { success: true, skipped: true, reason: 'already_exists' };
+                  }
+                } catch (queryErr) {
+                  console.warn(`⚠️ [POS V2] Failed to check existing job_order_detail for ${orderLineId}:`, queryErr);
+                  // Continue with insert if query fails (fail-safe)
+                }
+
+                // No existing record found - safe to insert
+                return retryWithBackoff(
                   () => store.insert('job_order_detail', jobDetail, { silent: false }),
                   `INSERT job_order_detail: ${jobDetail.id}`
-                )
-              ),
+                );
+              }),
               // Save modifiers
               ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
                 retryWithBackoff(
