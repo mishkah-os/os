@@ -7404,26 +7404,51 @@
                 // ✅ Check if this orderLineId already exists in job_order_detail
                 const orderLineId = jobDetail.orderLineId || jobDetail.order_line_id;
 
-                try {
-                  const existing = await store.query('job_order_detail', {
-                    where: { orderLineId }
-                  });
+                console.log('🔍 [INSERT CHECK] Checking for duplicate before insert:', {
+                  orderLineId,
+                  detailId: jobDetail.id,
+                  itemName: jobDetail.itemNameAr || jobDetail.itemNameEn,
+                  storeAvailable: !!store,
+                  hasQueryMethod: typeof store?.query === 'function'
+                });
 
-                  if (existing && existing.length > 0) {
-                    console.warn(`⚠️ [DUPLICATE PREVENTION] order_line ${orderLineId} already has job_order_detail:`, {
-                      existingDetailIds: existing.map(d => d.id),
-                      attemptedDetailId: jobDetail.id,
-                      action: 'SKIPPED'
+                // ✅ CRITICAL: ALWAYS check for duplicates before insert!
+                if (store && typeof store.query === 'function') {
+                  try {
+                    const existing = await store.query('job_order_detail', {
+                      where: { orderLineId }
                     });
-                    // Return success without inserting (already exists)
-                    return { success: true, skipped: true, reason: 'already_exists' };
+
+                    console.log('🔍 [INSERT CHECK] Query result:', {
+                      orderLineId,
+                      existingCount: existing?.length || 0,
+                      existingIds: existing?.map(d => d.id) || []
+                    });
+
+                    if (existing && existing.length > 0) {
+                      console.warn(`⚠️⚠️⚠️ [DUPLICATE PREVENTION ACTIVE] Blocked duplicate insert!`, {
+                        orderLineId,
+                        existingDetailIds: existing.map(d => d.id),
+                        attemptedDetailId: jobDetail.id,
+                        itemName: jobDetail.itemNameAr || jobDetail.itemNameEn,
+                        action: 'SKIPPED - NOT INSERTED'
+                      });
+                      // Return success without inserting (already exists)
+                      return { success: true, skipped: true, reason: 'already_exists' };
+                    }
+                  } catch (queryErr) {
+                    console.error(`❌ [INSERT CHECK] Query failed for ${orderLineId}:`, queryErr);
+                    console.error(`❌ [CRITICAL] Cannot verify if duplicate - BLOCKING INSERT for safety!`);
+                    // ✅ FAIL-SAFE: If we can't check, DON'T insert (safer than allowing duplicate)
+                    return { success: false, error: queryErr, reason: 'query_failed_cannot_verify' };
                   }
-                } catch (queryErr) {
-                  console.warn(`⚠️ [POS V2] Failed to check existing job_order_detail for ${orderLineId}:`, queryErr);
-                  // Continue with insert if query fails (fail-safe)
+                } else {
+                  console.error(`❌ [INSERT CHECK] Store unavailable - BLOCKING INSERT for safety!`);
+                  return { success: false, reason: 'store_unavailable' };
                 }
 
                 // No existing record found - safe to insert
+                console.log('✅ [INSERT CHECK] No duplicate found - proceeding with insert:', orderLineId);
                 return retryWithBackoff(
                   () => store.insert('job_order_detail', jobDetail, { silent: false }),
                   `INSERT job_order_detail: ${jobDetail.id}`
