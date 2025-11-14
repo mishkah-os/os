@@ -2730,9 +2730,12 @@
           });
         }
 
-        // ✅ UNIQUE JOB ID per batch: orderId-stationId-timestamp
+        // ✅ UNIQUE JOB ID per job_order_header: orderId-stationId-timestamp-random
         // This ensures each save creates NEW job_orders, not overwrite existing ones
-        const jobId = `${order.id}-${stationId}-${batchId}`;
+        // CRITICAL: Don't use batchId in jobId - batchId is for grouping only!
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 8);
+        const jobId = `${order.id}-${stationId}-${timestamp}-${random}`;
         const section = sectionMap.get(stationId) || {};
         const stationCode = section.code || (stationId ? String(stationId).toUpperCase() : 'KDS');
         // ✅ Extract display-friendly order number (DAR-001005 instead of full UUID)

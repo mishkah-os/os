@@ -1310,12 +1310,13 @@
     const menuIndex = db?.data?.menuIndex || {};
 
     // ✅ CRITICAL FIX: Filter out FULLY COMPLETED batches
-    // A batch is "fully completed" when ALL its jobs have status='completed'
-    // This prevents old batches from reappearing when page reloads
+    // A batch is "fully completed" when ALL its jobs have status='ready' or 'completed'
+    // This prevents old batches from reappearing when adding new items to same order
     const batchStatusMap = new Map();
     jobHeaders.forEach(header => {
       const batchId = header.batchId || header.batch_id || 'no-batch';
       const status = header.status;
+      const progressState = header.progressState || header.progress_state;
 
       if (!batchStatusMap.has(batchId)) {
         batchStatusMap.set(batchId, { total: 0, completed: 0, delivered: 0 });
@@ -1324,7 +1325,10 @@
       const stats = batchStatusMap.get(batchId);
       stats.total++;
 
-      if (status === 'completed') {
+      // ✅ CRITICAL FIX: Consider job completed if status is 'ready' OR 'completed' OR progressState is 'completed'
+      // When kitchen finishes a job, status becomes 'ready' (not 'completed')
+      // This ensures old batches are filtered out when adding new items to same order
+      if (status === 'ready' || status === 'completed' || progressState === 'completed') {
         stats.completed++;
       }
 
