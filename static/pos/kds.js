@@ -6450,7 +6450,18 @@
   };
 
   const updateFromWatchers = () => {
+    console.log('🔄 [KDS] updateFromWatchers() CALLED');
+
     const payload = buildWatcherPayload();
+
+    console.log('📦 [KDS] Built payload:', {
+      orderHeaderCount: payload?.order_header?.length || 0,
+      orderLineCount: payload?.order_line?.length || 0,
+      jobHeaderCount: payload?.job_order_header?.length || 0,
+      jobDetailCount: payload?.job_order_detail?.length || 0,
+      batchCount: payload?.job_order_batch?.length || 0
+    });
+
     // ✅ Check flat structure for both static tabs (order_header/order_line) and dynamic tabs (job_order_*)
     const hasData = payload && (
       (Array.isArray(payload.order_header) && payload.order_header.length > 0) ||
@@ -6458,7 +6469,15 @@
       (Array.isArray(payload.job_order_header) && payload.job_order_header.length > 0) ||
       (Array.isArray(payload.job_order_detail) && payload.job_order_detail.length > 0)
     );
-    if (!hasData) return;
+
+    console.log('✅ [KDS] hasData check:', hasData);
+
+    if (!hasData) {
+      console.log('⚠️ [KDS] No data to display, skipping applyRemoteOrder');
+      return;
+    }
+
+    console.log('📤 [KDS] Calling applyRemoteOrder with payload');
     applyRemoteOrder(app, payload, { channel: watcherState.channel || BRANCH_CHANNEL });
     const posPayload = watcherState.posPayload || {};
     const lang = posPayload?.settings?.lang || initialState.env.lang || 'ar';
@@ -6533,11 +6552,14 @@
     // لما الـ cache يكون فاضي عند أول watch() call
     // مش محتاجين نعمل fetch يدوي بعد كده! 🎉
     const setupWatchers = () => {
+      console.log('🎬 [KDS] setupWatchers() CALLED - Installing all watchers now!');
+
       // ✅ DEBUG: Log registered tables to verify job_order_header exists
       console.log('🔍🔍🔍 [KDS] Store configuration:', {
         configObjects: Object.keys(store.config?.objects || {}),
         hasJobOrderHeader: store.config?.objects?.hasOwnProperty('job_order_header'),
-        connected: store?.connected || 'unknown'
+        connected: store?.connected || 'unknown',
+        totalWatchers: watcherUnsubscribers.length
       });
 
       watcherUnsubscribers.push(
@@ -6578,10 +6600,16 @@
 
       watcherUnsubscribers.push(
         store.watch('job_order_detail', (rows) => {
+          console.log('📋 [KDS] job_order_detail WATCHER triggered!', {
+            rowsCount: rows?.length || 0,
+            sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
+            timestamp: new Date().toISOString()
+          });
           // ✅ CRITICAL FIX: Keep ALL details, don't filter by job completion
           // Details should stay visible in Expo/Handoff even after cooking is done
           const allDetails = ensureArray(rows);
           watcherState.lines = allDetails;  // Keep ALL details
+          console.log('✅ [KDS] Updated watcherState.lines:', allDetails.length, 'details');
           updateFromWatchers();
         })
       );
@@ -6601,14 +6629,28 @@
       // ✅ Watch order_header for static tabs
       watcherUnsubscribers.push(
         store.watch('order_header', (rows) => {
-          watcherState.orderHeaders = ensureArray(rows);          updateFromWatchers();
+          console.log('📄 [KDS] order_header WATCHER triggered!', {
+            rowsCount: rows?.length || 0,
+            sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
+            timestamp: new Date().toISOString()
+          });
+          watcherState.orderHeaders = ensureArray(rows);
+          console.log('✅ [KDS] Updated watcherState.orderHeaders:', watcherState.orderHeaders.length, 'orders');
+          updateFromWatchers();
         })
       );
 
       // ✅ Watch order_line for static tabs
       watcherUnsubscribers.push(
         store.watch('order_line', (rows) => {
-          watcherState.orderLines = ensureArray(rows);          updateFromWatchers();
+          console.log('📝 [KDS] order_line WATCHER triggered!', {
+            rowsCount: rows?.length || 0,
+            sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
+            timestamp: new Date().toISOString()
+          });
+          watcherState.orderLines = ensureArray(rows);
+          console.log('✅ [KDS] Updated watcherState.orderLines:', watcherState.orderLines.length, 'lines');
+          updateFromWatchers();
         })
       );
 
