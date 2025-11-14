@@ -2569,8 +2569,16 @@
       const store = typeof window !== 'undefined' && window.__POS_DB__ ? window.__POS_DB__ : null;
       let alreadySentLineIds = new Set();
 
+      console.log('🔍 [DATABASE CHECK] Store availability:', {
+        hasWindow: typeof window !== 'undefined',
+        hasStore: !!store,
+        hasQueryMethod: store && typeof store.query === 'function'
+      });
+
       if (store && typeof store.query === 'function') {
         try {
+          console.log('🔍 [DATABASE CHECK] Starting query for orderId:', order.id);
+
           // ✅ STEP 1: Query job_order_header to get all jobOrderIds for this order
           const existingJobHeaders = await store.query('job_order_header', {
             where: { orderId: order.id }
@@ -2579,7 +2587,8 @@
           console.log('🔍 [DATABASE CHECK] Found existing job_order_header:', {
             orderId: order.id,
             count: existingJobHeaders.length,
-            jobOrderIds: existingJobHeaders.map(h => h.id)
+            jobOrderIds: existingJobHeaders.map(h => h.id),
+            sample: existingJobHeaders.slice(0, 2)
           });
 
           // ✅ STEP 2: For each jobOrderId, query job_order_detail
@@ -2626,12 +2635,14 @@
         const alreadySent = primaryLineId ? alreadySentLineIds.has(primaryLineId) : alreadySentLineIds.has(fallbackLineId);
 
         console.log('🔍 [LINE CHECK]', {
+          lineIndex,
           lineId,
           primaryLineId,
           fallbackLineId,
           itemName: line.name,
           alreadySent,
-          'line.isPersisted': line.isPersisted
+          'line.isPersisted': line.isPersisted,
+          'alreadySentLineIds': Array.from(alreadySentLineIds)
         });
 
         if (alreadySent) {
@@ -2834,6 +2845,7 @@
             id: detailId,
             jobOrderId: jobId,
             orderLineId: baseLineId,  // ✅ UNIQUE: Each order_line maps to ONE detail
+            order_line_id: baseLineId,  // ✅ Add snake_case variant for compatibility
             itemId: itemIdentifier,
             itemCode: itemIdentifier,
             quantity,
@@ -2848,6 +2860,15 @@
             stationId,
             kitchenSectionId: stationId
           };
+
+          // ✅ CRITICAL DEBUG: Log job_order_detail creation
+          console.log('📝 [JOB_ORDER_DETAIL] Creating detail:', {
+            detailId,
+            jobOrderId: jobId,
+            orderLineId: baseLineId,
+            originalLineId: line.id,
+            itemName: localizeValue(nameSource, 'ar', fallbackNameAr)
+          });
 
           if(line.notes){
             console.log('[POS][serializeOrderForKDS] Line notes:', {
