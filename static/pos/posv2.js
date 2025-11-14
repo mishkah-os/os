@@ -2575,27 +2575,31 @@
         hasQueryMethod: store && typeof store.query === 'function'
       });
 
-      if (store && typeof store.query === 'function') {
+      // ✅ CRITICAL FIX: Use window.database instead of store.query (which doesn't exist!)
+      if (typeof window !== 'undefined' && window.database && Array.isArray(window.database.job_order_header) && Array.isArray(window.database.job_order_detail)) {
         try {
           console.log('🔍 [DATABASE CHECK] Starting query for orderId:', order.id);
 
-          // ✅ STEP 1: Query job_order_header to get all jobOrderIds for this order
-          const existingJobHeaders = await store.query('job_order_header', {
-            where: { orderId: order.id }
+          // ✅ STEP 1: Filter job_order_header to get all jobOrderIds for this order
+          const existingJobHeaders = window.database.job_order_header.filter(h => {
+            const headerOrderId = h.orderId || h.order_id;
+            return headerOrderId === order.id;
           });
 
           console.log('🔍 [DATABASE CHECK] Found existing job_order_header:', {
             orderId: order.id,
             count: existingJobHeaders.length,
             jobOrderIds: existingJobHeaders.map(h => h.id),
-            sample: existingJobHeaders.slice(0, 2)
+            sample: existingJobHeaders.slice(0, 2),
+            totalInDatabase: window.database.job_order_header.length
           });
 
-          // ✅ STEP 2: For each jobOrderId, query job_order_detail
+          // ✅ STEP 2: For each jobOrderId, filter job_order_detail
           for (const jobHeader of existingJobHeaders) {
             const jobOrderId = jobHeader.id;
-            const existingJobDetails = await store.query('job_order_detail', {
-              where: { jobOrderId }
+            const existingJobDetails = window.database.job_order_detail.filter(d => {
+              const detailJobId = d.jobOrderId || d.job_order_id;
+              return detailJobId === jobOrderId;
             });
 
             console.log(`🔍 [DATABASE CHECK] Found existing job_order_detail for job ${jobOrderId}:`, {
@@ -2618,11 +2622,11 @@
             lineIds: Array.from(alreadySentLineIds)
           });
         } catch (err) {
-          console.error('❌ [DATABASE CHECK] Failed to query existing job_order_detail:', err);
+          console.error('❌ [DATABASE CHECK] Failed to check existing job_order_detail:', err);
           console.error('❌ [CRITICAL] This will cause RE-MANUFACTURING of all items!');
         }
       } else {
-        console.error('❌ [DATABASE CHECK] Store not available - cannot check existing job_order_detail');
+        console.error('❌ [DATABASE CHECK] window.database not available - cannot check existing job_order_detail');
         console.error('❌ [CRITICAL] This will cause RE-MANUFACTURING of all items!', {
           hasWindow: typeof window !== 'undefined',
           hasStore: !!store,
@@ -7409,23 +7413,26 @@
                   detailId: jobDetail.id,
                   itemName: jobDetail.itemNameAr || jobDetail.itemNameEn,
                   storeAvailable: !!store,
-                  hasQueryMethod: typeof store?.query === 'function'
+                  databaseAvailable: typeof window !== 'undefined' && !!window.database
                 });
 
-                // ✅ CRITICAL: ALWAYS check for duplicates before insert!
-                if (store && typeof store.query === 'function') {
+                // ✅ CRITICAL: Check duplicates using window.database (in-memory cache)
+                // store.query() doesn't exist - use window.database instead!
+                if (typeof window !== 'undefined' && window.database && Array.isArray(window.database.job_order_detail)) {
                   try {
-                    const existing = await store.query('job_order_detail', {
-                      where: { orderLineId }
+                    const existing = window.database.job_order_detail.filter(detail => {
+                      const detailLineId = detail.orderLineId || detail.order_line_id;
+                      return detailLineId === orderLineId;
                     });
 
-                    console.log('🔍 [INSERT CHECK] Query result:', {
+                    console.log('🔍 [INSERT CHECK] Database result:', {
                       orderLineId,
-                      existingCount: existing?.length || 0,
-                      existingIds: existing?.map(d => d.id) || []
+                      existingCount: existing.length,
+                      existingIds: existing.map(d => d.id),
+                      totalJobDetails: window.database.job_order_detail.length
                     });
 
-                    if (existing && existing.length > 0) {
+                    if (existing.length > 0) {
                       console.warn(`⚠️⚠️⚠️ [DUPLICATE PREVENTION ACTIVE] Blocked duplicate insert!`, {
                         orderLineId,
                         existingDetailIds: existing.map(d => d.id),
@@ -7436,15 +7443,13 @@
                       // Return success without inserting (already exists)
                       return { success: true, skipped: true, reason: 'already_exists' };
                     }
-                  } catch (queryErr) {
-                    console.error(`❌ [INSERT CHECK] Query failed for ${orderLineId}:`, queryErr);
-                    console.error(`❌ [CRITICAL] Cannot verify if duplicate - BLOCKING INSERT for safety!`);
-                    // ✅ FAIL-SAFE: If we can't check, DON'T insert (safer than allowing duplicate)
-                    return { success: false, error: queryErr, reason: 'query_failed_cannot_verify' };
+                  } catch (checkErr) {
+                    console.error(`❌ [INSERT CHECK] Check failed for ${orderLineId}:`, checkErr);
+                    // Continue with insert if check fails (data may be stale)
                   }
                 } else {
-                  console.error(`❌ [INSERT CHECK] Store unavailable - BLOCKING INSERT for safety!`);
-                  return { success: false, reason: 'store_unavailable' };
+                  console.warn(`⚠️ [INSERT CHECK] window.database not available - cannot check duplicates`);
+                  // Continue with insert (fail-open for availability)
                 }
 
                 // No existing record found - safe to insert
