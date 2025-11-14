@@ -7227,8 +7227,10 @@
             const existingOrderHeaders = window.database?.order_header || [];
             const existingOrderHeader = existingOrderHeaders.find(h => String(h.id) === String(order.id));
 
-            // ✅ Helper: Retry logic with exponential backoff for timeout errors
-            const retryWithBackoff = async (operation, operationName, maxRetries = 3) => {
+            // ✅ CRITICAL FIX: Different retry strategies for different operations
+            // INSERT operations should NOT retry on timeout (may cause duplicates!)
+            // QUERY/UPDATE operations can safely retry
+            const retryWithBackoff = async (operation, operationName, maxRetries = 3, allowRetryOnTimeout = true) => {
               let lastError;
               for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
@@ -7240,8 +7242,15 @@
                 } catch (err) {
                   lastError = err;
                   const isTimeout = err?.message?.includes('timed out');
+                  const isInsertOperation = operationName.toUpperCase().startsWith('INSERT');
 
-                  if (isTimeout && attempt < maxRetries) {
+                  // ✅ CRITICAL: Never retry INSERT on timeout - may cause duplicates!
+                  if (isTimeout && isInsertOperation) {
+                    console.warn(`⚠️ [POS V2] ${operationName} timed out - NOT retrying (INSERT operations are not idempotent)`);
+                    break;
+                  }
+
+                  if (isTimeout && allowRetryOnTimeout && attempt < maxRetries) {
                     const delayMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
                     console.warn(`⏱️ [POS V2] ${operationName} timed out (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -7352,13 +7361,36 @@
                   `INSERT job_order_header: ${jobHeader.id}`
                 );
               }),
-              // Save details
-              ...(kdsPayload.job_order_detail || []).map(jobDetail =>
-                retryWithBackoff(
+              // ✅ CRITICAL: Save job_order_detail with duplicate prevention
+              ...(kdsPayload.job_order_detail || []).map(async jobDetail => {
+                // ✅ Check if this orderLineId already exists in job_order_detail
+                const orderLineId = jobDetail.orderLineId || jobDetail.order_line_id;
+
+                try {
+                  const existing = await store.query('job_order_detail', {
+                    where: { orderLineId }
+                  });
+
+                  if (existing && existing.length > 0) {
+                    console.warn(`⚠️ [DUPLICATE PREVENTION] order_line ${orderLineId} already has job_order_detail:`, {
+                      existingDetailIds: existing.map(d => d.id),
+                      attemptedDetailId: jobDetail.id,
+                      action: 'SKIPPED'
+                    });
+                    // Return success without inserting (already exists)
+                    return { success: true, skipped: true, reason: 'already_exists' };
+                  }
+                } catch (queryErr) {
+                  console.warn(`⚠️ [POS V2] Failed to check existing job_order_detail for ${orderLineId}:`, queryErr);
+                  // Continue with insert if query fails (fail-safe)
+                }
+
+                // No existing record found - safe to insert
+                return retryWithBackoff(
                   () => store.insert('job_order_detail', jobDetail, { silent: false }),
                   `INSERT job_order_detail: ${jobDetail.id}`
-                )
-              ),
+                );
+              }),
               // Save modifiers
               ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
                 retryWithBackoff(
