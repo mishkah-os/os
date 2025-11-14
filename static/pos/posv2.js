@@ -2143,7 +2143,19 @@
         } else if(Number.isFinite(currentVersion) && currentVersion > 0){
           outgoing.version = currentVersion;
         }
-        const payload = await postJson(endpoint, { order: outgoing });
+
+        // ✅ CRITICAL FIX: Sanitize payload to prevent JSON serialization errors
+        // Remove any non-serializable data (functions, undefined, circular refs, etc.)
+        let sanitizedOrder;
+        try {
+          sanitizedOrder = JSON.parse(JSON.stringify({ order: outgoing }));
+        } catch (sanitizeError) {
+          console.error('[POS][saveOrder] ❌ Failed to sanitize order payload:', sanitizeError);
+          console.error('[POS][saveOrder] Problematic order:', outgoing);
+          throw new Error(`Order contains non-serializable data: ${sanitizeError.message}`);
+        }
+
+        const payload = await postJson(endpoint, sanitizedOrder);
         return payload?.order ? normalizePersistedOrder(payload.order) : order;
       }
       function sanitizeTempOrder(order){
