@@ -4167,10 +4167,31 @@
         if(order) orders.push(order);
       });
       orders.sort((a,b)=> (b.updatedAt || 0) - (a.updatedAt || 0));
+
+      // ✅ CRITICAL FIX: Use same logic as OrdersListPanel.isOrderCompleted()
+      // Order is completed ONLY if: delivered/closed AND fully paid
+      const isOrderCompletedForSnapshot = (order)=>{
+        const fulfillmentStage = order.fulfillmentStage || 'new';
+
+        // ✅ Check if delivered/closed
+        const isDelivered = fulfillmentStage === 'delivered' || fulfillmentStage === 'closed';
+
+        // ✅ Check if fully paid (calculate from actual payments)
+        const totals = order.totals || {};
+        const totalDue = Number(totals.due || 0);
+        const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
+        const isFullyPaid = totalDue > 0 && paidAmount >= totalDue;
+
+        // ✅ Order is completed ONLY if BOTH conditions are met
+        return isDelivered && isFullyPaid;
+      };
+
       const active = [];
       const history = [];
       orders.forEach(order=>{
-        const bucket = (order.status === 'closed' || order.status === 'finalized') ? history : active;
+        // ✅ OLD LOGIC (WRONG): const bucket = (order.status === 'closed' || order.status === 'finalized') ? history : active;
+        // ✅ NEW LOGIC (CORRECT): Check both delivered AND paid
+        const bucket = isOrderCompletedForSnapshot(order) ? history : active;
         bucket.push(cloneOrderSnapshot(order));
       });
       // Mark all orders as persisted
