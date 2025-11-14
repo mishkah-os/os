@@ -1305,9 +1305,24 @@
   const buildOrdersFromJobHeaders = (db) => {
     const jobHeaders = Array.isArray(db?.data?.jobHeaders) ? db.data.jobHeaders : [];
     const jobDetails = Array.isArray(db?.data?.jobOrderDetails) ? db.data.jobOrderDetails : [];
-    const handoff = db?.data?.handoff || {};
+    const batches = Array.isArray(db?.data?.batches) ? db.data.batches : [];  // ✅ NEW: Get batches
+    // ✅ CRITICAL FIX: Merge handoff from BOTH localStorage AND state
+    // In WebSocket mode, state.data.handoff may not have assembled status yet
+    // But localStorage (persistedHandoff) always has the latest status
+    const handoff = {
+      ...clonePersistedHandoff(),  // From localStorage (always up-to-date)
+      ...(db?.data?.handoff || {})  // From state (may be stale in WebSocket mode)
+    };
     const stationMap = db?.data?.stationMap || {};
     const menuIndex = db?.data?.menuIndex || {};
+
+    // ✅ Index batches by batchId for fast lookup
+    const batchMap = {};
+    batches.forEach(batch => {
+      if (batch && batch.id) {
+        batchMap[batch.id] = batch;
+      }
+    });
 
     // ✅ CRITICAL FIX: Filter out FULLY COMPLETED batches
     // A batch is "fully completed" when ALL its jobs have status='ready' or 'completed'
@@ -1465,6 +1480,14 @@
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
 
+      // ✅ CRITICAL FIX: Use batch.createdAt for timer accuracy
+      // Timer should start from batch creation time, not job creation time
+      // This ensures timer always starts from zero for new additions
+      const batch = batchMap[batchId];
+      const batchCreatedAt = batch ? (batch.createdAt || batch.created_at) : null;
+      const fallbackCreatedAt = firstHeader.createdAt || firstHeader.created_at;
+      const finalCreatedAt = batchCreatedAt || fallbackCreatedAt;
+
       orders.push({
         orderId,
         batchId,  // ✅ Track which batch this order ticket represents
@@ -1481,9 +1504,9 @@
         detailRows,
         jobs,
         jobCount: headers.length,  // ✅ Number of jobs (stations) in this batch
-        createdAt: firstHeader.createdAt || firstHeader.created_at,
+        createdAt: finalCreatedAt,  // ✅ Use batch.createdAt (more accurate)
         updatedAt: firstHeader.updatedAt || firstHeader.updated_at,
-        createdMs: parseTime(firstHeader.createdAt || firstHeader.created_at)
+        createdMs: parseTime(finalCreatedAt)  // ✅ Parse batch.createdAt
       });
     });
 
@@ -3933,6 +3956,22 @@
       });
       const orderLinesNext = Array.from(orderLinesMap.values());
 
+      // ✅ Extract batches from payload
+      const incomingBatches = Array.isArray(payload.job_order_batch) ? payload.job_order_batch : [];
+      const existingBatches = Array.isArray(state.data.batches) ? state.data.batches : [];
+      const batchesMap = new Map();
+      existingBatches.forEach(batch => {
+        if (batch && batch.id) {
+          batchesMap.set(String(batch.id), batch);
+        }
+      });
+      incomingBatches.forEach(batch => {
+        if (batch && batch.id) {
+          batchesMap.set(String(batch.id), { ...batchesMap.get(String(batch.id)), ...batch });
+        }
+      });
+      const batchesNext = Array.from(batchesMap.values());
+
       const nextState = {
         ...state,
         data:{
@@ -3941,6 +3980,7 @@
           orderLines: orderLinesNext,          // ✅ For static tabs (legacy)
           jobHeaders: mergedOrders.job_order_header || [],        // ✅ NEW: For Expo/Handoff tabs
           jobOrderDetails: mergedOrders.job_order_detail || [],   // ✅ For derived status
+          batches: batchesNext,                // ✅ NEW: Add batches for timer accuracy
           jobOrders: mergedOrders,
           jobs: jobsIndexedNext,
           expoSource: expoSourceNext,
@@ -6412,6 +6452,7 @@
       job_order_detail: jobDetails,
       job_order_detail_modifier: [],
       job_order_status_history: [],
+      job_order_batch: ensureArray(watcherState.batches),  // ✅ NEW: Add batches for timer accuracy
       expo_pass_ticket: ensureArray(
         posPayload?.kds?.expoPassTickets || posPayload?.expo_pass_tickets
       ),
