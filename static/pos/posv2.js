@@ -2618,36 +2618,74 @@
             lineIds: Array.from(alreadySentLineIds)
           });
         } catch (err) {
-          console.warn('[KDS] Failed to query existing job_order_detail:', err);
+          console.error('❌ [DATABASE CHECK] Failed to query existing job_order_detail:', err);
+          console.error('❌ [CRITICAL] This will cause RE-MANUFACTURING of all items!');
         }
+      } else {
+        console.error('❌ [DATABASE CHECK] Store not available - cannot check existing job_order_detail');
+        console.error('❌ [CRITICAL] This will cause RE-MANUFACTURING of all items!', {
+          hasWindow: typeof window !== 'undefined',
+          hasStore: !!store,
+          hasQueryMethod: store && typeof store.query === 'function'
+        });
+      }
+
+      // ✅ CRITICAL WARNING: If we couldn't query existing jobs, we're about to duplicate everything!
+      if (alreadySentLineIds.size === 0 && order.isPersisted === true) {
+        console.error('⚠️⚠️⚠️ [CRITICAL WARNING] Order is persisted but no existing job_order_detail found!');
+        console.error('⚠️ This indicates either:');
+        console.error('⚠️ 1. Query failed (check errors above)');
+        console.error('⚠️ 2. Order was saved without job_orders (data inconsistency)');
+        console.error('⚠️ 3. Database is not in sync');
+        console.error('⚠️ Proceeding will RE-MANUFACTURE all items!', {
+          orderId: order.id,
+          isPersisted: order.isPersisted,
+          totalLines: lines.length
+        });
       }
 
       // ✅ CRITICAL: Filter out lines that already have job_order_detail
       const linesToSendToKitchen = lines.filter((line, index) => {
         const lineIndex = index + 1;
-        // ✅ CRITICAL FIX: Check using BOTH line.id AND fallback pattern
-        // Line ID should be stable - don't rely on lineIndex which changes when lines are added/removed
+
+        // ✅ CRITICAL FIX: Use EXACT SAME logic as baseLineId generation below!
+        // This ensures we match what was saved in job_order_detail.orderLineId
         const primaryLineId = toIdentifier(line.id, line.uid, line.storageId);
         const fallbackLineId = `${order.id}-line-${lineIndex}`;
-        const lineId = primaryLineId || fallbackLineId;
 
-        // ✅ Check if EITHER the primary ID or fallback ID was already sent
-        const alreadySent = primaryLineId ? alreadySentLineIds.has(primaryLineId) : alreadySentLineIds.has(fallbackLineId);
+        // ⚠️ CRITICAL WARNING: If line.id is missing, we fall back to lineIndex
+        // This is DANGEROUS because lineIndex changes if lines are added/removed/reordered!
+        // This will cause RE-MANUFACTURING of items that already have job_orders!
+        if (!line.id && !line.uid && !line.storageId) {
+          console.warn('⚠️ [LINE ID MISSING] line.id is not set - using lineIndex fallback (UNSTABLE!):', {
+            lineIndex,
+            fallbackLineId,
+            itemName: line.name,
+            warning: 'This line may be RE-MANUFACTURED if order is modified!'
+          });
+        }
+
+        // ✅ Use same fallback priority as in insert
+        const baseLineId = toIdentifier(line.id, line.uid, line.storageId, fallbackLineId) || fallbackLineId;
+
+        // ✅ Check if this exact ID was already sent
+        const alreadySent = alreadySentLineIds.has(baseLineId);
 
         console.log('🔍 [LINE CHECK]', {
           lineIndex,
-          lineId,
+          baseLineId,
           primaryLineId,
           fallbackLineId,
           itemName: line.name,
           alreadySent,
           'line.isPersisted': line.isPersisted,
+          'line.id': line.id,
           'alreadySentLineIds': Array.from(alreadySentLineIds)
         });
 
         if (alreadySent) {
           console.log('⏭️ [SKIP LINE] Line already sent to kitchen:', {
-            lineId,
+            baseLineId,
             itemName: line.name,
             reason: 'Found in job_order_detail'
           });
