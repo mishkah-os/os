@@ -6528,12 +6528,9 @@
       };
     });
 
-    const channelSource =
-      posPayload?.settings?.sync?.channel ||
-      posPayload?.sync?.channel ||
-      posPayload?.branch?.channel ||
-      watcherState.channel ||
-      BRANCH_CHANNEL;
+    // ✅ FIX: Don't rely on posPayload (it's null since pos_database is deprecated)
+    // Use watcherState.channel (set from sync messages) or default to BRANCH_CHANNEL
+    const channelSource = watcherState.channel || BRANCH_CHANNEL;
     const channel = normalizeChannelName(channelSource, BRANCH_CHANNEL);
     watcherState.channel = channel;
 
@@ -6550,9 +6547,7 @@
       job_order_detail_modifier: [],
       job_order_status_history: [],
       job_order_batch: ensureArray(watcherState.batches),  // ✅ NEW: Add batches for timer accuracy
-      expo_pass_ticket: ensureArray(
-        posPayload?.kds?.expoPassTickets || posPayload?.expo_pass_tickets
-      ),
+      expo_pass_ticket: [],  // ✅ FIX: Empty since posPayload is null
       master: {
         stations,
         stationCategoryRoutes,
@@ -6561,15 +6556,15 @@
         categories,
         items,
         drivers,
-        metadata: posPayload?.metadata || posPayload?.settings || {},
-        sync: { ...(posPayload?.settings?.sync || {}), channel },
+        metadata: {},  // ✅ FIX: Empty since posPayload is null
+        sync: { channel },
         channel
       },
       deliveries,
       handoff,
       drivers,
-      meta: posPayload?.meta || posPayload?.settings || {},
-      branch: posPayload?.branch || {}
+      meta: {},  // ✅ FIX: Empty since posPayload is null
+      branch: {}  // ✅ FIX: Empty since posPayload is null
     };
     const payloadSummary = summarizeJobPayload(payload);
     const counts = payloadSummary?.counts || {};
@@ -6622,8 +6617,8 @@
 
     console.log('📤 [KDS] Calling applyRemoteOrder with payload');
     applyRemoteOrder(app, payload, { channel: watcherState.channel || BRANCH_CHANNEL });
-    const posPayload = watcherState.posPayload || {};
-    const lang = posPayload?.settings?.lang || initialState.env.lang || 'ar';
+    // ✅ FIX: Don't use posPayload (it's null) - use initialState instead
+    const lang = initialState.env.lang || 'ar';
     const dir = lang === 'ar' ? 'rtl' : 'ltr';
     app.setState((state) => {
       const syncBase = state.data?.sync || {};
@@ -6640,10 +6635,9 @@
           ...state.data,
           sync,
           meta: {
-          ...(state.data.meta || {}),
-          ...(posPayload?.metadata || {}),
-          ...(posPayload?.settings || {})
-        },
+            ...(state.data.meta || {})
+            // ✅ FIX: Don't merge posPayload (it's null)
+          },
           branch: payload.branch || state.data.branch || {}
         }
       };
@@ -6716,14 +6710,8 @@
         })
       );
 
-      watcherUnsubscribers.push(
-        store.watch('pos_database', (rows) => {
-          const latest =
-            Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
-          watcherState.posPayload =
-            (latest && latest.payload) || {};          updateFromWatchers();
-        })
-      );
+      // ✅ REMOVED: pos_database watcher (table is deprecated, payload is always null)
+      // watcherState.posPayload is no longer used - all data comes from individual table watchers
 
       watcherUnsubscribers.push(
         store.watch('job_order_header', (rows) => {
@@ -6961,14 +6949,8 @@
               updateFromWatchers();
             })
           );
-          watcherUnsubscribers.push(
-            store.watch('pos_database', (rows) => {
-              const latest =
-                Array.isArray(rows) && rows.length ? rows[rows.length - 1] : null;
-              watcherState.posPayload =
-                (latest && latest.payload) || {};              updateFromWatchers();
-            })
-          );
+          // ✅ REMOVED: pos_database watcher (table is deprecated, payload is always null)
+          // watcherState.posPayload is no longer used - all data comes from individual table watchers
           watcherUnsubscribers.push(
             store.watch('job_order_header', (rows) => {
               // ✅ Filter out completed job_order_header to prevent showing old items
