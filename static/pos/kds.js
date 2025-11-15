@@ -5128,7 +5128,7 @@
 
             if (Number.isFinite(nextVersion) && nextVersion >= 1) {
               const orderHeaderUpdate = {
-                id: baseOrderId,
+                id: orderHeader.id,  // ✅ CRITICAL FIX: Use orderHeader.id (real UUID) not baseOrderId (short ID)!
                 status: 'ready',
                 statusId: 'ready',
                 status_id: 'ready',
