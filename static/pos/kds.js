@@ -2829,7 +2829,7 @@
     return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> {
       // ✅ Extract batch serial from batchId (for debugging)
       const batchSerial = order.batchId ? order.batchId.split('-').pop() : 'N/A';
-      return D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
+      return D.Containers.Article({ attrs:{ 'data-batch-id': order.batchId, class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
         D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-1` }}, [
           D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber}`]),
@@ -2915,7 +2915,7 @@
             }
           }, [t.actions.handoffComplete])
         : createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`);
-      return D.Containers.Article({ attrs:{ class: cardClass }}, [
+      return D.Containers.Article({ attrs:{ 'data-batch-id': order.batchId, class: cardClass }}, [
         D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
           D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.orderId}`]),
           createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
@@ -2951,7 +2951,7 @@
     const paidAmount = order.totalPaid || 0;
     const remainingAmount = Math.max(0, totalAmount - paidAmount);
 
-    return D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
+    return D.Containers.Article({ attrs:{ 'data-batch-id': order.batchId, class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
         D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber}`]),
         createBadge(statusLabel, DELIVERY_STATUS_CLASS[statusKey] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
@@ -3045,7 +3045,7 @@
           }, [t.actions.handoffServe])
         : null;
 
-      return D.Containers.Article({ attrs:{ class: cardClass }}, [
+      return D.Containers.Article({ attrs:{ 'data-batch-id': order.batchId, class: cardClass }}, [
         D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
           D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.orderId}`]),
           createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
