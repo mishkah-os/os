@@ -4162,6 +4162,9 @@
       }
       return lastWatcherSnapshot;
     };
+    // ✅ Expose app.getState() for debugging
+    dev.getState = ()=> (typeof app.getState === 'function' ? app.getState() : null);
+    dev.app = app;  // ✅ Expose entire app for debugging
     window.__MishkahKDSDev__ = dev;
     if(!announced){
       if(typeof console !== 'undefined'){
