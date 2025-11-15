@@ -2005,7 +2005,10 @@
       });
     const orderMap = new Map();
     snapshot.forEach(order=>{
-      const key = normalizeOrderKey(order.orderId || order.id);
+      // ✅ CRITICAL FIX: Use batchId as key instead of orderId!
+      // Multiple batches can have same orderId (initial + additions)
+      // Using orderId would merge different batches into one card!
+      const key = order.batchId || normalizeOrderKey(order.orderId || order.id);
       if(key) orderMap.set(key, order);
     });
 
@@ -2024,17 +2027,21 @@
     });
   };
 
-  const getHandoffOrders = (db)=> buildOrdersFromJobHeaders(db)
-    .filter(order=>{
-      if(!order) return false;
-      const status = order.handoffStatus;
-      // ✅ CRITICAL: Show ONLY 'assembled' orders (تم تجميعها في Expo)
-      // Workflow: Expo → "تم التجميع" → status='assembled' → يظهر في Handoff
-      // Handoff → "تم التسليم" → status='served' → يختفي
-      if(status !== 'assembled') return false;
-      const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
-      return serviceMode !== 'delivery';
-    });
+  const getHandoffOrders = (db)=> {
+    // ✅ CRITICAL FIX: Each batch should be a separate card!
+    // Don't merge batches with same orderId
+    return buildOrdersFromJobHeaders(db)
+      .filter(order=>{
+        if(!order) return false;
+        const status = order.handoffStatus;
+        // ✅ CRITICAL: Show ONLY 'assembled' orders (تم تجميعها في Expo)
+        // Workflow: Expo → "تم التجميع" → status='assembled' → يظهر في Handoff
+        // Handoff → "تم التسليم" → status='served' → يختفي
+        if(status !== 'assembled') return false;
+        const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
+        return serviceMode !== 'delivery';
+      });
+  };
 
   const cloneJob = (job)=>({
     ...job,
