@@ -1346,24 +1346,35 @@
       if (status === 'ready' || status === 'completed' || progressState === 'completed') {
         stats.completed++;
       }
+
+      // ✅ CRITICAL FIX: Check if order is FULLY delivered (not just assembled)
+      // 'assembled' means ready for handoff (should still appear in Handoff screen)
+      // Only 'served', 'delivered', 'settled' mean the order is truly done
+      const orderId = header.orderId || header.order_id;
+      const orderKey = normalizeOrderKey(orderId);
+      const handoffStatus = (orderKey && (handoff[orderKey] || handoff[orderId]))?.status;
+      if (handoffStatus === 'served' || handoffStatus === 'delivered' || handoffStatus === 'settled') {
+        stats.delivered++;
+      }
     });
 
-    // ✅ CRITICAL FIX: Filter out FULLY COMPLETED batches from prep/station screens
-    // DON'T use handoff status here because multiple batches can share same orderId!
-    // Example: Order DAR-001 has BATCH-1 (assembled) and BATCH-2 (new) - same orderId!
-    // If we check handoff[orderId], BATCH-2 would incorrectly inherit BATCH-1's assembled status
+    // ✅ CRITICAL FIX: Filter out FULLY COMPLETED AND DELIVERED batches
+    // Hide batch when ALL jobs are completed AND order is fully delivered
+    // This prevents old batches from reappearing when adding new items to same order
     const activeJobHeaders = jobHeaders.filter(header => {
       const batchId = header.batchId || header.batch_id || 'no-batch';
       const stats = batchStatusMap.get(batchId);
 
       if (!stats) return true;  // Safety: keep if no stats
 
-      // ✅ SIMPLE LOGIC: Hide batch if ALL its jobs are completed
-      // - Completed batches will appear in Expo/Handoff screens based on handoff status
-      // - New batches (even for same orderId) will appear here because their jobs are NOT completed yet
+      // ✅ LOGIC: Hide batch if ALL its jobs are completed AND fully delivered
+      // - allCompleted: All jobs in batch have status='ready' or 'completed'
+      // - allDelivered: All jobs have handoffStatus='served' or 'delivered' or 'settled'
+      // - assembled orders (handoffStatus='assembled') are NOT considered delivered → will appear in Handoff
       const allCompleted = stats.completed === stats.total;
+      const allDelivered = stats.delivered === stats.total;
 
-      return !allCompleted;  // Show only batches with at least one incomplete job
+      return !(allCompleted && allDelivered);  // Show if NOT (fully completed AND delivered)
     });
 
     // ✅ Group job_order_header by batchId ONLY (for static tabs)
@@ -3945,21 +3956,12 @@
       });
       const orderLinesNext = Array.from(orderLinesMap.values());
 
-      // ✅ Extract batches from payload
-      const incomingBatches = Array.isArray(payload.job_order_batch) ? payload.job_order_batch : [];
-      const existingBatches = Array.isArray(state.data.batches) ? state.data.batches : [];
-      const batchesMap = new Map();
-      existingBatches.forEach(batch => {
-        if (batch && batch.id) {
-          batchesMap.set(String(batch.id), batch);
-        }
-      });
-      incomingBatches.forEach(batch => {
-        if (batch && batch.id) {
-          batchesMap.set(String(batch.id), { ...batchesMap.get(String(batch.id)), ...batch });
-        }
-      });
-      const batchesNext = Array.from(batchesMap.values());
+      // ✅ CRITICAL FIX: REPLACE batches from payload (don't merge with old state!)
+      // Problem: Merging with state.data.batches causes old batches to reappear in WebSocket mode
+      // Reason: Watcher already sends ALL active batches from IndexedDB (line 6670: watcherState.batches = rows)
+      // POS v2 does clear() before adding new (posv2.js:4576)
+      // Solution: Just use payload batches directly (they already contain all active batches)
+      const batchesFinal = Array.isArray(payload.job_order_batch) ? payload.job_order_batch : [];
 
       const nextState = {
         ...state,
@@ -3969,7 +3971,7 @@
           orderLines: orderLinesNext,          // ✅ For static tabs (legacy)
           jobHeaders: mergedOrders.job_order_header || [],        // ✅ NEW: For Expo/Handoff tabs
           jobOrderDetails: mergedOrders.job_order_detail || [],   // ✅ For derived status
-          batches: batchesNext,                // ✅ NEW: Add batches for timer accuracy
+          batches: batchesFinal,               // ✅ FIXED: Replace instead of merge (prevents old batches reappearing)
           jobOrders: mergedOrders,
           jobs: jobsIndexedNext,
           expoSource: expoSourceNext,
