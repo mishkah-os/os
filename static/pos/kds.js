@@ -4592,9 +4592,11 @@
 
         // ✅ Open payment modal instead of settling immediately
         // Get order amount for display
-        const order = (ctx.getState().data.orderHeaders || []).find(h =>
-          String(h.orderId || h.order_id) === orderId  // ✅ FIX: Use orderId field, NOT id!
-        );
+        const order = (ctx.getState().data.orderHeaders || []).find(h => {
+          const headerOrderId = String(h.orderId || h.order_id);
+          const baseOrderId = extractBaseOrderId(headerOrderId);
+          return headerOrderId === orderId || baseOrderId === orderId;
+        });
         const orderAmount = order?.totalAmount || order?.amount || 0;
 
         ctx.setState(state=>({
@@ -4622,9 +4624,11 @@
         const nowIso = new Date().toISOString();
 
         // ✅ Get order amount
-        const order = (ctx.getState().data.orderHeaders || []).find(h =>
-          String(h.orderId || h.order_id) === orderId  // ✅ FIX: Use orderId field, NOT id!
-        );
+        const order = (ctx.getState().data.orderHeaders || []).find(h => {
+          const headerOrderId = String(h.orderId || h.order_id);
+          const baseOrderId = extractBaseOrderId(headerOrderId);
+          return headerOrderId === orderId || baseOrderId === orderId;
+        });
         const orderAmount = order?.totalAmount || order?.amount || 0;
 
         // ✅ 1. Create order_payment record
@@ -5105,9 +5109,11 @@
 
           // ✅ Find order_header to get current version (order_header IS versioned!)
           const orderHeaders = watcherState.orderHeaders || [];
-          const orderHeader = orderHeaders.find(h =>
-            String(h.orderId || h.order_id) === baseOrderId  // ✅ FIX: Use orderId field, NOT id!
-          );
+          const orderHeader = orderHeaders.find(h => {
+            const headerOrderId = String(h.orderId || h.order_id);
+            const extractedBaseOrderId = extractBaseOrderId(headerOrderId);
+            return headerOrderId === baseOrderId || extractedBaseOrderId === baseOrderId;
+          });
 
           if (orderHeader) {
             const currentVersion = orderHeader.version || 1;
@@ -5271,9 +5277,14 @@
 
     // ✅ Update watcherState FIRST (optimistic update)
     const orderHeaders = watcherState.orderHeaders || [];
-    const matchingHeader = orderHeaders.find(header =>
-      String(header.orderId || header.order_id) === orderId  // ✅ FIX: Use orderId field, NOT id!
-    );
+    const matchingHeader = orderHeaders.find(header => {
+      const headerOrderId = String(header.orderId || header.order_id);
+      // ✅ FIX: Match both exact orderId AND base orderId (extracted from full order_id)
+      // order_header.orderId may be full: "DAR-001001-{UUID}-{timestamp}-{random}"
+      // job_order_header.orderId is base: "DAR-001001"
+      const baseOrderId = extractBaseOrderId(headerOrderId);
+      return headerOrderId === orderId || baseOrderId === orderId;
+    });
 
     if (!matchingHeader) {
       console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found:', orderId);
@@ -5306,8 +5317,10 @@
     // ✅ Apply optimistic update (only on first attempt)
     if (retryCount === 0) {
       watcherState.orderHeaders = orderHeaders.map(header => {
-        const headerId = String(header.orderId || header.order_id);  // ✅ FIX: Use orderId field, NOT id!
-        if (headerId === orderId) {
+        const headerOrderId = String(header.orderId || header.order_id);
+        const baseOrderId = extractBaseOrderId(headerOrderId);
+        // ✅ Match both exact orderId AND base orderId
+        if (headerOrderId === orderId || baseOrderId === orderId) {
           const updatedHeader = {
             ...header,
             statusId: status,
