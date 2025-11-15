@@ -1474,11 +1474,16 @@
       const fallbackCreatedAt = firstHeader.createdAt || firstHeader.created_at;
       const finalCreatedAt = batchCreatedAt || fallbackCreatedAt;
 
+      // ✅ CRITICAL FIX: Keep FULL orderId for database operations!
+      // Extract short ID ONLY for display purposes
+      const shortOrderId = extractBaseOrderId(orderId);
+
       orders.push({
-        orderId,
+        orderId,  // ✅ FULL ID for database lookups/updates
+        shortOrderId,  // ✅ Short ID for display only (e.g., "DAR-001001")
         batchId,  // ✅ Track which batch this order ticket represents
         batchType: batch ? (batch.batchType || batch.batch_type || 'initial') : 'initial',  // ✅ Track batch type
-        orderNumber: firstHeader.orderNumber || firstHeader.order_number || orderId,
+        orderNumber: firstHeader.orderNumber || firstHeader.order_number || shortOrderId,
         serviceMode: firstHeader.serviceMode || firstHeader.service_mode || 'dine_in',
         tableLabel: firstHeader.tableLabel || firstHeader.table_label || null,
         customerName: firstHeader.customerName || firstHeader.customer_name || null,
@@ -2920,7 +2925,7 @@
         : createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`);
       return D.Containers.Article({ attrs:{ class: cardClass }}, [
         D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
-          D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.orderId}`]),
+          D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.shortOrderId || order.orderId}`]),
           createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
         ]),
         headerBadges.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, headerBadges) : null,
@@ -3050,7 +3055,7 @@
 
       return D.Containers.Article({ attrs:{ class: cardClass }}, [
         D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
-          D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.orderId}`]),
+          D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber || order.shortOrderId || order.orderId}`]),
           createBadge(statusLabel, HANDOFF_STATUS_CLASS[order.handoffStatus] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)
         ]),
         headerBadges.length ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, headerBadges) : null,
@@ -4364,8 +4369,26 @@
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
         }
-        // ✅ Persist order_header.status to database (للقراءة فقط)
-        persistOrderHeaderStatus(orderId, 'assembled', nowIso);
+
+        // ✅ CRITICAL FIX: Use orderId directly (FULL ID, not short ID!)
+        // orderId should already be the full ID from order object
+        // No need for extractBaseOrderId since we keep full ID now
+        const orderHeaders = state.data?.orderHeaders || [];
+        const orderHeader = orderHeaders.find(h => {
+          const headerId = String(h.id || '');
+          return headerId === orderId;
+        });
+
+        if (orderHeader) {
+          console.warn('[KDS][handoff:assembled] 🔍 ORDER_HEADER UPDATE:', {
+            orderId: orderId,
+            foundHeaderId: orderHeader.id,
+            match: orderHeader.id === orderId ? 'EXACT' : 'FALLBACK'
+          });
+          persistOrderHeaderStatus(orderHeader.id, 'assembled', nowIso);
+        } else {
+          console.warn('[KDS][handoff:assembled] ⚠️ order_header not found for:', orderId);
+        }
       }
     },
     'kds.handoff.served':{
@@ -4451,8 +4474,19 @@
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'served', servedAt: nowIso, updatedAt: nowIso } });
         }
-        // ✅ Persist order_header.status to database (للقراءة فقط)
-        persistOrderHeaderStatus(orderId, 'served', nowIso);
+
+        // ✅ CRITICAL FIX: Use orderId directly (FULL ID)
+        const orderHeaders = state.data?.orderHeaders || [];
+        const orderHeader = orderHeaders.find(h => {
+          const headerId = String(h.id || '');
+          return headerId === orderId;
+        });
+
+        if (orderHeader) {
+          persistOrderHeaderStatus(orderHeader.id, 'served', nowIso);
+        } else {
+          console.warn('[KDS][handoff:served] ⚠️ order_header not found for:', orderId);
+        }
       }
     },
     'kds.delivery.assign':{
@@ -5063,7 +5097,10 @@
         const matchingLines = orderLines.filter(line => {
           const lineOrderId = String(line.orderId || line.order_id || '');
           const lineItemId = String(line.itemId || line.item_id || '');
-          return lineOrderId === baseOrderId && jobItemIds.includes(lineItemId);
+          // ✅ Match both full ID and short ID (order_line.orderId can be either)
+          const lineBaseOrderId = extractBaseOrderId(lineOrderId);
+          const matchesOrder = lineOrderId === baseOrderId || lineBaseOrderId === baseOrderId;
+          return matchesOrder && jobItemIds.includes(lineItemId);
         });
 
         console.log('[KDS][persistJobOrderStatusChange] Updating order_line:', {
@@ -5115,9 +5152,12 @@
         await Promise.all(lineUpdatePromises);
 
         // ✅ STEP 4: Check if ALL order_lines ready, then update order_header
-        const orderAllLines = orderLines.filter(line =>
-          String(line.orderId || line.order_id) === baseOrderId
-        );
+        const orderAllLines = orderLines.filter(line => {
+          const lineOrderId = String(line.orderId || line.order_id || '');
+          // ✅ Match both full ID and short ID
+          const lineBaseOrderId = extractBaseOrderId(lineOrderId);
+          return lineOrderId === baseOrderId || lineBaseOrderId === baseOrderId;
+        });
         const allLinesReady = orderAllLines.every(line => {
           const lineStatus = String(line.status || line.statusId || '');
           return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
@@ -5298,21 +5338,25 @@
     const maxRetries = 3;
     const retryDelays = [2000, 4000, 8000]; // Exponential backoff: 2s, 4s, 8s
 
-    // ✅ Update watcherState FIRST (optimistic update)
+    // ✅ CRITICAL: orderId should be the FULL ID (not short ID!)
+    // Search directly by id (primary key)
     const orderHeaders = watcherState.orderHeaders || [];
     const matchingHeader = orderHeaders.find(header => {
-      const headerOrderId = String(header.orderId || header.order_id);
-      // ✅ FIX: Match both exact orderId AND base orderId (extracted from full order_id)
-      // order_header.orderId may be full: "DAR-001001-{UUID}-{timestamp}-{random}"
-      // job_order_header.orderId is base: "DAR-001001"
-      const baseOrderId = extractBaseOrderId(headerOrderId);
-      return headerOrderId === orderId || baseOrderId === orderId;
+      const headerId = String(header.id || '');
+      return headerId === orderId;
     });
 
     if (!matchingHeader) {
       console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found:', orderId);
       return;
     }
+
+    // ✅ Log the ID being used for update
+    console.warn('[KDS][persistOrderHeaderStatus] 🔍 UPDATE:', {
+      orderId: orderId,
+      headerId: matchingHeader.id,
+      match: matchingHeader.id === orderId ? 'EXACT' : 'ERROR'
+    });
 
     // ✅ Calculate next version (CRITICAL for versioned tables!)
     const currentVersion = matchingHeader.version || 1;
