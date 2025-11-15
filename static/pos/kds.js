@@ -6662,6 +6662,7 @@
     const tablesToRegister = [
       { name: 'job_order_header', table: 'job_order_header' },
       { name: 'job_order_detail', table: 'job_order_detail' },
+      { name: 'job_order_batch', table: 'job_order_batch' },    // ✅ CRITICAL: Register batches table
       { name: 'order_header', table: 'order_header' },
       { name: 'order_line', table: 'order_line' },
       { name: 'order_delivery', table: 'order_delivery' },
