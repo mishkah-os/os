@@ -2820,9 +2820,15 @@
 
     if(!orders.length) return renderEmpty(t.empty.prep);
     const stationMap = db.data.stationMap || {};
-    return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
+    return D.Containers.Section({ attrs:{ class: tw`grid gap-4 lg:grid-cols-2 xl:grid-cols-3` }}, orders.map(order=> {
+      // ✅ Extract batch serial from batchId (for debugging)
+      const batchSerial = order.batchId ? order.batchId.split('-').pop() : 'N/A';
+      return D.Containers.Article({ attrs:{ class: tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40` }}, [
       D.Containers.Div({ attrs:{ class: tw`flex items-start justify-between gap-3` }}, [
-        D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber}`]),
+        D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-1` }}, [
+          D.Text.H3({ attrs:{ class: tw`text-lg font-semibold text-slate-50` }}, [`${t.labels.order} ${order.orderNumber}`]),
+          D.Text.P({ attrs:{ class: tw`text-xs text-amber-400 font-mono` }}, [`Batch: ${batchSerial} (${order.batchType || 'initial'})`])
+        ]),
         createBadge(`${SERVICE_ICONS[order.serviceMode] || '🧾'} ${t.labels.serviceMode[order.serviceMode] || order.serviceMode}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`)
       ]),
       order.tableLabel ? createBadge(`${t.labels.table} ${order.tableLabel}`, tw`border-slate-500/40 bg-slate-800/60 text-slate-100`) : null,
@@ -5119,40 +5125,59 @@
       const batchId = updatedJob ? (updatedJob.batchId || updatedJob.batch_id) : null;
 
       if (batchId) {
-        // Get all jobs in this batch
-        const batchJobs = watcherState.headers.filter(h =>
-          String(h.batchId || h.batch_id) === String(batchId)
+        // Get current batch record
+        const currentBatch = (watcherState.batches || []).find(b =>
+          String(b.id) === String(batchId)
         );
+        const currentBatchStatus = currentBatch?.status;
 
-        // Compute batch status
-        const batchInfo = computeBatchStatus(batchJobs);
+        // ✅ CRITICAL: Don't override batch.status if already assembled/served/delivered!
+        // batch.status progression: queued → ready → assembled → served → delivered
+        // Once assembled/served/delivered, status should NOT go back to 'ready'!
+        const isLocked = ['assembled', 'served', 'delivered', 'settled'].includes(currentBatchStatus);
 
-        console.log('[KDS][persistJobOrderStatusChange] Batch status computed:', {
-          batchId,
-          status: batchInfo.status,
-          progress: `${batchInfo.readyJobs}/${batchInfo.totalJobs}`,
-          progressPercent: batchInfo.progress
-        });
+        if (isLocked) {
+          console.log('[KDS][persistJobOrderStatusChange] ⚠️ Batch status is locked (already assembled/served/delivered):', {
+            batchId,
+            currentStatus: currentBatchStatus,
+            skippingUpdate: true
+          });
+          // Don't update batch.status - keep it as is
+        } else {
+          // Batch is still in cooking phase - update status based on jobs
+          const batchJobs = watcherState.headers.filter(h =>
+            String(h.batchId || h.batch_id) === String(batchId)
+          );
 
-        // ✅ CRITICAL: Update batch via store.update (triggers watch!)
-        // Using store.update instead of REST API ensures watch fires
-        try {
-          if (store && typeof store.update === 'function') {
-            await store.update('job_order_batch', {
-              id: batchId,
-              status: batchInfo.status,
-              readyJobs: batchInfo.readyJobs,
-              ready_jobs: batchInfo.readyJobs,
-              updatedAt: statusPayload.updatedAt || new Date().toISOString(),
-              updated_at: statusPayload.updatedAt || new Date().toISOString()
-            });
+          // Compute batch status
+          const batchInfo = computeBatchStatus(batchJobs);
 
-            console.log('[KDS][persistJobOrderStatusChange] ✅ Batch status updated via store.update:', batchInfo.status);
-          } else {
-            console.warn('[KDS][persistJobOrderStatusChange] ⚠️ Store not available, skipping batch update');
+          console.log('[KDS][persistJobOrderStatusChange] Batch status computed:', {
+            batchId,
+            status: batchInfo.status,
+            progress: `${batchInfo.readyJobs}/${batchInfo.totalJobs}`,
+            progressPercent: batchInfo.progress
+          });
+
+          // ✅ Update batch via store.update (triggers watch!)
+          try {
+            if (store && typeof store.update === 'function') {
+              await store.update('job_order_batch', {
+                id: batchId,
+                status: batchInfo.status,
+                readyJobs: batchInfo.readyJobs,
+                ready_jobs: batchInfo.readyJobs,
+                updatedAt: statusPayload.updatedAt || new Date().toISOString(),
+                updated_at: statusPayload.updatedAt || new Date().toISOString()
+              });
+
+              console.log('[KDS][persistJobOrderStatusChange] ✅ Batch status updated via store.update:', batchInfo.status);
+            } else {
+              console.warn('[KDS][persistJobOrderStatusChange] ⚠️ Store not available, skipping batch update');
+            }
+          } catch (batchError) {
+            console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update batch:', batchError);
           }
-        } catch (batchError) {
-          console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update batch:', batchError);
         }
       }
 
