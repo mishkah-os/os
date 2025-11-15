@@ -4883,7 +4883,27 @@
             } else if(statusCandidate === 'assembled' && nextRecord.fulfillmentStage !== 'delivered' && nextRecord.fulfillmentStage !== 'ready'){
               nextRecord.fulfillmentStage = 'ready';
             }
-            return posDB.saveOrder(nextRecord);
+
+            // ✅ CRITICAL FIX: Direct update to order_header instead of full saveOrder
+            // saveOrder tries to re-manufacture job_order_detail which causes errors!
+            // We only need to update the handoff status, not re-save the entire order
+            if (store && typeof store.update === 'function') {
+              const currentVersion = nextRecord.version || 1;
+              const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+              return store.update('order_header', {
+                id: nextRecord.id,
+                handoffStatus: nextRecord.handoffStatus,
+                fulfillmentStage: nextRecord.fulfillmentStage,
+                status: nextRecord.status,
+                finishedAt: nextRecord.finishedAt,
+                version: nextVersion,
+                updatedAt: nextRecord.updatedAt || new Date().toISOString()
+              });
+            } else {
+              // Fallback to saveOrder if store not available (shouldn't happen)
+              return posDB.saveOrder(nextRecord);
+            }
           })
           .catch(err=> console.warn('[Mishkah][POS][KDS] Failed to persist handoff update.', err));
       }
