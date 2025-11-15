@@ -4162,6 +4162,9 @@
       }
       return lastWatcherSnapshot;
     };
+    // ✅ Expose app.getState() for debugging
+    dev.getState = ()=> (typeof app.getState === 'function' ? app.getState() : null);
+    dev.app = app;  // ✅ Expose entire app for debugging
     window.__MishkahKDSDev__ = dev;
     if(!announced){
       if(typeof console !== 'undefined'){
@@ -5128,7 +5131,7 @@
 
             if (Number.isFinite(nextVersion) && nextVersion >= 1) {
               const orderHeaderUpdate = {
-                id: baseOrderId,
+                id: orderHeader.id,  // ✅ CRITICAL FIX: Use orderHeader.id (real UUID) not baseOrderId (short ID)!
                 status: 'ready',
                 statusId: 'ready',
                 status_id: 'ready',
