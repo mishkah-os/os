@@ -6649,7 +6649,10 @@
       };
     });
     if (typeof window !== 'undefined') {
-      window.database = watcherState.posPayload || {};
+      // ✅ CRITICAL FIX: Use payload from watchers, NOT pos_database.payload (which is deprecated)
+      // payload contains: job_order_header, job_order_detail, job_order_batch, order_header, order_line
+      window.database = payload;
+      window.watcherState = watcherState;  // ✅ For debugging
       window.MishkahBranchChannel = watcherState.channel || BRANCH_CHANNEL;
       window.MishkahKdsChannel = window.MishkahBranchChannel;
     }
