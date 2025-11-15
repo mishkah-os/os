@@ -4302,32 +4302,84 @@
 
         const state = ctx.getState();
 
-        // ✅ CRITICAL: Update batch.status to 'assembled' with retry logic!
+        // ✅ CRITICAL: Update/Create batch.status to 'assembled' with retry logic!
         // This moves the batch from Expo to Handoff
-        if (batchId && store && typeof store.update === 'function') {
-          retryWithBackoff(
-            () => store.update('job_order_batch', {
+        // Use UPSERT to handle missing batch records (create if not exists)
+        // MUST await this before checking allBatchesAssembled!
+        if (batchId && store) {
+          (async () => {
+            // ✅ First, try to read the batch to check if it exists
+            let batchExists = false;
+            try {
+              const existingBatch = await store.read('job_order_batch', batchId);
+              batchExists = !!existingBatch;
+            } catch (err) {
+              console.warn('[KDS][handoff:assembled] Batch does not exist, will create:', batchId);
+            }
+
+            const batchPayload = {
               id: batchId,
+              orderId: orderId,
+              order_id: orderId,
               status: 'assembled',
               assembledAt: nowIso,
               assembled_at: nowIso,
               updatedAt: nowIso,
-              updated_at: nowIso
-            }),
-            'Update batch to assembled',
-            4  // 4 retries with exponential backoff
-          ).then(result => {
+              updated_at: nowIso,
+              createdAt: batchExists ? undefined : nowIso,  // Only set createdAt if creating
+              created_at: batchExists ? undefined : nowIso,
+              batchType: 'initial',  // Default batch type
+              batch_type: 'initial'
+            };
+
+            const operation = batchExists
+              ? () => store.update('job_order_batch', batchPayload)
+              : () => store.create('job_order_batch', batchPayload);
+
+            const result = await retryWithBackoff(
+              operation,
+              `${batchExists ? 'Update' : 'Create'} batch to assembled`,
+              4  // 4 retries with exponential backoff
+            );
+
             if (!result.success) {
               console.error('[KDS][handoff:assembled] ❌ Failed to update batch after retries:', result.error);
+              return;  // Don't proceed if batch update failed
             }
-          });
+
+            console.warn('[KDS][handoff:assembled] ✅ Batch updated successfully:', batchId);
+
+            // ✅ Optimistic update: Update local state immediately
+            // Don't wait for watcher - it may be slow or fail
+            watcherState.batches = (watcherState.batches || []).map(b => {
+              if (String(b.id) === String(batchId)) {
+                return {
+                  ...b,
+                  status: 'assembled',
+                  assembledAt: nowIso,
+                  assembled_at: nowIso,
+                  updatedAt: nowIso,
+                  updated_at: nowIso
+                };
+              }
+              return b;
+            });
+
+            // ✅ Trigger re-render with updated batches
+            updateFromWatchers();
+
+            // ✅ NOW check if all batches are assembled (after optimistic update!)
+            checkAndUpdateOrderHeaderStatus(orderId, 'assembled', nowIso);
+          })();
         }
 
-        // ✅ Update job_order_header for this batch (mark completed)
+        // ✅ Update job_order_header for THIS BATCH ONLY (mark completed)
+        // ❌ DON'T filter by orderId - one order can have multiple batches!
+        // ✅ Filter by batchId to update ONLY jobs in this specific batch
         const jobHeaders = state.data?.jobHeaders || [];
         const jobsToComplete = jobHeaders.filter(header => {
-          const headerOrderId = header.orderId || header.order_id;
-          return headerOrderId === orderId;
+          const headerBatchId = header.batchId || header.batch_id;
+          return headerBatchId === batchId;  // ✅ Match by batchId, not orderId!
         });
 
         jobsToComplete.forEach(header => {
@@ -4348,40 +4400,6 @@
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
         }
-
-        // ✅ CRITICAL: Update order_header.handoffStatus ONLY when ALL batches reach 'assembled'
-        // order_header.handoffStatus is a SUMMARY, not individual batch status
-        const batches = state.data?.batches || [];
-        const orderBatches = batches.filter(b => {
-          const batchOrderId = b.orderId || b.order_id;
-          return batchOrderId === orderId;
-        });
-
-        // Check if ALL batches for this order are 'assembled'
-        const allBatchesAssembled = orderBatches.length > 0 &&
-                                    orderBatches.every(b => b.status === 'assembled');
-
-        if (allBatchesAssembled) {
-          console.warn('[KDS][handoff:assembled] ✅ All batches assembled, updating order_header:', orderId);
-
-          const orderHeaders = state.data?.orderHeaders || [];
-          const orderHeader = orderHeaders.find(h => {
-            const headerId = String(h.id || '');
-            return headerId === orderId;
-          });
-
-          if (orderHeader) {
-            persistOrderHeaderStatus(orderHeader.id, 'assembled', nowIso);
-          } else {
-            console.warn('[KDS][handoff:assembled] ⚠️ order_header not found for:', orderId);
-          }
-        } else {
-          console.warn('[KDS][handoff:assembled] ⏳ Not all batches assembled yet:', {
-            orderId,
-            totalBatches: orderBatches.length,
-            assembledBatches: orderBatches.filter(b => b.status === 'assembled').length
-          });
-        }
       }
     },
     'kds.handoff.served':{
@@ -4401,32 +4419,77 @@
 
         const state = ctx.getState();
 
-        // ✅ CRITICAL: Update batch.status to 'served' with retry logic!
+        // ✅ CRITICAL: Update/Create batch.status to 'served' with retry logic!
         // This moves the batch from Handoff to Delivery (if delivery) or completes it
-        if (batchId && store && typeof store.update === 'function') {
-          retryWithBackoff(
-            () => store.update('job_order_batch', {
+        // Use UPSERT to handle missing batch records (create if not exists)
+        if (batchId && store) {
+          (async () => {
+            // ✅ First, try to read the batch to check if it exists
+            let batchExists = false;
+            try {
+              const existingBatch = await store.read('job_order_batch', batchId);
+              batchExists = !!existingBatch;
+            } catch (err) {
+              console.warn('[KDS][handoff:served] Batch does not exist, will create:', batchId);
+            }
+
+            const batchPayload = {
               id: batchId,
+              orderId: orderId,
+              order_id: orderId,
               status: 'served',
               servedAt: nowIso,
               served_at: nowIso,
               updatedAt: nowIso,
-              updated_at: nowIso
-            }),
-            'Update batch to served',
-            4  // 4 retries with exponential backoff
-          ).then(result => {
+              updated_at: nowIso,
+              createdAt: batchExists ? undefined : nowIso,
+              created_at: batchExists ? undefined : nowIso,
+              batchType: 'initial',
+              batch_type: 'initial'
+            };
+
+            const operation = batchExists
+              ? () => store.update('job_order_batch', batchPayload)
+              : () => store.create('job_order_batch', batchPayload);
+
+            const result = await retryWithBackoff(
+              operation,
+              `${batchExists ? 'Update' : 'Create'} batch to served`,
+              4
+            );
+
             if (!result.success) {
               console.error('[KDS][handoff:served] ❌ Failed to update batch after retries:', result.error);
+              return;
             }
-          });
+
+            console.warn('[KDS][handoff:served] ✅ Batch updated successfully:', batchId);
+
+            // ✅ Optimistic update
+            watcherState.batches = (watcherState.batches || []).map(b => {
+              if (String(b.id) === String(batchId)) {
+                return {
+                  ...b,
+                  status: 'served',
+                  servedAt: nowIso,
+                  served_at: nowIso,
+                  updatedAt: nowIso,
+                  updated_at: nowIso
+                };
+              }
+              return b;
+            });
+
+            updateFromWatchers();
+            checkAndUpdateOrderHeaderStatus(orderId, 'served', nowIso);
+          })();
         }
 
-        // ✅ Update job_order_header for this order (mark completed)
+        // ✅ Update job_order_header for THIS BATCH ONLY (mark completed)
         const jobHeaders = state.data?.jobHeaders || [];
         const jobsToComplete = jobHeaders.filter(header => {
-          const headerOrderId = header.orderId || header.order_id;
-          return headerOrderId === orderId;
+          const headerBatchId = header.batchId || header.batch_id;
+          return headerBatchId === batchId;  // ✅ Match by batchId, not orderId!
         });
 
         jobsToComplete.forEach(header => {
@@ -4446,40 +4509,6 @@
         emitSync({ type:'handoff:update', orderId, payload:{ status:'served', servedAt: nowIso, updatedAt: nowIso } });
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'served', servedAt: nowIso, updatedAt: nowIso } });
-        }
-
-        // ✅ CRITICAL: Update order_header.handoffStatus ONLY when ALL batches reach 'served'
-        // order_header.handoffStatus is a SUMMARY, not individual batch status
-        const batches = state.data?.batches || [];
-        const orderBatches = batches.filter(b => {
-          const batchOrderId = b.orderId || b.order_id;
-          return batchOrderId === orderId;
-        });
-
-        // Check if ALL batches for this order are 'served'
-        const allBatchesServed = orderBatches.length > 0 &&
-                                 orderBatches.every(b => b.status === 'served');
-
-        if (allBatchesServed) {
-          console.warn('[KDS][handoff:served] ✅ All batches served, updating order_header:', orderId);
-
-          const orderHeaders = state.data?.orderHeaders || [];
-          const orderHeader = orderHeaders.find(h => {
-            const headerId = String(h.id || '');
-            return headerId === orderId;
-          });
-
-          if (orderHeader) {
-            persistOrderHeaderStatus(orderHeader.id, 'served', nowIso);
-          } else {
-            console.warn('[KDS][handoff:served] ⚠️ order_header not found for:', orderId);
-          }
-        } else {
-          console.warn('[KDS][handoff:served] ⏳ Not all batches served yet:', {
-            orderId,
-            totalBatches: orderBatches.length,
-            servedBatches: orderBatches.filter(b => b.status === 'served').length
-          });
         }
       }
     },
@@ -4881,6 +4910,54 @@
       queuedJobs,
       progress: totalJobs > 0 ? Math.round((readyJobs / totalJobs) * 100) : 0
     };
+  };
+
+  /**
+   * ✅ Helper: Check if ALL batches for an order have reached target status
+   * If yes, update order_header.handoffStatus as summary
+   *
+   * @param {string} orderId - The order ID
+   * @param {string} targetStatus - The target status ('assembled', 'served', etc.)
+   * @param {string} timestamp - ISO timestamp
+   */
+  const checkAndUpdateOrderHeaderStatus = (orderId, targetStatus, timestamp) => {
+    // Read from watcherState (optimistically updated)
+    const batches = watcherState.batches || [];
+    const orderBatches = batches.filter(b => {
+      const batchOrderId = b.orderId || b.order_id;
+      return batchOrderId === orderId;
+    });
+
+    if (orderBatches.length === 0) {
+      console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ⚠️ No batches found for order: ${orderId}`);
+      return;
+    }
+
+    // Check if ALL batches for this order have reached targetStatus
+    const allBatchesReady = orderBatches.every(b => b.status === targetStatus);
+
+    if (allBatchesReady) {
+      console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ✅ All batches ${targetStatus}, updating order_header:`, orderId);
+
+      const orderHeaders = watcherState.orderHeaders || [];
+      const orderHeader = orderHeaders.find(h => {
+        const headerId = String(h.id || '');
+        return headerId === orderId;
+      });
+
+      if (orderHeader) {
+        persistOrderHeaderStatus(orderHeader.id, targetStatus, timestamp);
+      } else {
+        console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ⚠️ order_header not found for:`, orderId);
+      }
+    } else {
+      console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ⏳ Not all batches ${targetStatus} yet:`, {
+        orderId,
+        totalBatches: orderBatches.length,
+        readyBatches: orderBatches.filter(b => b.status === targetStatus).length,
+        batchStatuses: orderBatches.map(b => ({ id: b.id, status: b.status }))
+      });
+    }
   };
 
   // ✅ Helper: Retry logic with exponential backoff (same as posv2.js)
