@@ -4593,7 +4593,7 @@
         // ✅ Open payment modal instead of settling immediately
         // Get order amount for display
         const order = (ctx.getState().data.orderHeaders || []).find(h =>
-          String(h.id || h.orderId) === orderId
+          String(h.orderId || h.order_id) === orderId  // ✅ FIX: Use orderId field, NOT id!
         );
         const orderAmount = order?.totalAmount || order?.amount || 0;
 
@@ -4623,7 +4623,7 @@
 
         // ✅ Get order amount
         const order = (ctx.getState().data.orderHeaders || []).find(h =>
-          String(h.id || h.orderId) === orderId
+          String(h.orderId || h.order_id) === orderId  // ✅ FIX: Use orderId field, NOT id!
         );
         const orderAmount = order?.totalAmount || order?.amount || 0;
 
@@ -5106,7 +5106,7 @@
           // ✅ Find order_header to get current version (order_header IS versioned!)
           const orderHeaders = watcherState.orderHeaders || [];
           const orderHeader = orderHeaders.find(h =>
-            String(h.id || h.orderId) === baseOrderId
+            String(h.orderId || h.order_id) === baseOrderId  // ✅ FIX: Use orderId field, NOT id!
           );
 
           if (orderHeader) {
@@ -5272,7 +5272,7 @@
     // ✅ Update watcherState FIRST (optimistic update)
     const orderHeaders = watcherState.orderHeaders || [];
     const matchingHeader = orderHeaders.find(header =>
-      String(header.id || header.orderId) === orderId
+      String(header.orderId || header.order_id) === orderId  // ✅ FIX: Use orderId field, NOT id!
     );
 
     if (!matchingHeader) {
@@ -5306,7 +5306,7 @@
     // ✅ Apply optimistic update (only on first attempt)
     if (retryCount === 0) {
       watcherState.orderHeaders = orderHeaders.map(header => {
-        const headerId = String(header.id || header.orderId);
+        const headerId = String(header.orderId || header.order_id);  // ✅ FIX: Use orderId field, NOT id!
         if (headerId === orderId) {
           const updatedHeader = {
             ...header,
