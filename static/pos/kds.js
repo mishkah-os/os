@@ -1448,27 +1448,25 @@
 
       const pendingItems = totalItems - readyItems;
 
-      // ✅ Calculate handoff status
-      let status = record.status;
-      const recordStatus = status ? String(status).toLowerCase() : '';
+      // ✅ Get batch record for this order ticket
+      const batch = batchMap[batchId];
 
-      // Check if persisted status is still valid
-      if (recordStatus === 'assembled' || recordStatus === 'served') {
-        // Keep persisted status unless there are new pending items
-        if (pendingItems > 0) {
-          status = 'pending';
-        } else {
-          status = recordStatus;
-        }
+      // ✅ CRITICAL: Calculate handoff status from batch.status (NOT handoff[orderId]!)
+      // Each batch has independent status - NEVER merge batches by orderId
+      // batch.status: queued → ready → assembled → served → delivered (one-way only)
+      let status = 'pending';  // default
+
+      if (batch && batch.status) {
+        // ✅ Use batch.status directly - this is the SINGLE SOURCE OF TRUTH!
+        status = batch.status;
       } else {
-        // Calculate from items
+        // ✅ Fallback: calculate from items (for backwards compatibility or if batch not found)
         status = (totalItems > 0 && readyItems >= totalItems) ? 'ready' : 'pending';
       }
 
       // ✅ CRITICAL FIX: Use batch.createdAt for timer accuracy
       // Timer should start from batch creation time, not job creation time
       // This ensures timer always starts from zero for new additions
-      const batch = batchMap[batchId];
       const batchCreatedAt = batch ? (batch.createdAt || batch.created_at) : null;
       const fallbackCreatedAt = firstHeader.createdAt || firstHeader.created_at;
       const finalCreatedAt = batchCreatedAt || fallbackCreatedAt;
@@ -1476,6 +1474,7 @@
       orders.push({
         orderId,
         batchId,  // ✅ Track which batch this order ticket represents
+        batchType: batch ? (batch.batchType || batch.batch_type || 'initial') : 'initial',  // ✅ Track batch type
         orderNumber: firstHeader.orderNumber || firstHeader.order_number || orderId,
         serviceMode: firstHeader.serviceMode || firstHeader.service_mode || 'dine_in',
         tableLabel: firstHeader.tableLabel || firstHeader.table_label || null,
@@ -5135,7 +5134,15 @@
         // ✅ CRITICAL: Don't override batch.status if already assembled/served/delivered!
         // batch.status progression: queued → ready → assembled → served → delivered
         // Once assembled/served/delivered, status should NOT go back to 'ready'!
-        const isLocked = ['assembled', 'served', 'delivered', 'settled'].includes(currentBatchStatus);
+        // ✅ Check BOTH status AND timestamps (assembledAt/servedAt/deliveredAt)
+        // Because watch may not have fired yet, so status in watcherState may be stale
+        const isLocked = ['assembled', 'served', 'delivered', 'settled'].includes(currentBatchStatus) ||
+                         currentBatch?.assembledAt ||
+                         currentBatch?.assembled_at ||
+                         currentBatch?.servedAt ||
+                         currentBatch?.served_at ||
+                         currentBatch?.deliveredAt ||
+                         currentBatch?.delivered_at;
 
         if (isLocked) {
           console.log('[KDS][persistJobOrderStatusChange] ⚠️ Batch status is locked (already assembled/served/delivered):', {
