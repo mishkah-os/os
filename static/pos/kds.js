@@ -2902,7 +2902,8 @@
             attrs:{
               type:'button',
               gkey:'kds:handoff:assembled',
-              'data-order-id': order.orderId,
+              'data-batch-id': order.batchId,  // ✅ Pass batchId, not orderId!
+              'data-order-id': order.orderId,  // Keep for backwards compatibility
               class: tw`w-full rounded-full border border-emerald-300/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-50 shadow-lg shadow-emerald-900/30 hover:bg-emerald-500/30`
             }
           }, [t.actions.handoffComplete])
@@ -2992,7 +2993,7 @@
           ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:assign', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-sky-400/60 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/20` }}, [t.actions.assignDriver])
           : null,
         statusKey !== 'delivered' && statusKey !== 'settled' && !isPendingSettlement
-          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:complete', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20` }}, [t.actions.delivered])
+          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:complete', 'data-batch-id':order.batchId, 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20` }}, [t.actions.delivered])
           : null,
         isPendingSettlement
           ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:settle', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20` }}, [t.actions.settle])
@@ -3030,7 +3031,8 @@
             attrs:{
               type:'button',
               gkey:'kds:handoff:served',
-              'data-order-id': order.orderId,
+              'data-batch-id': order.batchId,  // ✅ Pass batchId, not orderId!
+              'data-order-id': order.orderId,  // Keep for backwards compatibility
               class: tw`w-full rounded-full border border-sky-400/70 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/30`
             }
           }, [t.actions.handoffServe])
@@ -4263,29 +4265,25 @@
       on:['click'],
       gkeys:['kds:handoff:assembled'],
       handler:(event, ctx)=>{
-        const btn = event?.target && event.target.closest('[data-order-id]');
+        const btn = event?.target && event.target.closest('[data-batch-id]');
         if(!btn) return;
-        const orderId = btn.getAttribute('data-order-id');
-        if(!orderId) return;
+
+        // ✅ CRITICAL: Get batchId from button, not orderId!
+        // Each order card represents ONE batch, so update ONLY that batch
+        const batchId = btn.getAttribute('data-batch-id');
+        const orderId = btn.getAttribute('data-order-id');  // Fallback for backwards compatibility
+
+        if(!batchId && !orderId) return;
         const nowIso = new Date().toISOString();
 
-        // ✅ CRITICAL: Update batch.status = 'assembled' (BATCH-BASED!)
-        // Find all READY batches for this order and mark as assembled
+        // ✅ CRITICAL: Update ONLY the specific batch (not all batches for this order!)
         const state = ctx.getState();
-        const batches = state.data.batches || [];
-        const readyBatches = batches.filter(batch => {
-          const batchOrderId = batch.orderId || batch.order_id;
-          const batchStatus = batch.status;
-          // Only mark ready/queued batches as assembled
-          return batchOrderId === orderId &&
-                 (batchStatus === 'ready' || batchStatus === 'queued');
-        });
 
-        // Update each batch via store.update (triggers watch!)
-        readyBatches.forEach(batch => {
+        if (batchId) {
+          // ✅ NEW WAY: Update specific batch by batchId
           if (store && typeof store.update === 'function') {
             store.update('job_order_batch', {
-              id: batch.id,
+              id: batchId,
               status: 'assembled',
               assembledAt: nowIso,
               assembled_at: nowIso,
@@ -4295,7 +4293,32 @@
               console.error('[KDS] Failed to update batch status:', err);
             });
           }
-        });
+        } else {
+          // ❌ OLD WAY (backwards compatibility): Update all ready batches for orderId
+          // This will be removed in future versions
+          const batches = state.data.batches || [];
+          const readyBatches = batches.filter(batch => {
+            const batchOrderId = batch.orderId || batch.order_id;
+            const batchStatus = batch.status;
+            return batchOrderId === orderId &&
+                   (batchStatus === 'ready' || batchStatus === 'queued');
+          });
+
+          readyBatches.forEach(batch => {
+            if (store && typeof store.update === 'function') {
+              store.update('job_order_batch', {
+                id: batch.id,
+                status: 'assembled',
+                assembledAt: nowIso,
+                assembled_at: nowIso,
+                updatedAt: nowIso,
+                updated_at: nowIso
+              }).catch(err => {
+                console.error('[KDS] Failed to update batch status:', err);
+              });
+            }
+          });
+        }
 
         // ✅ Update job_order_header for this order (mark completed)
         const jobHeaders = state.data?.jobHeaders || [];
@@ -4330,28 +4353,25 @@
       on:['click'],
       gkeys:['kds:handoff:served'],
       handler:(event, ctx)=>{
-        const btn = event?.target && event.target.closest('[data-order-id]');
+        const btn = event?.target && event.target.closest('[data-batch-id]');
         if(!btn) return;
-        const orderId = btn.getAttribute('data-order-id');
-        if(!orderId) return;
+
+        // ✅ CRITICAL: Get batchId from button, not orderId!
+        // Each order card represents ONE batch, so update ONLY that batch
+        const batchId = btn.getAttribute('data-batch-id');
+        const orderId = btn.getAttribute('data-order-id');  // Fallback for backwards compatibility
+
+        if(!batchId && !orderId) return;
         const nowIso = new Date().toISOString();
 
-        // ✅ CRITICAL: Update batch.status = 'served' (BATCH-BASED!)
-        // Find all ASSEMBLED batches for this order and mark as served
+        // ✅ CRITICAL: Update ONLY the specific batch (not all batches for this order!)
         const state = ctx.getState();
-        const batches = state.data.batches || [];
-        const assembledBatches = batches.filter(batch => {
-          const batchOrderId = batch.orderId || batch.order_id;
-          const batchStatus = batch.status;
-          // Only mark assembled batches as served
-          return batchOrderId === orderId && batchStatus === 'assembled';
-        });
 
-        // Update each batch via store.update (triggers watch!)
-        assembledBatches.forEach(batch => {
+        if (batchId) {
+          // ✅ NEW WAY: Update specific batch by batchId
           if (store && typeof store.update === 'function') {
             store.update('job_order_batch', {
-              id: batch.id,
+              id: batchId,
               status: 'served',
               servedAt: nowIso,
               served_at: nowIso,
@@ -4361,7 +4381,31 @@
               console.error('[KDS] Failed to update batch status:', err);
             });
           }
-        });
+        } else {
+          // ❌ OLD WAY (backwards compatibility): Update all assembled batches for orderId
+          // This will be removed in future versions
+          const batches = state.data.batches || [];
+          const assembledBatches = batches.filter(batch => {
+            const batchOrderId = batch.orderId || batch.order_id;
+            const batchStatus = batch.status;
+            return batchOrderId === orderId && batchStatus === 'assembled';
+          });
+
+          assembledBatches.forEach(batch => {
+            if (store && typeof store.update === 'function') {
+              store.update('job_order_batch', {
+                id: batch.id,
+                status: 'served',
+                servedAt: nowIso,
+                served_at: nowIso,
+                updatedAt: nowIso,
+                updated_at: nowIso
+              }).catch(err => {
+                console.error('[KDS] Failed to update batch status:', err);
+              });
+            }
+          });
+        }
 
         // ✅ Update job_order_header for this order (mark completed)
         const jobHeaders = state.data?.jobHeaders || [];
@@ -4464,29 +4508,25 @@
       on:['click'],
       gkeys:['kds:delivery:complete'],
       handler:(event, ctx)=>{
-        const btn = event?.target && event.target.closest('[data-order-id]');
+        const btn = event?.target && event.target.closest('[data-batch-id]');
         if(!btn) return;
-        const orderId = btn.getAttribute('data-order-id');
-        if(!orderId) return;
+
+        // ✅ CRITICAL: Get batchId from button, not orderId!
+        // Each order card represents ONE batch, so update ONLY that batch
+        const batchId = btn.getAttribute('data-batch-id');
+        const orderId = btn.getAttribute('data-order-id');  // Fallback for backwards compatibility
+
+        if(!batchId && !orderId) return;
         const nowIso = new Date().toISOString();
 
-        // ✅ CRITICAL: Update batch.status = 'delivered' (BATCH-BASED!)
-        // Find all SERVED batches for this order and mark as delivered
+        // ✅ CRITICAL: Update ONLY the specific batch (not all batches for this order!)
         const state = ctx.getState();
-        const batches = state.data.batches || [];
-        const servedBatches = batches.filter(batch => {
-          const batchOrderId = batch.orderId || batch.order_id;
-          const batchStatus = batch.status;
-          // Only mark served/assembled batches as delivered
-          return batchOrderId === orderId &&
-                 (batchStatus === 'served' || batchStatus === 'assembled');
-        });
 
-        // Update each batch via store.update (triggers watch!)
-        servedBatches.forEach(batch => {
+        if (batchId) {
+          // ✅ NEW WAY: Update specific batch by batchId
           if (store && typeof store.update === 'function') {
             store.update('job_order_batch', {
-              id: batch.id,
+              id: batchId,
               status: 'delivered',
               deliveredAt: nowIso,
               delivered_at: nowIso,
@@ -4496,7 +4536,32 @@
               console.error('[KDS] Failed to update batch status:', err);
             });
           }
-        });
+        } else {
+          // ❌ OLD WAY (backwards compatibility): Update all served/assembled batches for orderId
+          // This will be removed in future versions
+          const batches = state.data.batches || [];
+          const servedBatches = batches.filter(batch => {
+            const batchOrderId = batch.orderId || batch.order_id;
+            const batchStatus = batch.status;
+            return batchOrderId === orderId &&
+                   (batchStatus === 'served' || batchStatus === 'assembled');
+          });
+
+          servedBatches.forEach(batch => {
+            if (store && typeof store.update === 'function') {
+              store.update('job_order_batch', {
+                id: batch.id,
+                status: 'delivered',
+                deliveredAt: nowIso,
+                delivered_at: nowIso,
+                updatedAt: nowIso,
+                updated_at: nowIso
+              }).catch(err => {
+                console.error('[KDS] Failed to update batch status:', err);
+              });
+            }
+          });
+        }
 
         // ✅ Persist delivery assignment
         const assignment = {
