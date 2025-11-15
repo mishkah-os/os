@@ -1316,65 +1316,39 @@
     const stationMap = db?.data?.stationMap || {};
     const menuIndex = db?.data?.menuIndex || {};
 
-    // ✅ Index batches by batchId for fast lookup
+    // ✅ CRITICAL: Filter out DELIVERED/SETTLED batches (batch-based filtering!)
+    // Batch status is one-way: queued → ready → assembled → served → delivered
+    // Once delivered/settled, batch should NEVER appear again
+    const activeBatches = batches.filter(batch => {
+      if (!batch || !batch.id) return false;
+      const status = batch.status;
+      // Hide batches that are fully delivered or settled
+      if (status === 'delivered' || status === 'settled') {
+        return false;
+      }
+      return true;
+    });
+
+    // ✅ Index ACTIVE batches only
     const batchMap = {};
-    batches.forEach(batch => {
-      if (batch && batch.id) {
-        batchMap[batch.id] = batch;
-      }
+    activeBatches.forEach(batch => {
+      batchMap[batch.id] = batch;
     });
 
-    // ✅ CRITICAL FIX: Filter out FULLY COMPLETED batches
-    // A batch is "fully completed" when ALL its jobs have status='ready' or 'completed'
-    // This prevents old batches from reappearing when adding new items to same order
-    const batchStatusMap = new Map();
-    jobHeaders.forEach(header => {
-      const batchId = header.batchId || header.batch_id || 'no-batch';
-      const status = header.status;
-      const progressState = header.progressState || header.progress_state;
-
-      if (!batchStatusMap.has(batchId)) {
-        batchStatusMap.set(batchId, { total: 0, completed: 0, delivered: 0 });
-      }
-
-      const stats = batchStatusMap.get(batchId);
-      stats.total++;
-
-      // ✅ CRITICAL FIX: Consider job completed if status is 'ready' OR 'completed' OR progressState is 'completed'
-      // When kitchen finishes a job, status becomes 'ready' (not 'completed')
-      // This ensures old batches are filtered out when adding new items to same order
-      if (status === 'ready' || status === 'completed' || progressState === 'completed') {
-        stats.completed++;
-      }
-
-      // ✅ CRITICAL FIX: Check if order is FULLY delivered (not just assembled)
-      // 'assembled' means ready for handoff (should still appear in Handoff screen)
-      // Only 'served', 'delivered', 'settled' mean the order is truly done
-      const orderId = header.orderId || header.order_id;
-      const orderKey = normalizeOrderKey(orderId);
-      const handoffStatus = (orderKey && (handoff[orderKey] || handoff[orderId]))?.status;
-      if (handoffStatus === 'served' || handoffStatus === 'delivered' || handoffStatus === 'settled') {
-        stats.delivered++;
-      }
-    });
-
-    // ✅ CRITICAL FIX: Filter out FULLY COMPLETED AND DELIVERED batches
-    // Hide batch when ALL jobs are completed AND order is fully delivered
-    // This prevents old batches from reappearing when adding new items to same order
+    // ✅ CRITICAL: Filter jobHeaders based on batch.status (batch-based filtering!)
+    // Only show jobHeaders that belong to ACTIVE batches
+    // If batch is delivered/settled, ALL its jobs should be hidden
     const activeJobHeaders = jobHeaders.filter(header => {
       const batchId = header.batchId || header.batch_id || 'no-batch';
-      const stats = batchStatusMap.get(batchId);
 
-      if (!stats) return true;  // Safety: keep if no stats
+      // ✅ Check if batch is active (exists in batchMap after filtering)
+      const batch = batchMap[batchId];
 
-      // ✅ LOGIC: Hide batch if ALL its jobs are completed AND fully delivered
-      // - allCompleted: All jobs in batch have status='ready' or 'completed'
-      // - allDelivered: All jobs have handoffStatus='served' or 'delivered' or 'settled'
-      // - assembled orders (handoffStatus='assembled') are NOT considered delivered → will appear in Handoff
-      const allCompleted = stats.completed === stats.total;
-      const allDelivered = stats.delivered === stats.total;
+      // If batch was filtered out (delivered/settled), hide this job
+      if (!batch) return false;
 
-      return !(allCompleted && allDelivered);  // Show if NOT (fully completed AND delivered)
+      // Batch is active, show this job
+      return true;
     });
 
     // ✅ Group job_order_header by batchId ONLY (for static tabs)
@@ -4278,14 +4252,41 @@
         if(!orderId) return;
         const nowIso = new Date().toISOString();
 
-        // ✅ CRITICAL: Mark all job_order_header for this order as completed
-        const jobHeaders = ctx.getState().data?.jobHeaders || [];
+        // ✅ CRITICAL: Update batch.status = 'assembled' (BATCH-BASED!)
+        // Find all READY batches for this order and mark as assembled
+        const state = ctx.getState();
+        const batches = state.data.batches || [];
+        const readyBatches = batches.filter(batch => {
+          const batchOrderId = batch.orderId || batch.order_id;
+          const batchStatus = batch.status;
+          // Only mark ready/queued batches as assembled
+          return batchOrderId === orderId &&
+                 (batchStatus === 'ready' || batchStatus === 'queued');
+        });
+
+        // Update each batch via store.update (triggers watch!)
+        readyBatches.forEach(batch => {
+          if (store && typeof store.update === 'function') {
+            store.update('job_order_batch', {
+              id: batch.id,
+              status: 'assembled',
+              assembledAt: nowIso,
+              assembled_at: nowIso,
+              updatedAt: nowIso,
+              updated_at: nowIso
+            }).catch(err => {
+              console.error('[KDS] Failed to update batch status:', err);
+            });
+          }
+        });
+
+        // ✅ Update job_order_header for this order (mark completed)
+        const jobHeaders = state.data?.jobHeaders || [];
         const jobsToComplete = jobHeaders.filter(header => {
           const headerOrderId = header.orderId || header.order_id;
           return headerOrderId === orderId;
         });
 
-        // Update each job_order_header to completed state
         jobsToComplete.forEach(header => {
           const jobId = header.id;
           persistJobOrderStatusChange(jobId, {
@@ -4296,40 +4297,15 @@
           }, {});
         });
 
-        ctx.setState(state=>{
-          const handoff = state.data.handoff || {};
-          const record = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
-          const next = { ...handoff, [orderId]: record };
-          const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'assembled', assembledAt: nowIso, updatedAt: nowIso });
-          const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
-          recordPersistedHandoff(orderId, cloneDeep(record));
+        // ✅ Persist handoff to localStorage (watch will update state)
+        const handoffRecord = { status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
+        recordPersistedHandoff(orderId, cloneDeep(handoffRecord));
 
-          // ✅ Update order_header in state immediately (don't wait for watcher)
-          const orderHeaders = state.data.orderHeaders || [];
-          const orderHeadersNext = orderHeaders.map(header => {
-            const headerId = String(header.id || header.orderId);
-            if (headerId === orderId) {
-              return { ...header, statusId: 'assembled', status: 'assembled', updatedAt: nowIso };
-            }
-            return header;
-          });
-
-          return {
-            ...state,
-            data:{
-              ...state.data,
-              handoff: next,
-              orderHeaders: orderHeadersNext,  // ✅ Updated immediately!
-              expoSource: expoSourceNext,
-              expoTickets: expoTicketsNext
-            }
-          };
-        });
         emitSync({ type:'handoff:update', orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
         }
-        // ✅ Persist order_header.statusId to database
+        // ✅ Persist order_header.status to database (للقراءة فقط)
         persistOrderHeaderStatus(orderId, 'assembled', nowIso);
       }
     },
@@ -4343,14 +4319,40 @@
         if(!orderId) return;
         const nowIso = new Date().toISOString();
 
-        // ✅ CRITICAL: Mark all job_order_header for this order as completed
-        const jobHeaders = ctx.getState().data?.jobHeaders || [];
+        // ✅ CRITICAL: Update batch.status = 'served' (BATCH-BASED!)
+        // Find all ASSEMBLED batches for this order and mark as served
+        const state = ctx.getState();
+        const batches = state.data.batches || [];
+        const assembledBatches = batches.filter(batch => {
+          const batchOrderId = batch.orderId || batch.order_id;
+          const batchStatus = batch.status;
+          // Only mark assembled batches as served
+          return batchOrderId === orderId && batchStatus === 'assembled';
+        });
+
+        // Update each batch via store.update (triggers watch!)
+        assembledBatches.forEach(batch => {
+          if (store && typeof store.update === 'function') {
+            store.update('job_order_batch', {
+              id: batch.id,
+              status: 'served',
+              servedAt: nowIso,
+              served_at: nowIso,
+              updatedAt: nowIso,
+              updated_at: nowIso
+            }).catch(err => {
+              console.error('[KDS] Failed to update batch status:', err);
+            });
+          }
+        });
+
+        // ✅ Update job_order_header for this order (mark completed)
+        const jobHeaders = state.data?.jobHeaders || [];
         const jobsToComplete = jobHeaders.filter(header => {
           const headerOrderId = header.orderId || header.order_id;
           return headerOrderId === orderId;
         });
 
-        // Update each job_order_header to completed state
         jobsToComplete.forEach(header => {
           const jobId = header.id;
           persistJobOrderStatusChange(jobId, {
@@ -4361,40 +4363,15 @@
           }, {});
         });
 
-        ctx.setState(state=>{
-          const handoff = state.data.handoff || {};
-          const record = { ...(handoff[orderId] || {}), status:'served', servedAt: nowIso, updatedAt: nowIso };
-          const next = { ...handoff, [orderId]: record };
-          const expoSourceNext = applyExpoStatusForOrder(state.data.expoSource, orderId, { status:'served', servedAt: nowIso, updatedAt: nowIso });
-          const expoTicketsNext = buildExpoTickets(expoSourceNext, state.data.jobs);
-          recordPersistedHandoff(orderId, cloneDeep(record));
+        // ✅ Persist handoff to localStorage (watch will update state)
+        const handoffRecord = { status:'served', servedAt: nowIso, updatedAt: nowIso };
+        recordPersistedHandoff(orderId, cloneDeep(handoffRecord));
 
-          // ✅ Update order_header in state immediately (don't wait for watcher)
-          const orderHeaders = state.data.orderHeaders || [];
-          const orderHeadersNext = orderHeaders.map(header => {
-            const headerId = String(header.id || header.orderId);
-            if (headerId === orderId) {
-              return { ...header, statusId: 'served', status: 'served', updatedAt: nowIso };
-            }
-            return header;
-          });
-
-          return {
-            ...state,
-            data:{
-              ...state.data,
-              handoff: next,
-              orderHeaders: orderHeadersNext,  // ✅ Updated immediately!
-              expoSource: expoSourceNext,
-              expoTickets: expoTicketsNext
-            }
-          };
-        });
         emitSync({ type:'handoff:update', orderId, payload:{ status:'served', servedAt: nowIso, updatedAt: nowIso } });
         if(syncClient && typeof syncClient.publishHandoffUpdate === 'function'){
           syncClient.publishHandoffUpdate({ orderId, payload:{ status:'served', servedAt: nowIso, updatedAt: nowIso } });
         }
-        // ✅ Persist order_header.statusId to database
+        // ✅ Persist order_header.status to database (للقراءة فقط)
         persistOrderHeaderStatus(orderId, 'served', nowIso);
       }
     },
@@ -4475,48 +4452,50 @@
         const orderId = btn.getAttribute('data-order-id');
         if(!orderId) return;
         const nowIso = new Date().toISOString();
-        let assignmentPayload = null;
-        let settlementPayload = null;
-        ctx.setState(state=>{
-          const deliveries = state.data.deliveries || { assignments:{}, settlements:{} };
-          const assignments = { ...(deliveries.assignments || {}) };
-          const settlements = { ...(deliveries.settlements || {}) };
-          assignments[orderId] = {
-            ...(assignments[orderId] || {}),
-            status:'delivered',
-            deliveredAt: nowIso
-          };
-          assignmentPayload = assignments[orderId];
-          settlements[orderId] = settlements[orderId] || { status:'pending', updatedAt: nowIso };
-          settlementPayload = settlements[orderId];
 
-          // Also update handoff status to 'assembled' for delivery orders (not 'served')
-          const handoff = state.data.handoff || {};
-          const handoffRecord = { ...(handoff[orderId] || {}), status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
-          const nextHandoff = { ...handoff, [orderId]: handoffRecord };
-          recordPersistedHandoff(orderId, handoffRecord);
-
-          emitSync({ type:'delivery:update', orderId, payload:{ assignment: assignments[orderId] } });
-          emitSync({ type:'handoff:update', orderId, payload:{ status:'assembled', assembledAt: nowIso, updatedAt: nowIso } });
-
-          return {
-            ...state,
-            data:{
-              ...state.data,
-              deliveries:{ assignments, settlements },
-              handoff: nextHandoff
-            }
-          };
+        // ✅ CRITICAL: Update batch.status = 'delivered' (BATCH-BASED!)
+        // Find all SERVED batches for this order and mark as delivered
+        const state = ctx.getState();
+        const batches = state.data.batches || [];
+        const servedBatches = batches.filter(batch => {
+          const batchOrderId = batch.orderId || batch.order_id;
+          const batchStatus = batch.status;
+          // Only mark served/assembled batches as delivered
+          return batchOrderId === orderId &&
+                 (batchStatus === 'served' || batchStatus === 'assembled');
         });
+
+        // Update each batch via store.update (triggers watch!)
+        servedBatches.forEach(batch => {
+          if (store && typeof store.update === 'function') {
+            store.update('job_order_batch', {
+              id: batch.id,
+              status: 'delivered',
+              deliveredAt: nowIso,
+              delivered_at: nowIso,
+              updatedAt: nowIso,
+              updated_at: nowIso
+            }).catch(err => {
+              console.error('[KDS] Failed to update batch status:', err);
+            });
+          }
+        });
+
+        // ✅ Persist delivery assignment
+        const assignment = {
+          orderId: orderId,
+          status: 'delivered',
+          deliveredAt: nowIso,
+          updatedAt: nowIso
+        };
+        persistDeliveryAssignment(orderId, assignment);
+
+        emitSync({ type:'delivery:update', orderId, payload:{ assignment } });
         if(syncClient){
-          syncClient.publishDeliveryUpdate({ orderId, payload:{ assignment: assignmentPayload, settlement: settlementPayload } });
+          syncClient.publishDeliveryUpdate({ orderId, payload:{ assignment } });
         }
-        // ✅ Persist to database
-        if (assignmentPayload) {
-          persistDeliveryAssignment(orderId, assignmentPayload);
-        }
-        // ✅ Update order_header status to 'delivered' (ready for settlement)
-        // This moves order to "معلقات الديليفري" (pending delivery panel)
+
+        // ✅ Persist order_header.status to database (للقراءة فقط)
         persistOrderHeaderStatus(orderId, 'delivered', nowIso);
       }
     },
