@@ -3450,6 +3450,12 @@
       expoSource,
       expoTickets,
       jobOrders: rawJobOrders,
+      // ✅ CRITICAL FIX: Initialize job_order tables from window.database
+      jobHeaders: Array.isArray(database?.job_order_header) ? database.job_order_header : [],
+      jobOrderDetails: Array.isArray(database?.job_order_detail) ? database.job_order_detail : [],
+      batches: Array.isArray(database?.job_order_batch) ? database.job_order_batch : [],
+      orderHeaders: Array.isArray(database?.order_header) ? database.order_header : [],
+      orderLines: Array.isArray(database?.order_line) ? database.order_line : [],
       stationCategoryRoutes: initialStationRoutes,
       kitchenSections: initialKitchenSections,
       categorySections: initialCategorySections,
