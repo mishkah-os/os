@@ -1336,18 +1336,29 @@
     });
 
     // ✅ CRITICAL: Filter jobHeaders based on batch.status (batch-based filtering!)
-    // Only show jobHeaders that belong to ACTIVE batches
-    // If batch is delivered/settled, ALL its jobs should be hidden
+    // Only HIDE jobs that belong to DELIVERED/SETTLED batches
+    // Show everything else (including jobs without batch for backwards compatibility)
     const activeJobHeaders = jobHeaders.filter(header => {
-      const batchId = header.batchId || header.batch_id || 'no-batch';
+      const batchId = header.batchId || header.batch_id;
 
-      // ✅ Check if batch is active (exists in batchMap after filtering)
+      // ✅ If no batchId → show job (backwards compatible, safety)
+      if (!batchId || batchId === 'no-batch') return true;
+
+      // ✅ Check if batch exists
       const batch = batchMap[batchId];
 
-      // If batch was filtered out (delivered/settled), hide this job
-      if (!batch) return false;
+      // ✅ If batch not found in map → show job (safety: maybe watch didn't fire yet)
+      if (!batch) return true;
 
-      // Batch is active, show this job
+      // ✅ If batch exists → check status
+      const status = batch.status;
+
+      // Only HIDE jobs for DELIVERED/SETTLED batches
+      if (status === 'delivered' || status === 'settled') {
+        return false;
+      }
+
+      // Show all other jobs (queued, ready, assembled, served, etc.)
       return true;
     });
 
@@ -5123,36 +5134,23 @@
           progressPercent: batchInfo.progress
         });
 
-        // Update batch record via REST API
+        // ✅ CRITICAL: Update batch via store.update (triggers watch!)
+        // Using store.update instead of REST API ensures watch fires
         try {
-          await fetch(`/api/branches/${branchId}/modules/${moduleId}/tables/job_order_batch/${batchId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+          if (store && typeof store.update === 'function') {
+            await store.update('job_order_batch', {
+              id: batchId,
               status: batchInfo.status,
               readyJobs: batchInfo.readyJobs,
               ready_jobs: batchInfo.readyJobs,
               updatedAt: statusPayload.updatedAt || new Date().toISOString(),
               updated_at: statusPayload.updatedAt || new Date().toISOString()
-            })
-          });
+            });
 
-          console.log('[KDS][persistJobOrderStatusChange] ✅ Batch status updated:', batchInfo.status);
-
-          // Update local watcherState.batches
-          watcherState.batches = (watcherState.batches || []).map(batch => {
-            if (String(batch.id) === String(batchId)) {
-              return {
-                ...batch,
-                status: batchInfo.status,
-                readyJobs: batchInfo.readyJobs,
-                ready_jobs: batchInfo.readyJobs,
-                updatedAt: statusPayload.updatedAt || new Date().toISOString(),
-                updated_at: statusPayload.updatedAt || new Date().toISOString()
-              };
-            }
-            return batch;
-          });
+            console.log('[KDS][persistJobOrderStatusChange] ✅ Batch status updated via store.update:', batchInfo.status);
+          } else {
+            console.warn('[KDS][persistJobOrderStatusChange] ⚠️ Store not available, skipping batch update');
+          }
         } catch (batchError) {
           console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to update batch:', batchError);
         }
