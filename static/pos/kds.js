@@ -5529,12 +5529,14 @@
     const colonIndex = id.indexOf(':');
     if (colonIndex > 0) return id.slice(0, colonIndex);
 
-    // ✅ Try to find UUID pattern (new format: "DAR-001003-uuid")
+    // ✅ Try to find UUID pattern (new format: "DAR-001003-uuid-timestamp-random")
     // UUID format: 8-4-4-4-12 characters (36 chars total with dashes)
-    const uuidRegex = /^(.+?)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+    // jobId format: "DAR-001001-1e7a48ec-425a-4268-81db-c8f3fd4d432e-1763200716204-9juc46"
+    // We want to extract everything BEFORE the first UUID
+    const uuidRegex = /^(.*?)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
     const match = id.match(uuidRegex);
     if (match) {
-      return match[1];
+      return match[1];  // Returns "DAR-001001"
     }
 
     // Fallback: return full ID
