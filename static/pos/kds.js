@@ -2839,7 +2839,8 @@
         const stationLabel = lang === 'ar' ? row.stationLabelAr : row.stationLabelEn;
         return renderDetailRow(row.detail, t, lang, stationLabel);
       }))
-    ].filter(Boolean))));
+    ].filter(Boolean));
+    }));
   };
 
   const renderStationPanel = (db, stationId, t, lang, now)=>{
