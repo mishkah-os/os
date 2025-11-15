@@ -1366,7 +1366,10 @@
     // All jobs from same save operation → one ticket
     const jobsByBatch = new Map();
     activeJobHeaders.forEach(header => {
-      const batchId = header.batchId || header.batch_id || 'no-batch';
+      // ✅ CRITICAL FIX: Use header.id as fallback if batchId is missing!
+      // This prevents merging different jobs into 'no-batch'
+      // Old records without batchId will each be their own card
+      const batchId = header.batchId || header.batch_id || header.id;
 
       if (!jobsByBatch.has(batchId)) {
         jobsByBatch.set(batchId, []);
@@ -5126,9 +5129,13 @@
           // ✅ Find order_header to get current version (order_header IS versioned!)
           const orderHeaders = watcherState.orderHeaders || [];
           const orderHeader = orderHeaders.find(h => {
-            const headerOrderId = String(h.orderId || h.order_id);
+            // ✅ CRITICAL FIX: Search by id (primary key) first!
+            // order_header.id might be "DAR-001001" (the actual PK)
+            // while orderId might be undefined or different
+            const headerId = String(h.id || '');
+            const headerOrderId = String(h.orderId || h.order_id || '');
             const extractedBaseOrderId = extractBaseOrderId(headerOrderId);
-            return headerOrderId === baseOrderId || extractedBaseOrderId === baseOrderId;
+            return headerId === baseOrderId || headerOrderId === baseOrderId || extractedBaseOrderId === baseOrderId;
           });
 
           if (orderHeader) {
