@@ -3700,7 +3700,16 @@
     // Skip if no data at all
     const hasJobOrders = incomingJobOrders.job_order_header.length > 0 || incomingJobOrders.job_order_detail.length > 0;
     const hasOrderData = incomingOrderHeaders.length > 0 || incomingOrderLines.length > 0;
-    if(!hasJobOrders && !hasOrderData) return;    appInstance.setState(state=>{      const mergedOrders = mergeJobOrders(state.data.jobOrders || {}, incomingJobOrders);      const jobRecordsNext = buildJobRecords(mergedOrders);      const jobsIndexedNext = indexJobs(jobRecordsNext);
+    if(!hasJobOrders && !hasOrderData) return;
+
+    appInstance.setState(state=>{
+      // ✅ CRITICAL FIX: REPLACE jobOrders instead of merging
+      // Problem: watch sends ALL rows from IndexedDB (old + new), not just changes
+      // Merging with state.data.jobOrders causes accumulation → old batches reappear!
+      // Solution: Use incoming payload directly (like POS v2 clears batches before adding)
+      const mergedOrders = incomingJobOrders;  // Replace, don't merge!
+      const jobRecordsNext = buildJobRecords(mergedOrders);
+      const jobsIndexedNext = indexJobs(jobRecordsNext);
       const expoSourcePatch = Array.isArray(payload.expo_pass_ticket) ? payload.expo_pass_ticket
                             : Array.isArray(payload.expoPassTickets) ? payload.expoPassTickets
                             : state.data.expoSource;
