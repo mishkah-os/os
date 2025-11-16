@@ -2357,7 +2357,8 @@
         const isDelivery = (order.serviceMode || 'dine_in').toLowerCase() === 'delivery';
         if(!isDelivery) return false;
 
-        const settlement = settlements[order.shortOrderId];
+        // ✅ BATCH-BASED: كل order card يمثل batch واحد
+        const settlement = settlements[order.batchId];
         const isSettled = settlement && settlement.status === 'settled';
 
         return isSettled;
@@ -2516,8 +2517,9 @@
       })
       .map(order=> ({
         ...order,
-        assignment: assignments[order.shortOrderId] || null,
-        settlement: settlements[order.shortOrderId] || null
+        // ✅ BATCH-BASED: كل order card يمثل batch واحد
+        assignment: assignments[order.batchId] || null,
+        settlement: settlements[order.batchId] || null
       }));
   };
 
@@ -2537,8 +2539,9 @@
       })
       .map(order=> ({
         ...order,
-        assignment: assignments[order.shortOrderId] || null,
-        settlement: settlements[order.shortOrderId] || null
+        // ✅ BATCH-BASED: كل order card يمثل batch واحد
+        assignment: assignments[order.batchId] || null,
+        settlement: settlements[order.batchId] || null
       }))
       .filter(order=>{
         // Hide settled orders
@@ -2826,11 +2829,12 @@
     //  //console.log(" ❌ Hide : order",order);
       if(status === 'assembled' || status === 'served' || status === 'delivered' || status =='settled') return false;
 
-      // ✅ Also hide settled delivery orders
+      // ✅ Also hide settled delivery orders (BATCH-BASED)
       if((order.serviceMode || 'dine_in').toLowerCase() === 'delivery') {
         const deliveriesState = db.data.deliveries || {};
         const settlements = deliveriesState.settlements || {};
-        const settlement = settlements[order.shortOrderId];
+        // ✅ كل order card يمثل batch واحد
+        const settlement = settlements[order.batchId];
         if(settlement && settlement.status === 'settled') return false;
       }
 
@@ -3018,13 +3022,13 @@
       D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2 pt-2` }}, [
         // ❌ إخفاء زر تعيين السائق في معلقات الدليفري
         !isPendingSettlement
-          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:assign', 'data-order-id':order.shortOrderId, class: tw`flex-1 rounded-full border border-sky-400/60 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/20` }}, [t.actions.assignDriver])
+          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:assign', 'data-batch-id':order.batchId, 'data-order-id':order.shortOrderId, class: tw`flex-1 rounded-full border border-sky-400/60 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/20` }}, [t.actions.assignDriver])
           : null,
         statusKey !== 'delivered' && statusKey !== 'settled' && !isPendingSettlement
           ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:complete', 'data-batch-id':order.batchId, 'data-order-id':order.shortOrderId, class: tw`flex-1 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20` }}, [t.actions.delivered])
           : null,
         isPendingSettlement
-          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:settle', 'data-order-id':order.shortOrderId, class: tw`flex-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20` }}, [t.actions.settle])
+          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:settle', 'data-batch-id':order.batchId, 'data-order-id':order.shortOrderId, class: tw`flex-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20` }}, [t.actions.settle])
           : null
       ].filter(Boolean))
     ].filter(Boolean));
@@ -3098,7 +3102,8 @@
     const open = db.ui?.modals?.driver || false;
     if(!open) return null;
     const assignment = db.ui?.deliveryAssignment || {};
-    const orderId = assignment.orderId;
+    const batchId = assignment.batchId;  // ✅ BATCH-BASED
+    const orderId = assignment.orderId;  // For display only
     const drivers = Array.isArray(db.data.drivers) ? db.data.drivers : [];
 
     const order = (db.data.jobs.orders || []).find(o=> o.orderId === orderId);
@@ -3108,7 +3113,7 @@
       ? drivers.map(driver=> D.Forms.Button({ attrs:{
           type:'button',
           gkey:'kds:delivery:select-driver',
-          'data-order-id': orderId,
+          'data-batch-id': batchId,  // ✅ BATCH-BASED
           'data-driver-id': String(driver.id),
           class: tw`flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/70 px-4 py-3 text-start text-sm text-slate-100 hover:border-sky-400/60 hover:bg-sky-500/10`
         }}, [
@@ -3154,7 +3159,8 @@
     if(!open) return null;
 
     const settlement = db.ui?.paymentSettlement || {};
-    const orderId = settlement.orderId;
+    const batchId = settlement.batchId;  // ✅ BATCH-BASED
+    const orderId = settlement.orderId;  // For display only
     const orderAmount = settlement.amount || 0;
 
     // ✅ قراءة وسائل الدفع من posPayload
@@ -3175,7 +3181,7 @@
             return D.Forms.Button({ attrs:{
               type:'button',
               gkey:'kds:payment:select',
-              'data-order-id': orderId,
+              'data-batch-id': batchId,  // ✅ BATCH-BASED
               'data-payment-method-id': String(method.id),
               'data-payment-type': method.type || 'cash',
               class: tw`flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-900/70 px-4 py-3 text-start text-sm text-slate-100 hover:border-emerald-400/60 hover:bg-emerald-500/10`
@@ -4484,17 +4490,18 @@ console.log('orderId:',orderId);
       on:['click'],
       gkeys:['kds:delivery:assign'],
       handler:(event, ctx)=>{
-        const btn = event?.target && event.target.closest('[data-order-id]');
+        const btn = event?.target && event.target.closest('[data-batch-id]');
         if(!btn) return;
-        const orderId = btn.getAttribute('data-order-id');
-        if(!orderId) return;
+        const batchId = btn.getAttribute('data-batch-id');
+        const orderId = btn.getAttribute('data-order-id');  // For reference
+        if(!batchId) return;
         ctx.setState(state=>({
           ...state,
           ui:{
             ...(state.ui || {}),
             modalOpen:true,
             modals:{ ...(state.ui?.modals || {}), driver:true },
-            deliveryAssignment:{ orderId }
+            deliveryAssignment:{ batchId, orderId }  // ✅ BATCH-BASED
           }
         }));
       }
@@ -4503,28 +4510,33 @@ console.log('orderId:',orderId);
       on:['click'],
       gkeys:['kds:delivery:select-driver'],
       handler:(event, ctx)=>{
-        const btn = event?.target && event.target.closest('[data-order-id][data-driver-id]');
+        const btn = event?.target && event.target.closest('[data-batch-id][data-driver-id]');
         if(!btn) return;
-        const orderId = btn.getAttribute('data-order-id');
+        const batchId = btn.getAttribute('data-batch-id');
         const driverId = btn.getAttribute('data-driver-id');
-        if(!orderId || !driverId) return;
+        if(!batchId || !driverId) return;
         const nowIso = new Date().toISOString();
         let assignmentPayload = null;
+        let orderId = null;  // For sync only
         ctx.setState(state=>{
           const deliveries = state.data.deliveries || { assignments:{}, settlements:{} };
           const assignments = { ...(deliveries.assignments || {}) };
           const driver = (state.data.drivers || []).find(d=> String(d.id) === driverId) || {};
-          assignments[orderId] = {
-            ...(assignments[orderId] || {}),
+          // ✅ BATCH-BASED: Store assignment by batchId
+          orderId = state.ui?.deliveryAssignment?.orderId || null;  // Get from modal state
+          assignments[batchId] = {
+            ...(assignments[batchId] || {}),
+            batchId,
+            orderId,  // Keep for reference
             driverId,
             driverName: driver.name || driverId,
             driverPhone: driver.phone || '',
             vehicleId: driver.vehicle_id || driver.vehicleId || '',
             status: 'assigned',
-            assignedAt: assignments[orderId]?.assignedAt || nowIso
+            assignedAt: assignments[batchId]?.assignedAt || nowIso
           };
-          assignmentPayload = assignments[orderId];
-          emitSync({ type:'delivery:update', orderId, payload:{ assignment: assignments[orderId] } });
+          assignmentPayload = assignments[batchId];
+          emitSync({ type:'delivery:update', batchId, orderId, payload:{ assignment: assignments[batchId] } });
           return {
             ...state,
             data:{
@@ -4540,11 +4552,11 @@ console.log('orderId:',orderId);
           };
         });
         if(syncClient && assignmentPayload){
-          syncClient.publishDeliveryUpdate({ orderId, payload:{ assignment: assignmentPayload } });
+          syncClient.publishDeliveryUpdate({ batchId, orderId, payload:{ assignment: assignmentPayload } });
         }
-        // ✅ Persist to database
+        // ✅ Persist to database (BATCH-BASED)
         if (assignmentPayload) {
-          persistDeliveryAssignment(orderId, assignmentPayload);
+          persistDeliveryAssignment(batchId, assignmentPayload);
         }
       }
     },
@@ -4619,39 +4631,41 @@ console.log('orderId:',orderId);
           });
         }
 
-        // ✅ Persist delivery assignment
+        // ✅ Persist delivery assignment (BATCH-BASED)
         const assignment = {
-          orderId: orderId,
+          batchId: batchId,  // ✅ استخدام batchId بدلاً من orderId
+          orderId: orderId,  // ✅ الاحتفاظ بـ orderId للمرجعية فقط
           status: 'delivered',
           deliveredAt: nowIso,
           updatedAt: nowIso
         };
-        persistDeliveryAssignment(orderId, assignment);
+        persistDeliveryAssignment(batchId, assignment);  // ✅ استخدام batchId
 
-        emitSync({ type:'delivery:update', orderId, payload:{ assignment } });
+        emitSync({ type:'delivery:update', batchId, orderId, payload:{ assignment } });
         if(syncClient){
-          syncClient.publishDeliveryUpdate({ orderId, payload:{ assignment } });
+          syncClient.publishDeliveryUpdate({ batchId, orderId, payload:{ assignment } });
         }
 
-        // ✅ Persist order_header.status to database (للقراءة فقط)
-        persistOrderHeaderStatus(orderId, 'delivered', nowIso);
+        // ✅ Update order_header.status based on ALL batches for this order
+        checkAndUpdateOrderHeaderStatus(orderId, 'delivered', nowIso);
       }
     },
     'kds.delivery.settle':{
       on:['click'],
       gkeys:['kds:delivery:settle'],
       handler:(event, ctx)=>{
-        const btn = event?.target && event.target.closest('[data-order-id]');
+        const btn = event?.target && event.target.closest('[data-batch-id]');
         if(!btn) return;
-        const orderId = btn.getAttribute('data-order-id');
-        if(!orderId) return;
+        const batchId = btn.getAttribute('data-batch-id');
+        const orderId = btn.getAttribute('data-order-id');  // For reference
+        if(!batchId) return;
 
         // ✅ Open payment modal instead of settling immediately
         // Get order amount for display
         const order = (ctx.getState().data.orderHeaders || []).find(h => {
-          const headerOrderId = String(h.orderId || h.order_id);
+          const headerOrderId = String(h.orderId || h.order_id || h.id);
           const baseOrderId = extractBaseOrderId(headerOrderId);
-          return headerOrderId === orderId || baseOrderId === orderId;
+          return headerOrderId === orderId || baseOrderId === orderId || String(h.id) === orderId;
         });
         const orderAmount = order?.totalAmount || order?.amount || 0;
 
@@ -4661,7 +4675,7 @@ console.log('orderId:',orderId);
             ...(state.ui || {}),
             modalOpen: true,
             modals: { ...(state.ui?.modals || {}), payment: true },
-            paymentSettlement: { orderId, amount: orderAmount }
+            paymentSettlement: { batchId, orderId, amount: orderAmount }  // ✅ BATCH-BASED
           }
         }));
       }
@@ -4672,18 +4686,18 @@ console.log('orderId:',orderId);
       handler:(event, ctx)=>{
         const btn = event?.target && event.target.closest('[data-payment-method-id]');
         if(!btn) return;
-        const orderId = btn.getAttribute('data-order-id');
+        const batchId = btn.getAttribute('data-batch-id');
         const paymentMethodId = btn.getAttribute('data-payment-method-id');
         const paymentType = btn.getAttribute('data-payment-type') || 'cash';
-        if(!orderId || !paymentMethodId) return;
+        if(!batchId || !paymentMethodId) return;
 
         const nowIso = new Date().toISOString();
+        const orderId = ctx.getState().ui?.paymentSettlement?.orderId || null;  // Get from modal state
 
         // ✅ Get order amount
         const order = (ctx.getState().data.orderHeaders || []).find(h => {
-          const headerOrderId = String(h.orderId || h.order_id);
-          const baseOrderId = extractBaseOrderId(headerOrderId);
-          return headerOrderId === orderId || baseOrderId === orderId;
+          const headerId = String(h.id || h.orderId || h.order_id);
+          return headerId === orderId || extractBaseOrderId(headerId) === orderId;
         });
         const orderAmount = order?.totalAmount || order?.amount || 0;
 
@@ -4699,21 +4713,24 @@ console.log('orderId:',orderId);
           reference: null
         };
 
-        // ✅ 2. Update settlement status
+        // ✅ 2. Update settlement status (BATCH-BASED)
         let settlementPayload = null;
         ctx.setState(state=>{
           const deliveries = state.data.deliveries || { assignments:{}, settlements:{} };
           const settlements = { ...(deliveries.settlements || {}) };
-          settlements[orderId] = {
-            ...(settlements[orderId] || {}),
+          // ✅ BATCH-BASED: Store settlement by batchId
+          settlements[batchId] = {
+            ...(settlements[batchId] || {}),
+            batchId,
+            orderId,  // Keep for reference
             status:'settled',
             settledAt: nowIso,
             paymentMethodId: paymentMethodId,
             paymentType: paymentType
           };
-          settlementPayload = settlements[orderId];
+          settlementPayload = settlements[batchId];
 
-          emitSync({ type:'delivery:update', orderId, payload:{ settlement: settlements[orderId] } });
+          emitSync({ type:'delivery:update', batchId, orderId, payload:{ settlement: settlements[batchId] } });
 
           return {
             ...state,
@@ -4732,7 +4749,7 @@ console.log('orderId:',orderId);
 
         // ✅ 3. Publish to sync
         if(syncClient && settlementPayload){
-          syncClient.publishDeliveryUpdate({ orderId, payload:{ settlement: settlementPayload } });
+          syncClient.publishDeliveryUpdate({ batchId, orderId, payload:{ settlement: settlementPayload } });
         }
 
         // ✅ 4. Persist payment record to database
@@ -4742,8 +4759,8 @@ console.log('orderId:',orderId);
           });
         }
 
-        // ✅ 5. Update order_header status to 'settled'
-        persistOrderHeaderStatus(orderId, 'settled', nowIso);
+        // ✅ 5. Update order_header status to 'settled' based on ALL batches
+        checkAndUpdateOrderHeaderStatus(orderId, 'settled', nowIso);
       }
     },
     'kds.driver.manage':{
@@ -5512,8 +5529,8 @@ console.log('orderId:',orderId);
     }
   };
 
-  // ✅ Helper function to persist delivery assignment to database
-  const persistDeliveryAssignment = async (orderId, assignment, retryCount = 0) => {
+  // ✅ Helper function to persist delivery assignment to database (BATCH-BASED)
+  const persistDeliveryAssignment = async (batchId, assignment, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelays = [2000, 4000, 8000];
 
@@ -5523,10 +5540,14 @@ console.log('orderId:',orderId);
     }
 
     try {
-      // ✅ Prepare delivery record
+      // ✅ Prepare delivery record (BATCH-BASED)
+      // Each batch has independent delivery assignment
       const deliveryRecord = {
-        orderId: orderId,
-        order_id: orderId,
+        id: batchId,  // ✅ PRIMARY KEY: batchId (not orderId!)
+        batchId: batchId,  // ✅ batch_id for reference
+        batch_id: batchId,
+        orderId: assignment.orderId,  // ✅ Keep orderId for reference only
+        order_id: assignment.orderId,
         driverId: assignment.driverId,
         driver_id: assignment.driverId,
         driverName: assignment.driverName,
@@ -5576,10 +5597,10 @@ console.log('orderId:',orderId);
       if (retryCount < maxRetries) {
         const delay = retryDelays[retryCount];
         setTimeout(() => {
-          persistDeliveryAssignment(orderId, assignment, retryCount + 1);
+          persistDeliveryAssignment(batchId, assignment, retryCount + 1);
         }, delay);
       } else {
-        console.error('[KDS][persistDeliveryAssignment] ❌ All retries failed');
+        console.error('[KDS][persistDeliveryAssignment] ❌ All retries failed for batch:', batchId);
       }
     }
   };
