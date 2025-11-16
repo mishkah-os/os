@@ -6738,7 +6738,8 @@
         });
 
         // القاعدة #1: delivery/takeaway منتهي = ممنوع أي تعديل
-        if((orderType === 'delivery' || orderType === 'takeaway') && finalize){
+        const alreadyFinalized = order.status === 'finalized' || order.status === 'closed';
+        if((orderType === 'delivery' || orderType === 'takeaway') && alreadyFinalized && finalize){
           console.error('❌ [POS V2] Cannot modify finalized delivery/takeaway order');
           UI.pushToast(ctx, {
             title: t.toast.cannot_modify_finalized || 'لا يمكن تعديل طلب منتهي',

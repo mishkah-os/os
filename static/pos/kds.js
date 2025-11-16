@@ -5531,6 +5531,14 @@ console.log('orderId:',orderId);
       if (status === 'assembled') {
         headerUpdate.fulfillmentStage = 'ready';
         headerUpdate.fulfillment_stage = 'ready';
+        const allPayments = (window.database && Array.isArray(window.database.order_payment)) ? window.database.order_payment : [];
+        const paidSum = allPayments.filter(p => String(p.orderId || p.order_id) === String(shortOrderId)).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const totalDue = Number(currentHeader.total_due || currentHeader.totalDue || currentHeader.amount || 0);
+        if (serviceMode === 'dine_in' && totalDue > 0 && paidSum >= totalDue) {
+          headerUpdate.fulfillmentStage = 'closed';
+          headerUpdate.fulfillment_stage = 'closed';
+          headerUpdate.status = 'closed';
+        }
       } else if (status === 'served') {
         // ✅ Only takeaway orders are closed when served from KDS
         if (serviceMode === 'takeaway') {
@@ -7031,18 +7039,10 @@ console.log('orderId:',orderId);
 
             if (!orderHeader) return;
 
-            // ✅ Only process delivery orders
             const serviceMode = orderHeader.type || orderHeader.serviceMode || orderHeader.orderTypeId;
-            if (serviceMode !== 'delivery') return;
-
-            // ✅ Skip if already closed
             const fulfillmentStage = orderHeader.fulfillmentStage || orderHeader.fulfillment_stage;
             if (fulfillmentStage === 'closed') return;
-
-            // ✅ Calculate total paid
             const totalPaid = orderPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-
-            // ✅ Get total due from order
             const totalDue = Number(orderHeader.total_due || orderHeader.totalDue || orderHeader.amount || 0);
 
             //console.log('[KDS] Delivery order payment check:', {
@@ -7052,23 +7052,27 @@ console.log('orderId:',orderId);
            //   isFullyPaid: totalPaid >= totalDue
          //   });
 
-            // ✅ If fully paid, close the order
             if (totalDue > 0 && totalPaid >= totalDue) {
-              //console.log('[KDS] ✅ Delivery order fully paid, closing:', orderId);
-
-              // Update order_header to closed
               const nowIso = new Date().toISOString();
-              persistOrderHeaderStatus(orderId, 'closed', nowIso);
-
-              // ✅ Also update fulfillmentStage directly in watcherState (optimistic)
-              watcherState.orderHeaders = orderHeaders.map(h => {
-                if (String(h.id || h.orderId) === String(orderId)) {
-                  return { ...h, fulfillmentStage: 'closed', updatedAt: nowIso };
-                }
-                return h;
-              });
-
-              updateFromWatchers();
+              if (serviceMode === 'delivery') {
+                persistOrderHeaderStatus(orderId, 'closed', nowIso);
+                watcherState.orderHeaders = orderHeaders.map(h => {
+                  if (String(h.id || h.orderId) === String(orderId)) {
+                    return { ...h, fulfillmentStage: 'closed', updatedAt: nowIso };
+                  }
+                  return h;
+                });
+                updateFromWatchers();
+              } else if (serviceMode === 'dine_in' && (fulfillmentStage === 'ready' || fulfillmentStage === 'delivered')) {
+                persistOrderHeaderStatus(orderId, 'closed', nowIso);
+                watcherState.orderHeaders = orderHeaders.map(h => {
+                  if (String(h.id || h.orderId) === String(orderId)) {
+                    return { ...h, fulfillmentStage: 'closed', updatedAt: nowIso };
+                  }
+                  return h;
+                });
+                updateFromWatchers();
+              }
             }
           });
         })
