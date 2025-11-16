@@ -2654,7 +2654,7 @@
       const orderHeader = {
         id: order.id,
         type: serviceMode,
-        orderNumber: orderNumber,
+        orderNumber: order.orderNumber || order.invoiceId || order.id,
         orderTypeId: serviceMode,
         serviceMode,
         status: order.status || 'open',
