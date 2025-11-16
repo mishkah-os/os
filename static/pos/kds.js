@@ -4638,41 +4638,46 @@ console.log('orderId:',orderId);
           }
         };
 
-        if (batchId) {
-          // ✅ NEW WAY: Update specific batch by batchId
-          updateBatchStatus(batchId);
-        } else {
-          // ❌ OLD WAY (backwards compatibility): Update all served/assembled batches for orderId
-          const batches = state.data.batches || [];
-          const servedBatches = batches.filter(batch => {
-            const batchOrderId = batch.orderId || batch.order_id;
-            const batchStatus = batch.status;
-            return batchOrderId === orderId &&
-                   (batchStatus === 'served' || batchStatus === 'assembled');
-          });
+        // ✅ CRITICAL FIX: Wait for batch update before checking order header status
+        // This ensures watcherState.batches is updated before checkAndUpdateOrderHeaderStatus runs
+        (async () => {
+          if (batchId) {
+            // ✅ NEW WAY: Update specific batch by batchId
+            await updateBatchStatus(batchId);
+          } else {
+            // ❌ OLD WAY (backwards compatibility): Update all served/assembled batches for orderId
+            const batches = state.data.batches || [];
+            const servedBatches = batches.filter(batch => {
+              const batchOrderId = batch.orderId || batch.order_id;
+              const batchStatus = batch.status;
+              return batchOrderId === orderId &&
+                     (batchStatus === 'served' || batchStatus === 'assembled');
+            });
 
-          servedBatches.forEach(batch => {
-            updateBatchStatus(batch.id);
-          });
-        }
+            for (const batch of servedBatches) {
+              await updateBatchStatus(batch.id);
+            }
+          }
 
-        // ✅ Persist delivery assignment (BATCH-BASED)
-        const assignment = {
-          batchId: batchId,  // ✅ استخدام batchId بدلاً من orderId
-          orderId: orderId,  // ✅ الاحتفاظ بـ orderId للمرجعية فقط
-          status: 'delivered',
-          deliveredAt: nowIso,
-          updatedAt: nowIso
-        };
-        persistDeliveryAssignment(batchId, assignment);  // ✅ استخدام batchId
+          // ✅ Persist delivery assignment (BATCH-BASED)
+          const assignment = {
+            batchId: batchId,  // ✅ استخدام batchId بدلاً من orderId
+            orderId: orderId,  // ✅ الاحتفاظ بـ orderId للمرجعية فقط
+            status: 'delivered',
+            deliveredAt: nowIso,
+            updatedAt: nowIso
+          };
+          persistDeliveryAssignment(batchId, assignment);  // ✅ استخدام batchId
 
-        emitSync({ type:'delivery:update', batchId, orderId, payload:{ assignment } });
-        if(syncClient){
-          syncClient.publishDeliveryUpdate({ batchId, orderId, payload:{ assignment } });
-        }
+          emitSync({ type:'delivery:update', batchId, orderId, payload:{ assignment } });
+          if(syncClient){
+            syncClient.publishDeliveryUpdate({ batchId, orderId, payload:{ assignment } });
+          }
 
-        // ✅ Update order_header.status based on ALL batches for this order
-        checkAndUpdateOrderHeaderStatus(orderId, 'delivered', nowIso);
+          // ✅ Update order_header.status based on ALL batches for this order
+          // MUST run AFTER batch update completes to ensure watcherState is synced
+          checkAndUpdateOrderHeaderStatus(orderId, 'delivered', nowIso);
+        })();
       }
     },
     'kds.delivery.settle':{

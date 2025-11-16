@@ -9832,7 +9832,8 @@
         id: order.id,
         // ✅ CRITICAL FIX: Explicitly preserve order type (delivery, takeaway, dine_in)
         // Without this, reopened orders lose their type and default to dine_in!
-        type: order.type || order.orderType || order.order_type || 'dine_in',
+        // ✅ ADDED orderTypeId and order_type_id to fix issue where orders fetched from backend have orderTypeId instead of type
+        type: order.type || order.orderType || order.order_type || order.orderTypeId || order.order_type_id || 'dine_in',
         // CRITICAL: Draft orders should NOT be marked as persisted (they only exist locally)
         isPersisted: orderIsPersisted,
         tableIds: Array.isArray(order.tableIds) ? order.tableIds.slice() : (order.tableId ? [order.tableId] : []),
