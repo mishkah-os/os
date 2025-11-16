@@ -4566,24 +4566,26 @@ console.log('orderId:',orderId);
         // ✅ CRITICAL: Update ONLY the specific batch (not all batches for this order!)
         const state = ctx.getState();
 
-        // ✅ Update batch status using store.read → store.update pattern
+        // ✅ Update batch status using watcherState → store.update pattern
         const updateBatchStatus = async (bId) => {
-          if (!store || typeof store.read !== 'function' || typeof store.update !== 'function') {
+          if (!store || typeof store.update !== 'function') {
             console.warn('[KDS] Store not available for batch update');
             return;
           }
 
           try {
-            // ✅ STEP 1: Read actual batch from database
-            const readResult = await store.read('job_order_batch', { id: bId });
+            // ✅ CRITICAL: Read from watcherState (NOT store.read!)
+            // watcherState has latest data from WebSocket watchers
+            // store.read() calls REST API which may be slow/stale
+            const batches = watcherState.batches || [];
+            const currentBatch = batches.find(b => String(b.id) === String(bId));
 
-            if (!readResult || !readResult.success || !readResult.data || readResult.data.length === 0) {
-              console.warn('[KDS] Batch not found:', bId);
+            if (!currentBatch) {
+              console.warn('[KDS] Batch not found in watcherState:', bId);
               return;
             }
 
-            // ✅ STEP 2: Update with only changed fields
-            const currentBatch = readResult.data[0];
+            // ✅ Update via store (triggers backend update + watch update)
             await store.update('job_order_batch', {
               id: bId,
               status: 'delivered',
@@ -5375,13 +5377,12 @@ console.log('orderId:',orderId);
   };
 
   // ✅ Helper function to persist order_header status changes with retry logic
-  // Uses store.read() THEN store.update() to avoid version conflicts
+  // Uses watcherState THEN store.update() for immediate consistency
   const persistOrderHeaderStatus = async (orderId, status, timestamp, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelays = [2000, 4000, 8000]; // Exponential backoff: 2s, 4s, 8s
 
-    // ✅ Persist via store.read() then store.update()
-    if (!store || typeof store.read !== 'function' || typeof store.update !== 'function') {
+    if (!store || typeof store.update !== 'function') {
       console.warn('[KDS][persistOrderHeaderStatus] ⚠️ Store not available - changes will be lost on refresh!');
       return;
     }
@@ -5392,19 +5393,18 @@ console.log('orderId:',orderId);
       // Example: "DAR-001001-uuid-timestamp" → "DAR-001001"
       const shortOrderId = extractBaseOrderId(orderId);
 
-      // ✅ STEP 1: Read the actual record from store (NOT from watcherState!)
-      const readResult = await Promise.race([
-        store.read('order_header', { id: shortOrderId }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Read timeout after 10s')), 10000))
-      ]);
+      // ✅ CRITICAL: Read from watcherState (NOT store.read!)
+      // watcherState has latest data from WebSocket watchers
+      // store.read() calls REST API which may be slow/stale
+      const orderHeaders = watcherState.orderHeaders || [];
+      const currentHeader = orderHeaders.find(h => String(h.id) === String(shortOrderId));
 
-      if (!readResult || !readResult.success || !readResult.data || readResult.data.length === 0) {
-        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in store:', shortOrderId, '(original:', orderId, ')');
+      if (!currentHeader) {
+        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in watcherState:', shortOrderId, '(original:', orderId, ')');
         return;
       }
 
-      // ✅ STEP 2: Get the REAL record with REAL version from database
-      const currentHeader = readResult.data[0];
+      // ✅ STEP 2: Get version from watcherState (already synced via watchers)
       const currentVersion = currentHeader.version || 1;
       const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
 
