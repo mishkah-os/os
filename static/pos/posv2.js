@@ -7263,10 +7263,19 @@
             jobDetailsCount: kdsPayload?.job_order_detail?.length || 0
           });
 
-          if(kdsPayload && kdsPayload.job_order_header){
-            console.log('[POS V2] job_order_header count:', kdsPayload.job_order_header.length);
-            console.log('[POS V2] order_header count:', kdsPayload.order_header?.length || 0);
-            console.log('[POS V2] order_line count:', kdsPayload.order_line?.length || 0);
+          // ✅ CRITICAL FIX: Even if no job_order_header (no new items), we still need to update order_header for finalize!
+          // This handles case: reopening a saved order and finalizing it without adding new items
+          if(kdsPayload || finalize){
+            console.log('[POS V2] Processing KDS/order_header updates:', {
+              hasKdsPayload: !!kdsPayload,
+              hasJobHeaders: !!kdsPayload?.job_order_header,
+              jobHeadersCount: kdsPayload?.job_order_header?.length || 0,
+              finalize,
+              orderIsPersisted: order.isPersisted
+            });
+            console.log('[POS V2] job_order_header count:', kdsPayload?.job_order_header?.length || 0);
+            console.log('[POS V2] order_header count:', kdsPayload?.order_header?.length || 0);
+            console.log('[POS V2] order_line count:', kdsPayload?.order_line?.length || 0);
 
             // ✅ DEBUG: Log store configuration
             console.log('🔍🔍🔍 [POS V2] Store configuration:', {
@@ -7277,11 +7286,11 @@
 
             // ✅ CRITICAL FIX: Declare isPersistedOrder and hasOnlyNewItems BEFORE using them
             const isPersistedOrder = order.isPersisted === true;
-            const hasOnlyNewItems = kdsPayload.isReopenedOrder || false; // Order has new unpersisted items
+            const hasOnlyNewItems = kdsPayload?.isReopenedOrder || false; // Order has new unpersisted items
 
-            // ✅ CRITICAL: Create job_order_batch record
+            // ✅ CRITICAL: Create job_order_batch record (only if we have job_order_header)
             // Extract batchId from first job_order_header (all jobs in same save share same batchId)
-            const firstJob = kdsPayload.job_order_header[0];
+            const firstJob = kdsPayload?.job_order_header?.[0];
             if (firstJob && firstJob.batchId) {
               const batchId = firstJob.batchId;
               const batchJobs = kdsPayload.job_order_header.filter(j => j.batchId === batchId);
@@ -7350,7 +7359,7 @@
             Promise.all([
               // ✅ CRITICAL: Only save order_header for NEW orders
               // For existing orders with new items, skip order_header update to preserve job_orders
-              ...(hasOnlyNewItems ? [] : (kdsPayload.order_header || []).map(orderHeader => {
+              ...(hasOnlyNewItems ? [] : (kdsPayload?.order_header || []).map(orderHeader => {
                 if(isPersistedOrder && typeof store.update === 'function') {
                   // ✅ CRITICAL: Version is REQUIRED for store.update()
                   // Read current version from existing record, increment by 1
@@ -7409,14 +7418,14 @@
               // ✅ Save order_line (for static KDS tabs)
               // For reopened orders: only insert new lines (filtered in serializeOrderForKDS)
               // For new orders: insert all lines
-              ...(kdsPayload.order_line || []).map(orderLine =>
+              ...(kdsPayload?.order_line || []).map(orderLine =>
                 retryWithBackoff(
                   () => store.insert('order_line', orderLine, { silent: false }),
                   `INSERT order_line: ${orderLine.id}`
                 )
               ),
               // ✅ Save job_order_batch (CRITICAL: must be saved before job_order_header!)
-              ...(kdsPayload.job_order_batch || []).map(batch => {
+              ...(kdsPayload?.job_order_batch || []).map(batch => {
                 console.log('📦 [POS V2] INSERTING job_order_batch:', {
                   batchId: batch.id,
                   totalJobs: batch.totalJobs,
@@ -7429,7 +7438,7 @@
               }),
               // Save job_order_header (for dynamic station tabs)
               // ✅ CRITICAL: silent: false to broadcast changes to KDS immediately!
-              ...kdsPayload.job_order_header.map(jobHeader => {
+              ...(kdsPayload?.job_order_header || []).map(jobHeader => {
                 console.log('🚀🚀🚀 [POS V2] INSERTING job_order_header:', {
                   id: jobHeader.id,
                   orderId: jobHeader.orderId,
@@ -7445,7 +7454,7 @@
                 );
               }),
               // ✅ CRITICAL: Save job_order_detail with duplicate prevention
-              ...(kdsPayload.job_order_detail || []).map(async jobDetail => {
+              ...(kdsPayload?.job_order_detail || []).map(async jobDetail => {
                 // ✅ Check if this orderLineId already exists in job_order_detail
                 const orderLineId = jobDetail.orderLineId || jobDetail.order_line_id;
 
@@ -7501,14 +7510,14 @@
                 );
               }),
               // Save modifiers
-              ...(kdsPayload.job_order_detail_modifier || []).map(modifier =>
+              ...(kdsPayload?.job_order_detail_modifier || []).map(modifier =>
                 retryWithBackoff(
                   () => store.insert('job_order_detail_modifier', modifier, { silent: false }),
                   `INSERT job_order_detail_modifier: ${modifier.id}`
                 )
               ),
               // Save status history
-              ...(kdsPayload.job_order_status_history || []).map(history =>
+              ...(kdsPayload?.job_order_status_history || []).map(history =>
                 retryWithBackoff(
                   () => store.insert('job_order_status_history', history, { silent: false }),
                   `INSERT job_order_status_history: ${history.id}`
@@ -9967,10 +9976,13 @@
           data:{
             ...data,
             order:{
-              ...(data.order || {}),
+              // ✅ CRITICAL FIX: Don't spread data.order first - it may have wrong type!
+              // Instead, use safeOrder first, then only merge specific safe fields from data.order
               ...safeOrder,
               totals,
               paymentState: paymentSnapshot.state,
+              // ✅ CRITICAL: Explicitly preserve type from safeOrder (don't let data.order override it!)
+              type: safeOrder.type,
               allowAdditions: safeOrder.allowAdditions !== undefined ? safeOrder.allowAdditions : !!typeConfig.allowsLineAdditions,
               lockLineEdits: safeOrder.lockLineEdits !== undefined ? safeOrder.lockLineEdits : true,
               // ✅ CRITICAL FIX: Recalculate paymentsLocked when opening order
