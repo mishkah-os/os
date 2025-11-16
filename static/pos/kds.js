@@ -3013,10 +3013,8 @@
           }))
         : null,
 
-      // ✅ order.jobs might be undefined if using buildOrdersFromHeaders
-      (order.jobs && order.jobs.length > 0)
-        ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, order.jobs.map(job=> createBadge(`${job.stationCode || job.stationId}: ${t.labels.jobStatus[job.status] || job.status}`, STATUS_CLASS[job.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)))
-        : null,
+      // ❌ إخفاء jobs badges في delivery stage (غير مفيد - يعرض UUIDs)
+      // في delivery stage، جميع المحطات انتهت بالفعل، المهم معلومات التوصيل فقط
 
       // ✅ الأزرار: إخفاء زر تعيين السائق في معلقات الدليفري
       D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2 pt-2` }}, [
@@ -4581,7 +4579,7 @@ console.log('orderId:',orderId);
         // ✅ Update batch status using watcherState → store.update pattern
         const updateBatchStatus = async (bId) => {
           if (!store || typeof store.update !== 'function') {
-            console.warn('[KDS] Store not available for batch update');
+            console.warn('[KDS][delivery:complete] ⚠️ Store not available for batch update');
             return;
           }
 
@@ -4593,23 +4591,50 @@ console.log('orderId:',orderId);
             const currentBatch = batches.find(b => String(b.id) === String(bId));
 
             if (!currentBatch) {
-              console.warn('[KDS] Batch not found in watcherState:', bId);
+              console.warn('[KDS][delivery:complete] ⚠️ Batch not found in watcherState:', bId);
+              console.log('[KDS][delivery:complete] Available batches:', batches.map(b => b.id));
               return;
             }
 
+            console.log('[KDS][delivery:complete] 📦 Updating batch:', bId, 'from', currentBatch.status, '→ delivered');
+
+            // ✅ CRITICAL: Get current version for optimistic concurrency control
+            const currentVersion = currentBatch.version || 1;
+            const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
             // ✅ Update via store (triggers backend update + watch update)
-            await store.update('job_order_batch', {
+            const updatePayload = {
               id: bId,
               status: 'delivered',
               deliveredAt: nowIso,
               delivered_at: nowIso,
               updatedAt: nowIso,
-              updated_at: nowIso
-            });
+              updated_at: nowIso,
+              version: nextVersion  // ✅ Include version for concurrency control
+            };
 
-            console.log('[KDS] ✅ Batch status updated to delivered:', bId);
+            console.log('[KDS][delivery:complete] Update payload:', updatePayload, '(v' + currentVersion + ' → v' + nextVersion + ')');
+
+            await store.update('job_order_batch', updatePayload);
+
+            console.log('[KDS][delivery:complete] ✅ Batch status updated to delivered:', bId);
+
+            // ✅ Optimistic update to watcherState (immediate UI update)
+            const batchIndex = batches.findIndex(b => String(b.id) === String(bId));
+            if (batchIndex >= 0) {
+              watcherState.batches[batchIndex] = {
+                ...batches[batchIndex],
+                status: 'delivered',
+                deliveredAt: nowIso,
+                delivered_at: nowIso,
+                updatedAt: nowIso,
+                updated_at: nowIso,
+                version: nextVersion  // ✅ Update version in watcherState too
+              };
+              console.log('[KDS][delivery:complete] ✅ Optimistic update applied to watcherState (v' + nextVersion + ')');
+            }
           } catch (err) {
-            console.error('[KDS] Failed to update batch status:', err);
+            console.error('[KDS][delivery:complete] ❌ Failed to update batch status:', err);
           }
         };
 
