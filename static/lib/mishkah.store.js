@@ -243,6 +243,64 @@ class MishkahRealtimeStore extends EventEmitter {
     return allTables && allTables[tableName] ? clone(allTables[tableName]) : [];
   }
 
+  read(tableName, id, moduleId = this.moduleId) {
+    if (!tableName) {
+      throw new Error('Table name is required');
+    }
+    if (id === undefined || id === null) {
+      throw new Error('Record ID is required');
+    }
+
+    const tableData = this.listTable(tableName, moduleId);
+    if (!tableData || !Array.isArray(tableData)) {
+      return null;
+    }
+
+    // Find record by id or key
+    const record = tableData.find(r => {
+      if (r.id !== undefined && String(r.id) === String(id)) return true;
+      if (r.key !== undefined && String(r.key) === String(id)) return true;
+      return false;
+    });
+
+    return record ? clone(record) : null;
+  }
+
+  query(tableName, filter, moduleId = this.moduleId) {
+    if (!tableName) {
+      throw new Error('Table name is required');
+    }
+
+    const tableData = this.listTable(tableName, moduleId);
+    if (!tableData || !Array.isArray(tableData)) {
+      return [];
+    }
+
+    // If no filter provided, return all records
+    if (!filter) {
+      return clone(tableData);
+    }
+
+    // If filter is a function, use it to filter records
+    if (typeof filter === 'function') {
+      const filtered = tableData.filter(filter);
+      return clone(filtered);
+    }
+
+    // If filter is an object, match properties
+    if (typeof filter === 'object') {
+      const filtered = tableData.filter(record => {
+        return Object.entries(filter).every(([key, value]) => {
+          if (record[key] === undefined) return false;
+          return String(record[key]) === String(value);
+        });
+      });
+      return clone(filtered);
+    }
+
+    throw new Error('Filter must be a function or an object');
+  }
+
   getState() {
     return clone(this.state);
   }
