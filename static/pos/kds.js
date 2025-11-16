@@ -5462,7 +5462,6 @@ console.log('orderId:',orderId);
       ]);
 
       // ✅ STEP 5: Update watcherState for immediate UI update (optimistic update)
-      const orderHeaders = watcherState.orderHeaders || [];
       watcherState.orderHeaders = orderHeaders.map(header => {
         // ✅ CRITICAL: Match using shortOrderId since order_header.id is SHORT
         if (String(header.id) === String(shortOrderId)) {
