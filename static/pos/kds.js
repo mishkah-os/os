@@ -3001,6 +3001,14 @@
           ].filter(Boolean))
         : null,
 
+      // ✅ عرض الأصناف (detailRows)
+      order.detailRows && order.detailRows.length
+        ? D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, order.detailRows.map(entry=>{
+            const stationLabel = (lang === 'ar' ? entry.stationLabelAr : entry.stationLabelEn) || null;
+            return renderDetailRow(entry.detail, t, lang, stationLabel);
+          }))
+        : null,
+
       // ✅ order.jobs might be undefined if using buildOrdersFromHeaders
       (order.jobs && order.jobs.length > 0)
         ? D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2` }}, order.jobs.map(job=> createBadge(`${job.stationCode || job.stationId}: ${t.labels.jobStatus[job.status] || job.status}`, STATUS_CLASS[job.status] || tw`border-slate-600/40 bg-slate-800/70 text-slate-100`)))
@@ -5357,137 +5365,105 @@ console.log('orderId:',orderId);
   };
 
   // ✅ Helper function to persist order_header status changes with retry logic
-  // Uses store.update() which handles REST API automatically
+  // Uses store.read() THEN store.update() to avoid version conflicts
   const persistOrderHeaderStatus = async (orderId, status, timestamp, retryCount = 0) => {
     const maxRetries = 3;
     const retryDelays = [2000, 4000, 8000]; // Exponential backoff: 2s, 4s, 8s
 
-    // ✅ CRITICAL: orderId should be the FULL ID (not short ID!)
-    // Search directly by id (primary key)
-    const orderHeaders = watcherState.orderHeaders || [];
-    const matchingHeader = orderHeaders.find(header => {
-      const headerId = String(header.id || '');
-      return headerId === orderId;
-    });
-
-    if (!matchingHeader) {
-      console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found:', orderId);
-      return;
-    }
-
-    // ✅ Log the ID being used for update
-    console.warn('[KDS][persistOrderHeaderStatus] 🔍 UPDATE:', {
-      orderId: orderId,
-      headerId: matchingHeader.id,
-      match: matchingHeader.id === orderId ? 'EXACT' : 'ERROR'
-    });
-
-    // ✅ Calculate next version (CRITICAL for versioned tables!)
-    const currentVersion = matchingHeader.version || 1;
-    const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
-
-    // ✅ CRITICAL VALIDATION: Ensure version exists - update WILL FAIL without it!
-    if (!Number.isFinite(nextVersion) || nextVersion < 1) {
-      console.error('❌ [KDS] FATAL: Cannot update order_header without valid version!', {
-        orderId,
-        currentVersion,
-        nextVersion,
-        matchingHeader: !!matchingHeader
-      });
-      return; // Abort update - will fail anyway
-    }
-
-    //console.log('🔄 [KDS] Updating order_header status:', {
-     // orderId,
-    //  status,
-    //  currentVersion,
-   //   nextVersion,
-    //  versionValid: true
-   // });
-
-    // ✅ Apply optimistic update (only on first attempt)
-    if (retryCount === 0) {
-      watcherState.orderHeaders = orderHeaders.map(header => {
-        const headerOrderId = String(header.orderId || header.order_id);
-        const baseOrderId = extractBaseOrderId(headerOrderId);
-        // ✅ Match both exact orderId AND base orderId
-        if (headerOrderId === orderId || baseOrderId === orderId) {
-          const updatedHeader = {
-            ...header,
-            statusId: status,
-            status: status,
-            version: nextVersion,  // ✅ Update version locally
-            updatedAt: timestamp || new Date().toISOString()
-          };
-
-          // ✅ CRITICAL FIX: Update fulfillmentStage based on order type
-          // - dine_in: NEVER close from KDS (only from POS cashier)
-          // - delivery: NEVER close from served (only from settlements)
-          // - takeaway: Close when served from KDS
-          if (status === 'assembled') {
-            updatedHeader.fulfillmentStage = 'ready';
-          } else if (status === 'served') {
-            const serviceMode = header.type || header.serviceMode || header.orderTypeId || 'dine_in';
-            if (serviceMode === 'takeaway') {
-              updatedHeader.fulfillmentStage = 'closed';  // ✅ Takeaway: close on delivery
-            } else {
-              updatedHeader.fulfillmentStage = 'delivered';  // ✅ dine_in/delivery: mark as delivered but stay open
-            }
-          }
-
-          return updatedHeader;
-        }
-        return header;
-      });
-    }
-
-    // ✅ Persist via store.update() (mishkah-store handles REST API)
-    if (!store || typeof store.update !== 'function') {
+    // ✅ Persist via store.read() then store.update()
+    if (!store || typeof store.read !== 'function' || typeof store.update !== 'function') {
       console.warn('[KDS][persistOrderHeaderStatus] ⚠️ Store not available - changes will be lost on refresh!');
       return;
     }
 
     try {
+      // ✅ STEP 1: Read the actual record from store (NOT from watcherState!)
+      const readResult = await Promise.race([
+        store.read('order_header', { id: orderId }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Read timeout after 10s')), 10000))
+      ]);
+
+      if (!readResult || !readResult.success || !readResult.data || readResult.data.length === 0) {
+        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in store:', orderId);
+        return;
+      }
+
+      // ✅ STEP 2: Get the REAL record with REAL version from database
+      const currentHeader = readResult.data[0];
+      const currentVersion = currentHeader.version || 1;
+      const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+      // ✅ CRITICAL VALIDATION: Ensure version exists
+      if (!Number.isFinite(nextVersion) || nextVersion < 1) {
+        console.error('❌ [KDS] FATAL: Cannot update order_header without valid version!', {
+          orderId,
+          currentVersion,
+          nextVersion
+        });
+        return;
+      }
+
+      // ✅ STEP 3: Create update payload with ONLY changed fields (not the whole record!)
       const headerUpdate = {
-        id: matchingHeader.id,
+        id: currentHeader.id,
         status: status,
         statusId: status,
-        version: nextVersion,    // ✅ Send version! (CRITICAL)
-        updatedAt: timestamp || new Date().toISOString()
+        status_id: status,
+        version: nextVersion,
+        updatedAt: timestamp || new Date().toISOString(),
+        updated_at: timestamp || new Date().toISOString()
       };
 
       // ✅ CRITICAL FIX: Update fulfillmentStage based on order type and action
-      // - dine_in: NEVER close from KDS (only from POS cashier screen)
-      // - delivery: NEVER close from assembled/served (only from delivery settlements)
-      // - takeaway: Close when assembled/served (delivered from KDS)
-      const serviceMode = matchingHeader.type || matchingHeader.serviceMode || matchingHeader.orderTypeId || 'dine_in';
+      const serviceMode = currentHeader.type || currentHeader.serviceMode || currentHeader.orderTypeId || currentHeader.order_type_id || 'dine_in';
 
       if (status === 'assembled') {
         headerUpdate.fulfillmentStage = 'ready';
+        headerUpdate.fulfillment_stage = 'ready';
       } else if (status === 'served') {
         // ✅ Only takeaway orders are closed when served from KDS
-        // dine_in stays open (closed from POS), delivery stays open (closed from settlements)
         if (serviceMode === 'takeaway') {
-          headerUpdate.fulfillmentStage = 'closed';  // ✅ Takeaway: close on delivery
+          headerUpdate.fulfillmentStage = 'closed';
+          headerUpdate.fulfillment_stage = 'closed';
         } else {
-          headerUpdate.fulfillmentStage = 'delivered';  // ✅ dine_in/delivery: mark as delivered but stay open
+          headerUpdate.fulfillmentStage = 'delivered';
+          headerUpdate.fulfillment_stage = 'delivered';
+        }
+      } else if (status === 'delivered') {
+        // ✅ When delivery is marked as delivered, move to pending_settlement
+        if (serviceMode === 'delivery') {
+          headerUpdate.fulfillmentStage = 'pending_settlement';
+          headerUpdate.fulfillment_stage = 'pending_settlement';
+        } else {
+          headerUpdate.fulfillmentStage = 'delivered';
+          headerUpdate.fulfillment_stage = 'delivered';
         }
       }
 
-      //console.log('[KDS] 📤 Sending order_header update:', {
-    //    orderId: headerUpdate.id,
-     //   status: headerUpdate.status,
-      //  version: `${currentVersion}→${nextVersion}`,
-      //  fulfillmentStage: headerUpdate.fulfillmentStage
-   //   });
-
-      // ✅ Increase timeout to 10 seconds for order_header updates
+      // ✅ STEP 4: Update with proper version
       await Promise.race([
         store.update('order_header', headerUpdate),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
       ]);
 
-      //console.log('[KDS] ✅ order_header update successful:', orderId, 'version:', nextVersion);
+      // ✅ STEP 5: Update watcherState for immediate UI update (optimistic update)
+      const orderHeaders = watcherState.orderHeaders || [];
+      watcherState.orderHeaders = orderHeaders.map(header => {
+        if (String(header.id) === String(orderId)) {
+          return {
+            ...header,
+            statusId: status,
+            status: status,
+            status_id: status,
+            version: nextVersion,
+            fulfillmentStage: headerUpdate.fulfillmentStage,
+            fulfillment_stage: headerUpdate.fulfillment_stage,
+            updatedAt: headerUpdate.updatedAt,
+            updated_at: headerUpdate.updated_at
+          };
+        }
+        return header;
+      });
 
       // ✅ Broadcast the change to other KDS instances
       if (syncClient && typeof syncClient.publishHandoffUpdate === 'function') {
@@ -5505,8 +5481,7 @@ console.log('orderId:',orderId);
         error: error.message,
         isTimeout,
         isVersionConflict,
-        orderId,
-        version: `${currentVersion}→${nextVersion}`
+        orderId
       });
 
       // ✅ Retry with exponential backoff
@@ -5516,8 +5491,8 @@ console.log('orderId:',orderId);
           persistOrderHeaderStatus(orderId, status, timestamp, retryCount + 1);
         }, delay);
       } else {
-        // ❌ All retries failed - keep optimistic update but warn user
-        console.error('[KDS][persistOrderHeaderStatus] ❌ All retries failed - optimistic update kept, but changes may be lost on refresh');
+        // ❌ All retries failed
+        console.error('[KDS][persistOrderHeaderStatus] ❌ All retries failed:', orderId);
       }
     }
   };
