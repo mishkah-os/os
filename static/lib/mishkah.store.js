@@ -243,7 +243,7 @@ class MishkahRealtimeStore extends EventEmitter {
     return allTables && allTables[tableName] ? clone(allTables[tableName]) : [];
   }
 
-  read(tableName, id, moduleId = this.moduleId) {
+  async read(tableName, id, moduleId = this.moduleId) {
     if (!tableName) {
       throw new Error('Table name is required');
     }
@@ -266,7 +266,7 @@ class MishkahRealtimeStore extends EventEmitter {
     return record ? clone(record) : null;
   }
 
-  query(tableName, filter, moduleId = this.moduleId) {
+  async query(tableName, filter, moduleId = this.moduleId) {
     if (!tableName) {
       throw new Error('Table name is required');
     }
