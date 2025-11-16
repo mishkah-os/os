@@ -7270,7 +7270,6 @@
                   orderType: orderPayload.orderTypeId || orderPayload.type || 'dine_in',
                   tableLabel: orderPayload.tableLabel || null
                 },
-                version: 1,  // ✅ CRITICAL: Add version for optimistic concurrency control
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               };
