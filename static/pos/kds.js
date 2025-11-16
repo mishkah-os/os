@@ -1324,19 +1324,9 @@
     // ✅ CRITICAL: Filter out DELIVERED/SETTLED batches (batch-based filtering!)
     // Batch status is one-way: queued → ready → assembled → served → delivered
     // Once delivered/settled, batch should NEVER appear again
-    const activeBatches = batches.filter(batch => {
-      if (!batch || !batch.id) return false;
-      const status = batch.status;
-      if (status === 'settled') {
-        return false;
-      }
-      return true;
-    });
-
-    // ✅ Index ACTIVE batches only
     const batchMap = {};
-    activeBatches.forEach(batch => {
-      batchMap[batch.id] = batch;
+    batches.forEach(batch => {
+      if (batch && batch.id) batchMap[batch.id] = batch;
     });
 
     // ✅ CRITICAL: Filter jobHeaders based on batch.status (batch-based filtering!)
@@ -1353,8 +1343,7 @@
       // ✅ Check if batch exists
       const batch = batchMap[batchId];
 
-      // ✅ If batch not found in map → show job (safety: maybe watch didn't fire yet)
-      if (!batch) return true;
+      if (!batch) return false;
 
       // ✅ If batch exists → check status
       const status = batch.status;
@@ -1363,8 +1352,7 @@
         return false;
       }
 
-      // Show all other jobs (queued, ready, assembled, served, etc.)
-      return true;
+      return status !== 'settled';
     });
 
     // ✅ Group job_order_header by batchId ONLY (for static tabs)
@@ -2039,18 +2027,20 @@
   };
 
   const getHandoffOrders = (db)=> {
-    // ✅ CRITICAL FIX: Each batch should be a separate card!
-    // Don't merge batches with same orderId
+    const deliveriesState = db.data?.deliveries || {};
+    const settlements = deliveriesState.settlements || {};
     return buildOrdersFromJobHeaders(db)
       .filter(order=>{
         if(!order) return false;
         const status = order.handoffStatus;
-        // ✅ CRITICAL: Show ONLY 'assembled' orders (تم تجميعها في Expo)
-        // Workflow: Expo → "تم التجميع" → status='assembled' → يظهر في Handoff
-        // Handoff → "تم التسليم" → status='served' → يختفي
         if(status !== 'assembled') return false;
         const serviceMode = (order.serviceMode || 'dine_in').toLowerCase();
         return serviceMode !== 'delivery';
+      })
+      .filter(order=>{
+        const settlement = settlements[order.batchId];
+        if(settlement && settlement.status === 'settled') return false;
+        return true;
       });
   };
 
@@ -2518,7 +2508,12 @@
         // ✅ BATCH-BASED: كل order card يمثل batch واحد
         assignment: assignments[order.batchId] || null,
         settlement: settlements[order.batchId] || null
-      }));
+      }))
+      .filter(order=>{
+        const settlement = order.settlement;
+        if(settlement && settlement.status === 'settled') return false;
+        return true;
+      });
   };
 
   const getPendingDeliveryOrders = (db)=>{
@@ -4685,25 +4680,21 @@ console.log('orderId:',orderId);
         const btn = event?.target && event.target.closest('[data-batch-id]');
         if(!btn) return;
         const batchId = btn.getAttribute('data-batch-id');
-        const orderId = btn.getAttribute('data-order-id');  // For reference
+        const orderId = btn.getAttribute('data-order-id');
         if(!batchId) return;
-
-        // ✅ Open payment modal instead of settling immediately
-        // Get order amount for display
         const order = (ctx.getState().data.orderHeaders || []).find(h => {
           const headerOrderId = String(h.orderId || h.order_id || h.id);
           const baseOrderId = extractBaseOrderId(headerOrderId);
           return headerOrderId === orderId || baseOrderId === orderId || String(h.id) === orderId;
         });
-        const orderAmount = order?.totalAmount || order?.amount || 0;
-
+        const orderAmount = computeOrderDueForKds(window.database || {}, orderId);
         ctx.setState(state=>({
           ...state,
           ui:{
             ...(state.ui || {}),
             modalOpen: true,
             modals: { ...(state.ui?.modals || {}), payment: true },
-            paymentSettlement: { batchId, orderId, amount: orderAmount }  // ✅ BATCH-BASED
+            paymentSettlement: { batchId, orderId, amount: orderAmount }
           }
         }));
       }
@@ -4711,7 +4702,7 @@ console.log('orderId:',orderId);
     'kds.payment.select':{
       on:['click'],
       gkeys:['kds:payment:select'],
-      handler:(event, ctx)=>{
+      handler:async (event, ctx)=>{
         const btn = event?.target && event.target.closest('[data-payment-method-id]');
         if(!btn) return;
         const batchId = btn.getAttribute('data-batch-id');
@@ -4727,7 +4718,7 @@ console.log('orderId:',orderId);
           const headerId = String(h.id || h.orderId || h.order_id);
           return headerId === orderId || extractBaseOrderId(headerId) === orderId;
         });
-        const orderAmount = order?.totalAmount || order?.amount || 0;
+        const orderAmount = computeOrderDueForKds(window.database || {}, orderId);
 
         // ✅ 1. Create order_payment record
         const paymentId = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -4782,9 +4773,22 @@ console.log('orderId:',orderId);
 
         // ✅ 4. Persist payment record to database
         if(store && typeof store.insert === 'function'){
-          store.insert('order_payment', paymentRecord).catch(err => {
+          try{
+            await store.insert('order_payment', paymentRecord);
+          }catch(err){
             console.error('[KDS][payment] Failed to insert payment:', err);
-          });
+          }
+        }
+
+        if(store && typeof store.update === 'function'){
+          const batchUpdate = { id: batchId, status: 'settled', settledAt: nowIso, settled_at: nowIso, updatedAt: nowIso, updated_at: nowIso };
+          try{
+            await Promise.race([
+              store.update('job_order_batch', batchUpdate),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout')), 10000))
+            ]);
+          }catch(e){
+          }
         }
 
         // ✅ 5. Update order_header status to 'settled' based on ALL batches
@@ -5295,6 +5299,7 @@ console.log('orderId:',orderId);
         });
         const allLinesReady = orderAllLines.every(line => {
           const lineStatus = String(line.status || line.statusId || '');
+          //console.log("lineStatus",lineStatus);
           return lineStatus === 'ready' || lineStatus === 'served' || lineStatus === 'completed';
         });
 
@@ -5697,6 +5702,49 @@ console.log('orderId:',orderId);
   };
 
   const ensureArray = (value) => (Array.isArray(value) ? value : []);
+
+  const computeOrderDueForKds = (db, orderId) => {
+    const headers = ensureArray(db?.order_header);
+    const target = headers.find(h => {
+      const hid = String(h.orderId || h.order_id || h.id || '');
+      const base = extractBaseOrderId(hid);
+      return hid === orderId || base === orderId || String(h.id) === orderId;
+    }) || {};
+    const totals = typeof target.totals === 'object' ? target.totals : (typeof target.metadata === 'object' ? target.metadata : {});
+    const candidates = [
+      totals?.due,
+      target?.total_due,
+      target?.totalDue,
+      target?.total,
+      target?.total_amount,
+      target?.grand_total,
+      target?.amount_due,
+      target?.net_total
+    ];
+    let due = 0;
+    for(let i=0;i<candidates.length;i++){
+      const n = Number(candidates[i]);
+      if(Number.isFinite(n) && n > 0){ due = n; break; }
+    }
+    if(!(Number.isFinite(due) && due > 0)){
+      const lines = ensureArray(db?.order_line).filter(l => {
+        const lid = String(l.orderId || l.order_id || '');
+        const base = extractBaseOrderId(lid);
+        return lid === orderId || base === orderId;
+      });
+      let subtotal = 0;
+      for(let i=0;i<lines.length;i++){
+        const line = lines[i];
+        const qty = Number(line.quantity ?? line.qty ?? 1) || 1;
+        const unitPrice = Number(line.unitPrice ?? line.unit_price ?? line.price ?? 0) || 0;
+        const lt = Number(line.total ?? 0);
+        const total = (Number.isFinite(lt) && lt > 0) ? lt : unitPrice * qty;
+        subtotal += total;
+      }
+      due = subtotal;
+    }
+    return Math.max(0, Number(due) || 0);
+  };
   const normalizeId = (value) => (value == null ? null : String(value));
   const canonicalId = (value) => {
     const id = normalizeId(value);

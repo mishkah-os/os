@@ -4178,22 +4178,14 @@
       });
       orders.sort((a,b)=> (b.updatedAt || 0) - (a.updatedAt || 0));
 
-      // ✅ CRITICAL FIX: Use same logic as OrdersListPanel.isOrderCompleted()
-      // Order is completed ONLY if: delivered/closed AND fully paid
       const isOrderCompletedForSnapshot = (order)=>{
-        const fulfillmentStage = order.fulfillmentStage || 'new';
-
-        // ✅ Check if delivered/closed
-        const isDelivered = fulfillmentStage === 'delivered' || fulfillmentStage === 'closed';
-
-        // ✅ Check if fully paid (calculate from actual payments)
+        const statusId = order.statusId || order.status || 'open';
+        const isNotOpen = String(statusId) !== 'open';
         const totals = order.totals || {};
         const totalDue = Number(totals.due || 0);
         const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
         const isFullyPaid = totalDue > 0 && paidAmount >= totalDue;
-
-        // ✅ Order is completed ONLY if BOTH conditions are met
-        return isDelivered && isFullyPaid;
+        return isNotOpen && isFullyPaid;
       };
 
       const active = [];
@@ -9396,23 +9388,14 @@
         mergedOrders.push(order);
       });
 
-      // ✅ Helper: Check if order is completed (delivered/closed + fully paid)
       const isOrderCompleted = (order)=>{
-        const fulfillmentStage = order.fulfillmentStage || 'new';
-
-        // ✅ Order is completed if:
-        // 1. Delivered (delivery/takeaway) or Closed (dine_in)
-        // 2. AND fully paid (calculated from actual payments, not paymentState field)
-        const isDelivered = fulfillmentStage === 'delivered' || fulfillmentStage === 'closed';
-
-        // ✅ CRITICAL FIX: Calculate if fully paid from actual payments instead of paymentState field
-        // paymentState field may not be updated when payments are added
+        const statusId = order.statusId || order.status || 'open';
+        const isNotOpen = String(statusId) !== 'open';
         const totals = calculateTotals(order.lines || [], settings, order.type || 'dine_in', { orderDiscount: order.discount });
         const totalDue = Number(totals?.due || 0);
         const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
         const isFullyPaid = totalDue > 0 && paidAmount >= totalDue;
-
-        return isDelivered && isFullyPaid;
+        return isNotOpen && isFullyPaid;
       };
 
       const matchesTab = (order)=>{
