@@ -7259,6 +7259,7 @@
                 orderId: orderPayload.id,
                 orderNumber: orderPayload.orderNumber || orderPayload.number || 'N/A',
                 status: 'queued',  // Initial status
+                version: 1,  // ✅ Required for optimistic concurrency control in mishkah-store
                 totalJobs: batchJobs.length,
                 readyJobs: 0,
                 batchType: batchType,
