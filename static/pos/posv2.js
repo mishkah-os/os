@@ -7215,6 +7215,41 @@
         const store = window.__POS_DB__;
         console.log('🔍 [DEBUG] store available?', !!store, 'insert function?', typeof store?.insert);
 
+        // ✅ CRITICAL FIX: Define retryWithBackoff at function level (not inside if block)
+        // This ensures it's available everywhere in persistOrderFlow (including line 7624)
+        const retryWithBackoff = async (operation, operationName, maxRetries = 3, allowRetryOnTimeout = true) => {
+          let lastError;
+          for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+              const result = await operation();
+              if (attempt > 0) {
+                console.log(`✅ [POS V2] ${operationName} succeeded on retry ${attempt}`);
+              }
+              return { success: true, result };
+            } catch (err) {
+              lastError = err;
+              const isTimeout = err?.message?.includes('timed out');
+              const isInsertOperation = operationName.toUpperCase().startsWith('INSERT');
+
+              // ✅ CRITICAL: Never retry INSERT on timeout - may cause duplicates!
+              if (isTimeout && isInsertOperation) {
+                console.warn(`⚠️ [POS V2] ${operationName} timed out - NOT retrying (INSERT operations are not idempotent)`);
+                break;
+              }
+
+              if (isTimeout && allowRetryOnTimeout && attempt < maxRetries) {
+                const delayMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+                console.warn(`⏱️ [POS V2] ${operationName} timed out (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+              } else {
+                break;
+              }
+            }
+          }
+          console.error(`❌ [POS V2] ${operationName} failed after ${maxRetries + 1} attempts:`, lastError);
+          return { success: false, error: lastError };
+        };
+
         if(store && typeof store.insert === 'function'){
           console.log('✅ [POS V2] store.insert is available, generating KDS payload...');
           // Generate KDS payload
@@ -7310,42 +7345,6 @@
             // ✅ Get existing order_header from window.database to read current version
             const existingOrderHeaders = window.database?.order_header || [];
             const existingOrderHeader = existingOrderHeaders.find(h => String(h.id) === String(order.id));
-
-            // ✅ CRITICAL FIX: Different retry strategies for different operations
-            // INSERT operations should NOT retry on timeout (may cause duplicates!)
-            // QUERY/UPDATE operations can safely retry
-            const retryWithBackoff = async (operation, operationName, maxRetries = 3, allowRetryOnTimeout = true) => {
-              let lastError;
-              for (let attempt = 0; attempt <= maxRetries; attempt++) {
-                try {
-                  const result = await operation();
-                  if (attempt > 0) {
-                    console.log(`✅ [POS V2] ${operationName} succeeded on retry ${attempt}`);
-                  }
-                  return { success: true, result };
-                } catch (err) {
-                  lastError = err;
-                  const isTimeout = err?.message?.includes('timed out');
-                  const isInsertOperation = operationName.toUpperCase().startsWith('INSERT');
-
-                  // ✅ CRITICAL: Never retry INSERT on timeout - may cause duplicates!
-                  if (isTimeout && isInsertOperation) {
-                    console.warn(`⚠️ [POS V2] ${operationName} timed out - NOT retrying (INSERT operations are not idempotent)`);
-                    break;
-                  }
-
-                  if (isTimeout && allowRetryOnTimeout && attempt < maxRetries) {
-                    const delayMs = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
-                    console.warn(`⏱️ [POS V2] ${operationName} timed out (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms...`);
-                    await new Promise(resolve => setTimeout(resolve, delayMs));
-                  } else {
-                    break;
-                  }
-                }
-              }
-              console.error(`❌ [POS V2] ${operationName} failed after ${maxRetries + 1} attempts:`, lastError);
-              return { success: false, error: lastError };
-            };
 
             // ✅ Execute all operations with retry logic and track results
             Promise.all([
