@@ -391,6 +391,12 @@ function createContext(store, config) {
       if (!definitions.has(name)) register(name);
       const def = definitions.get(name);
       return store.remove(def.table, recordRef, meta);
+    },
+    async read(tableName, id, moduleId) {
+      return store.read(tableName, id, moduleId);
+    },
+    async query(tableName, filter, moduleId) {
+      return store.query(tableName, filter, moduleId);
     }
   };
 
