@@ -4955,20 +4955,36 @@ console.log('orderId:',orderId);
       ? window.database.job_order_batch
       : [];
 
+    // ✅ CRITICAL: Match by prefix (startsWith) instead of exact match
+    // orderId can be SHORT (DAR-001001) or FULL (DAR-001001-uuid)
+    // batch.orderId is usually SHORT (DAR-001001)
+    // We check if one starts with the other (bidirectional check)
+    const orderIdStr = String(orderId);
+
     const orderBatches = allBatches.filter(b => {
-      const batchOrderId = b.orderId || b.order_id;
-      return String(batchOrderId) === String(orderId);
+      const batchOrderId = String(b.orderId || b.order_id || '');
+      if (!batchOrderId) return false;
+
+      // Match if orderId starts with batchOrderId OR batchOrderId starts with orderId
+      const match = orderIdStr.startsWith(batchOrderId) || batchOrderId.startsWith(orderIdStr);
+      return match;
     });
 
     console.log('[KDS][checkAndUpdateOrderHeaderStatus] Checking batches for order:', orderId, {
+      orderIdStr,
       totalBatches: allBatches.length,
       orderBatches: orderBatches.length,
       targetStatus,
-      batchStatuses: orderBatches.map(b => ({ id: b.id, status: b.status }))
+      batchStatuses: orderBatches.map(b => ({
+        id: b.id,
+        status: b.status,
+        orderId: b.orderId || b.order_id
+      }))
     });
 
     if (orderBatches.length === 0) {
       console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ⚠️ No batches found for order: ${orderId}`);
+      console.warn('[KDS][checkAndUpdateOrderHeaderStatus] Available batch orderIds:', allBatches.map(b => b.orderId || b.order_id));
       return;
     }
 
@@ -4978,6 +4994,11 @@ console.log('orderId:',orderId);
     if (allBatchesReady) {
       console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ✅ All batches ${targetStatus}, updating order_header:`, orderId);
 
+      // ✅ CRITICAL FIX: Match by prefix for order_header lookup too
+      // order_header.id is usually SHORT (DAR-001001)
+      // orderId might be FULL (DAR-001001-uuid)
+      const orderIdStr = String(orderId);
+
       // ✅ CRITICAL FIX: Read from window.database (NOT watcherState!)
       const allOrderHeaders = (window.database && Array.isArray(window.database.order_header))
         ? window.database.order_header
@@ -4985,13 +5006,15 @@ console.log('orderId:',orderId);
 
       const orderHeader = allOrderHeaders.find(h => {
         const headerId = String(h.id || '');
-        return headerId === orderId;
+        // Match if orderId starts with headerId OR headerId starts with orderId
+        return orderIdStr.startsWith(headerId) || headerId.startsWith(orderIdStr);
       });
 
       if (orderHeader) {
         persistOrderHeaderStatus(orderHeader.id, targetStatus, timestamp);
       } else {
         console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ⚠️ order_header not found for:`, orderId);
+        console.warn('[KDS][checkAndUpdateOrderHeaderStatus] Available orderHeader IDs:', allOrderHeaders.map(h => h.id));
       }
     } else {
       console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ⏳ Not all batches ${targetStatus} yet:`, {
