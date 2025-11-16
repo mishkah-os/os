@@ -1327,8 +1327,7 @@
     const activeBatches = batches.filter(batch => {
       if (!batch || !batch.id) return false;
       const status = batch.status;
-      // Hide batches that are fully delivered or settled
-      if (status === 'delivered' || status === 'settled') {
+      if (status === 'settled') {
         return false;
       }
       return true;
@@ -1360,8 +1359,7 @@
       // ✅ If batch exists → check status
       const status = batch.status;
 
-      // Only HIDE jobs for DELIVERED/SETTLED batches
-      if (status === 'delivered' || status === 'settled') {
+      if (status === 'settled') {
         return false;
       }
 
