@@ -3609,6 +3609,15 @@
         const parsedNotes = parseJSONSafe(row.notes_json, null);
         if(Array.isArray(parsedNotes)) normalized.notes = parsedNotes;
       }
+      // ✅ CRITICAL FIX: Preserve order type from orderTypeId/order_type_id
+      // Backend sends orderTypeId but frontend uses 'type'
+      if(!normalized.type && (row.orderTypeId || row.order_type_id || row.type_id)){
+        normalized.type = row.orderTypeId || row.order_type_id || row.type_id || 'dine_in';
+      }
+      // ✅ Also preserve orderTypeId for reference
+      if(!normalized.orderTypeId && (row.orderTypeId || row.order_type_id)){
+        normalized.orderTypeId = row.orderTypeId || row.order_type_id;
+      }
       return normalized;
     }
 
@@ -7263,9 +7272,8 @@
             jobDetailsCount: kdsPayload?.job_order_detail?.length || 0
           });
 
-          // ✅ CRITICAL FIX: Even if no job_order_header (no new items), we still need to update order_header for finalize!
-          // This handles case: reopening a saved order and finalizing it without adding new items
-          if(kdsPayload || finalize){
+          // ✅ Process KDS payload if available
+          if(kdsPayload && kdsPayload.job_order_header){
             console.log('[POS V2] Processing KDS/order_header updates:', {
               hasKdsPayload: !!kdsPayload,
               hasJobHeaders: !!kdsPayload?.job_order_header,
