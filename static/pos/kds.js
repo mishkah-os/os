@@ -1096,17 +1096,19 @@
         console.groupCollapsed(label);
         if(details && typeof details === 'object'){
           Object.keys(details).forEach(key=>{
-            console.log(`${key}:`, details[key]);
+            //console.log(`${key}:`, details[key]);
           });
         } else {
-          console.log(details);
+          //console.log(details);
         }
         console.groupEnd();
       } else {
-        console.log(label, details);
+        //console.log(label, details);
       }
     } catch(_err){
-      try{ console.log(label, details); } catch(__err){ /* ignore */ }
+      try{ //console.log(label, details);
+      // 
+      } catch(__err){ /* ignore */ }
     }
   };
 
@@ -1303,6 +1305,9 @@
   // ✅ NEW: Build orders from job_order_header for Expo/Handoff tabs
   // This replaces buildOrdersFromHeaders() to use job_order_header as single source of truth
   const buildOrdersFromJobHeaders = (db) => {
+
+   // console.log(db);
+    
     const jobHeaders = Array.isArray(db?.data?.jobHeaders) ? db.data.jobHeaders : [];
     const jobDetails = Array.isArray(db?.data?.jobOrderDetails) ? db.data.jobOrderDetails : [];
     const batches = Array.isArray(db?.data?.batches) ? db.data.batches : [];  // ✅ NEW: Get batches
@@ -1340,7 +1345,9 @@
     // Show everything else (including jobs without batch for backwards compatibility)
     const activeJobHeaders = jobHeaders.filter(header => {
       const batchId = header.batchId || header.batch_id;
-
+//  console.log(jobHeaders); لا يحتوي batchId 
+     // console.log(window.database.job_order_header); لا يحتوي batchId
+  //   console.log(window.__POS_DB__.store.state.modules.pos.tables.job_order_header) //يحتوي على بيانات batchId
       // ✅ If no batchId → show job (backwards compatible, safety)
       if (!batchId || batchId === 'no-batch') return true;
 
@@ -1366,10 +1373,8 @@
     // All jobs from same save operation → one ticket
     const jobsByBatch = new Map();
     activeJobHeaders.forEach(header => {
-      // ✅ CRITICAL FIX: Use header.id as fallback if batchId is missing!
-      // This prevents merging different jobs into 'no-batch'
-      // Old records without batchId will each be their own card
-      const batchId = header.batchId || header.batch_id || header.id;
+      const batchId = header.batchId || header.batch_id || null;
+      if (!batchId) return;
 
       if (!jobsByBatch.has(batchId)) {
         jobsByBatch.set(batchId, []);
@@ -1382,7 +1387,7 @@
     jobsByBatch.forEach((headers, batchId) => {
       // Use first header for order-level info
       const firstHeader = headers[0];
-      const orderId = firstHeader.orderId || firstHeader.order_id;
+      const orderId = firstHeader.id;
       const orderKey = normalizeOrderKey(orderId);
       let record = (orderKey && (handoff[orderKey] || handoff[orderId])) || {};
 
@@ -2818,7 +2823,7 @@
       const status = order.handoffStatus;
       // ✅ Show: pending (preparing), ready (waiting for assembly)
       // ❌ Hide: assembled, served, delivered (moved to handoff/done)
-    //  console.log(" ❌ Hide : order",order);
+    //  //console.log(" ❌ Hide : order",order);
       if(status === 'assembled' || status === 'served' || status === 'delivered' || status =='settled') return false;
 
       // ✅ Also hide settled delivery orders
@@ -2912,13 +2917,13 @@
         tw`flex flex-col gap-4 rounded-3xl border border-slate-800/60 bg-slate-950/80 p-5 shadow-xl shadow-slate-950/40`,
         highlight ? tw`border-emerald-300/70 bg-emerald-500/10 text-emerald-50 animate-pulse` : null
       );
-      const actionSection = highlight
+      const actionSection = highlight && order.batchId
         ? D.Forms.Button({
             attrs:{
               type:'button',
               gkey:'kds:handoff:assembled',
-              'data-batch-id': order.batchId,  // ✅ Pass batchId, not orderId!
-              'data-order-id': order.orderId,  // Keep for backwards compatibility
+              'data-batch-id': order.batchId,
+              'data-order-id': order.orderId,
               class: tw`w-full rounded-full border border-emerald-300/70 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-50 shadow-lg shadow-emerald-900/30 hover:bg-emerald-500/30`
             }
           }, [t.actions.handoffComplete])
@@ -3041,13 +3046,13 @@
         isAssembled ? tw`border-emerald-300/70 bg-emerald-500/10` : null
       );
 
-      const actionButton = isAssembled
+      const actionButton = isAssembled && order.batchId
         ? D.Forms.Button({
             attrs:{
               type:'button',
               gkey:'kds:handoff:served',
-              'data-batch-id': order.batchId,  // ✅ Pass batchId, not orderId!
-              'data-order-id': order.orderId,  // Keep for backwards compatibility
+              'data-batch-id': order.batchId,
+              'data-order-id': order.orderId,
               class: tw`w-full rounded-full border border-sky-400/70 bg-sky-500/20 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/30`
             }
           }, [t.actions.handoffServe])
@@ -3411,11 +3416,11 @@
     return isRecent || isNotCompleted;
   });
 
-  console.log('🧹 [KDS INIT] Filtered job_order_header:', {
-    total: rawJobOrderHeaders.length,
-    filtered: filteredJobOrderHeaders.length,
-    removed: rawJobOrderHeaders.length - filteredJobOrderHeaders.length
-  });
+  //console.log('🧹 [KDS INIT] Filtered job_order_header:', {
+  //  total: rawJobOrderHeaders.length,
+ //   filtered: filteredJobOrderHeaders.length,
+  //  removed: rawJobOrderHeaders.length - filteredJobOrderHeaders.length
+ // });
 
   const rawJobOrders = {
     job_order_header: filteredJobOrderHeaders,
@@ -4104,10 +4109,10 @@
       if(typeof console.groupCollapsed === 'function'){
       //  console.groupCollapsed(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`);
         if(typeof console.table === 'function') console.table(snapshot);
-        else console.log(snapshot);
+        else //console.log(snapshot);
         console.groupEnd();
       } else {
-       // console.log(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`, snapshot);
+       // //console.log(`[Mishkah][KDS] Interactive nodes snapshot (${snapshot.length})`, snapshot);
       }
     }
     return snapshot;
@@ -4125,11 +4130,11 @@
     }));
     if(typeof console !== 'undefined'){
       if(typeof console.groupCollapsed === 'function'){
-        console.groupCollapsed(`[Mishkah][KDS] Orders registry snapshot (${snapshot.length})`);
-        snapshot.forEach(entry=> console.log(entry));
-        console.groupEnd();
+       // console.groupCollapsed(`[Mishkah][KDS] Orders registry snapshot (${snapshot.length})`);
+       // snapshot.forEach(entry=> console.log(entry));
+      //  console.groupEnd();
       } else {
-        console.log(`[Mishkah][KDS] Orders registry snapshot (${snapshot.length})`, snapshot);
+        //console.log(`[Mishkah][KDS] Orders registry snapshot (${snapshot.length})`, snapshot);
       }
     }
     return snapshot;
@@ -4292,31 +4297,27 @@
         const btn = event?.target && event.target.closest('[data-batch-id]');
         if(!btn) return;
 
-        // ✅ CRITICAL: Get batchId from button, not orderId!
-        // Each order card represents ONE batch, so update ONLY that batch
         const batchId = btn.getAttribute('data-batch-id');
-        const orderId = btn.getAttribute('data-order-id');  // Fallback for backwards compatibility
+        const orderId = btn.getAttribute('data-order-id');
+console.log('batchId:',batchId);
+console.log('orderId:',orderId);
 
-        if(!batchId && !orderId) return;
+        if(!batchId) return;
         const nowIso = new Date().toISOString();
 
         const state = ctx.getState();
 
-        // ✅ CRITICAL: Update/Create batch.status to 'assembled' with retry logic!
-        // This moves the batch from Expo to Handoff
-        // Use UPSERT to handle missing batch records (create if not exists)
-        // MUST await this before checking allBatchesAssembled!
         if (batchId && store) {
           (async () => {
-            // ✅ First, try to read the batch to check if it exists
             let batchExists = false;
             try {
               const existingBatch = await store.read('job_order_batch', batchId);
               batchExists = !!existingBatch;
             } catch (err) {
-              console.warn('[KDS][handoff:assembled] Batch does not exist, will create:', batchId);
+               console.error(err);
             }
 
+            if (!batchExists) return;
             const batchPayload = {
               id: batchId,
               orderId: orderId,
@@ -4326,31 +4327,17 @@
               assembled_at: nowIso,
               updatedAt: nowIso,
               updated_at: nowIso,
-              createdAt: batchExists ? undefined : nowIso,  // Only set createdAt if creating
-              created_at: batchExists ? undefined : nowIso,
-              batchType: 'initial',  // Default batch type
+              batchType: 'initial',
               batch_type: 'initial'
             };
-
-            const operation = batchExists
-              ? () => store.update('job_order_batch', batchPayload)
-              : () => store.create('job_order_batch', batchPayload);
-
             const result = await retryWithBackoff(
-              operation,
-              `${batchExists ? 'Update' : 'Create'} batch to assembled`,
-              4  // 4 retries with exponential backoff
+              () => store.update('job_order_batch', batchPayload),
+              `Update batch to assembled`,
+              4
             );
-
             if (!result.success) {
-              console.error('[KDS][handoff:assembled] ❌ Failed to update batch after retries:', result.error);
-              return;  // Don't proceed if batch update failed
+              return;
             }
-
-            console.warn('[KDS][handoff:assembled] ✅ Batch updated successfully:', batchId);
-
-            // ✅ Optimistic update: Update local state immediately
-            // Don't wait for watcher - it may be slow or fail
             watcherState.batches = (watcherState.batches || []).map(b => {
               if (String(b.id) === String(batchId)) {
                 return {
@@ -4364,22 +4351,15 @@
               }
               return b;
             });
-
-            // ✅ Trigger re-render with updated batches
             updateFromWatchers();
-
-            // ✅ NOW check if all batches are assembled (after optimistic update!)
             checkAndUpdateOrderHeaderStatus(orderId, 'assembled', nowIso);
           })();
         }
 
-        // ✅ Update job_order_header for THIS BATCH ONLY (mark completed)
-        // ❌ DON'T filter by orderId - one order can have multiple batches!
-        // ✅ Filter by batchId to update ONLY jobs in this specific batch
         const jobHeaders = state.data?.jobHeaders || [];
         const jobsToComplete = jobHeaders.filter(header => {
           const headerBatchId = header.batchId || header.batch_id;
-          return headerBatchId === batchId;  // ✅ Match by batchId, not orderId!
+          return headerBatchId === batchId;
         });
 
         jobsToComplete.forEach(header => {
@@ -4392,7 +4372,6 @@
           }, {});
         });
 
-        // ✅ Persist handoff to localStorage (watch will update state)
         const handoffRecord = { status:'assembled', assembledAt: nowIso, updatedAt: nowIso };
         recordPersistedHandoff(orderId, cloneDeep(handoffRecord));
 
@@ -4409,30 +4388,24 @@
         const btn = event?.target && event.target.closest('[data-batch-id]');
         if(!btn) return;
 
-        // ✅ CRITICAL: Get batchId from button, not orderId!
-        // Each order card represents ONE batch, so update ONLY that batch
         const batchId = btn.getAttribute('data-batch-id');
-        const orderId = btn.getAttribute('data-order-id');  // Fallback for backwards compatibility
+        const orderId = btn.getAttribute('data-order-id');
 
-        if(!batchId && !orderId) return;
+        if(!batchId) return;
         const nowIso = new Date().toISOString();
 
         const state = ctx.getState();
 
-        // ✅ CRITICAL: Update/Create batch.status to 'served' with retry logic!
-        // This moves the batch from Handoff to Delivery (if delivery) or completes it
-        // Use UPSERT to handle missing batch records (create if not exists)
         if (batchId && store) {
           (async () => {
-            // ✅ First, try to read the batch to check if it exists
             let batchExists = false;
             try {
               const existingBatch = await store.read('job_order_batch', batchId);
               batchExists = !!existingBatch;
             } catch (err) {
-              console.warn('[KDS][handoff:served] Batch does not exist, will create:', batchId);
             }
 
+            if (!batchExists) return;
             const batchPayload = {
               id: batchId,
               orderId: orderId,
@@ -4442,30 +4415,17 @@
               served_at: nowIso,
               updatedAt: nowIso,
               updated_at: nowIso,
-              createdAt: batchExists ? undefined : nowIso,
-              created_at: batchExists ? undefined : nowIso,
               batchType: 'initial',
               batch_type: 'initial'
             };
-
-            const operation = batchExists
-              ? () => store.update('job_order_batch', batchPayload)
-              : () => store.create('job_order_batch', batchPayload);
-
             const result = await retryWithBackoff(
-              operation,
-              `${batchExists ? 'Update' : 'Create'} batch to served`,
+              () => store.update('job_order_batch', batchPayload),
+              `Update batch to served`,
               4
             );
-
             if (!result.success) {
-              console.error('[KDS][handoff:served] ❌ Failed to update batch after retries:', result.error);
               return;
             }
-
-            console.warn('[KDS][handoff:served] ✅ Batch updated successfully:', batchId);
-
-            // ✅ Optimistic update
             watcherState.batches = (watcherState.batches || []).map(b => {
               if (String(b.id) === String(batchId)) {
                 return {
@@ -4967,7 +4927,7 @@
       try {
         const result = await operation();
         if (attempt > 0) {
-          console.log(`✅ [KDS] ${operationName} succeeded on retry ${attempt}`);
+          //console.log(`✅ [KDS] ${operationName} succeeded on retry ${attempt}`);
         }
         return { success: true, result };
       } catch (err) {
@@ -4995,11 +4955,11 @@
     // 2. Faster than HTTP requests
     // 3. With retry logic, timeouts are handled gracefully
 
-    console.log('[KDS][persistJobOrderStatusChange] Starting status change via WebSocket:', {
-      jobId,
-      status: statusPayload.status,
-      progressState: statusPayload.progressState
-    });
+    //console.log('[KDS][persistJobOrderStatusChange] Starting status change via WebSocket:', {
+     // jobId,
+    //  status: statusPayload.status,
+    //  progressState: statusPayload.progressState
+   // });
 
     try {
       if (!store || typeof store.update !== 'function') {
@@ -5037,14 +4997,14 @@
       try {
         // This will strip out any problematic fields that can't be serialized
         sanitizedPayload = JSON.parse(JSON.stringify(headerPayload));
-        console.log('[KDS][persistJobOrderStatusChange] ✅ Payload sanitized successfully');
+        //console.log('[KDS][persistJobOrderStatusChange] ✅ Payload sanitized successfully');
       } catch (sanitizeError) {
         console.error('[KDS][persistJobOrderStatusChange] ❌ Failed to sanitize payload:', sanitizeError);
         console.error('[KDS][persistJobOrderStatusChange] Original payload:', headerPayload);
         throw new Error(`Payload contains non-serializable data: ${sanitizeError.message}`);
       }
 
-      console.log('[KDS][persistJobOrderStatusChange] 📤 Updating job_order_header via WebSocket:', jobId, sanitizedPayload);
+      //console.log('[KDS][persistJobOrderStatusChange] 📤 Updating job_order_header via WebSocket:', jobId, sanitizedPayload);
 
       // ✅ Update with retry logic (job_order_header is NOT versioned - no version needed)
       const headerResult = await retryWithBackoff(
@@ -5074,12 +5034,12 @@
             throw new Error(`Failed to INSERT job_order_header after UPDATE failed: ${insertResult.error?.message}`);
           }
 
-          console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header inserted successfully (fallback)');
+          //console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header inserted successfully (fallback)');
         } else {
           throw new Error(`Failed to update job_order_header and no fallback record available in window.database`);
         }
       } else {
-        console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated successfully');
+        //console.log('[KDS][persistJobOrderStatusChange] ✅ job_order_header updated successfully');
       }
 
       // ✅ STEP 2: Update all job_order_detail for this job (in parallel)
@@ -5088,11 +5048,11 @@
         String(detail.jobOrderId || detail.job_order_id) === jobId
       );
 
-      console.log('[KDS][persistJobOrderStatusChange] Updating job_order_detail:', {
-        jobId,
-        detailsCount: jobDetails.length,
-        detailIds: jobDetails.map(d => d.id)
-      });
+      //console.log('[KDS][persistJobOrderStatusChange] Updating job_order_detail:', {
+    //    jobId,
+      //  detailsCount: jobDetails.length,
+     //   detailIds: jobDetails.map(d => d.id)
+    //  });
 
       const detailPayload = {
         status: statusPayload.status,
@@ -5139,9 +5099,9 @@
             return { success: false, id: detail.id, error: insertResult.error };
           }
 
-          console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail inserted (fallback): ${detail.id}`);
+          //console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail inserted (fallback): ${detail.id}`);
         } else {
-          console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail updated: ${detail.id}`);
+          //console.log(`[KDS][persistJobOrderStatusChange] ✅ job_order_detail updated: ${detail.id}`);
         }
 
         return { success: true, id: detail.id };
@@ -5150,11 +5110,11 @@
       const detailResults = await Promise.all(detailUpdatePromises);
       const successCount = detailResults.filter(r => r.success).length;
 
-      console.log('[KDS][persistJobOrderStatusChange] job_order_detail updates completed:', {
-        total: detailResults.length,
-        success: successCount,
-        failed: detailResults.length - successCount
-      });
+      //console.log('[KDS][persistJobOrderStatusChange] job_order_detail updates completed:', {
+     //   total: detailResults.length,
+    //    success: successCount,
+    //    failed: detailResults.length - successCount
+   //   });
 
       // ✅ STEP 3: Update order_line (only for items in this job)
       const baseOrderId = extractBaseOrderId(jobId);
@@ -5174,11 +5134,11 @@
           return matchesOrder && jobItemIds.includes(lineItemId);
         });
 
-        console.log('[KDS][persistJobOrderStatusChange] Updating order_line:', {
-          baseOrderId,
-          matchingLines: matchingLines.length,
-          lineIds: matchingLines.map(l => l.id)
-        });
+        //console.log('[KDS][persistJobOrderStatusChange] Updating order_line:', {
+       //   baseOrderId,
+       //   matchingLines: matchingLines.length,
+       //   lineIds: matchingLines.map(l => l.id)
+      //  });
 
         // ✅ Update all matching lines in parallel via WebSocket
         // ⚠️ order_line is VERSIONED table - must include version!
@@ -5216,7 +5176,7 @@
             return { success: false, id: line.id, error: result.error };
           }
 
-          console.log(`[KDS][persistJobOrderStatusChange] ✅ order_line updated: ${line.id} (v${nextVersion})`);
+          //console.log(`[KDS][persistJobOrderStatusChange] ✅ order_line updated: ${line.id} (v${nextVersion})`);
           return { success: true, id: line.id };
         });
 
@@ -5235,7 +5195,7 @@
         });
 
         if (allLinesReady && orderAllLines.length > 0) {
-          console.log('[KDS][persistJobOrderStatusChange] All lines ready, updating order_header via WebSocket:', baseOrderId);
+          //console.log('[KDS][persistJobOrderStatusChange] All lines ready, updating order_header via WebSocket:', baseOrderId);
 
           // ✅ Find order_header to get current version (order_header IS versioned!)
           const orderHeaders = watcherState.orderHeaders || [];
@@ -5269,7 +5229,7 @@
                 `UPDATE order_header: ${baseOrderId} (v${currentVersion}→v${nextVersion})`
               );
 
-              console.log(`[KDS][persistJobOrderStatusChange] ✅ order_header updated to ready: ${baseOrderId} (v${nextVersion})`);
+              //console.log(`[KDS][persistJobOrderStatusChange] ✅ order_header updated to ready: ${baseOrderId} (v${nextVersion})`);
             } else {
               console.error(`❌ [KDS] Cannot update order_header without valid version!`, {
                 orderId: baseOrderId,
@@ -5281,11 +5241,11 @@
             console.warn(`[KDS][persistJobOrderStatusChange] ⚠️ order_header not found for: ${baseOrderId}`);
           }
 
-          console.log('[KDS][persistJobOrderStatusChange] ✅ order_header updated to ready');
+          //console.log('[KDS][persistJobOrderStatusChange] ✅ order_header updated to ready');
         }
       }
 
-      console.log('[KDS][persistJobOrderStatusChange] ✅ All updates completed successfully');
+      //console.log('[KDS][persistJobOrderStatusChange] ✅ All updates completed successfully');
 
       // ✅ STEP 5: Update local watcherState for immediate UI update
       watcherState.headers = (watcherState.headers || []).map(h => {
@@ -5343,11 +5303,11 @@
         const isLocked = ['assembled', 'served', 'delivered', 'settled'].includes(currentBatchStatus);
 
         if (isLocked) {
-          console.log('[KDS][persistJobOrderStatusChange] ⚠️ Batch status is locked (already assembled/served/delivered):', {
-            batchId,
-            currentStatus: currentBatchStatus,
-            skippingUpdate: true
-          });
+          //console.log('[KDS][persistJobOrderStatusChange] ⚠️ Batch status is locked (already assembled/served/delivered):', {
+          //  batchId,
+         //   currentStatus: currentBatchStatus,
+          //  skippingUpdate: true
+        //  });
           // Don't update batch.status - keep it as is
         } else {
           // Batch is still in cooking phase - update status based on jobs
@@ -5358,12 +5318,12 @@
           // Compute batch status
           const batchInfo = computeBatchStatus(batchJobs);
 
-          console.log('[KDS][persistJobOrderStatusChange] Batch status computed:', {
-            batchId,
-            status: batchInfo.status,
-            progress: `${batchInfo.readyJobs}/${batchInfo.totalJobs}`,
-            progressPercent: batchInfo.progress
-          });
+          //console.log('[KDS][persistJobOrderStatusChange] Batch status computed:', {
+          //  batchId,
+          //  status: batchInfo.status,
+          //  progress: `${batchInfo.readyJobs}/${batchInfo.totalJobs}`,
+         //   progressPercent: batchInfo.progress
+         // });
 
           // ✅ Update batch via store.update (triggers watch!)
           try {
@@ -5377,7 +5337,7 @@
                 updated_at: statusPayload.updatedAt || new Date().toISOString()
               });
 
-              console.log('[KDS][persistJobOrderStatusChange] ✅ Batch status updated via store.update:', batchInfo.status);
+              //console.log('[KDS][persistJobOrderStatusChange] ✅ Batch status updated via store.update:', batchInfo.status);
             } else {
               console.warn('[KDS][persistJobOrderStatusChange] ⚠️ Store not available, skipping batch update');
             }
@@ -5437,13 +5397,13 @@
       return; // Abort update - will fail anyway
     }
 
-    console.log('🔄 [KDS] Updating order_header status:', {
-      orderId,
-      status,
-      currentVersion,
-      nextVersion,
-      versionValid: true
-    });
+    //console.log('🔄 [KDS] Updating order_header status:', {
+     // orderId,
+    //  status,
+    //  currentVersion,
+   //   nextVersion,
+    //  versionValid: true
+   // });
 
     // ✅ Apply optimistic update (only on first attempt)
     if (retryCount === 0) {
@@ -5514,12 +5474,12 @@
         }
       }
 
-      console.log('[KDS] 📤 Sending order_header update:', {
-        orderId: headerUpdate.id,
-        status: headerUpdate.status,
-        version: `${currentVersion}→${nextVersion}`,
-        fulfillmentStage: headerUpdate.fulfillmentStage
-      });
+      //console.log('[KDS] 📤 Sending order_header update:', {
+    //    orderId: headerUpdate.id,
+     //   status: headerUpdate.status,
+      //  version: `${currentVersion}→${nextVersion}`,
+      //  fulfillmentStage: headerUpdate.fulfillmentStage
+   //   });
 
       // ✅ Increase timeout to 10 seconds for order_header updates
       await Promise.race([
@@ -5527,7 +5487,7 @@
         new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
       ]);
 
-      console.log('[KDS] ✅ order_header update successful:', orderId, 'version:', nextVersion);
+      //console.log('[KDS] ✅ order_header update successful:', orderId, 'version:', nextVersion);
 
       // ✅ Broadcast the change to other KDS instances
       if (syncClient && typeof syncClient.publishHandoffUpdate === 'function') {
@@ -5605,7 +5565,7 @@
         // ℹ️ NOTE: delivery_driver is NOT a versioned table (per MISHKAH_STORE_UPDATE_GUIDE.md)
         // Only order_header and order_line require version field
         // However, we still include version field for compatibility with backend
-        console.log('[KDS][persistDeliveryAssignment] Insert failed, trying update:', insertError.message);
+        //console.log('[KDS][persistDeliveryAssignment] Insert failed, trying update:', insertError.message);
 
         const updateRecord = {
           ...deliveryRecord
@@ -5617,7 +5577,7 @@
           new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
         ]);
 
-        console.log('[KDS][persistDeliveryAssignment] ✅ Update successful');
+        //console.log('[KDS][persistDeliveryAssignment] ✅ Update successful');
       }
 
     } catch (error) {
@@ -6567,10 +6527,12 @@
           status === 'ready' ? 'completed' : status === 'in_progress' ? 'cooking' : 'awaiting'
         );
         jobHeaders.push({
-          id: job.jobOrderId || job.id,
-          jobOrderId: job.jobOrderId || job.id,
+          id:  job.id,
+          jobOrderId:  job.id,
           orderId: job.orderId,
           orderNumber: job.orderNumber,
+          batchId: order.header?.batchId || order.header?.batch_id || null,
+          batch_id: order.header?.batch_id || order.header?.batchId || null,
           stationId: job.stationId,
           stationCode: job.stationCode,
           status,
@@ -6712,17 +6674,17 @@
   };
 
   const updateFromWatchers = () => {
-    console.log('🔄 [KDS] updateFromWatchers() CALLED');
+    //console.log('🔄 [KDS] updateFromWatchers() CALLED');
 
     const payload = buildWatcherPayload();
 
-    console.log('📦 [KDS] Built payload:', {
-      orderHeaderCount: payload?.order_header?.length || 0,
-      orderLineCount: payload?.order_line?.length || 0,
-      jobHeaderCount: payload?.job_order_header?.length || 0,
-      jobDetailCount: payload?.job_order_detail?.length || 0,
-      batchCount: payload?.job_order_batch?.length || 0
-    });
+    //console.log('📦 [KDS] Built payload:', {
+     // orderHeaderCount: payload?.order_header?.length || 0,
+     // orderLineCount: payload?.order_line?.length || 0,
+   //   jobHeaderCount: payload?.job_order_header?.length || 0,
+    //  jobDetailCount: payload?.job_order_detail?.length || 0,
+   //   batchCount: payload?.job_order_batch?.length || 0
+   // });
 
     // ✅ Check flat structure for both static tabs (order_header/order_line) and dynamic tabs (job_order_*)
     const hasData = payload && (
@@ -6732,14 +6694,14 @@
       (Array.isArray(payload.job_order_detail) && payload.job_order_detail.length > 0)
     );
 
-    console.log('✅ [KDS] hasData check:', hasData);
+    //console.log('✅ [KDS] hasData check:', hasData);
 
     if (!hasData) {
-      console.log('⚠️ [KDS] No data to display, skipping applyRemoteOrder');
+      //console.log('⚠️ [KDS] No data to display, skipping applyRemoteOrder');
       return;
     }
 
-    console.log('📤 [KDS] Calling applyRemoteOrder with payload');
+    //console.log('📤 [KDS] Calling applyRemoteOrder with payload');
     applyRemoteOrder(app, payload, { channel: watcherState.channel || BRANCH_CHANNEL });
     // ✅ FIX: Don't use posPayload (it's null) - use initialState instead
     const lang = initialState.env.lang || 'ar';
@@ -6817,15 +6779,15 @@
     // لما الـ cache يكون فاضي عند أول watch() call
     // مش محتاجين نعمل fetch يدوي بعد كده! 🎉
     const setupWatchers = () => {
-      console.log('🎬 [KDS] setupWatchers() CALLED - Installing all watchers now!');
+      //console.log('🎬 [KDS] setupWatchers() CALLED - Installing all watchers now!');
 
       // ✅ DEBUG: Log registered tables to verify job_order_header exists
-      console.log('🔍🔍🔍 [KDS] Store configuration:', {
-        configObjects: Object.keys(store.config?.objects || {}),
-        hasJobOrderHeader: store.config?.objects?.hasOwnProperty('job_order_header'),
-        connected: store?.connected || 'unknown',
-        totalWatchers: watcherUnsubscribers.length
-      });
+      //console.log('🔍🔍🔍 [KDS] Store configuration:', {
+     //   configObjects: Object.keys(store.config?.objects || {}),
+      //  hasJobOrderHeader: store.config?.objects?.hasOwnProperty('job_order_header'),
+       // connected: store?.connected || 'unknown',
+      //  totalWatchers: watcherUnsubscribers.length
+    //  });
 
       watcherUnsubscribers.push(
         store.status((status) => {
@@ -6840,18 +6802,18 @@
 
       watcherUnsubscribers.push(
         store.watch('job_order_header', (rows) => {
-          console.log('🔔🔔🔔 [KDS] job_order_header WATCHER triggered!', {
-            rowsCount: rows?.length || 0,
-            storeConnected: store?.connected || 'unknown',
-            timestamp: new Date().toISOString()
-          });
+          //console.log('🔔🔔🔔 [KDS] job_order_header WATCHER triggered!', {
+         //   rowsCount: rows?.length || 0,
+       //     storeConnected: store?.connected || 'unknown',
+        //    timestamp: new Date().toISOString()
+       //   });
           // ✅ CRITICAL FIX: DON'T filter by progressState='completed'!
           // Jobs that finished cooking (progressState='completed') should STAY visible
           // in Expo/Handoff until ORDER is delivered (assembled/served)
           // Filtering happens at UI layer based on order.handoffStatus
           const allHeaders = ensureArray(rows);
           watcherState.headers = allHeaders;  // Keep ALL jobs
-          console.log('✅ [KDS] Updated watcherState.headers:', allHeaders.length, 'jobs');
+          //console.log('✅ [KDS] Updated watcherState.headers:', allHeaders.length, 'jobs');
 
           updateFromWatchers();
         })
@@ -6859,16 +6821,16 @@
 
       watcherUnsubscribers.push(
         store.watch('job_order_detail', (rows) => {
-          console.log('📋 [KDS] job_order_detail WATCHER triggered!', {
-            rowsCount: rows?.length || 0,
-            sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
-            timestamp: new Date().toISOString()
-          });
+          //console.log('📋 [KDS] job_order_detail WATCHER triggered!', {
+          //  rowsCount: rows?.length || 0,
+          //  sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
+           // timestamp: new Date().toISOString()
+         // });
           // ✅ CRITICAL FIX: Keep ALL details, don't filter by job completion
           // Details should stay visible in Expo/Handoff even after cooking is done
           const allDetails = ensureArray(rows);
           watcherState.lines = allDetails;  // Keep ALL details
-          console.log('✅ [KDS] Updated watcherState.lines:', allDetails.length, 'details');
+          //console.log('✅ [KDS] Updated watcherState.lines:', allDetails.length, 'details');
           updateFromWatchers();
         })
       );
@@ -6876,10 +6838,10 @@
       // ✅ Watch job_order_batch for batch workflow
       watcherUnsubscribers.push(
         store.watch('job_order_batch', (rows) => {
-          console.log('📦 [KDS] job_order_batch WATCHER triggered!', {
-            rowsCount: rows?.length || 0,
-            timestamp: new Date().toISOString()
-          });
+          //console.log('📦 [KDS] job_order_batch WATCHER triggered!', {
+         //   rowsCount: rows?.length || 0,
+         //   timestamp: new Date().toISOString()
+       //   });
           watcherState.batches = ensureArray(rows);
           updateFromWatchers();
         })
@@ -6888,13 +6850,13 @@
       // ✅ Watch order_header for static tabs
       watcherUnsubscribers.push(
         store.watch('order_header', (rows) => {
-          console.log('📄 [KDS] order_header WATCHER triggered!', {
-            rowsCount: rows?.length || 0,
-            sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
-            timestamp: new Date().toISOString()
-          });
+          //console.log('📄 [KDS] order_header WATCHER triggered!', {
+         //   rowsCount: rows?.length || 0,
+         //   sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
+         //   timestamp: new Date().toISOString()
+          //});
           watcherState.orderHeaders = ensureArray(rows);
-          console.log('✅ [KDS] Updated watcherState.orderHeaders:', watcherState.orderHeaders.length, 'orders');
+          //console.log('✅ [KDS] Updated watcherState.orderHeaders:', watcherState.orderHeaders.length, 'orders');
           updateFromWatchers();
         })
       );
@@ -6902,13 +6864,13 @@
       // ✅ Watch order_line for static tabs
       watcherUnsubscribers.push(
         store.watch('order_line', (rows) => {
-          console.log('📝 [KDS] order_line WATCHER triggered!', {
-            rowsCount: rows?.length || 0,
-            sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
-            timestamp: new Date().toISOString()
-          });
+          //console.log('📝 [KDS] order_line WATCHER triggered!', {
+         //   rowsCount: rows?.length || 0,
+         //   sampleIds: rows?.slice(0, 3).map(r => r.id) || [],
+          //  timestamp: new Date().toISOString()
+         // });
           watcherState.orderLines = ensureArray(rows);
-          console.log('✅ [KDS] Updated watcherState.orderLines:', watcherState.orderLines.length, 'lines');
+          //console.log('✅ [KDS] Updated watcherState.orderLines:', watcherState.orderLines.length, 'lines');
           updateFromWatchers();
         })
       );
@@ -6954,7 +6916,7 @@
       watcherUnsubscribers.push(
         store.watch('order_payment', (rows) => {
           const payments = ensureArray(rows);
-          console.log('[KDS] order_payment updated:', { count: payments.length });
+          //console.log('[KDS] order_payment updated:', { count: payments.length });
 
           // ✅ Group payments by orderId
           const paymentsByOrder = new Map();
@@ -6989,16 +6951,16 @@
             // ✅ Get total due from order
             const totalDue = Number(orderHeader.total_due || orderHeader.totalDue || orderHeader.amount || 0);
 
-            console.log('[KDS] Delivery order payment check:', {
-              orderId,
-              totalPaid,
-              totalDue,
-              isFullyPaid: totalPaid >= totalDue
-            });
+            //console.log('[KDS] Delivery order payment check:', {
+           //   orderId,
+          //    totalPaid,
+            //  totalDue,
+           //   isFullyPaid: totalPaid >= totalDue
+         //   });
 
             // ✅ If fully paid, close the order
             if (totalDue > 0 && totalPaid >= totalDue) {
-              console.log('[KDS] ✅ Delivery order fully paid, closing:', orderId);
+              //console.log('[KDS] ✅ Delivery order fully paid, closing:', orderId);
 
               // Update order_header to closed
               const nowIso = new Date().toISOString();

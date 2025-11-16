@@ -135,7 +135,7 @@
 
         try {
           // 1. Load schema first
-          console.log('📥 [KDS] Loading schema from /api/schema...');
+          //console.log('📥 [KDS] Loading schema from /api/schema...');
           const schemaParams = new URLSearchParams({ branch: BRANCH_ID, module: MODULE_ID });
           const schemaResponse = await fetch(window.basedomain + `/api/schema?${schemaParams.toString()}`);
           if (!schemaResponse.ok) {
@@ -147,7 +147,7 @@
             throw new Error(`Module "${MODULE_ID}" not found in schema`);
           }
 
-          console.log('✅ [KDS] Schema loaded:', moduleEntry.schema);
+          //console.log('✅ [KDS] Schema loaded:', moduleEntry.schema);
           window.__POS_MODULE_ENTRY__ = moduleEntry;
 
           // 2. Define tables to watch (CRITICAL: include ALL job_order tables!)
@@ -171,7 +171,7 @@
             'pos_shift'
           ];
 
-          console.log('🔌 [KDS] Creating WebSocket connection with createDBAuto...');
+          //console.log('🔌 [KDS] Creating WebSocket connection with createDBAuto...');
 
           // 3. Use createDBAuto directly (same as posv2.html)
           const db = window.createDBAuto(moduleEntry.schema, tables, {
@@ -184,15 +184,15 @@
           });
 
           window.__POS_DB__ = db;
-          console.log('✅ [KDS] createDBAuto called, waiting for ready...');
+          //console.log('✅ [KDS] createDBAuto called, waiting for ready...');
 
           await db.ready();
-          console.log('✅ [KDS] WebSocket ready!');
+          //console.log('✅ [KDS] WebSocket ready!');
 
           // 4. Load initial data from REST API
           const loadFromRestApi = async () => {
             try {
-              console.log('📥 [KDS] Loading initial data from REST API...');
+              //console.log('📥 [KDS] Loading initial data from REST API...');
               const tables = await window.loadPosData(BRANCH_ID, MODULE_ID);
               window.database = tables;
 
@@ -203,7 +203,7 @@
 
               status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
               status.keys = Object.keys(tables);
-              console.log('✅ [KDS] REST API data loaded:', Object.keys(tables));
+              //console.log('✅ [KDS] REST API data loaded:', Object.keys(tables));
             } catch (error) {
               console.error('❌ [KDS] REST API load failed:', error);
               window.database = {};
@@ -219,7 +219,7 @@
             ? db.getRegisteredNames()
             : Object.keys(db.config?.objects || {});
 
-          console.log('👀 [KDS] Setting up watchers for:', registeredNames);
+          //console.log('👀 [KDS] Setting up watchers for:', registeredNames);
 
           registeredNames.forEach(name => {
             if (name === 'pos_database') return;
@@ -233,15 +233,15 @@
                 window.database.kitchen_section = rows;
               }
 
-              console.log(`🔄 [KDS] Table "${tableName}" updated:`, rows.length, 'rows');
+              //console.log(`🔄 [KDS] Table "${tableName}" updated:`, rows.length, 'rows');
             });
           });
 
           // 6. Load kds.js (with cache-busting timestamp)
-          console.log('🚀 [KDS] Loading kds.js...');
+          //console.log('🚀 [KDS] Loading kds.js...');
           const script = document.createElement('script');
           script.src = `./kds.js?v=${Date.now()}`;
-          script.onload = () => console.log('[KDS] kds.js loaded successfully');
+          script.onload = () => //console.log('[KDS] kds.js loaded successfully');
           script.onerror = () => console.error('[KDS] Failed to load kds.js');
           document.body.appendChild(script);
 
