@@ -9381,7 +9381,10 @@
         if(order.isDraft === true || order.header?.is_draft === true || order.header?.isDraft === true) return true;
         return false;
       };
-      [db.data.order, ...(db.data.ordersQueue || [])].forEach(order=>{
+      const sourceOrders = (activeTab === 'completed')
+        ? (Array.isArray(db.data.ordersHistory) ? db.data.ordersHistory.slice() : [])
+        : [db.data.order, ...(db.data.ordersQueue || [])];
+      sourceOrders.forEach(order=>{
         if(!order || !order.id || seen.has(order.id)) return;
         if(isDraftOrder(order)) return;
         seen.add(order.id);
@@ -9400,7 +9403,6 @@
 
       const matchesTab = (order)=>{
         if(activeTab === 'completed'){
-          // ✅ Show only completed orders (delivered + paid)
           return isOrderCompleted(order);
         }
 
