@@ -4566,23 +4566,44 @@ console.log('orderId:',orderId);
         // ✅ CRITICAL: Update ONLY the specific batch (not all batches for this order!)
         const state = ctx.getState();
 
-        if (batchId) {
-          // ✅ NEW WAY: Update specific batch by batchId
-          if (store && typeof store.update === 'function') {
-            store.update('job_order_batch', {
-              id: batchId,
+        // ✅ Update batch status using store.read → store.update pattern
+        const updateBatchStatus = async (bId) => {
+          if (!store || typeof store.read !== 'function' || typeof store.update !== 'function') {
+            console.warn('[KDS] Store not available for batch update');
+            return;
+          }
+
+          try {
+            // ✅ STEP 1: Read actual batch from database
+            const readResult = await store.read('job_order_batch', { id: bId });
+
+            if (!readResult || !readResult.success || !readResult.data || readResult.data.length === 0) {
+              console.warn('[KDS] Batch not found:', bId);
+              return;
+            }
+
+            // ✅ STEP 2: Update with only changed fields
+            const currentBatch = readResult.data[0];
+            await store.update('job_order_batch', {
+              id: bId,
               status: 'delivered',
               deliveredAt: nowIso,
               delivered_at: nowIso,
               updatedAt: nowIso,
               updated_at: nowIso
-            }).catch(err => {
-              console.error('[KDS] Failed to update batch status:', err);
             });
+
+            console.log('[KDS] ✅ Batch status updated to delivered:', bId);
+          } catch (err) {
+            console.error('[KDS] Failed to update batch status:', err);
           }
+        };
+
+        if (batchId) {
+          // ✅ NEW WAY: Update specific batch by batchId
+          updateBatchStatus(batchId);
         } else {
           // ❌ OLD WAY (backwards compatibility): Update all served/assembled batches for orderId
-          // This will be removed in future versions
           const batches = state.data.batches || [];
           const servedBatches = batches.filter(batch => {
             const batchOrderId = batch.orderId || batch.order_id;
@@ -4592,18 +4613,7 @@ console.log('orderId:',orderId);
           });
 
           servedBatches.forEach(batch => {
-            if (store && typeof store.update === 'function') {
-              store.update('job_order_batch', {
-                id: batch.id,
-                status: 'delivered',
-                deliveredAt: nowIso,
-                delivered_at: nowIso,
-                updatedAt: nowIso,
-                updated_at: nowIso
-              }).catch(err => {
-                console.error('[KDS] Failed to update batch status:', err);
-              });
-            }
+            updateBatchStatus(batch.id);
           });
         }
 
@@ -5377,14 +5387,19 @@ console.log('orderId:',orderId);
     }
 
     try {
+      // ✅ CRITICAL FIX: Extract short order ID for order_header lookup
+      // orderId might be FULL job_order_header.id (long) but order_header.id is SHORT
+      // Example: "DAR-001001-uuid-timestamp" → "DAR-001001"
+      const shortOrderId = extractBaseOrderId(orderId);
+
       // ✅ STEP 1: Read the actual record from store (NOT from watcherState!)
       const readResult = await Promise.race([
-        store.read('order_header', { id: orderId }),
+        store.read('order_header', { id: shortOrderId }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Read timeout after 10s')), 10000))
       ]);
 
       if (!readResult || !readResult.success || !readResult.data || readResult.data.length === 0) {
-        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in store:', orderId);
+        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in store:', shortOrderId, '(original:', orderId, ')');
         return;
       }
 
@@ -5449,7 +5464,8 @@ console.log('orderId:',orderId);
       // ✅ STEP 5: Update watcherState for immediate UI update (optimistic update)
       const orderHeaders = watcherState.orderHeaders || [];
       watcherState.orderHeaders = orderHeaders.map(header => {
-        if (String(header.id) === String(orderId)) {
+        // ✅ CRITICAL: Match using shortOrderId since order_header.id is SHORT
+        if (String(header.id) === String(shortOrderId)) {
           return {
             ...header,
             statusId: status,
