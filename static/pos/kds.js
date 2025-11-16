@@ -2357,7 +2357,7 @@
         const isDelivery = (order.serviceMode || 'dine_in').toLowerCase() === 'delivery';
         if(!isDelivery) return false;
 
-        const settlement = settlements[order.orderId];
+        const settlement = settlements[order.shortOrderId];
         const isSettled = settlement && settlement.status === 'settled';
 
         return isSettled;
@@ -2516,8 +2516,8 @@
       })
       .map(order=> ({
         ...order,
-        assignment: assignments[order.orderId] || null,
-        settlement: settlements[order.orderId] || null
+        assignment: assignments[order.shortOrderId] || null,
+        settlement: settlements[order.shortOrderId] || null
       }));
   };
 
@@ -2537,8 +2537,8 @@
       })
       .map(order=> ({
         ...order,
-        assignment: assignments[order.orderId] || null,
-        settlement: settlements[order.orderId] || null
+        assignment: assignments[order.shortOrderId] || null,
+        settlement: settlements[order.shortOrderId] || null
       }))
       .filter(order=>{
         // Hide settled orders
@@ -2830,7 +2830,7 @@
       if((order.serviceMode || 'dine_in').toLowerCase() === 'delivery') {
         const deliveriesState = db.data.deliveries || {};
         const settlements = deliveriesState.settlements || {};
-        const settlement = settlements[order.orderId];
+        const settlement = settlements[order.shortOrderId];
         if(settlement && settlement.status === 'settled') return false;
       }
 
@@ -3018,13 +3018,13 @@
       D.Containers.Div({ attrs:{ class: tw`flex flex-wrap gap-2 pt-2` }}, [
         // ❌ إخفاء زر تعيين السائق في معلقات الدليفري
         !isPendingSettlement
-          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:assign', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-sky-400/60 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/20` }}, [t.actions.assignDriver])
+          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:assign', 'data-order-id':order.shortOrderId, class: tw`flex-1 rounded-full border border-sky-400/60 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-100 hover:bg-sky-500/20` }}, [t.actions.assignDriver])
           : null,
         statusKey !== 'delivered' && statusKey !== 'settled' && !isPendingSettlement
-          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:complete', 'data-batch-id':order.batchId, 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20` }}, [t.actions.delivered])
+          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:complete', 'data-batch-id':order.batchId, 'data-order-id':order.shortOrderId, class: tw`flex-1 rounded-full border border-emerald-400/60 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/20` }}, [t.actions.delivered])
           : null,
         isPendingSettlement
-          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:settle', 'data-order-id':order.orderId, class: tw`flex-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20` }}, [t.actions.settle])
+          ? D.Forms.Button({ attrs:{ type:'button', gkey:'kds:delivery:settle', 'data-order-id':order.shortOrderId, class: tw`flex-1 rounded-full border border-amber-400/60 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 hover:bg-amber-500/20` }}, [t.actions.settle])
           : null
       ].filter(Boolean))
     ].filter(Boolean));
