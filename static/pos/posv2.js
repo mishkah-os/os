@@ -2006,7 +2006,8 @@
           metadata,
           totals,
           discount: normalizeDiscount(raw.discount),
-          type: raw.type || raw.orderType || raw.order_type || 'dine_in',
+          // ✅ CRITICAL FIX: Backend sends orderTypeId, not type!
+          type: raw.type || raw.orderTypeId || raw.order_type_id || raw.orderType || raw.order_type || metadata.orderType || metadata.orderTypeId || 'dine_in',
           status: raw.status || raw.statusId || raw.status_id || 'open',
           fulfillmentStage: raw.fulfillmentStage || raw.stage || raw.stageId || raw.stage_id || 'new',
           paymentState:
