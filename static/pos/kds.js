@@ -4948,11 +4948,23 @@ console.log('orderId:',orderId);
    * @param {string} timestamp - ISO timestamp
    */
   const checkAndUpdateOrderHeaderStatus = (orderId, targetStatus, timestamp) => {
-    // Read from watcherState (optimistically updated)
-    const batches = watcherState.batches || [];
-    const orderBatches = batches.filter(b => {
+    // ✅ CRITICAL FIX: Read from window.database (NOT watcherState!)
+    // watcherState.batches may be stale/empty after watcher updates
+    // window.database.job_order_batch is always up-to-date from watchers
+    const allBatches = (window.database && Array.isArray(window.database.job_order_batch))
+      ? window.database.job_order_batch
+      : [];
+
+    const orderBatches = allBatches.filter(b => {
       const batchOrderId = b.orderId || b.order_id;
-      return batchOrderId === orderId;
+      return String(batchOrderId) === String(orderId);
+    });
+
+    console.log('[KDS][checkAndUpdateOrderHeaderStatus] Checking batches for order:', orderId, {
+      totalBatches: allBatches.length,
+      orderBatches: orderBatches.length,
+      targetStatus,
+      batchStatuses: orderBatches.map(b => ({ id: b.id, status: b.status }))
     });
 
     if (orderBatches.length === 0) {
@@ -4966,8 +4978,12 @@ console.log('orderId:',orderId);
     if (allBatchesReady) {
       console.warn(`[KDS][checkAndUpdateOrderHeaderStatus] ✅ All batches ${targetStatus}, updating order_header:`, orderId);
 
-      const orderHeaders = watcherState.orderHeaders || [];
-      const orderHeader = orderHeaders.find(h => {
+      // ✅ CRITICAL FIX: Read from window.database (NOT watcherState!)
+      const allOrderHeaders = (window.database && Array.isArray(window.database.order_header))
+        ? window.database.order_header
+        : [];
+
+      const orderHeader = allOrderHeaders.find(h => {
         const headerId = String(h.id || '');
         return headerId === orderId;
       });
@@ -5440,20 +5456,32 @@ console.log('orderId:',orderId);
       // Example: "DAR-001001-uuid-timestamp" → "DAR-001001"
       const shortOrderId = extractBaseOrderId(orderId);
 
-      // ✅ CRITICAL: Read from watcherState (NOT store.read!)
-      // watcherState has latest data from WebSocket watchers
-      // store.read() calls REST API which may be slow/stale
-      const orderHeaders = watcherState.orderHeaders || [];
-      const currentHeader = orderHeaders.find(h => String(h.id) === String(shortOrderId));
+      // ✅ CRITICAL FIX: Read from window.database (NOT watcherState!)
+      // window.database.order_header is always up-to-date from watchers
+      // watcherState.orderHeaders may be stale between watcher updates
+      const allOrderHeaders = (window.database && Array.isArray(window.database.order_header))
+        ? window.database.order_header
+        : [];
+
+      const currentHeader = allOrderHeaders.find(h => String(h.id) === String(shortOrderId));
 
       if (!currentHeader) {
-        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in watcherState:', shortOrderId, '(original:', orderId, ')');
+        console.warn('[KDS][persistOrderHeaderStatus] ⚠️ order_header not found in window.database:', shortOrderId, '(original:', orderId, ')');
         return;
       }
 
-      // ✅ STEP 2: Get version from watcherState (already synced via watchers)
+      // ✅ STEP 2: Get FRESH version from window.database (always latest!)
+      // This prevents version conflicts caused by stale watcherState data
       const currentVersion = currentHeader.version || 1;
       const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+      console.log('[KDS][persistOrderHeaderStatus] Version info:', {
+        orderId: shortOrderId,
+        currentVersion,
+        nextVersion,
+        currentStatus: currentHeader.status,
+        targetStatus: status
+      });
 
       // ✅ CRITICAL VALIDATION: Ensure version exists
       if (!Number.isFinite(nextVersion) || nextVersion < 1) {
@@ -5508,24 +5536,28 @@ console.log('orderId:',orderId);
         new Promise((_, reject) => setTimeout(() => reject(new Error('Update timeout after 10s')), 10000))
       ]);
 
-      // ✅ STEP 5: Update watcherState for immediate UI update (optimistic update)
-      watcherState.orderHeaders = orderHeaders.map(header => {
-        // ✅ CRITICAL: Match using shortOrderId since order_header.id is SHORT
-        if (String(header.id) === String(shortOrderId)) {
-          return {
-            ...header,
-            statusId: status,
-            status: status,
-            status_id: status,
-            version: nextVersion,
-            fulfillmentStage: headerUpdate.fulfillmentStage,
-            fulfillment_stage: headerUpdate.fulfillment_stage,
-            updatedAt: headerUpdate.updatedAt,
-            updated_at: headerUpdate.updated_at
-          };
-        }
-        return header;
-      });
+      // ✅ STEP 5: Update window.database for immediate UI update (optimistic update)
+      // Don't update watcherState - it will be refreshed by watcher automatically
+      if (window.database && Array.isArray(window.database.order_header)) {
+        window.database.order_header = window.database.order_header.map(header => {
+          // ✅ CRITICAL: Match using shortOrderId since order_header.id is SHORT
+          if (String(header.id) === String(shortOrderId)) {
+            return {
+              ...header,
+              statusId: status,
+              status: status,
+              status_id: status,
+              version: nextVersion,
+              fulfillmentStage: headerUpdate.fulfillmentStage,
+              fulfillment_stage: headerUpdate.fulfillment_stage,
+              updatedAt: headerUpdate.updatedAt,
+              updated_at: headerUpdate.updated_at
+            };
+          }
+          return header;
+        });
+        console.log('[KDS][persistOrderHeaderStatus] ✅ Optimistic update applied to window.database');
+      }
 
       // ✅ Broadcast the change to other KDS instances
       if (syncClient && typeof syncClient.publishHandoffUpdate === 'function') {
