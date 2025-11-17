@@ -203,85 +203,109 @@
         return obj[field + '_' + lang] || obj[field] || '';
       };
 
-      // Event Handlers
+      // Event Handlers - Proper format for mishkah-core
       const orders = {
-        'lang:switch': function(event, context) {
-          const newLang = event.target.dataset.lang;
-          context.db.env.lang = newLang;
-          context.db.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
-          document.documentElement.setAttribute('lang', newLang);
-          document.documentElement.setAttribute('dir', context.db.env.dir);
-          context.rebuild();
-        },
-
-        'nav:click': function(event, context) {
-          const page = event.target.dataset.page;
-          context.db.data.currentPage = page;
-
-          // Scroll to section
-          const section = document.getElementById(page);
-          if (section) {
-            section.scrollIntoView({ behavior: 'smooth' });
+        'lang:switch': {
+          on: ['click'],
+          gkeys: ['lang:switch'],
+          handler: function(event, context) {
+            const newLang = event.target.dataset.lang;
+            context.db.env.lang = newLang;
+            context.db.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
+            document.documentElement.setAttribute('lang', newLang);
+            document.documentElement.setAttribute('dir', context.db.env.dir);
+            context.rebuild();
           }
-
-          context.rebuild();
         },
 
-        'booking:open': function(event, context) {
-          context.db.data.showBookingForm = true;
-          context.rebuild();
-        },
+        'nav:click': {
+          on: ['click'],
+          gkeys: ['nav:click'],
+          handler: function(event, context) {
+            const page = event.target.dataset.page;
+            context.db.data.currentPage = page;
 
-        'booking:close': function(event, context) {
-          context.db.data.showBookingForm = false;
-          context.db.data.bookingForm = {
-            firstName: '',
-            lastName: '',
-            phone: '',
-            email: '',
-            serviceId: '',
-            preferredDate: '',
-            preferredTime: '',
-            notes: ''
-          };
-          context.rebuild();
-        },
+            // Scroll to section
+            const section = document.getElementById(page);
+            if (section) {
+              section.scrollIntoView({ behavior: 'smooth' });
+            }
 
-        'booking:input': function(event, context) {
-          const field = event.target.name;
-          const value = event.target.value;
-          context.db.data.bookingForm[field] = value;
-        },
-
-        'booking:submit': async function(event, context) {
-          event.preventDefault();
-          const form = context.db.data.bookingForm;
-
-          // Validate
-          if (!form.firstName || !form.lastName || !form.phone || !form.preferredDate) {
-            alert(context.db.env.lang === 'ar' ? 'الرجاء ملء جميع الحقول المطلوبة' : 'Please fill all required fields');
-            return;
+            context.rebuild();
           }
+        },
 
-          // Here you would send the data to your backend
-          console.log('Booking submitted:', form);
+        'booking:open': {
+          on: ['click'],
+          gkeys: ['booking:open'],
+          handler: function(event, context) {
+            context.db.data.showBookingForm = true;
+            context.rebuild();
+          }
+        },
 
-          // Show success message
-          alert(t('booking.success'));
+        'booking:close': {
+          on: ['click'],
+          gkeys: ['booking:close'],
+          handler: function(event, context) {
+            context.db.data.showBookingForm = false;
+            context.db.data.bookingForm = {
+              firstName: '',
+              lastName: '',
+              phone: '',
+              email: '',
+              serviceId: '',
+              preferredDate: '',
+              preferredTime: '',
+              notes: ''
+            };
+            context.rebuild();
+          }
+        },
 
-          // Close form
-          context.db.data.showBookingForm = false;
-          context.db.data.bookingForm = {
-            firstName: '',
-            lastName: '',
-            phone: '',
-            email: '',
-            serviceId: '',
-            preferredDate: '',
-            preferredTime: '',
-            notes: ''
-          };
-          context.rebuild();
+        'booking:input': {
+          on: ['input', 'change'],
+          gkeys: ['booking:input'],
+          handler: function(event, context) {
+            const field = event.target.name;
+            const value = event.target.value;
+            context.db.data.bookingForm[field] = value;
+          }
+        },
+
+        'booking:submit': {
+          on: ['submit'],
+          gkeys: ['booking:submit'],
+          handler: async function(event, context) {
+            event.preventDefault();
+            const form = context.db.data.bookingForm;
+
+            // Validate
+            if (!form.firstName || !form.lastName || !form.phone || !form.preferredDate) {
+              alert(context.db.env.lang === 'ar' ? 'الرجاء ملء جميع الحقول المطلوبة' : 'Please fill all required fields');
+              return;
+            }
+
+            // Here you would send the data to your backend
+            console.log('Booking submitted:', form);
+
+            // Show success message
+            alert(t('booking.success'));
+
+            // Close form
+            context.db.data.showBookingForm = false;
+            context.db.data.bookingForm = {
+              firstName: '',
+              lastName: '',
+              phone: '',
+              email: '',
+              serviceId: '',
+              preferredDate: '',
+              preferredTime: '',
+              notes: ''
+            };
+            context.rebuild();
+          }
         }
       };
 
@@ -296,30 +320,22 @@
 
             // Navigation Links
             D.Containers.Div({ attrs: { class: 'navbar-links' } }, [
-              D.Text.A({ attrs: { href: '#home', gkey: 'nav:click', 'data-page': 'home', class: db.data.currentPage === 'home' ? 'active' : '' } }, [t('nav.home')]),
-              D.Text.A({ attrs: { href: '#services', gkey: 'nav:click', 'data-page': 'services', class: db.data.currentPage === 'services' ? 'active' : '' } }, [t('nav.services')]),
-              D.Text.A({ attrs: { href: '#about', gkey: 'nav:click', 'data-page': 'about', class: db.data.currentPage === 'about' ? 'active' : '' } }, [t('nav.about')]),
-              D.Text.A({ attrs: { href: '#contact', gkey: 'nav:click', 'data-page': 'contact', class: db.data.currentPage === 'contact' ? 'active' : '' } }, [t('nav.contact')]),
-              D.Forms.Button({ attrs: { class: 'btn btn-primary', gkey: 'booking:open' } }, [t('nav.book')])
+              D.Text.A({ attrs: { href: '#home', 'data-m-gkey': 'nav:click', 'data-page': 'home', class: db.data.currentPage === 'home' ? 'active' : '' } }, [t('nav.home')]),
+              D.Text.A({ attrs: { href: '#services', 'data-m-gkey': 'nav:click', 'data-page': 'services', class: db.data.currentPage === 'services' ? 'active' : '' } }, [t('nav.services')]),
+              D.Text.A({ attrs: { href: '#about', 'data-m-gkey': 'nav:click', 'data-page': 'about', class: db.data.currentPage === 'about' ? 'active' : '' } }, [t('nav.about')]),
+              D.Text.A({ attrs: { href: '#contact', 'data-m-gkey': 'nav:click', 'data-page': 'contact', class: db.data.currentPage === 'contact' ? 'active' : '' } }, [t('nav.contact')]),
+              D.Forms.Button({ attrs: { class: 'btn btn-primary', 'data-m-gkey': 'booking:open' } }, [t('nav.book')])
             ]),
 
-            // Language Switcher
-            D.Containers.Div({ attrs: { class: 'lang-switcher' } }, [
-              D.Forms.Button({
-                attrs: {
-                  class: 'lang-btn' + (db.env.lang === 'ar' ? ' active' : ''),
-                  gkey: 'lang:switch',
-                  'data-lang': 'ar'
-                }
-              }, ['ع']),
-              D.Forms.Button({
-                attrs: {
-                  class: 'lang-btn' + (db.env.lang === 'en' ? ' active' : ''),
-                  gkey: 'lang:switch',
-                  'data-lang': 'en'
-                }
-              }, ['EN'])
-            ])
+            // Language Switcher using UI.Switcher
+            UI.Switcher({
+              attrs: { 'data-m-gkey': 'lang:switch', class: 'lang-switcher' },
+              value: db.env.lang,
+              options: [
+                { label: 'ع', value: 'ar', attrs: { 'data-lang': 'ar' } },
+                { label: 'EN', value: 'en', attrs: { 'data-lang': 'en' } }
+              ]
+            })
           ])
         ]);
       }
@@ -330,7 +346,7 @@
             D.Text.H1({ attrs: { class: 'hero-title' } }, [t('hero.title')]),
             D.Text.H2({ attrs: { class: 'hero-subtitle' } }, [t('hero.subtitle')]),
             D.Text.P({ attrs: { class: 'hero-description' } }, [t('hero.description')]),
-            D.Forms.Button({ attrs: { class: 'btn btn-large btn-primary', gkey: 'booking:open' } }, [t('hero.cta')])
+            D.Forms.Button({ attrs: { class: 'btn btn-large btn-primary', 'data-m-gkey': 'booking:open' } }, [t('hero.cta')])
           ])
         ]);
       }
@@ -401,6 +417,10 @@
       }
 
       function ContactSection(db, D) {
+        const addressAr = 'مدينة العبور - الحي التاسع - ميديكال ديستنيشن - الدور الثاني S51';
+        const addressEn = 'Obour City - 9th District - Medical Destination - 2nd Floor S51';
+        const mapUrl = 'https://maps.google.com/maps/search/مدينة%20العبور%20-%20الحي%20التاسع%20-%20ميديكال%20ديستنيشن%20-%20الدور%20الثاني%20S51';
+
         return D.Containers.Section({ attrs: { id: 'contact', class: 'contact-section' } }, [
           D.Containers.Div({ attrs: { class: 'section-header' } }, [
             D.Text.H2({ attrs: { class: 'section-title' } }, [t('contact.title')])
@@ -409,23 +429,44 @@
             D.Containers.Div({ attrs: { class: 'contact-item' } }, [
               D.Text.Span({ attrs: { class: 'contact-icon' } }, ['📞']),
               D.Text.H3({}, [t('contact.phone')]),
-              D.Text.P({}, ['+966 50 123 4567'])
+              D.Text.A({ attrs: { href: 'tel:+201066558085', style: 'text-decoration: none; color: inherit;' } }, ['+20 10 66558085'])
             ]),
             D.Containers.Div({ attrs: { class: 'contact-item' } }, [
               D.Text.Span({ attrs: { class: 'contact-icon' } }, ['✉️']),
               D.Text.H3({}, [t('contact.email')]),
-              D.Text.P({}, ['info@marwaclinic.com'])
+              D.Text.A({ attrs: { href: 'mailto:info@marwaclinic.com', style: 'text-decoration: none; color: inherit;' } }, ['info@marwaclinic.com'])
             ]),
             D.Containers.Div({ attrs: { class: 'contact-item' } }, [
               D.Text.Span({ attrs: { class: 'contact-icon' } }, ['📍']),
               D.Text.H3({}, [t('contact.address')]),
-              D.Text.P({}, [db.env.lang === 'ar' ? 'الرياض، المملكة العربية السعودية' : 'Riyadh, Saudi Arabia'])
+              D.Text.A({
+                attrs: {
+                  href: mapUrl,
+                  target: '_blank',
+                  rel: 'noopener noreferrer',
+                  style: 'text-decoration: none; color: inherit;'
+                }
+              }, [db.env.lang === 'ar' ? addressAr : addressEn])
             ]),
             D.Containers.Div({ attrs: { class: 'contact-item' } }, [
               D.Text.Span({ attrs: { class: 'contact-icon' } }, ['🕐']),
               D.Text.H3({}, [t('contact.hours')]),
               D.Text.P({}, [db.env.lang === 'ar' ? 'السبت - الخميس: 8 صباحاً - 8 مساءً' : 'Saturday - Thursday: 8 AM - 8 PM'])
             ])
+          ]),
+          // Google Maps Embed
+          D.Containers.Div({ attrs: { class: 'map-container', style: 'margin-top: 2rem; border-radius: 8px; overflow: hidden; height: 400px;' } }, [
+            D.Containers.Iframe({
+              attrs: {
+                src: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3453.123456789!2d31.4554!3d30.2163!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMzDCsDEyJzU4LjciTiAzMcKwMjcnMTkuNCJF!5e0!3m2!1sen!2seg!4v1234567890',
+                width: '100%',
+                height: '100%',
+                style: 'border:0;',
+                allowfullscreen: '',
+                loading: 'lazy',
+                referrerpolicy: 'no-referrer-when-downgrade'
+              }
+            })
           ])
         ]);
       }
@@ -433,7 +474,7 @@
       function BookingForm(db, D) {
         if (!db.data.showBookingForm) return null;
 
-        return D.Containers.Div({ attrs: { class: 'modal-overlay', gkey: 'booking:close' } }, [
+        return D.Containers.Div({ attrs: { class: 'modal-overlay', 'data-m-gkey': 'booking:close' } }, [
           D.Containers.Div({
             attrs: {
               class: 'modal-content booking-modal',
@@ -441,7 +482,7 @@
             }
           }, [
             D.Text.H2({ attrs: { class: 'modal-title' } }, [t('booking.title')]),
-            D.Forms.Form({ attrs: { class: 'booking-form' }, events: { gkey: 'booking:submit' } }, [
+            D.Forms.Form({ attrs: { class: 'booking-form', 'data-m-gkey': 'booking:submit' } }, [
               D.Containers.Div({ attrs: { class: 'form-row' } }, [
                 D.Containers.Div({ attrs: { class: 'form-group' } }, [
                   D.Forms.Label({}, [t('booking.firstName') + ' *']),
@@ -451,7 +492,7 @@
                       name: 'firstName',
                       value: db.data.bookingForm.firstName,
                       required: true,
-                      gkey: 'booking:input'
+                      'data-m-gkey': 'booking:input'
                     }
                   })
                 ]),
@@ -463,7 +504,7 @@
                       name: 'lastName',
                       value: db.data.bookingForm.lastName,
                       required: true,
-                      gkey: 'booking:input'
+                      'data-m-gkey': 'booking:input'
                     }
                   })
                 ])
@@ -478,7 +519,7 @@
                       name: 'phone',
                       value: db.data.bookingForm.phone,
                       required: true,
-                      gkey: 'booking:input'
+                      'data-m-gkey': 'booking:input'
                     }
                   })
                 ]),
@@ -489,7 +530,7 @@
                       type: 'email',
                       name: 'email',
                       value: db.data.bookingForm.email,
-                      gkey: 'booking:input'
+                      'data-m-gkey': 'booking:input'
                     }
                   })
                 ])
@@ -500,7 +541,7 @@
                 D.Inputs.Select({
                   attrs: {
                     name: 'serviceId',
-                    gkey: 'booking:input'
+                    'data-m-gkey': 'booking:input'
                   }
                 }, [
                   D.Inputs.Option({ attrs: { value: '' } }, [t('booking.selectService')]),
@@ -524,7 +565,7 @@
                       name: 'preferredDate',
                       value: db.data.bookingForm.preferredDate,
                       required: true,
-                      gkey: 'booking:input'
+                      'data-m-gkey': 'booking:input'
                     }
                   })
                 ]),
@@ -535,7 +576,7 @@
                       type: 'time',
                       name: 'preferredTime',
                       value: db.data.bookingForm.preferredTime,
-                      gkey: 'booking:input'
+                      'data-m-gkey': 'booking:input'
                     }
                   })
                 ])
@@ -547,13 +588,13 @@
                   attrs: {
                     name: 'notes',
                     rows: 4,
-                    gkey: 'booking:input'
+                    'data-m-gkey': 'booking:input'
                   }
                 }, [db.data.bookingForm.notes])
               ]),
 
               D.Containers.Div({ attrs: { class: 'form-actions' } }, [
-                D.Forms.Button({ attrs: { type: 'button', class: 'btn btn-secondary', gkey: 'booking:close' } }, [t('booking.cancel')]),
+                D.Forms.Button({ attrs: { type: 'button', class: 'btn btn-secondary', 'data-m-gkey': 'booking:close' } }, [t('booking.cancel')]),
                 D.Forms.Button({ attrs: { type: 'submit', class: 'btn btn-primary' } }, [t('booking.submit')])
               ])
             ])
