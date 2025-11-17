@@ -210,10 +210,22 @@
           gkeys: ['lang:switch'],
           handler: function(event, context) {
             const newLang = event.target.dataset.lang;
-            context.db.env.lang = newLang;
-            context.db.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
+            const state = context.getState();
+            state.env.lang = newLang;
+            state.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
             document.documentElement.setAttribute('lang', newLang);
-            document.documentElement.setAttribute('dir', context.db.env.dir);
+            document.documentElement.setAttribute('dir', state.env.dir);
+            context.rebuild();
+          }
+        },
+
+        'theme:toggle': {
+          on: ['click'],
+          gkeys: ['theme:toggle'],
+          handler: function(event, context) {
+            const state = context.getState();
+            state.env.theme = state.env.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', state.env.theme);
             context.rebuild();
           }
         },
@@ -223,7 +235,8 @@
           gkeys: ['nav:click'],
           handler: function(event, context) {
             const page = event.target.dataset.page;
-            context.db.data.currentPage = page;
+            const state = context.getState();
+            state.data.currentPage = page;
 
             // Scroll to section
             const section = document.getElementById(page);
@@ -239,7 +252,8 @@
           on: ['click'],
           gkeys: ['booking:open'],
           handler: function(event, context) {
-            context.db.data.showBookingForm = true;
+            const state = context.getState();
+            state.data.showBookingForm = true;
             context.rebuild();
           }
         },
@@ -248,8 +262,9 @@
           on: ['click'],
           gkeys: ['booking:close'],
           handler: function(event, context) {
-            context.db.data.showBookingForm = false;
-            context.db.data.bookingForm = {
+            const state = context.getState();
+            state.data.showBookingForm = false;
+            state.data.bookingForm = {
               firstName: '',
               lastName: '',
               phone: '',
@@ -269,7 +284,8 @@
           handler: function(event, context) {
             const field = event.target.name;
             const value = event.target.value;
-            context.db.data.bookingForm[field] = value;
+            const state = context.getState();
+            state.data.bookingForm[field] = value;
           }
         },
 
@@ -278,11 +294,12 @@
           gkeys: ['booking:submit'],
           handler: async function(event, context) {
             event.preventDefault();
-            const form = context.db.data.bookingForm;
+            const state = context.getState();
+            const form = state.data.bookingForm;
 
             // Validate
             if (!form.firstName || !form.lastName || !form.phone || !form.preferredDate) {
-              alert(context.db.env.lang === 'ar' ? 'الرجاء ملء جميع الحقول المطلوبة' : 'Please fill all required fields');
+              alert(state.env.lang === 'ar' ? 'الرجاء ملء جميع الحقول المطلوبة' : 'Please fill all required fields');
               return;
             }
 
@@ -293,8 +310,8 @@
             alert(t('booking.success'));
 
             // Close form
-            context.db.data.showBookingForm = false;
-            context.db.data.bookingForm = {
+            state.data.showBookingForm = false;
+            state.data.bookingForm = {
               firstName: '',
               lastName: '',
               phone: '',
@@ -328,14 +345,24 @@
             ]),
 
             // Language Switcher using UI.Switcher
-            UI.Switcher({
-              attrs: { 'data-m-gkey': 'lang:switch', class: 'lang-switcher' },
-              value: db.env.lang,
-              options: [
-                { label: 'ع', value: 'ar', attrs: { 'data-lang': 'ar' } },
-                { label: 'EN', value: 'en', attrs: { 'data-lang': 'en' } }
-              ]
-            })
+            D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
+              UI.Switcher({
+                attrs: { 'data-m-gkey': 'lang:switch' },
+                value: db.env.lang,
+                options: [
+                  { label: 'ع', value: 'ar', attrs: { 'data-lang': 'ar' } },
+                  { label: 'EN', value: 'en', attrs: { 'data-lang': 'en' } }
+                ]
+              }),
+              // Theme Toggle Button
+              D.Forms.Button({
+                attrs: {
+                  'data-m-gkey': 'theme:toggle',
+                  class: 'theme-toggle-btn',
+                  title: db.env.theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'
+                }
+              }, [db.env.theme === 'dark' ? '🌞' : '🌙'])
+            ])
           ])
         ]);
       }
