@@ -337,7 +337,10 @@
           on: ['click'],
           gkeys: ['lang:switch'],
           handler: function(event, context) {
-            const newLang = event.target.dataset.lang;
+            const target = event.target.closest('[data-lang]');
+            if (!target) return;
+
+            const newLang = target.dataset.lang;
             const state = context.getState();
             state.env.lang = newLang;
             state.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
@@ -362,7 +365,11 @@
           on: ['click'],
           gkeys: ['nav:click'],
           handler: function(event, context) {
-            const page = event.target.dataset.page;
+            // Use closest() to find the element with data-page, even if user clicked on child span
+            const target = event.target.closest('[data-page]');
+            if (!target) return; // Exit if no data-page found
+
+            const page = target.dataset.page;
             const state = context.getState();
             state.data.currentPage = page;
 
@@ -440,7 +447,10 @@
           on: ['click'],
           gkeys: ['booking:select-date'],
           handler: function(event, context) {
-            const dateString = event.target.dataset.date;
+            const target = event.target.closest('[data-date]');
+            if (!target) return;
+
+            const dateString = target.dataset.date;
             const state = context.getState();
             state.data.bookingForm.selectedDate = dateString;
             state.data.bookingForm.bookingStep = 2;
@@ -452,7 +462,10 @@
           on: ['click'],
           gkeys: ['booking:select-time'],
           handler: function(event, context) {
-            const time = event.target.dataset.time;
+            const target = event.target.closest('[data-time]');
+            if (!target) return;
+
+            const time = target.dataset.time;
             const state = context.getState();
             state.data.bookingForm.selectedTime = time;
             state.data.bookingForm.bookingStep = 3;
@@ -577,7 +590,10 @@
           on: ['click'],
           gkeys: ['slider:goto'],
           handler: function(event, context) {
-            const slideIndex = parseInt(event.target.dataset.slideIndex);
+            const target = event.target.closest('[data-slide-index]');
+            if (!target) return;
+
+            const slideIndex = parseInt(target.dataset.slideIndex);
             const state = context.getState();
             state.data.currentSlide = slideIndex;
             context.rebuild();
