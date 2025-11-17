@@ -391,7 +391,9 @@
         }, [
           // Header
           D.Containers.Div({ attrs: { class: tw`mb-8 pb-4 border-b border-[var(--border)]` } }, [
-            D.Text.H2({ attrs: { class: tw`text-lg font-bold text-[var(--primary)]` } }, ['🏥 مركز العلاج الطبيعي'])
+            D.Text.H2({ attrs: { class: tw`text-lg font-bold text-[var(--primary)]` } }, [
+              '🏥 ' + (db.env.lang === 'ar' ? 'مركز العلاج الطبيعي' : 'Physical Therapy Center')
+            ])
           ]),
 
           // Menu

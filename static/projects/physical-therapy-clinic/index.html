@@ -48,8 +48,7 @@
               subtitle_en: 'We provide the latest physical therapy techniques',
               cta_ar: 'احجز موعدك الآن',
               cta_en: 'Book Your Appointment',
-              gradient: 'from-cyan-500 to-blue-600',
-              icon: '🏥'
+              image: 'https://paspapt.com/wp-content/uploads/2022/08/manual-physical-therapy-nyc.jpg'
             },
             {
               id: 2,
@@ -59,8 +58,7 @@
               subtitle_en: 'Professional and specialized medical team',
               cta_ar: 'تعرف على فريقنا',
               cta_en: 'Meet Our Team',
-              gradient: 'from-purple-500 to-pink-600',
-              icon: '⭐'
+              image: 'https://paadultschool.org/wp-content/uploads/2021/03/Certified-Physical-Therapy-Aide-Voucher-Included_GES189-1024x512.jpg'
             },
             {
               id: 3,
@@ -70,8 +68,7 @@
               subtitle_en: 'Customized treatment programs for each case',
               cta_ar: 'اكتشف خدماتنا',
               cta_en: 'Discover Our Services',
-              gradient: 'from-emerald-500 to-teal-600',
-              icon: '💪'
+              image: 'https://images.bizbuysell.com/shared/listings/232/2329315/edbddc6a-eda1-4f07-b14a-6c6a87bc48e2-W768.jpg'
             }
           ],
           services: [
@@ -716,34 +713,29 @@
             class: 'hero-slider-container'
           }
         }, [
-          // Canvas Background
+          // Slider Content with Background Image
           D.Containers.Div({
             attrs: {
-              id: 'hero-canvas-bg',
-              class: 'hero-canvas-bg'
-            }
-          }, []),
-
-          // Slider Content
-          D.Containers.Div({
-            attrs: {
-              class: tw`relative min-h-[85vh] flex items-center justify-center px-4 py-20 overflow-hidden bg-gradient-to-br ${currentSlide.gradient}`
+              class: tw`relative min-h-[85vh] flex items-center justify-center px-4 py-20 overflow-hidden`,
+              style: 'background-image: url(' + currentSlide.image + '); background-size: cover; background-position: center; background-repeat: no-repeat;'
             }
           }, [
+            // Dark Overlay for better text readability
+            D.Containers.Div({
+              attrs: {
+                class: 'hero-overlay',
+                style: 'position: absolute; inset: 0; background: linear-gradient(135deg, rgba(8, 145, 178, 0.85) 0%, rgba(6, 95, 115, 0.75) 100%); z-index: 1;'
+              }
+            }),
+
             // Slide Content (with animation)
             D.Containers.Div({
               attrs: {
                 key: currentSlide.id,
-                class: 'slide-content max-w-5xl mx-auto text-center'
+                class: 'slide-content max-w-5xl mx-auto text-center',
+                style: 'position: relative; z-index: 2;'
               }
             }, [
-              // Icon
-              D.Text.Span({
-                attrs: {
-                  class: 'slide-icon text-8xl sm:text-9xl block mb-8 animate-bounce-slow'
-                }
-              }, [currentSlide.icon]),
-
               // Title
               D.Text.H1({
                 attrs: {
@@ -754,7 +746,7 @@
               // Subtitle
               D.Text.P({
                 attrs: {
-                  class: 'slide-subtitle text-xl sm:text-2xl lg:text-3xl text-white/90 font-medium max-w-3xl mx-auto mb-10'
+                  class: 'slide-subtitle text-xl sm:text-2xl lg:text-3xl text-white/95 font-medium max-w-3xl mx-auto mb-10'
                 }
               }, [tf(currentSlide, 'subtitle')]),
 
@@ -1293,100 +1285,6 @@
       // Create and Mount App
       const app = M.app.createApp(db, orders);
       app.mount('#app');
-
-      // Initialize Canvas Background Animation
-      function initCanvasBackground() {
-        const container = document.getElementById('hero-canvas-bg');
-        if (!container) return;
-
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        container.appendChild(canvas);
-
-        function resize() {
-          canvas.width = container.offsetWidth;
-          canvas.height = container.offsetHeight;
-        }
-        resize();
-        window.addEventListener('resize', resize);
-
-        // Particles
-        const particles = [];
-        const particleCount = 50;
-        const colors = ['rgba(255, 255, 255, 0.1)', 'rgba(8, 145, 178, 0.15)', 'rgba(6, 182, 212, 0.12)'];
-
-        class Particle {
-          constructor() {
-            this.x = Math.random() * canvas.width;
-            this.y = Math.random() * canvas.height;
-            this.size = Math.random() * 4 + 2;
-            this.speedX = Math.random() * 1 - 0.5;
-            this.speedY = Math.random() * 1 - 0.5;
-            this.color = colors[Math.floor(Math.random() * colors.length)];
-            this.opacity = Math.random() * 0.5 + 0.3;
-          }
-
-          update() {
-            this.x += this.speedX;
-            this.y += this.speedY;
-
-            if (this.x > canvas.width) this.x = 0;
-            if (this.x < 0) this.x = canvas.width;
-            if (this.y > canvas.height) this.y = 0;
-            if (this.y < 0) this.y = canvas.height;
-          }
-
-          draw() {
-            ctx.fillStyle = this.color;
-            ctx.globalAlpha = this.opacity;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalAlpha = 1;
-          }
-        }
-
-        // Initialize particles
-        for (let i = 0; i < particleCount; i++) {
-          particles.push(new Particle());
-        }
-
-        // Animation loop
-        function animate() {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-          // Draw connections
-          for (let i = 0; i < particles.length; i++) {
-            for (let j = i + 1; j < particles.length; j++) {
-              const dx = particles[i].x - particles[j].x;
-              const dy = particles[i].y - particles[j].y;
-              const distance = Math.sqrt(dx * dx + dy * dy);
-
-              if (distance < 150) {
-                ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 * (1 - distance / 150)})`;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(particles[i].x, particles[i].y);
-                ctx.lineTo(particles[j].x, particles[j].y);
-                ctx.stroke();
-              }
-            }
-          }
-
-          // Update and draw particles
-          particles.forEach(particle => {
-            particle.update();
-            particle.draw();
-          });
-
-          requestAnimationFrame(animate);
-        }
-
-        animate();
-      }
-
-      // Wait for DOM to be ready then initialize canvas
-      setTimeout(initCanvasBackground, 100);
 
       console.log('Physical Therapy Clinic website loaded successfully!');
     })();
