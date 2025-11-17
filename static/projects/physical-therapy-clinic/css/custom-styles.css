@@ -515,13 +515,20 @@ html {
   transition: background-image 0.5s ease-in-out;
 }
 
+/* Lighter overlay - shows more of the image */
 .hero-overlay {
   transition: background 0.3s ease;
 }
 
-/* Dark mode - lighter overlay for better contrast */
+/* Light mode - subtle overlay */
+[data-theme="light"] .hero-overlay,
+:root:not([data-theme="dark"]) .hero-overlay {
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.45) 0%, rgba(6, 95, 115, 0.35) 100%) !important;
+}
+
+/* Dark mode - slightly darker but still shows image */
 [data-theme="dark"] .hero-overlay {
-  background: linear-gradient(135deg, rgba(8, 145, 178, 0.75) 0%, rgba(6, 95, 115, 0.65) 100%) !important;
+  background: linear-gradient(135deg, rgba(8, 145, 178, 0.55) 0%, rgba(6, 95, 115, 0.45) 100%) !important;
 }
 
 .slide-content {
@@ -530,16 +537,133 @@ html {
   animation: slideIn 0.6s ease-out;
 }
 
+/* Enhanced text shadows for better readability on lighter overlay */
 .slide-title {
   animation: slideInDown 0.5s ease-out;
-  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  text-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.8),
+    0 3px 10px rgba(0, 0, 0, 0.6),
+    0 1px 4px rgba(0, 0, 0, 0.5);
 }
 
 .slide-subtitle {
   animation: slideInUp 0.6s ease-out;
   animation-delay: 0.1s;
   animation-fill-mode: both;
-  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.4), 0 1px 6px rgba(0, 0, 0, 0.2);
+  text-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.7),
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Glass Morphism Image Loader */
+.hero-image-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+/* Light mode loader - glassmorphic with warm tint */
+[data-theme="light"] .hero-image-loading,
+:root:not([data-theme="dark"]) .hero-image-loading {
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(8, 145, 178, 0.15) 50%,
+    rgba(255, 255, 255, 0.25) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Dark mode loader - glassmorphic with cool tint */
+[data-theme="dark"] .hero-image-loading {
+  background: linear-gradient(135deg,
+    rgba(15, 23, 42, 0.4) 0%,
+    rgba(8, 145, 178, 0.25) 50%,
+    rgba(15, 23, 42, 0.35) 100%);
+  border: 1px solid rgba(8, 145, 178, 0.3);
+}
+
+.hero-image-loading.loaded {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Glassmorphic Spinner */
+.glass-spinner {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  position: relative;
+  animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+/* Light mode spinner */
+[data-theme="light"] .glass-spinner,
+:root:not([data-theme="dark"]) .glass-spinner {
+  background: linear-gradient(135deg,
+    rgba(8, 145, 178, 0.2) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(8, 145, 178, 0.15) 100%);
+  border: 3px solid transparent;
+  border-top-color: rgba(8, 145, 178, 0.8);
+  border-right-color: rgba(8, 145, 178, 0.6);
+  box-shadow:
+    0 8px 32px rgba(8, 145, 178, 0.3),
+    inset 0 2px 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Dark mode spinner */
+[data-theme="dark"] .glass-spinner {
+  background: linear-gradient(135deg,
+    rgba(8, 145, 178, 0.3) 0%,
+    rgba(15, 23, 42, 0.5) 50%,
+    rgba(8, 145, 178, 0.25) 100%);
+  border: 3px solid transparent;
+  border-top-color: rgba(6, 182, 212, 0.9);
+  border-right-color: rgba(6, 182, 212, 0.6);
+  box-shadow:
+    0 8px 32px rgba(6, 182, 212, 0.4),
+    inset 0 2px 8px rgba(6, 182, 212, 0.3);
+}
+
+.glass-spinner::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Light mode spinner inner glow */
+[data-theme="light"] .glass-spinner::before,
+:root:not([data-theme="dark"]) .glass-spinner::before {
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(8, 145, 178, 0.1) 70%,
+    transparent 100%);
+}
+
+/* Dark mode spinner inner glow */
+[data-theme="dark"] .glass-spinner::before {
+  background: radial-gradient(circle,
+    rgba(6, 182, 212, 0.4) 0%,
+    rgba(15, 23, 42, 0.3) 70%,
+    transparent 100%);
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .btn-hero {
