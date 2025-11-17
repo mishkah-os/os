@@ -154,8 +154,8 @@
           D.Containers.Div({ attrs: { class: tw`mb-8 pb-4 border-b border-[var(--border)]` } }, [
             D.Text.H2({ attrs: { class: tw`text-lg font-bold text-[var(--primary)]` } }, ['ERP - مركز العلاج الطبيعي'])
           ]),
-          D.Containers.Ul({ attrs: { class: tw`${token('vstack')}` } }, [
-            D.Containers.Li({}, [
+          D.Lists.Ul({ attrs: { class: 'sidebar-menu' } }, [
+            D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
                   class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'dashboard' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
@@ -164,7 +164,7 @@
                 }
               }, ['📊 ' + t('dashboard')])
             ]),
-            D.Containers.Li({}, [
+            D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
                   class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'patients' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
@@ -173,7 +173,7 @@
                 }
               }, ['👥 ' + t('patients')])
             ]),
-            D.Containers.Li({}, [
+            D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
                   class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'appointments' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
@@ -182,7 +182,7 @@
                 }
               }, ['📅 ' + t('appointments')])
             ]),
-            D.Containers.Li({}, [
+            D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
                   class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'sessions' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
@@ -191,7 +191,7 @@
                 }
               }, ['💆 ' + t('sessions')])
             ]),
-            D.Containers.Li({}, [
+            D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
                   class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'reports' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
@@ -200,7 +200,7 @@
                 }
               }, ['📈 ' + t('reports')])
             ]),
-            D.Containers.Li({}, [
+            D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
                   class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'settings' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
