@@ -253,12 +253,51 @@ body {
   padding: 2rem;
 }
 
+.modal-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 1.75rem;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+[dir="rtl"] .modal-close-btn {
+  right: auto;
+  left: 1rem;
+}
+
+.modal-close-btn:hover {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+  border-color: var(--destructive);
+  transform: scale(1.1);
+}
+
 .modal-title {
   font-size: 1.875rem;
   font-weight: 700;
   color: var(--foreground);
   margin-bottom: 2rem;
   text-align: center;
+  padding-right: 3rem;
+}
+
+[dir="rtl"] .modal-title {
+  padding-right: 0;
+  padding-left: 3rem;
 }
 
 /* ================== Form Styles ================== */
@@ -332,34 +371,44 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.625rem 1.5rem;
-  font-size: 0.875rem;
-  font-weight: 500;
+  padding: 0.875rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
   border-radius: var(--radius);
   border: none;
   cursor: pointer;
   transition: all 0.2s;
   text-decoration: none;
+  min-height: 2.75rem;
 }
 
 .btn-primary {
   background: var(--primary);
   color: var(--primary-foreground);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .btn-primary:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  background: #0e7490;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .btn-secondary {
-  background: var(--secondary);
-  color: var(--secondary-foreground);
+  background: transparent;
+  color: var(--foreground);
+  border: 2px solid var(--border);
 }
 
 .btn-secondary:hover {
-  opacity: 0.9;
+  background: var(--surface-1);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 /* ================== Language Switcher (UI.Switcher compatibility) ================== */
@@ -446,6 +495,149 @@ html {
   outline-offset: 2px;
 }
 
+/* ================== Hero Slider ================== */
+.hero-slider-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-canvas-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.slide-content {
+  position: relative;
+  z-index: 10;
+  animation: slideIn 0.6s ease-out;
+}
+
+.slide-icon {
+  animation: bounceIn 0.8s ease-out;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
+}
+
+.slide-title {
+  animation: slideInDown 0.5s ease-out;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.slide-subtitle {
+  animation: slideInUp 0.6s ease-out;
+  animation-delay: 0.1s;
+  animation-fill-mode: both;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn-hero {
+  background: white;
+  color: #0891b2;
+  padding: 1rem 2.5rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  animation: slideInUp 0.7s ease-out;
+  animation-delay: 0.2s;
+  animation-fill-mode: both;
+}
+
+.btn-hero:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+}
+
+.btn-hero:active {
+  transform: translateY(-1px) scale(1.02);
+}
+
+/* Slider Controls */
+.slider-controls {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1rem;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.slider-arrow {
+  pointer-events: all;
+  width: 3.5rem;
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  color: white;
+  font-size: 2rem;
+  font-weight: 300;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.slider-arrow:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.1);
+}
+
+.slider-arrow-prev {
+  margin-left: 1rem;
+}
+
+.slider-arrow-next {
+  margin-right: 1rem;
+}
+
+/* Slider Dots */
+.slider-dots {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.75rem;
+  z-index: 20;
+}
+
+.slider-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.3s;
+  padding: 0;
+}
+
+.slider-dot:hover {
+  background: rgba(255, 255, 255, 0.5);
+  transform: scale(1.2);
+}
+
+.slider-dot.active {
+  background: white;
+  width: 2rem;
+  border-radius: 1rem;
+}
+
 /* ================== Animations ================== */
 @keyframes fadeIn {
   from {
@@ -458,4 +650,171 @@ html {
 
 .fade-in {
   animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes animate-bounce-slow {
+  0%, 100% {
+    transform: translateY(-5%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.animate-bounce-slow {
+  animation: animate-bounce-slow 3s infinite;
+}
+
+/* ================== Dashboard Modal Forms ================== */
+.modal-form-card {
+  padding: 2rem;
+  max-width: 800px;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-field-full {
+  grid-column: 1 / -1;
+}
+
+.form-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 0.25rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.9375rem;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+}
+
+.form-input:hover:not(:focus) {
+  border-color: var(--muted-foreground);
+}
+
+.form-input[type="number"]::-webkit-inner-spin-button,
+.form-input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+select.form-input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 3rem;
+}
+
+[dir="rtl"] select.form-input {
+  background-position: left 1rem center;
+  padding-left: 3rem;
+  padding-right: 1rem;
+}
+
+textarea.form-input {
+  resize: vertical;
+  min-height: 100px;
+  font-family: inherit;
+}
+
+/* Form validation states */
+.form-input:required:invalid {
+  border-color: var(--border);
+}
+
+.form-input:required:valid {
+  border-color: var(--border);
+}
+
+/* Dashboard specific responsive */
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-form-card {
+    padding: 1.5rem;
+  }
 }

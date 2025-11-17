@@ -37,6 +37,7 @@
           currentPage: 'dashboard',
           showModal: false,
           modalType: null,
+          formData: {},
           patients: [
             { id: 1, name: 'أحمد محمد عبدالله', phone: '01012345678', email: 'ahmed@example.com', age: 35, gender: 'male', status: 'active', lastVisit: '2024-01-15', totalSessions: 12, totalPaid: 3600, address: 'القاهرة - مدينة نصر', diagnosis: 'آلام الظهر المزمنة' },
             { id: 2, name: 'فاطمة علي حسن', phone: '01023456789', email: 'fatima@example.com', age: 28, gender: 'female', status: 'active', lastVisit: '2024-01-14', totalSessions: 8, totalPaid: 2400, address: 'الجيزة - الدقي', diagnosis: 'التهاب المفاصل' },
@@ -236,7 +237,130 @@
             const state = context.getState();
             state.data.showModal = false;
             state.data.modalType = null;
+            state.data.formData = {};
             context.rebuild();
+          }
+        },
+
+        'modal:overlay-click': {
+          on: ['click'],
+          gkeys: ['modal:overlay-click'],
+          handler: function(event, context) {
+            if (event.target.dataset.mGkey === 'modal:overlay-click') {
+              const state = context.getState();
+              state.data.showModal = false;
+              state.data.modalType = null;
+              state.data.formData = {};
+              context.rebuild();
+            }
+          }
+        },
+
+        'form:input': {
+          on: ['input', 'change'],
+          gkeys: ['form:input'],
+          handler: function(event, context) {
+            const field = event.target.name;
+            const value = event.target.value;
+            const state = context.getState();
+            if (!state.data.formData) state.data.formData = {};
+            state.data.formData[field] = value;
+          }
+        },
+
+        'form:submit': {
+          on: ['submit'],
+          gkeys: ['form:submit'],
+          handler: function(event, context) {
+            event.preventDefault();
+            const state = context.getState();
+            const modalType = state.data.modalType;
+            const formData = state.data.formData || {};
+
+            // Simple validation
+            if (!formData.name && !formData.patientName) {
+              alert(state.env.lang === 'ar' ? 'الرجاء إدخال الاسم' : 'Please enter name');
+              return;
+            }
+
+            // Generate new ID
+            const newId = Date.now();
+
+            // Add to appropriate array
+            if (modalType === 'patient') {
+              state.data.patients.push({
+                id: newId,
+                name: formData.name || '',
+                phone: formData.phone || '',
+                email: formData.email || '',
+                age: parseInt(formData.age) || 0,
+                gender: formData.gender || 'male',
+                status: 'active',
+                lastVisit: new Date().toISOString().split('T')[0],
+                totalSessions: 0,
+                totalPaid: 0,
+                address: formData.address || '',
+                diagnosis: formData.diagnosis || ''
+              });
+            } else if (modalType === 'appointment') {
+              state.data.appointments.push({
+                id: newId,
+                patientId: parseInt(formData.patientId) || 0,
+                patientName: formData.patientName || '',
+                date: formData.date || '',
+                time: formData.time || '',
+                service: formData.service || '',
+                therapist: formData.therapist || '',
+                status: 'pending',
+                duration: parseInt(formData.duration) || 60,
+                price: parseInt(formData.price) || 300
+              });
+            } else if (modalType === 'session') {
+              state.data.sessions.push({
+                id: newId,
+                patientId: parseInt(formData.patientId) || 0,
+                patientName: formData.patientName || '',
+                date: formData.date || '',
+                service: formData.service || '',
+                therapist: formData.therapist || '',
+                duration: parseInt(formData.duration) || 60,
+                status: 'completed',
+                notes: formData.notes || '',
+                nextSession: formData.nextSession || '',
+                price: parseInt(formData.price) || 300,
+                paid: formData.paid === 'true'
+              });
+            } else if (modalType === 'staff') {
+              state.data.staff.push({
+                id: newId,
+                name: formData.name || '',
+                role: formData.role || '',
+                specialization: formData.specialization || '',
+                phone: formData.phone || '',
+                email: formData.email || '',
+                joinDate: formData.joinDate || new Date().toISOString().split('T')[0],
+                patients: 0,
+                sessionsToday: 0
+              });
+            } else if (modalType === 'service') {
+              state.data.services.push({
+                id: newId,
+                name: formData.name || '',
+                price: parseInt(formData.price) || 0,
+                duration: parseInt(formData.duration) || 60,
+                category: formData.category || '',
+                active: true
+              });
+            }
+
+            // Close modal
+            state.data.showModal = false;
+            state.data.modalType = null;
+            state.data.formData = {};
+            context.rebuild();
+
+            // Show success message
+            alert(state.env.lang === 'ar' ? 'تم الإضافة بنجاح!' : 'Added successfully!');
           }
         }
       };
@@ -674,13 +798,201 @@
         ]);
       }
 
+      // Modal Form Component
+      function ModalForm(db, D) {
+        if (!db.data.showModal) return null;
+
+        const modalType = db.data.modalType;
+        const formData = db.data.formData || {};
+
+        // Modal titles
+        const titles = {
+          patient: { ar: 'إضافة مريض جديد', en: 'Add New Patient' },
+          appointment: { ar: 'إضافة موعد جديد', en: 'Add New Appointment' },
+          session: { ar: 'إضافة جلسة جديدة', en: 'Add New Session' },
+          staff: { ar: 'إضافة موظف جديد', en: 'Add New Staff' },
+          service: { ar: 'إضافة خدمة جديدة', en: 'Add New Service' }
+        };
+
+        const title = titles[modalType] ? titles[modalType][db.env.lang] : 'Add New';
+
+        return D.Containers.Div({
+          attrs: {
+            class: 'modal-overlay',
+            'data-m-gkey': 'modal:overlay-click'
+          }
+        }, [
+          D.Containers.Div({
+            attrs: {
+              class: 'modal-content modal-form-card'
+            }
+          }, [
+            // Close Button
+            D.Forms.Button({
+              attrs: {
+                type: 'button',
+                class: 'modal-close-btn',
+                'data-m-gkey': 'modal:close',
+                'aria-label': 'Close'
+              }
+            }, ['×']),
+
+            // Title
+            D.Text.H2({ attrs: { class: 'modal-title' } }, [title]),
+
+            // Form
+            D.Forms.Form({ attrs: { class: 'modal-form', 'data-m-gkey': 'form:submit' } }, [
+              modalType === 'patient' ? PatientForm(formData, D) :
+              modalType === 'appointment' ? AppointmentForm(formData, db, D) :
+              modalType === 'session' ? SessionForm(formData, db, D) :
+              modalType === 'staff' ? StaffForm(formData, D) :
+              modalType === 'service' ? ServiceForm(formData, D) :
+              null,
+
+              // Form Actions
+              D.Containers.Div({ attrs: { class: 'form-actions' } }, [
+                D.Forms.Button({
+                  attrs: {
+                    type: 'button',
+                    class: 'btn btn-secondary',
+                    'data-m-gkey': 'modal:close'
+                  }
+                }, [t('booking.cancel')]),
+                D.Forms.Button({
+                  attrs: {
+                    type: 'submit',
+                    class: 'btn btn-primary'
+                  }
+                }, [db.env.lang === 'ar' ? 'حفظ' : 'Save'])
+              ])
+            ])
+          ])
+        ]);
+      }
+
+      // Form Components
+      function PatientForm(formData, D) {
+        return D.Containers.Div({ attrs: { class: 'form-grid' } }, [
+          FormField({ label: t('name') + ' *', name: 'name', type: 'text', value: formData.name, required: true }, D),
+          FormField({ label: t('phone') + ' *', name: 'phone', type: 'tel', value: formData.phone, required: true }, D),
+          FormField({ label: t('email'), name: 'email', type: 'email', value: formData.email }, D),
+          FormField({ label: t('age'), name: 'age', type: 'number', value: formData.age }, D),
+          FormSelect({ label: t('gender'), name: 'gender', value: formData.gender, options: [
+            { value: 'male', label: t('male') },
+            { value: 'female', label: t('female') }
+          ]}, D),
+          FormField({ label: t('address'), name: 'address', type: 'text', value: formData.address, fullWidth: true }, D),
+          FormField({ label: t('diagnosis'), name: 'diagnosis', type: 'text', value: formData.diagnosis, fullWidth: true }, D)
+        ]);
+      }
+
+      function AppointmentForm(formData, db, D) {
+        return D.Containers.Div({ attrs: { class: 'form-grid' } }, [
+          FormField({ label: t('patient') + ' *', name: 'patientName', type: 'text', value: formData.patientName, required: true }, D),
+          FormField({ label: t('date') + ' *', name: 'date', type: 'date', value: formData.date, required: true }, D),
+          FormField({ label: t('time') + ' *', name: 'time', type: 'time', value: formData.time, required: true }, D),
+          FormField({ label: t('service'), name: 'service', type: 'text', value: formData.service }, D),
+          FormField({ label: t('therapist'), name: 'therapist', type: 'text', value: formData.therapist }, D),
+          FormField({ label: t('duration'), name: 'duration', type: 'number', value: formData.duration || 60 }, D),
+          FormField({ label: t('price'), name: 'price', type: 'number', value: formData.price || 300 }, D)
+        ]);
+      }
+
+      function SessionForm(formData, db, D) {
+        return D.Containers.Div({ attrs: { class: 'form-grid' } }, [
+          FormField({ label: t('patient') + ' *', name: 'patientName', type: 'text', value: formData.patientName, required: true }, D),
+          FormField({ label: t('date') + ' *', name: 'date', type: 'date', value: formData.date, required: true }, D),
+          FormField({ label: t('service'), name: 'service', type: 'text', value: formData.service }, D),
+          FormField({ label: t('therapist'), name: 'therapist', type: 'text', value: formData.therapist }, D),
+          FormField({ label: t('duration'), name: 'duration', type: 'number', value: formData.duration || 60 }, D),
+          FormField({ label: t('price'), name: 'price', type: 'number', value: formData.price || 300 }, D),
+          FormField({ label: t('nextSession'), name: 'nextSession', type: 'date', value: formData.nextSession }, D),
+          FormTextarea({ label: t('notes'), name: 'notes', value: formData.notes, fullWidth: true }, D)
+        ]);
+      }
+
+      function StaffForm(formData, D) {
+        return D.Containers.Div({ attrs: { class: 'form-grid' } }, [
+          FormField({ label: t('name') + ' *', name: 'name', type: 'text', value: formData.name, required: true }, D),
+          FormField({ label: t('role'), name: 'role', type: 'text', value: formData.role }, D),
+          FormField({ label: t('specialization'), name: 'specialization', type: 'text', value: formData.specialization, fullWidth: true }, D),
+          FormField({ label: t('phone'), name: 'phone', type: 'tel', value: formData.phone }, D),
+          FormField({ label: t('email'), name: 'email', type: 'email', value: formData.email }, D),
+          FormField({ label: t('joinDate'), name: 'joinDate', type: 'date', value: formData.joinDate }, D)
+        ]);
+      }
+
+      function ServiceForm(formData, D) {
+        return D.Containers.Div({ attrs: { class: 'form-grid' } }, [
+          FormField({ label: t('serviceName') + ' *', name: 'name', type: 'text', value: formData.name, required: true, fullWidth: true }, D),
+          FormField({ label: t('category'), name: 'category', type: 'text', value: formData.category }, D),
+          FormField({ label: t('duration'), name: 'duration', type: 'number', value: formData.duration || 60 }, D),
+          FormField({ label: t('price'), name: 'price', type: 'number', value: formData.price || 300 }, D)
+        ]);
+      }
+
+      // Helper Components
+      function FormField({ label, name, type, value, required, fullWidth }, D) {
+        return D.Containers.Div({ attrs: { class: fullWidth ? 'form-field form-field-full' : 'form-field' } }, [
+          D.Forms.Label({ attrs: { for: name } }, [label]),
+          D.Inputs.Input({
+            attrs: {
+              type: type || 'text',
+              name: name,
+              id: name,
+              value: value || '',
+              required: required || false,
+              'data-m-gkey': 'form:input',
+              class: 'form-input'
+            }
+          })
+        ]);
+      }
+
+      function FormSelect({ label, name, value, options }, D) {
+        return D.Containers.Div({ attrs: { class: 'form-field' } }, [
+          D.Forms.Label({ attrs: { for: name } }, [label]),
+          D.Inputs.Select({
+            attrs: {
+              name: name,
+              id: name,
+              'data-m-gkey': 'form:input',
+              class: 'form-input'
+            }
+          }, options.map(opt =>
+            D.Inputs.Option({
+              attrs: {
+                value: opt.value,
+                selected: value === opt.value
+              }
+            }, [opt.label])
+          ))
+        ]);
+      }
+
+      function FormTextarea({ label, name, value, fullWidth }, D) {
+        return D.Containers.Div({ attrs: { class: fullWidth ? 'form-field form-field-full' : 'form-field' } }, [
+          D.Forms.Label({ attrs: { for: name } }, [label]),
+          D.Inputs.Textarea({
+            attrs: {
+              name: name,
+              id: name,
+              'data-m-gkey': 'form:input',
+              class: 'form-input',
+              rows: '4'
+            }
+          }, [value || ''])
+        ]);
+      }
+
       // Main App Body
       M.app.setBody(function(stateWrapper, D) {
         const state = stateWrapper;
 
         return D.Containers.Div({ attrs: { class: tw`flex min-h-screen ${token('surface')}` } }, [
           Sidebar(state, D),
-          MainContent(state, D)
+          MainContent(state, D),
+          ModalForm(state, D)
         ]);
       });
 
