@@ -186,7 +186,11 @@
           on: ['click'],
           gkeys: ['nav:click'],
           handler: function(event, context) {
-            const page = event.target.dataset.page;
+            // Use closest() to find the element with data-page, even if user clicked on child span
+            const target = event.target.closest('[data-page]');
+            if (!target) return; // Exit if no data-page found
+
+            const page = target.dataset.page;
             const state = context.getState();
             state.data.currentPage = page;
             context.rebuild();
@@ -197,7 +201,10 @@
           on: ['click'],
           gkeys: ['lang:switch'],
           handler: function(event, context) {
-            const newLang = event.target.dataset.lang;
+            const target = event.target.closest('[data-lang]');
+            if (!target) return;
+
+            const newLang = target.dataset.lang;
             const state = context.getState();
             state.env.lang = newLang;
             state.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
@@ -222,7 +229,10 @@
           on: ['click'],
           gkeys: ['modal:open'],
           handler: function(event, context) {
-            const modalType = event.target.dataset.modalType;
+            const target = event.target.closest('[data-modal-type]');
+            if (!target) return;
+
+            const modalType = target.dataset.modalType;
             const state = context.getState();
             state.data.showModal = true;
             state.data.modalType = modalType;
@@ -381,7 +391,9 @@
         }, [
           // Header
           D.Containers.Div({ attrs: { class: tw`mb-8 pb-4 border-b border-[var(--border)]` } }, [
-            D.Text.H2({ attrs: { class: tw`text-lg font-bold text-[var(--primary)]` } }, ['🏥 مركز العلاج الطبيعي'])
+            D.Text.H2({ attrs: { class: tw`text-lg font-bold text-[var(--primary)]` } }, [
+              '🏥 ' + (db.env.lang === 'ar' ? 'مركز العلاج الطبيعي' : 'Physical Therapy Center')
+            ])
           ]),
 
           // Menu
