@@ -145,8 +145,21 @@
             serviceId: '',
             preferredDate: '',
             preferredTime: '',
-            notes: ''
+            notes: '',
+            bookingStep: 1,
+            selectedDate: null,
+            selectedTime: null
           },
+          // Mock booked appointments (some slots are already taken)
+          bookedSlots: [
+            { date: '2024-01-16', time: '17:00' },
+            { date: '2024-01-16', time: '18:30' },
+            { date: '2024-01-17', time: '17:30' },
+            { date: '2024-01-17', time: '19:00' },
+            { date: '2024-01-18', time: '17:00' },
+            { date: '2024-01-18', time: '18:00' },
+            { date: '2024-01-19', time: '20:00' }
+          ],
           testimonials: [
             {
               id: 1,
@@ -246,6 +259,78 @@
         return obj[field + '_' + lang] || obj[field] || '';
       };
 
+      // Generate available dates (next 5 days, excluding Friday and Saturday)
+      const generateAvailableDates = function() {
+        const dates = [];
+        const today = new Date();
+        let daysAdded = 0;
+        let currentDay = 0;
+
+        while (daysAdded < 5) {
+          const date = new Date(today);
+          date.setDate(today.getDate() + currentDay);
+          const dayOfWeek = date.getDay();
+
+          // Skip Friday (5) and Saturday (6)
+          if (dayOfWeek !== 5 && dayOfWeek !== 6) {
+            const dayNames = {
+              ar: ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'],
+              en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+            };
+            const monthNames = {
+              ar: ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'],
+              en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            };
+
+            dates.push({
+              date: date,
+              dateString: date.toISOString().split('T')[0],
+              dayName: {
+                ar: dayNames.ar[dayOfWeek],
+                en: dayNames.en[dayOfWeek]
+              },
+              dayNumber: date.getDate(),
+              monthYear: {
+                ar: monthNames.ar[date.getMonth()] + ' ' + date.getFullYear(),
+                en: monthNames.en[date.getMonth()] + ' ' + date.getFullYear()
+              }
+            });
+            daysAdded++;
+          }
+          currentDay++;
+        }
+
+        return dates;
+      };
+
+      // Generate time slots (5:00 PM to 9:00 PM, every 30 minutes)
+      const generateTimeSlots = function() {
+        const slots = [];
+        const startHour = 17; // 5 PM
+        const endHour = 21;   // 9 PM
+
+        for (let hour = startHour; hour < endHour; hour++) {
+          for (let minute = 0; minute < 60; minute += 30) {
+            const timeString = String(hour).padStart(2, '0') + ':' + String(minute).padStart(2, '0');
+            const displayTime = {
+              ar: (hour > 12 ? hour - 12 : hour) + ':' + String(minute).padStart(2, '0') + ' ' + (hour >= 12 ? 'مساءً' : 'صباحاً'),
+              en: (hour > 12 ? hour - 12 : hour) + ':' + String(minute).padStart(2, '0') + ' ' + (hour >= 12 ? 'PM' : 'AM')
+            };
+            slots.push({
+              time: timeString,
+              display: displayTime
+            });
+          }
+        }
+
+        return slots;
+      };
+
+      // Check if a time slot is booked
+      const isSlotBooked = function(dateString, time, bookedSlots) {
+        return bookedSlots.some(slot => slot.date === dateString && slot.time === time);
+      };
+
       // Event Handlers - Proper format for mishkah-core
       const orders = {
         'lang:switch': {
@@ -342,8 +427,53 @@
               serviceId: '',
               preferredDate: '',
               preferredTime: '',
-              notes: ''
+              notes: '',
+              bookingStep: 1,
+              selectedDate: null,
+              selectedTime: null
             };
+            context.rebuild();
+          }
+        },
+
+        'booking:select-date': {
+          on: ['click'],
+          gkeys: ['booking:select-date'],
+          handler: function(event, context) {
+            const dateString = event.target.dataset.date;
+            const state = context.getState();
+            state.data.bookingForm.selectedDate = dateString;
+            state.data.bookingForm.bookingStep = 2;
+            context.rebuild();
+          }
+        },
+
+        'booking:select-time': {
+          on: ['click'],
+          gkeys: ['booking:select-time'],
+          handler: function(event, context) {
+            const time = event.target.dataset.time;
+            const state = context.getState();
+            state.data.bookingForm.selectedTime = time;
+            state.data.bookingForm.bookingStep = 3;
+            context.rebuild();
+          }
+        },
+
+        'booking:back-step': {
+          on: ['click'],
+          gkeys: ['booking:back-step'],
+          handler: function(event, context) {
+            const state = context.getState();
+            if (state.data.bookingForm.bookingStep > 1) {
+              state.data.bookingForm.bookingStep--;
+              if (state.data.bookingForm.bookingStep === 1) {
+                state.data.bookingForm.selectedDate = null;
+                state.data.bookingForm.selectedTime = null;
+              } else if (state.data.bookingForm.bookingStep === 2) {
+                state.data.bookingForm.selectedTime = null;
+              }
+            }
             context.rebuild();
           }
         },
@@ -368,18 +498,41 @@
             const form = state.data.bookingForm;
 
             // Validate
-            if (!form.firstName || !form.lastName || !form.phone || !form.preferredDate) {
+            if (!form.firstName || !form.lastName || !form.phone) {
               alert(state.env.lang === 'ar' ? 'الرجاء ملء جميع الحقول المطلوبة' : 'Please fill all required fields');
               return;
             }
 
+            if (!form.selectedDate || !form.selectedTime) {
+              alert(state.env.lang === 'ar' ? 'الرجاء اختيار التاريخ والوقت' : 'Please select date and time');
+              return;
+            }
+
+            // Prepare booking data
+            const bookingData = {
+              firstName: form.firstName,
+              lastName: form.lastName,
+              phone: form.phone,
+              email: form.email,
+              serviceId: form.serviceId,
+              date: form.selectedDate,
+              time: form.selectedTime,
+              notes: form.notes
+            };
+
             // Here you would send the data to your backend
-            console.log('Booking submitted:', form);
+            console.log('Booking submitted:', bookingData);
+
+            // Add to booked slots
+            state.data.bookedSlots.push({
+              date: form.selectedDate,
+              time: form.selectedTime
+            });
 
             // Show success message
             alert(t('booking.success'));
 
-            // Close form
+            // Close form and reset
             state.data.showBookingForm = false;
             state.data.bookingForm = {
               firstName: '',
@@ -389,7 +542,10 @@
               serviceId: '',
               preferredDate: '',
               preferredTime: '',
-              notes: ''
+              notes: '',
+              bookingStep: 1,
+              selectedDate: null,
+              selectedTime: null
             };
             context.rebuild();
           }
@@ -795,29 +951,127 @@
       function BookingForm(db, D) {
         if (!db.data.showBookingForm) return null;
 
-        return D.Containers.Div({
-          attrs: {
-            class: 'modal-overlay',
-            'data-m-gkey': 'booking:overlay-click'
-          }
-        }, [
-          D.Containers.Div({
-            attrs: {
-              class: 'modal-content booking-modal'
-            }
-          }, [
-            // Close Button (X)
-            D.Forms.Button({
-              attrs: {
-                type: 'button',
-                class: 'modal-close-btn',
-                'data-m-gkey': 'booking:close',
-                'aria-label': 'Close'
-              }
-            }, ['×']),
+        const lang = db.env.lang;
+        const bookingStep = db.data.bookingForm.bookingStep || 1;
+        const availableDates = generateAvailableDates();
+        const timeSlots = generateTimeSlots();
+        const selectedDate = db.data.bookingForm.selectedDate;
+        const selectedTime = db.data.bookingForm.selectedTime;
 
-            D.Text.H2({ attrs: { class: 'modal-title' } }, [t('booking.title')]),
-            D.Forms.Form({ attrs: { class: 'booking-form', 'data-m-gkey': 'booking:submit' } }, [
+        // Step 1: Select Date
+        const DateSelectionStep = function() {
+          return D.Containers.Div({ attrs: { class: 'appointment-booking-container' } }, [
+            D.Text.H3({ attrs: { class: 'times-section-title' } }, [
+              lang === 'ar' ? 'اختر التاريخ المناسب' : 'Select a Date'
+            ]),
+            D.Containers.Div({ attrs: { class: 'dates-grid' } },
+              availableDates.map(function(dateObj) {
+                return D.Containers.Div({
+                  attrs: {
+                    key: dateObj.dateString,
+                    class: 'date-card' + (selectedDate === dateObj.dateString ? ' selected' : ''),
+                    'data-m-gkey': 'booking:select-date',
+                    'data-date': dateObj.dateString
+                  }
+                }, [
+                  D.Text.Span({ attrs: { class: 'date-day-name' } }, [dateObj.dayName[lang]]),
+                  D.Text.Span({ attrs: { class: 'date-day-number' } }, [String(dateObj.dayNumber)]),
+                  D.Text.Span({ attrs: { class: 'date-month-year' } }, [dateObj.monthYear[lang]])
+                ]);
+              })
+            )
+          ]);
+        };
+
+        // Step 2: Select Time
+        const TimeSelectionStep = function() {
+          if (!selectedDate) return null;
+
+          const selectedDateObj = availableDates.find(d => d.dateString === selectedDate);
+          const dateDisplay = selectedDateObj
+            ? (selectedDateObj.dayName[lang] + ' ' + selectedDateObj.dayNumber + ' ' + selectedDateObj.monthYear[lang])
+            : selectedDate;
+
+          return D.Containers.Div({ attrs: { class: 'appointment-booking-container' } }, [
+            D.Containers.Div({ attrs: { class: 'booking-summary' } }, [
+              D.Text.Span({ attrs: { class: 'booking-summary-title' } }, [
+                lang === 'ar' ? '📅 التاريخ المحدد' : '📅 Selected Date'
+              ]),
+              D.Text.Span({ attrs: { class: 'booking-summary-value', style: 'font-size: 1.125rem;' } }, [dateDisplay])
+            ]),
+
+            D.Containers.Div({ attrs: { class: 'times-section' } }, [
+              D.Text.H3({ attrs: { class: 'times-section-title' } }, [
+                lang === 'ar' ? 'اختر الوقت المناسب' : 'Select a Time'
+              ]),
+              D.Containers.Div({ attrs: { class: 'times-grid' } },
+                timeSlots.map(function(slot) {
+                  const isBooked = isSlotBooked(selectedDate, slot.time, db.data.bookedSlots);
+                  const isSelected = selectedTime === slot.time;
+                  const classes = 'time-slot' +
+                    (isBooked ? ' booked' : '') +
+                    (isSelected ? ' selected' : '');
+
+                  return D.Containers.Div({
+                    attrs: {
+                      key: slot.time,
+                      class: classes,
+                      'data-m-gkey': isBooked ? '' : 'booking:select-time',
+                      'data-time': slot.time
+                    }
+                  }, [
+                    D.Text.Span({}, [slot.display[lang]])
+                  ]);
+                })
+              )
+            ]),
+
+            D.Containers.Div({ attrs: { class: 'form-actions', style: 'margin-top: 2rem;' } }, [
+              D.Forms.Button({
+                attrs: {
+                  type: 'button',
+                  class: 'btn btn-secondary',
+                  'data-m-gkey': 'booking:back-step'
+                }
+              }, [lang === 'ar' ? '← رجوع' : '← Back'])
+            ])
+          ]);
+        };
+
+        // Step 3: Contact Information
+        const ContactInfoStep = function() {
+          if (!selectedDate || !selectedTime) return null;
+
+          const selectedDateObj = availableDates.find(d => d.dateString === selectedDate);
+          const selectedTimeObj = timeSlots.find(t => t.time === selectedTime);
+          const dateDisplay = selectedDateObj
+            ? (selectedDateObj.dayName[lang] + ' ' + selectedDateObj.dayNumber + ' ' + selectedDateObj.monthYear[lang])
+            : selectedDate;
+
+          return D.Containers.Div({ attrs: { class: 'appointment-booking-container' } }, [
+            D.Containers.Div({ attrs: { class: 'booking-summary' } }, [
+              D.Text.Span({ attrs: { class: 'booking-summary-title' } }, [
+                lang === 'ar' ? 'ملخص الحجز' : 'Booking Summary'
+              ]),
+              D.Containers.Div({ attrs: { class: 'booking-summary-details' } }, [
+                D.Containers.Div({ attrs: { class: 'booking-summary-item' } }, [
+                  D.Text.Span({ attrs: { class: 'booking-summary-label' } }, [
+                    lang === 'ar' ? 'التاريخ:' : 'Date:'
+                  ]),
+                  D.Text.Span({ attrs: { class: 'booking-summary-value' } }, [dateDisplay])
+                ]),
+                D.Containers.Div({ attrs: { class: 'booking-summary-item' } }, [
+                  D.Text.Span({ attrs: { class: 'booking-summary-label' } }, [
+                    lang === 'ar' ? 'الوقت:' : 'Time:'
+                  ]),
+                  D.Text.Span({ attrs: { class: 'booking-summary-value' } }, [
+                    selectedTimeObj ? selectedTimeObj.display[lang] : selectedTime
+                  ])
+                ])
+              ])
+            ]),
+
+            D.Forms.Form({ attrs: { class: 'booking-form', 'data-m-gkey': 'booking:submit', style: 'margin-top: 2rem;' } }, [
               D.Containers.Div({ attrs: { class: 'form-row' } }, [
                 D.Containers.Div({ attrs: { class: 'form-group' } }, [
                   D.Forms.Label({}, [t('booking.firstName') + ' *']),
@@ -827,7 +1081,8 @@
                       name: 'firstName',
                       value: db.data.bookingForm.firstName,
                       required: true,
-                      'data-m-gkey': 'booking:input'
+                      'data-m-gkey': 'booking:input',
+                      class: 'form-input'
                     }
                   })
                 ]),
@@ -839,7 +1094,8 @@
                       name: 'lastName',
                       value: db.data.bookingForm.lastName,
                       required: true,
-                      'data-m-gkey': 'booking:input'
+                      'data-m-gkey': 'booking:input',
+                      class: 'form-input'
                     }
                   })
                 ])
@@ -854,7 +1110,8 @@
                       name: 'phone',
                       value: db.data.bookingForm.phone,
                       required: true,
-                      'data-m-gkey': 'booking:input'
+                      'data-m-gkey': 'booking:input',
+                      class: 'form-input'
                     }
                   })
                 ]),
@@ -865,7 +1122,8 @@
                       type: 'email',
                       name: 'email',
                       value: db.data.bookingForm.email,
-                      'data-m-gkey': 'booking:input'
+                      'data-m-gkey': 'booking:input',
+                      class: 'form-input'
                     }
                   })
                 ])
@@ -876,7 +1134,8 @@
                 D.Inputs.Select({
                   attrs: {
                     name: 'serviceId',
-                    'data-m-gkey': 'booking:input'
+                    'data-m-gkey': 'booking:input',
+                    class: 'form-input'
                   }
                 }, [
                   D.Inputs.Option({ attrs: { value: '' } }, [t('booking.selectService')]),
@@ -891,48 +1150,100 @@
                 ])
               ]),
 
-              D.Containers.Div({ attrs: { class: 'form-row' } }, [
-                D.Containers.Div({ attrs: { class: 'form-group' } }, [
-                  D.Forms.Label({}, [t('booking.date') + ' *']),
-                  D.Inputs.Input({
-                    attrs: {
-                      type: 'date',
-                      name: 'preferredDate',
-                      value: db.data.bookingForm.preferredDate,
-                      required: true,
-                      'data-m-gkey': 'booking:input'
-                    }
-                  })
-                ]),
-                D.Containers.Div({ attrs: { class: 'form-group' } }, [
-                  D.Forms.Label({}, [t('booking.time')]),
-                  D.Inputs.Input({
-                    attrs: {
-                      type: 'time',
-                      name: 'preferredTime',
-                      value: db.data.bookingForm.preferredTime,
-                      'data-m-gkey': 'booking:input'
-                    }
-                  })
-                ])
-              ]),
-
               D.Containers.Div({ attrs: { class: 'form-group' } }, [
                 D.Forms.Label({}, [t('booking.notes')]),
                 D.Inputs.Textarea({
                   attrs: {
                     name: 'notes',
                     rows: 4,
-                    'data-m-gkey': 'booking:input'
+                    'data-m-gkey': 'booking:input',
+                    class: 'form-input'
                   }
                 }, [db.data.bookingForm.notes])
               ]),
 
               D.Containers.Div({ attrs: { class: 'form-actions' } }, [
-                D.Forms.Button({ attrs: { type: 'button', class: 'btn btn-secondary', 'data-m-gkey': 'booking:close' } }, [t('booking.cancel')]),
-                D.Forms.Button({ attrs: { type: 'submit', class: 'btn btn-primary' } }, [t('booking.submit')])
+                D.Forms.Button({
+                  attrs: {
+                    type: 'button',
+                    class: 'btn btn-secondary',
+                    'data-m-gkey': 'booking:back-step'
+                  }
+                }, [lang === 'ar' ? '← رجوع' : '← Back']),
+                D.Forms.Button({
+                  attrs: {
+                    type: 'submit',
+                    class: 'btn btn-primary'
+                  }
+                }, [t('booking.submit') + ' ✓'])
               ])
             ])
+          ]);
+        };
+
+        // Determine which step to show
+        let stepContent;
+        if (bookingStep === 1) {
+          stepContent = DateSelectionStep();
+        } else if (bookingStep === 2) {
+          stepContent = TimeSelectionStep();
+        } else if (bookingStep === 3) {
+          stepContent = ContactInfoStep();
+        }
+
+        // Step indicator
+        const StepIndicator = function() {
+          const steps = [
+            { number: 1, label: { ar: 'التاريخ', en: 'Date' } },
+            { number: 2, label: { ar: 'الوقت', en: 'Time' } },
+            { number: 3, label: { ar: 'البيانات', en: 'Info' } }
+          ];
+
+          return D.Containers.Div({ attrs: { class: 'booking-step-indicator' } },
+            steps.map(function(step) {
+              const isActive = bookingStep === step.number;
+              const isCompleted = bookingStep > step.number;
+              const classes = 'booking-step' +
+                (isActive ? ' active' : '') +
+                (isCompleted ? ' completed' : '');
+
+              return D.Containers.Div({
+                attrs: { key: step.number, class: classes }
+              }, [
+                D.Text.Span({ attrs: { class: 'booking-step-number' } }, [String(step.number)]),
+                D.Text.Span({ attrs: { class: 'booking-step-text' } }, [step.label[lang]])
+              ]);
+            })
+          );
+        };
+
+        return D.Containers.Div({
+          attrs: {
+            class: 'modal-overlay',
+            'data-m-gkey': 'booking:overlay-click'
+          }
+        }, [
+          D.Containers.Div({
+            attrs: {
+              class: 'modal-content booking-modal',
+              style: 'max-width: 900px; padding: 2.5rem;'
+            }
+          }, [
+            // Close Button (X)
+            D.Forms.Button({
+              attrs: {
+                type: 'button',
+                class: 'modal-close-btn',
+                'data-m-gkey': 'booking:close',
+                'aria-label': 'Close'
+              }
+            }, ['×']),
+
+            D.Text.H2({ attrs: { class: 'modal-title' } }, [t('booking.title')]),
+
+            StepIndicator(),
+
+            stepContent
           ])
         ]);
       }
