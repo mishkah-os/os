@@ -457,8 +457,8 @@
           D.Containers.Div({ attrs: { class: 'sidebar-header' } }, [
             D.Text.H2({ attrs: { class: 'sidebar-title' } }, ['ERP - مركز العلاج الطبيعي'])
           ]),
-          D.Containers.Ul({ attrs: { class: 'sidebar-menu' } }, [
-            D.Containers.Li({ attrs: { class: 'sidebar-menu-item' } }, [
+          D.Lists.Ul({ attrs: { class: 'sidebar-menu' } }, [
+            D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
                   class: 'sidebar-menu-link' + (db.data.currentPage === 'dashboard' ? ' active' : ''),
