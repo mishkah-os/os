@@ -38,6 +38,42 @@
         data: {
           currentPage: 'home',
           showBookingForm: false,
+          currentSlide: 0,
+          slides: [
+            {
+              id: 1,
+              title_ar: 'رعاية صحية متميزة',
+              title_en: 'Exceptional Healthcare',
+              subtitle_ar: 'نقدم أحدث تقنيات العلاج الطبيعي',
+              subtitle_en: 'We provide the latest physical therapy techniques',
+              cta_ar: 'احجز موعدك الآن',
+              cta_en: 'Book Your Appointment',
+              gradient: 'from-cyan-500 to-blue-600',
+              icon: '🏥'
+            },
+            {
+              id: 2,
+              title_ar: 'خبرة 15 عاماً',
+              title_en: '15 Years of Experience',
+              subtitle_ar: 'فريق طبي محترف ومتخصص',
+              subtitle_en: 'Professional and specialized medical team',
+              cta_ar: 'تعرف على فريقنا',
+              cta_en: 'Meet Our Team',
+              gradient: 'from-purple-500 to-pink-600',
+              icon: '⭐'
+            },
+            {
+              id: 3,
+              title_ar: 'تعافي سريع وفعال',
+              title_en: 'Fast and Effective Recovery',
+              subtitle_ar: 'برامج علاجية مخصصة لكل حالة',
+              subtitle_en: 'Customized treatment programs for each case',
+              cta_ar: 'اكتشف خدماتنا',
+              cta_en: 'Discover Our Services',
+              gradient: 'from-emerald-500 to-teal-600',
+              icon: '💪'
+            }
+          ],
           services: [
             {
               id: 1,
@@ -265,6 +301,33 @@
           }
         },
 
+        'booking:overlay-click': {
+          on: ['click'],
+          gkeys: ['booking:overlay-click'],
+          handler: function(event, context) {
+            // Only close if clicking directly on overlay, not on its children
+            if (event.target.dataset.mGkey === 'booking:overlay-click') {
+              const state = context.getState();
+              state.data.showBookingForm = false;
+              context.rebuild();
+            }
+          }
+        },
+
+        'booking:esc-key': {
+          on: ['keydown'],
+          gkeys: ['booking:esc-key'],
+          handler: function(event, context) {
+            if (event.key === 'Escape' || event.keyCode === 27) {
+              const state = context.getState();
+              if (state.data.showBookingForm) {
+                state.data.showBookingForm = false;
+                context.rebuild();
+              }
+            }
+          }
+        },
+
         'booking:close': {
           on: ['click'],
           gkeys: ['booking:close'],
@@ -328,6 +391,39 @@
               preferredTime: '',
               notes: ''
             };
+            context.rebuild();
+          }
+        },
+
+        'slider:next': {
+          on: ['click'],
+          gkeys: ['slider:next'],
+          handler: function(event, context) {
+            const state = context.getState();
+            state.data.currentSlide = (state.data.currentSlide + 1) % state.data.slides.length;
+            context.rebuild();
+          }
+        },
+
+        'slider:prev': {
+          on: ['click'],
+          gkeys: ['slider:prev'],
+          handler: function(event, context) {
+            const state = context.getState();
+            state.data.currentSlide = state.data.currentSlide === 0
+              ? state.data.slides.length - 1
+              : state.data.currentSlide - 1;
+            context.rebuild();
+          }
+        },
+
+        'slider:goto': {
+          on: ['click'],
+          gkeys: ['slider:goto'],
+          handler: function(event, context) {
+            const slideIndex = parseInt(event.target.dataset.slideIndex);
+            const state = context.getState();
+            state.data.currentSlide = slideIndex;
             context.rebuild();
           }
         }
@@ -439,37 +535,103 @@
       }
 
       function HeroSection(db, D) {
+        const currentSlide = db.data.slides[db.data.currentSlide];
+        const slidesCount = db.data.slides.length;
+
         return D.Containers.Section({
           attrs: {
             id: 'home',
-            class: tw`min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-[var(--surface-1)] to-[var(--surface-2)] px-4 py-20`
+            class: 'hero-slider-container'
           }
         }, [
+          // Canvas Background
           D.Containers.Div({
             attrs: {
-              class: tw`max-w-4xl mx-auto text-center space-y-6`
+              id: 'hero-canvas-bg',
+              class: 'hero-canvas-bg'
+            }
+          }, []),
+
+          // Slider Content
+          D.Containers.Div({
+            attrs: {
+              class: tw`relative min-h-[85vh] flex items-center justify-center px-4 py-20 overflow-hidden bg-gradient-to-br ${currentSlide.gradient}`
             }
           }, [
-            D.Text.H1({
+            // Slide Content (with animation)
+            D.Containers.Div({
               attrs: {
-                class: tw`text-4xl sm:text-5xl lg:text-6xl font-bold text-[var(--foreground)] leading-tight`
+                key: currentSlide.id,
+                class: 'slide-content max-w-5xl mx-auto text-center'
               }
-            }, [t('hero.title')]),
-            D.Text.H2({
+            }, [
+              // Icon
+              D.Text.Span({
+                attrs: {
+                  class: 'slide-icon text-8xl sm:text-9xl block mb-8 animate-bounce-slow'
+                }
+              }, [currentSlide.icon]),
+
+              // Title
+              D.Text.H1({
+                attrs: {
+                  class: 'slide-title text-5xl sm:text-6xl lg:text-7xl font-bold text-white leading-tight mb-6'
+                }
+              }, [tf(currentSlide, 'title')]),
+
+              // Subtitle
+              D.Text.P({
+                attrs: {
+                  class: 'slide-subtitle text-xl sm:text-2xl lg:text-3xl text-white/90 font-medium max-w-3xl mx-auto mb-10'
+                }
+              }, [tf(currentSlide, 'subtitle')]),
+
+              // CTA Button
+              D.Forms.Button({
+                attrs: {
+                  class: 'btn btn-hero',
+                  'data-m-gkey': 'booking:open'
+                }
+              }, [tf(currentSlide, 'cta') + ' →'])
+            ]),
+
+            // Navigation Arrows
+            D.Containers.Div({ attrs: { class: 'slider-controls' } }, [
+              // Previous Button
+              D.Forms.Button({
+                attrs: {
+                  class: 'slider-arrow slider-arrow-prev',
+                  'data-m-gkey': 'slider:prev',
+                  'aria-label': 'Previous Slide'
+                }
+              }, ['‹']),
+
+              // Next Button
+              D.Forms.Button({
+                attrs: {
+                  class: 'slider-arrow slider-arrow-next',
+                  'data-m-gkey': 'slider:next',
+                  'aria-label': 'Next Slide'
+                }
+              }, ['›'])
+            ]),
+
+            // Dots Indicator
+            D.Containers.Div({
               attrs: {
-                class: tw`text-2xl sm:text-3xl lg:text-4xl font-semibold text-[var(--primary)] mt-4`
+                class: 'slider-dots'
               }
-            }, [t('hero.subtitle')]),
-            D.Text.P({
-              attrs: {
-                class: tw`text-lg sm:text-xl text-[var(--muted-foreground)] mt-6 max-w-2xl mx-auto`
-              }
-            }, [t('hero.description')]),
-            UI.Button({
-              attrs: { 'data-m-gkey': 'booking:open', class: tw`mt-8` },
-              variant: 'solid',
-              size: 'lg'
-            }, [t('hero.cta')])
+            }, db.data.slides.map((slide, index) =>
+              D.Forms.Button({
+                attrs: {
+                  key: slide.id,
+                  class: `slider-dot ${index === db.data.currentSlide ? 'active' : ''}`,
+                  'data-m-gkey': 'slider:goto',
+                  'data-slide-index': String(index),
+                  'aria-label': `Go to slide ${index + 1}`
+                }
+              }, [])
+            ))
           ])
         ]);
       }
@@ -633,13 +795,27 @@
       function BookingForm(db, D) {
         if (!db.data.showBookingForm) return null;
 
-        return D.Containers.Div({ attrs: { class: 'modal-overlay', 'data-m-gkey': 'booking:close' } }, [
+        return D.Containers.Div({
+          attrs: {
+            class: 'modal-overlay',
+            'data-m-gkey': 'booking:overlay-click'
+          }
+        }, [
           D.Containers.Div({
             attrs: {
-              class: 'modal-content booking-modal',
-              onclick: 'event.stopPropagation()'
+              class: 'modal-content booking-modal'
             }
           }, [
+            // Close Button (X)
+            D.Forms.Button({
+              attrs: {
+                type: 'button',
+                class: 'modal-close-btn',
+                'data-m-gkey': 'booking:close',
+                'aria-label': 'Close'
+              }
+            }, ['×']),
+
             D.Text.H2({ attrs: { class: 'modal-title' } }, [t('booking.title')]),
             D.Forms.Form({ attrs: { class: 'booking-form', 'data-m-gkey': 'booking:submit' } }, [
               D.Containers.Div({ attrs: { class: 'form-row' } }, [
@@ -790,6 +966,100 @@
       // Create and Mount App
       const app = M.app.createApp(db, orders);
       app.mount('#app');
+
+      // Initialize Canvas Background Animation
+      function initCanvasBackground() {
+        const container = document.getElementById('hero-canvas-bg');
+        if (!container) return;
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        container.appendChild(canvas);
+
+        function resize() {
+          canvas.width = container.offsetWidth;
+          canvas.height = container.offsetHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // Particles
+        const particles = [];
+        const particleCount = 50;
+        const colors = ['rgba(255, 255, 255, 0.1)', 'rgba(8, 145, 178, 0.15)', 'rgba(6, 182, 212, 0.12)'];
+
+        class Particle {
+          constructor() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.size = Math.random() * 4 + 2;
+            this.speedX = Math.random() * 1 - 0.5;
+            this.speedY = Math.random() * 1 - 0.5;
+            this.color = colors[Math.floor(Math.random() * colors.length)];
+            this.opacity = Math.random() * 0.5 + 0.3;
+          }
+
+          update() {
+            this.x += this.speedX;
+            this.y += this.speedY;
+
+            if (this.x > canvas.width) this.x = 0;
+            if (this.x < 0) this.x = canvas.width;
+            if (this.y > canvas.height) this.y = 0;
+            if (this.y < 0) this.y = canvas.height;
+          }
+
+          draw() {
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = this.opacity;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+          }
+        }
+
+        // Initialize particles
+        for (let i = 0; i < particleCount; i++) {
+          particles.push(new Particle());
+        }
+
+        // Animation loop
+        function animate() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // Draw connections
+          for (let i = 0; i < particles.length; i++) {
+            for (let j = i + 1; j < particles.length; j++) {
+              const dx = particles[i].x - particles[j].x;
+              const dy = particles[i].y - particles[j].y;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+
+              if (distance < 150) {
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 * (1 - distance / 150)})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(particles[i].x, particles[i].y);
+                ctx.lineTo(particles[j].x, particles[j].y);
+                ctx.stroke();
+              }
+            }
+          }
+
+          // Update and draw particles
+          particles.forEach(particle => {
+            particle.update();
+            particle.draw();
+          });
+
+          requestAnimationFrame(animate);
+        }
+
+        animate();
+      }
+
+      // Wait for DOM to be ready then initialize canvas
+      setTimeout(initCanvasBackground, 100);
 
       console.log('Physical Therapy Clinic website loaded successfully!');
     })();
