@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>عيادات دكتورة مروة حسين للعلاج الطبيعي | Dr. Marwa Hussein Physical Therapy Clinics</title>
   <meta name="description" content="عيادات متخصصة في العلاج الطبيعي وإعادة التأهيل | Specialized Physical Therapy and Rehabilitation Clinics">
-  <link rel="stylesheet" href="css/styles.css">
   <!-- Load Mishkah Libraries -->
   <script src="../../lib/mishkah-utils.js"></script>
   <script src="../../lib/mishkah.core.js"></script>
@@ -20,6 +19,7 @@
       const M = Mishkah;
       const D = M.DSL;
       const UI = M.UI;
+      const { tw, token } = M.utils.twcss;
 
       // Application State
       const db = {
@@ -328,24 +328,88 @@
 
       // Components
       function Navbar(db, D) {
-        return D.Containers.Nav({ attrs: { class: 'navbar' } }, [
-          D.Containers.Div({ attrs: { class: 'navbar-container' } }, [
+        return D.Containers.Nav({
+          attrs: {
+            class: tw`bg-[var(--card)] shadow-md sticky top-0 z-50 border-b border-[var(--border)]`
+          }
+        }, [
+          D.Containers.Div({
+            attrs: {
+              class: tw`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between gap-4`
+            }
+          }, [
             // Logo
-            D.Containers.Div({ attrs: { class: 'navbar-brand' } }, [
-              D.Text.H2({}, [t('hero.title')])
+            D.Containers.Div({ attrs: { class: tw`flex-shrink-0` } }, [
+              D.Text.H2({
+                attrs: {
+                  class: tw`text-xl sm:text-2xl font-bold text-[var(--primary)]`
+                }
+              }, [t('hero.title')])
             ]),
 
             // Navigation Links
-            D.Containers.Div({ attrs: { class: 'navbar-links' } }, [
-              D.Text.A({ attrs: { href: '#home', 'data-m-gkey': 'nav:click', 'data-page': 'home', class: db.data.currentPage === 'home' ? 'active' : '' } }, [t('nav.home')]),
-              D.Text.A({ attrs: { href: '#services', 'data-m-gkey': 'nav:click', 'data-page': 'services', class: db.data.currentPage === 'services' ? 'active' : '' } }, [t('nav.services')]),
-              D.Text.A({ attrs: { href: '#about', 'data-m-gkey': 'nav:click', 'data-page': 'about', class: db.data.currentPage === 'about' ? 'active' : '' } }, [t('nav.about')]),
-              D.Text.A({ attrs: { href: '#contact', 'data-m-gkey': 'nav:click', 'data-page': 'contact', class: db.data.currentPage === 'contact' ? 'active' : '' } }, [t('nav.contact')]),
-              D.Forms.Button({ attrs: { class: 'btn btn-primary', 'data-m-gkey': 'booking:open' } }, [t('nav.book')])
+            D.Containers.Div({
+              attrs: {
+                class: tw`hidden md:flex items-center gap-6 flex-1 justify-center`
+              }
+            }, [
+              D.Text.A({
+                attrs: {
+                  href: '#home',
+                  'data-m-gkey': 'nav:click',
+                  'data-page': 'home',
+                  class: tw`font-medium transition-colors duration-200 px-3 py-2 rounded-lg ${
+                    db.data.currentPage === 'home'
+                      ? 'text-[var(--primary)] bg-[var(--accent)]'
+                      : 'text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--accent)]'
+                  }`
+                }
+              }, [t('nav.home')]),
+              D.Text.A({
+                attrs: {
+                  href: '#services',
+                  'data-m-gkey': 'nav:click',
+                  'data-page': 'services',
+                  class: tw`font-medium transition-colors duration-200 px-3 py-2 rounded-lg ${
+                    db.data.currentPage === 'services'
+                      ? 'text-[var(--primary)] bg-[var(--accent)]'
+                      : 'text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--accent)]'
+                  }`
+                }
+              }, [t('nav.services')]),
+              D.Text.A({
+                attrs: {
+                  href: '#about',
+                  'data-m-gkey': 'nav:click',
+                  'data-page': 'about',
+                  class: tw`font-medium transition-colors duration-200 px-3 py-2 rounded-lg ${
+                    db.data.currentPage === 'about'
+                      ? 'text-[var(--primary)] bg-[var(--accent)]'
+                      : 'text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--accent)]'
+                  }`
+                }
+              }, [t('nav.about')]),
+              D.Text.A({
+                attrs: {
+                  href: '#contact',
+                  'data-m-gkey': 'nav:click',
+                  'data-page': 'contact',
+                  class: tw`font-medium transition-colors duration-200 px-3 py-2 rounded-lg ${
+                    db.data.currentPage === 'contact'
+                      ? 'text-[var(--primary)] bg-[var(--accent)]'
+                      : 'text-[var(--foreground)] hover:text-[var(--primary)] hover:bg-[var(--accent)]'
+                  }`
+                }
+              }, [t('nav.contact')]),
+              UI.Button({
+                attrs: { 'data-m-gkey': 'booking:open' },
+                variant: 'solid',
+                size: 'sm'
+              }, [t('nav.book')])
             ]),
 
-            // Language Switcher using UI.Switcher
-            D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
+            // Language Switcher & Theme Toggle
+            D.Containers.Div({ attrs: { class: tw`${token('hstack')} gap-2` } }, [
               UI.Switcher({
                 attrs: { 'data-m-gkey': 'lang:switch' },
                 value: db.env.lang,
@@ -354,13 +418,13 @@
                   { label: 'EN', value: 'en', attrs: { 'data-lang': 'en' } }
                 ]
               }),
-              // Theme Toggle Button
-              D.Forms.Button({
+              UI.Button({
                 attrs: {
                   'data-m-gkey': 'theme:toggle',
-                  class: 'theme-toggle-btn',
                   title: db.env.theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'
-                }
+                },
+                variant: 'ghost',
+                size: 'sm'
               }, [db.env.theme === 'dark' ? '🌞' : '🌙'])
             ])
           ])
@@ -368,31 +432,92 @@
       }
 
       function HeroSection(db, D) {
-        return D.Containers.Section({ attrs: { id: 'home', class: 'hero-section' } }, [
-          D.Containers.Div({ attrs: { class: 'hero-content' } }, [
-            D.Text.H1({ attrs: { class: 'hero-title' } }, [t('hero.title')]),
-            D.Text.H2({ attrs: { class: 'hero-subtitle' } }, [t('hero.subtitle')]),
-            D.Text.P({ attrs: { class: 'hero-description' } }, [t('hero.description')]),
-            D.Forms.Button({ attrs: { class: 'btn btn-large btn-primary', 'data-m-gkey': 'booking:open' } }, [t('hero.cta')])
+        return D.Containers.Section({
+          attrs: {
+            id: 'home',
+            class: tw`min-h-[80vh] flex items-center justify-center bg-gradient-to-br from-[var(--surface-1)] to-[var(--surface-2)] px-4 py-20`
+          }
+        }, [
+          D.Containers.Div({
+            attrs: {
+              class: tw`max-w-4xl mx-auto text-center space-y-6`
+            }
+          }, [
+            D.Text.H1({
+              attrs: {
+                class: tw`text-4xl sm:text-5xl lg:text-6xl font-bold text-[var(--foreground)] leading-tight`
+              }
+            }, [t('hero.title')]),
+            D.Text.H2({
+              attrs: {
+                class: tw`text-2xl sm:text-3xl lg:text-4xl font-semibold text-[var(--primary)] mt-4`
+              }
+            }, [t('hero.subtitle')]),
+            D.Text.P({
+              attrs: {
+                class: tw`text-lg sm:text-xl text-[var(--muted-foreground)] mt-6 max-w-2xl mx-auto`
+              }
+            }, [t('hero.description')]),
+            UI.Button({
+              attrs: { 'data-m-gkey': 'booking:open', class: tw`mt-8` },
+              variant: 'solid',
+              size: 'lg'
+            }, [t('hero.cta')])
           ])
         ]);
       }
 
       function ServicesSection(db, D) {
-        return D.Containers.Section({ attrs: { id: 'services', class: 'services-section' } }, [
-          D.Containers.Div({ attrs: { class: 'section-header' } }, [
-            D.Text.H2({ attrs: { class: 'section-title' } }, [t('services.title')]),
-            D.Text.P({ attrs: { class: 'section-subtitle' } }, [t('services.subtitle')])
-          ]),
-          D.Containers.Div({ attrs: { class: 'services-grid' } },
-            db.data.services.map(function(service) {
-              return D.Containers.Div({ attrs: { class: 'service-card', key: service.id } }, [
-                D.Text.Span({ attrs: { class: 'service-icon' } }, [service.icon]),
-                D.Text.H3({ attrs: { class: 'service-name' } }, [tf(service, 'name')]),
-                D.Text.P({ attrs: { class: 'service-description' } }, [tf(service, 'description')])
-              ]);
-            })
-          )
+        return D.Containers.Section({
+          attrs: {
+            id: 'services',
+            class: tw`py-20 px-4 bg-[var(--background)]`
+          }
+        }, [
+          D.Containers.Div({ attrs: { class: tw`max-w-7xl mx-auto` } }, [
+            D.Containers.Div({ attrs: { class: tw`text-center mb-16` } }, [
+              D.Text.H2({
+                attrs: {
+                  class: tw`text-3xl sm:text-4xl font-bold text-[var(--foreground)] mb-4`
+                }
+              }, [t('services.title')]),
+              D.Text.P({
+                attrs: {
+                  class: tw`text-lg text-[var(--muted-foreground)] max-w-2xl mx-auto`
+                }
+              }, [t('services.subtitle')])
+            ]),
+            D.Containers.Div({
+              attrs: {
+                class: tw`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8`
+              }
+            },
+              db.data.services.map(function(service) {
+                return D.Containers.Div({
+                  attrs: {
+                    key: service.id,
+                    class: tw`${token('card')} p-6 text-center hover:shadow-lg transition-all duration-300 hover:-translate-y-1`
+                  }
+                }, [
+                  D.Text.Span({
+                    attrs: {
+                      class: tw`text-5xl mb-4 block`
+                    }
+                  }, [service.icon]),
+                  D.Text.H3({
+                    attrs: {
+                      class: tw`text-xl font-bold text-[var(--foreground)] mb-3`
+                    }
+                  }, [tf(service, 'name')]),
+                  D.Text.P({
+                    attrs: {
+                      class: tw`text-[var(--muted-foreground)]`
+                    }
+                  }, [tf(service, 'description')])
+                ]);
+              })
+            )
+          ])
         ]);
       }
 
