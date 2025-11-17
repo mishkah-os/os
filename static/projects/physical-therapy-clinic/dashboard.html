@@ -38,20 +38,63 @@
           showModal: false,
           modalType: null,
           patients: [
-            { id: 1, name: 'أحمد محمد', phone: '01012345678', status: 'active', lastVisit: '2024-01-15', totalSessions: 12 },
-            { id: 2, name: 'فاطمة علي', phone: '01023456789', status: 'active', lastVisit: '2024-01-14', totalSessions: 8 },
-            { id: 3, name: 'محمود سالم', phone: '01034567890', status: 'completed', lastVisit: '2024-01-10', totalSessions: 15 }
+            { id: 1, name: 'أحمد محمد عبدالله', phone: '01012345678', email: 'ahmed@example.com', age: 35, gender: 'male', status: 'active', lastVisit: '2024-01-15', totalSessions: 12, totalPaid: 3600, address: 'القاهرة - مدينة نصر', diagnosis: 'آلام الظهر المزمنة' },
+            { id: 2, name: 'فاطمة علي حسن', phone: '01023456789', email: 'fatima@example.com', age: 28, gender: 'female', status: 'active', lastVisit: '2024-01-14', totalSessions: 8, totalPaid: 2400, address: 'الجيزة - الدقي', diagnosis: 'التهاب المفاصل' },
+            { id: 3, name: 'محمود سالم أحمد', phone: '01034567890', email: 'mahmoud@example.com', age: 42, gender: 'male', status: 'completed', lastVisit: '2024-01-10', totalSessions: 15, totalPaid: 4500, address: 'القاهرة - مصر الجديدة', diagnosis: 'إصابة رياضية' },
+            { id: 4, name: 'نور الدين خالد', phone: '01045678901', email: 'nour@example.com', age: 55, gender: 'male', status: 'active', lastVisit: '2024-01-13', totalSessions: 20, totalPaid: 6000, address: 'الإسكندرية - سموحة', diagnosis: 'آلام الرقبة' },
+            { id: 5, name: 'سارة محمد يوسف', phone: '01056789012', email: 'sara@example.com', age: 31, gender: 'female', status: 'pending', lastVisit: '2024-01-09', totalSessions: 5, totalPaid: 1500, address: 'القاهرة - المعادي', diagnosis: 'تأهيل ما بعد الجراحة' },
+            { id: 6, name: 'عمر حسين علي', phone: '01067890123', email: 'omar@example.com', age: 38, gender: 'male', status: 'active', lastVisit: '2024-01-12', totalSessions: 10, totalPaid: 3000, address: 'الجيزة - الهرم', diagnosis: 'آلام الكتف' },
+            { id: 7, name: 'ليلى أحمد سعيد', phone: '01078901234', email: 'layla@example.com', age: 45, gender: 'female', status: 'active', lastVisit: '2024-01-11', totalSessions: 18, totalPaid: 5400, address: 'القاهرة - الزمالك', diagnosis: 'عرق النسا' }
           ],
           appointments: [
-            { id: 1, patientName: 'أحمد محمد', date: '2024-01-16', time: '10:00', service: 'علاج طبيعي للظهر', status: 'confirmed' },
-            { id: 2, patientName: 'فاطمة علي', date: '2024-01-16', time: '11:00', service: 'علاج المفاصل', status: 'pending' },
-            { id: 3, patientName: 'محمود سالم', date: '2024-01-16', time: '14:00', service: 'علاج رياضي', status: 'confirmed' }
+            { id: 1, patientId: 1, patientName: 'أحمد محمد عبدالله', date: '2024-01-16', time: '10:00', service: 'علاج طبيعي للظهر', therapist: 'د. مروة حسين', status: 'confirmed', duration: 60, price: 300 },
+            { id: 2, patientId: 2, patientName: 'فاطمة علي حسن', date: '2024-01-16', time: '11:00', service: 'علاج المفاصل', therapist: 'د. أحمد سالم', status: 'pending', duration: 45, price: 250 },
+            { id: 3, patientId: 3, patientName: 'محمود سالم أحمد', date: '2024-01-16', time: '14:00', service: 'علاج رياضي', therapist: 'د. مروة حسين', status: 'confirmed', duration: 60, price: 300 },
+            { id: 4, patientId: 4, patientName: 'نور الدين خالد', date: '2024-01-16', time: '15:30', service: 'علاج الرقبة', therapist: 'د. سارة محمود', status: 'confirmed', duration: 45, price: 250 },
+            { id: 5, patientId: 5, patientName: 'سارة محمد يوسف', date: '2024-01-17', time: '09:00', service: 'تأهيل ما بعد الجراحة', therapist: 'د. أحمد سالم', status: 'pending', duration: 90, price: 400 },
+            { id: 6, patientId: 6, patientName: 'عمر حسين علي', date: '2024-01-17', time: '11:00', service: 'علاج الكتف', therapist: 'د. مروة حسين', status: 'confirmed', duration: 60, price: 300 },
+            { id: 7, patientId: 7, patientName: 'ليلى أحمد سعيد', date: '2024-01-17', time: '13:00', service: 'علاج عرق النسا', therapist: 'د. سارة محمود', status: 'cancelled', duration: 60, price: 300 },
+            { id: 8, patientId: 1, patientName: 'أحمد محمد عبدالله', date: '2024-01-18', time: '10:00', service: 'علاج طبيعي للظهر', therapist: 'د. مروة حسين', status: 'pending', duration: 60, price: 300 }
+          ],
+          sessions: [
+            { id: 1, patientId: 1, patientName: 'أحمد محمد عبدالله', date: '2024-01-15', service: 'علاج طبيعي للظهر', therapist: 'د. مروة حسين', duration: 60, status: 'completed', notes: 'تحسن ملحوظ في مرونة العمود الفقري', nextSession: '2024-01-18', price: 300, paid: true },
+            { id: 2, patientId: 2, patientName: 'فاطمة علي حسن', date: '2024-01-14', service: 'علاج المفاصل', therapist: 'د. أحمد سالم', duration: 45, status: 'completed', notes: 'تقليل الالتهاب بشكل جيد', nextSession: '2024-01-17', price: 250, paid: true },
+            { id: 3, patientId: 3, patientName: 'محمود سالم أحمد', date: '2024-01-13', service: 'علاج رياضي', therapist: 'د. مروة حسين', duration: 60, status: 'completed', notes: 'استعادة 80% من القوة العضلية', nextSession: '2024-01-16', price: 300, paid: false },
+            { id: 4, patientId: 4, patientName: 'نور الدين خالد', date: '2024-01-13', service: 'علاج الرقبة', therapist: 'د. سارة محمود', duration: 45, status: 'completed', notes: 'تحسن في مدى الحركة', nextSession: '2024-01-16', price: 250, paid: true },
+            { id: 5, patientId: 6, patientName: 'عمر حسين علي', date: '2024-01-12', service: 'علاج الكتف', therapist: 'د. مروة حسين', duration: 60, status: 'completed', notes: 'تمارين تقوية ناجحة', nextSession: '2024-01-17', price: 300, paid: true },
+            { id: 6, patientId: 7, patientName: 'ليلى أحمد سعيد', date: '2024-01-11', service: 'علاج عرق النسا', therapist: 'د. سارة محمود', duration: 60, status: 'completed', notes: 'تقليل الألم بنسبة 60%', nextSession: '2024-01-15', price: 300, paid: true }
+          ],
+          staff: [
+            { id: 1, name: 'د. مروة حسين', role: 'رئيس قسم العلاج الطبيعي', specialization: 'العلاج الطبيعي للعمود الفقري', phone: '01066558085', email: 'marwa@clinic.com', joinDate: '2020-01-15', patients: 45, sessionsToday: 8 },
+            { id: 2, name: 'د. أحمد سالم', role: 'أخصائي علاج طبيعي', specialization: 'علاج المفاصل والروماتيزم', phone: '01123456789', email: 'ahmed@clinic.com', joinDate: '2021-03-20', patients: 32, sessionsToday: 5 },
+            { id: 3, name: 'د. سارة محمود', role: 'أخصائي علاج طبيعي', specialization: 'الإصابات الرياضية', phone: '01234567890', email: 'sara@clinic.com', joinDate: '2021-09-10', patients: 28, sessionsToday: 6 },
+            { id: 4, name: 'أ. محمد خالد', role: 'مساعد علاج طبيعي', specialization: 'التأهيل الحركي', phone: '01345678901', email: 'mohamed@clinic.com', joinDate: '2022-02-01', patients: 15, sessionsToday: 4 }
+          ],
+          services: [
+            { id: 1, name: 'علاج طبيعي للظهر', price: 300, duration: 60, category: 'علاج العمود الفقري', active: true },
+            { id: 2, name: 'علاج المفاصل', price: 250, duration: 45, category: 'علاج المفاصل', active: true },
+            { id: 3, name: 'علاج رياضي', price: 300, duration: 60, category: 'الإصابات الرياضية', active: true },
+            { id: 4, name: 'علاج الرقبة', price: 250, duration: 45, category: 'علاج العمود الفقري', active: true },
+            { id: 5, name: 'تأهيل ما بعد الجراحة', price: 400, duration: 90, category: 'تأهيل', active: true },
+            { id: 6, name: 'علاج الكتف', price: 300, duration: 60, category: 'علاج المفاصل', active: true },
+            { id: 7, name: 'علاج عرق النسا', price: 300, duration: 60, category: 'علاج الأعصاب', active: true }
+          ],
+          payments: [
+            { id: 1, patientId: 1, patientName: 'أحمد محمد عبدالله', date: '2024-01-15', amount: 300, service: 'علاج طبيعي للظهر', method: 'نقدي', status: 'completed', invoiceNo: 'INV-001' },
+            { id: 2, patientId: 2, patientName: 'فاطمة علي حسن', date: '2024-01-14', amount: 250, service: 'علاج المفاصل', method: 'بطاقة ائتمان', status: 'completed', invoiceNo: 'INV-002' },
+            { id: 3, patientId: 3, patientName: 'محمود سالم أحمد', date: '2024-01-13', amount: 300, service: 'علاج رياضي', method: 'نقدي', status: 'pending', invoiceNo: 'INV-003' },
+            { id: 4, patientId: 4, patientName: 'نور الدين خالد', date: '2024-01-13', amount: 250, service: 'علاج الرقبة', method: 'تحويل بنكي', status: 'completed', invoiceNo: 'INV-004' },
+            { id: 5, patientId: 6, patientName: 'عمر حسين علي', date: '2024-01-12', amount: 300, service: 'علاج الكتف', method: 'نقدي', status: 'completed', invoiceNo: 'INV-005' }
           ],
           stats: {
             totalPatients: 145,
             todayAppointments: 12,
             completedSessions: 1250,
-            revenue: 125000
+            revenue: 125000,
+            monthlyRevenue: 45000,
+            pendingPayments: 3500,
+            activeStaff: 4,
+            todaySessions: 23
           }
         },
         i18n: {
@@ -71,17 +114,60 @@
             'addNew': { ar: 'إضافة جديد', en: 'Add New' },
             'name': { ar: 'الاسم', en: 'Name' },
             'phone': { ar: 'الهاتف', en: 'Phone' },
+            'email': { ar: 'البريد الإلكتروني', en: 'Email' },
+            'age': { ar: 'العمر', en: 'Age' },
+            'gender': { ar: 'النوع', en: 'Gender' },
+            'male': { ar: 'ذكر', en: 'Male' },
+            'female': { ar: 'أنثى', en: 'Female' },
+            'address': { ar: 'العنوان', en: 'Address' },
+            'diagnosis': { ar: 'التشخيص', en: 'Diagnosis' },
             'status': { ar: 'الحالة', en: 'Status' },
             'lastVisit': { ar: 'آخر زيارة', en: 'Last Visit' },
+            'sessions': { ar: 'الجلسات', en: 'Sessions' },
+            'totalPaid': { ar: 'إجمالي المدفوعات', en: 'Total Paid' },
             'patient': { ar: 'المريض', en: 'Patient' },
             'date': { ar: 'التاريخ', en: 'Date' },
             'time': { ar: 'الوقت', en: 'Time' },
             'service': { ar: 'الخدمة', en: 'Service' },
+            'therapist': { ar: 'المعالج', en: 'Therapist' },
+            'duration': { ar: 'المدة', en: 'Duration' },
+            'price': { ar: 'السعر', en: 'Price' },
+            'notes': { ar: 'ملاحظات', en: 'Notes' },
+            'nextSession': { ar: 'الجلسة القادمة', en: 'Next Session' },
+            'paid': { ar: 'مدفوع', en: 'Paid' },
+            'unpaid': { ar: 'غير مدفوع', en: 'Unpaid' },
             'active': { ar: 'نشط', en: 'Active' },
             'completed': { ar: 'مكتمل', en: 'Completed' },
             'confirmed': { ar: 'مؤكد', en: 'Confirmed' },
             'pending': { ar: 'قيد الانتظار', en: 'Pending' },
-            'cancelled': { ar: 'ملغى', en: 'Cancelled' }
+            'cancelled': { ar: 'ملغى', en: 'Cancelled' },
+            'allPatients': { ar: 'جميع المرضى', en: 'All Patients' },
+            'allAppointments': { ar: 'جميع المواعيد', en: 'All Appointments' },
+            'sessionHistory': { ar: 'سجل الجلسات', en: 'Session History' },
+            'recentSessions': { ar: 'الجلسات الأخيرة', en: 'Recent Sessions' },
+            'staff': { ar: 'فريق العمل', en: 'Staff' },
+            'role': { ar: 'الوظيفة', en: 'Role' },
+            'specialization': { ar: 'التخصص', en: 'Specialization' },
+            'joinDate': { ar: 'تاريخ الانضمام', en: 'Join Date' },
+            'patientsCount': { ar: 'عدد المرضى', en: 'Patients' },
+            'sessionsToday': { ar: 'جلسات اليوم', en: "Today's Sessions" },
+            'serviceName': { ar: 'اسم الخدمة', en: 'Service Name' },
+            'category': { ar: 'الفئة', en: 'Category' },
+            'amount': { ar: 'المبلغ', en: 'Amount' },
+            'method': { ar: 'طريقة الدفع', en: 'Payment Method' },
+            'invoiceNo': { ar: 'رقم الفاتورة', en: 'Invoice No' },
+            'monthlyRevenue': { ar: 'إيرادات الشهر', en: 'Monthly Revenue' },
+            'pendingPayments': { ar: 'مدفوعات معلقة', en: 'Pending Payments' },
+            'activeStaff': { ar: 'فريق العمل النشط', en: 'Active Staff' },
+            'todaySessions': { ar: 'جلسات اليوم', en: "Today's Sessions" },
+            'financialReports': { ar: 'التقارير المالية', en: 'Financial Reports' },
+            'patientReports': { ar: 'تقارير المرضى', en: 'Patient Reports' },
+            'sessionReports': { ar: 'تقارير الجلسات', en: 'Session Reports' },
+            'payments': { ar: 'المدفوعات', en: 'Payments' },
+            'recentPayments': { ar: 'المدفوعات الأخيرة', en: 'Recent Payments' },
+            'clinicSettings': { ar: 'إعدادات العيادة', en: 'Clinic Settings' },
+            'services': { ar: 'الخدمات', en: 'Services' },
+            'actions': { ar: 'الإجراءات', en: 'Actions' }
           }
         }
       };
@@ -376,16 +462,215 @@
         ]);
       }
 
+      function PatientsPage(db, D) {
+        const headers = [t('name'), t('phone'), t('email'), t('age'), t('diagnosis'), t('status'), t('lastVisit'), t('totalPaid')];
+        const rows = db.data.patients.map(patient => [
+          D.Text.Span({ attrs: { class: tw`font-medium text-[var(--foreground)]` } }, [patient.name]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')}` } }, [patient.phone]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')} text-xs` } }, [patient.email]),
+          D.Text.Span({ attrs: { class: tw`text-center` } }, [String(patient.age)]),
+          D.Text.Span({ attrs: { class: tw`text-sm` } }, [patient.diagnosis]),
+          Badge({
+            text: t(patient.status),
+            variant: patient.status === 'active' ? 'success' : patient.status === 'completed' ? 'info' : 'warning'
+          }, D),
+          D.Text.Span({ attrs: { class: tw`${token('muted')}` } }, [patient.lastVisit]),
+          D.Text.Span({ attrs: { class: tw`font-semibold text-[var(--primary)]` } }, [String(patient.totalPaid) + ' ج.م'])
+        ]);
+
+        return D.Containers.Div({}, [
+          DataTable({
+            title: t('allPatients'),
+            headers: headers,
+            rows: rows,
+            onAdd: { type: 'patient' }
+          }, D)
+        ]);
+      }
+
+      function AppointmentsPage(db, D) {
+        const headers = [t('patient'), t('date'), t('time'), t('service'), t('therapist'), t('duration'), t('price'), t('status')];
+        const rows = db.data.appointments.map(appointment => [
+          D.Text.Span({ attrs: { class: tw`font-medium text-[var(--foreground)]` } }, [appointment.patientName]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')}` } }, [appointment.date]),
+          D.Text.Span({ attrs: { class: tw`font-semibold text-[var(--primary)]` } }, [appointment.time]),
+          D.Text.Span({ attrs: { class: tw`text-sm` } }, [appointment.service]),
+          D.Text.Span({ attrs: { class: tw`text-sm ${token('muted')}` } }, [appointment.therapist]),
+          D.Text.Span({ attrs: { class: tw`text-center` } }, [String(appointment.duration) + ' دقيقة']),
+          D.Text.Span({ attrs: { class: tw`font-semibold` } }, [String(appointment.price) + ' ج.م']),
+          Badge({
+            text: t(appointment.status),
+            variant: appointment.status === 'confirmed' ? 'success' : appointment.status === 'cancelled' ? 'danger' : 'warning'
+          }, D)
+        ]);
+
+        return D.Containers.Div({}, [
+          DataTable({
+            title: t('allAppointments'),
+            headers: headers,
+            rows: rows,
+            onAdd: { type: 'appointment' }
+          }, D)
+        ]);
+      }
+
+      function SessionsPage(db, D) {
+        const headers = [t('patient'), t('date'), t('service'), t('therapist'), t('duration'), t('notes'), t('nextSession'), t('price'), t('paid')];
+        const rows = db.data.sessions.map(session => [
+          D.Text.Span({ attrs: { class: tw`font-medium text-[var(--foreground)]` } }, [session.patientName]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')}` } }, [session.date]),
+          D.Text.Span({ attrs: { class: tw`text-sm` } }, [session.service]),
+          D.Text.Span({ attrs: { class: tw`text-sm ${token('muted')}` } }, [session.therapist]),
+          D.Text.Span({ attrs: { class: tw`text-center` } }, [String(session.duration) + ' دقيقة']),
+          D.Text.Span({ attrs: { class: tw`text-xs max-w-[200px] truncate` } }, [session.notes]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')} text-sm` } }, [session.nextSession]),
+          D.Text.Span({ attrs: { class: tw`font-semibold` } }, [String(session.price) + ' ج.م']),
+          Badge({
+            text: session.paid ? t('paid') : t('unpaid'),
+            variant: session.paid ? 'success' : 'warning'
+          }, D)
+        ]);
+
+        return D.Containers.Div({}, [
+          DataTable({
+            title: t('sessionHistory'),
+            headers: headers,
+            rows: rows,
+            onAdd: { type: 'session' }
+          }, D)
+        ]);
+      }
+
+      function ReportsPage(db, D) {
+        // Financial Stats Grid
+        const financialStats = D.Containers.Div({ attrs: { class: tw`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8` } }, [
+          StatCard({
+            icon: '💰',
+            title: t('revenue'),
+            value: String(db.data.stats.revenue) + ' ج.م',
+            change: '↑ 15% من الشهر الماضي',
+            changeType: 'positive'
+          }, D),
+          StatCard({
+            icon: '📊',
+            title: t('monthlyRevenue'),
+            value: String(db.data.stats.monthlyRevenue) + ' ج.م',
+            change: 'هذا الشهر',
+            changeType: 'neutral'
+          }, D),
+          StatCard({
+            icon: '⏳',
+            title: t('pendingPayments'),
+            value: String(db.data.stats.pendingPayments) + ' ج.م',
+            change: '3 مدفوعات معلقة',
+            changeType: 'warning'
+          }, D),
+          StatCard({
+            icon: '✅',
+            title: t('completedSessions'),
+            value: String(db.data.stats.completedSessions),
+            change: '↑ 8% من الشهر الماضي',
+            changeType: 'positive'
+          }, D)
+        ]);
+
+        // Recent Payments Table
+        const paymentsHeaders = [t('invoiceNo'), t('patient'), t('date'), t('service'), t('amount'), t('method'), t('status')];
+        const paymentsRows = db.data.payments.map(payment => [
+          D.Text.Span({ attrs: { class: tw`font-mono text-sm font-semibold text-[var(--primary)]` } }, [payment.invoiceNo]),
+          D.Text.Span({ attrs: { class: tw`font-medium` } }, [payment.patientName]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')}` } }, [payment.date]),
+          D.Text.Span({ attrs: { class: tw`text-sm` } }, [payment.service]),
+          D.Text.Span({ attrs: { class: tw`font-semibold text-green-600` } }, [String(payment.amount) + ' ج.م']),
+          D.Text.Span({ attrs: { class: tw`text-sm ${token('muted')}` } }, [payment.method]),
+          Badge({
+            text: t(payment.status),
+            variant: payment.status === 'completed' ? 'success' : 'warning'
+          }, D)
+        ]);
+
+        return D.Containers.Div({}, [
+          financialStats,
+          DataTable({
+            title: t('recentPayments'),
+            headers: paymentsHeaders,
+            rows: paymentsRows
+          }, D)
+        ]);
+      }
+
+      function SettingsPage(db, D) {
+        // Staff Table
+        const staffHeaders = [t('name'), t('role'), t('specialization'), t('phone'), t('email'), t('joinDate'), t('patientsCount'), t('sessionsToday')];
+        const staffRows = db.data.staff.map(staff => [
+          D.Text.Span({ attrs: { class: tw`font-medium text-[var(--foreground)]` } }, [staff.name]),
+          D.Text.Span({ attrs: { class: tw`text-sm ${token('muted')}` } }, [staff.role]),
+          D.Text.Span({ attrs: { class: tw`text-sm` } }, [staff.specialization]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')} text-sm` } }, [staff.phone]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')} text-xs` } }, [staff.email]),
+          D.Text.Span({ attrs: { class: tw`${token('muted')} text-sm` } }, [staff.joinDate]),
+          D.Text.Span({ attrs: { class: tw`text-center font-semibold text-[var(--primary)]` } }, [String(staff.patients)]),
+          D.Text.Span({ attrs: { class: tw`text-center font-semibold` } }, [String(staff.sessionsToday)])
+        ]);
+
+        // Services Table
+        const servicesHeaders = [t('serviceName'), t('category'), t('duration'), t('price'), t('status')];
+        const servicesRows = db.data.services.map(service => [
+          D.Text.Span({ attrs: { class: tw`font-medium text-[var(--foreground)]` } }, [service.name]),
+          D.Text.Span({ attrs: { class: tw`text-sm ${token('muted')}` } }, [service.category]),
+          D.Text.Span({ attrs: { class: tw`text-center` } }, [String(service.duration) + ' دقيقة']),
+          D.Text.Span({ attrs: { class: tw`font-semibold text-[var(--primary)]` } }, [String(service.price) + ' ج.م']),
+          Badge({
+            text: service.active ? t('active') : 'غير نشط',
+            variant: service.active ? 'success' : 'danger'
+          }, D)
+        ]);
+
+        return D.Containers.Div({}, [
+          DataTable({
+            title: t('staff'),
+            headers: staffHeaders,
+            rows: staffRows,
+            onAdd: { type: 'staff' }
+          }, D),
+          DataTable({
+            title: t('services'),
+            headers: servicesHeaders,
+            rows: servicesRows,
+            onAdd: { type: 'service' }
+          }, D)
+        ]);
+      }
+
       function MainContent(db, D) {
+        let pageContent;
+
+        switch(db.data.currentPage) {
+          case 'dashboard':
+            pageContent = DashboardPage(db, D);
+            break;
+          case 'patients':
+            pageContent = PatientsPage(db, D);
+            break;
+          case 'appointments':
+            pageContent = AppointmentsPage(db, D);
+            break;
+          case 'sessions':
+            pageContent = SessionsPage(db, D);
+            break;
+          case 'reports':
+            pageContent = ReportsPage(db, D);
+            break;
+          case 'settings':
+            pageContent = SettingsPage(db, D);
+            break;
+          default:
+            pageContent = DashboardPage(db, D);
+        }
+
         return D.Containers.Main({ attrs: { class: tw`flex-1 ms-64 p-8 min-h-screen ${token('surface')}` } }, [
           Header(db, D),
-          db.data.currentPage === 'dashboard'
-            ? DashboardPage(db, D)
-            : D.Containers.Div({ attrs: { class: tw`${token('card')} p-12 text-center` } }, [
-                D.Text.P({ attrs: { class: tw`text-xl ${token('muted')}` } }, [
-                  '📋 صفحة ' + t(db.data.currentPage) + ' قيد التطوير'
-                ])
-              ])
+          pageContent
         ]);
       }
 
