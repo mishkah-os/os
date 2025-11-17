@@ -1,0 +1,832 @@
+{
+  "version": "1.0",
+  "description": "Physical Therapy Clinic ERP System - Schema Definition",
+  "tables": [
+    {
+      "name": "Companies",
+      "description": "Clinic/Company information",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Company_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Company_Name_En", "type": "NVARCHAR(200)" },
+        { "name": "Tax_Number", "type": "NVARCHAR(50)" },
+        { "name": "Phone", "type": "NVARCHAR(20)" },
+        { "name": "Email", "type": "NVARCHAR(100)" },
+        { "name": "Address", "type": "NVARCHAR(500)" },
+        { "name": "City", "type": "NVARCHAR(100)" },
+        { "name": "Country", "type": "NVARCHAR(100)" },
+        { "name": "Logo_Url", "type": "NVARCHAR(500)" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_company_name", "columns": ["Company_Name"] }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "System users",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Username", "type": "NVARCHAR(100)", "nullable": false, "unique": true },
+        { "name": "Email", "type": "NVARCHAR(100)", "nullable": false, "unique": true },
+        { "name": "Password_Hash", "type": "NVARCHAR(255)", "nullable": false },
+        { "name": "Full_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Phone", "type": "NVARCHAR(20)" },
+        { "name": "Role_ID", "type": "NVARCHAR(60)", "foreignKey": "Roles(ID)" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "Last_Login", "type": "DATETIME" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_username", "columns": ["Username"] },
+        { "name": "idx_email", "columns": ["Email"] }
+      ]
+    },
+    {
+      "name": "Roles",
+      "description": "User roles",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Role_Name", "type": "NVARCHAR(100)", "nullable": false },
+        { "name": "Description", "type": "NVARCHAR(500)" },
+        { "name": "Permissions", "type": "TEXT" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ]
+    },
+    {
+      "name": "Patients",
+      "description": "Patient information",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Patient_Code", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "First_Name", "type": "NVARCHAR(100)", "nullable": false },
+        { "name": "Last_Name", "type": "NVARCHAR(100)", "nullable": false },
+        { "name": "Date_Of_Birth", "type": "DATE" },
+        { "name": "Gender", "type": "CHAR(1)" },
+        { "name": "National_ID", "type": "NVARCHAR(50)" },
+        { "name": "Phone", "type": "NVARCHAR(20)", "nullable": false },
+        { "name": "Email", "type": "NVARCHAR(100)" },
+        { "name": "Address", "type": "NVARCHAR(500)" },
+        { "name": "City", "type": "NVARCHAR(100)" },
+        { "name": "Emergency_Contact_Name", "type": "NVARCHAR(200)" },
+        { "name": "Emergency_Contact_Phone", "type": "NVARCHAR(20)" },
+        { "name": "Insurance_Company", "type": "NVARCHAR(200)" },
+        { "name": "Insurance_Number", "type": "NVARCHAR(100)" },
+        { "name": "Notes", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_patient_code", "columns": ["Patient_Code", "Company_ID"], "unique": true },
+        { "name": "idx_patient_name", "columns": ["First_Name", "Last_Name"] },
+        { "name": "idx_patient_phone", "columns": ["Phone"] }
+      ]
+    },
+    {
+      "name": "Patients_lang",
+      "description": "Patient information translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Notes", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_patient_lang", "columns": ["Patient_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Doctors",
+      "description": "Doctor/Therapist information",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Doctor_Code", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "First_Name", "type": "NVARCHAR(100)", "nullable": false },
+        { "name": "Last_Name", "type": "NVARCHAR(100)", "nullable": false },
+        { "name": "Specialization_ID", "type": "NVARCHAR(60)", "foreignKey": "Doctor_Specializations(ID)" },
+        { "name": "License_Number", "type": "NVARCHAR(100)" },
+        { "name": "Phone", "type": "NVARCHAR(20)", "nullable": false },
+        { "name": "Email", "type": "NVARCHAR(100)" },
+        { "name": "Bio", "type": "TEXT" },
+        { "name": "Photo_Url", "type": "NVARCHAR(500)" },
+        { "name": "Years_Experience", "type": "INT" },
+        { "name": "Consultation_Fee", "type": "DECIMAL(10,2)" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_doctor_code", "columns": ["Doctor_Code", "Company_ID"], "unique": true },
+        { "name": "idx_doctor_name", "columns": ["First_Name", "Last_Name"] }
+      ]
+    },
+    {
+      "name": "Doctors_lang",
+      "description": "Doctor information translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Doctor_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Doctors(ID)" },
+        { "name": "Bio", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_doctor_lang", "columns": ["Doctor_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Doctor_Specializations",
+      "description": "Doctor specializations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Specialization_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Description", "type": "NVARCHAR(500)" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_specialization_name", "columns": ["Specialization_Name", "Company_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Doctor_Specializations_lang",
+      "description": "Doctor specializations translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Specialization_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Doctor_Specializations(ID)" },
+        { "name": "Specialization_Name", "type": "NVARCHAR(200)" },
+        { "name": "Description", "type": "NVARCHAR(500)" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_specialization_lang", "columns": ["Specialization_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Medical_Chronic_Diseases",
+      "description": "Chronic diseases master list",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Disease_Name", "type": "TEXT", "nullable": false },
+        { "name": "Disease_Description", "type": "NVARCHAR(500)" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_disease_name", "columns": ["Disease_Name", "Company_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Medical_Chronic_Diseases_lang",
+      "description": "Chronic diseases translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Disease_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Medical_Chronic_Diseases(ID)" },
+        { "name": "Disease_Name", "type": "TEXT" },
+        { "name": "Disease_Description", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_disease_lang", "columns": ["Disease_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Patient_Chronic_Diseases",
+      "description": "Patient chronic diseases",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Disease_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Medical_Chronic_Diseases(ID)" },
+        { "name": "Diagnosis_Date", "type": "DATE" },
+        { "name": "Notes", "type": "TEXT" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_patient_disease", "columns": ["Patient_ID", "Disease_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Patient_Allergies",
+      "description": "Patient allergies",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Allergy_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Severity", "type": "NVARCHAR(50)" },
+        { "name": "Reaction", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ]
+    },
+    {
+      "name": "Patient_Allergies_lang",
+      "description": "Patient allergies translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Allergy_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patient_Allergies(ID)" },
+        { "name": "Allergy_Name", "type": "NVARCHAR(200)" },
+        { "name": "Reaction", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_allergy_lang", "columns": ["Allergy_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Appointments",
+      "description": "Patient appointments",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Appointment_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Doctor_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Doctors(ID)" },
+        { "name": "Appointment_Date", "type": "DATE", "nullable": false },
+        { "name": "Appointment_Time", "type": "TIME", "nullable": false },
+        { "name": "Duration_Minutes", "type": "INT", "default": "60" },
+        { "name": "Appointment_Type", "type": "NVARCHAR(100)" },
+        { "name": "Status", "type": "NVARCHAR(50)", "default": "'Scheduled'" },
+        { "name": "Room_ID", "type": "NVARCHAR(60)", "foreignKey": "Rooms(ID)" },
+        { "name": "Notes", "type": "TEXT" },
+        { "name": "Reminder_Sent", "type": "BIT", "default": "0" },
+        { "name": "Source", "type": "NVARCHAR(50)", "default": "'Manual'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_appointment_number", "columns": ["Appointment_Number", "Company_ID"], "unique": true },
+        { "name": "idx_appointment_date", "columns": ["Appointment_Date", "Doctor_ID"] },
+        { "name": "idx_patient_appointments", "columns": ["Patient_ID", "Appointment_Date"] }
+      ]
+    },
+    {
+      "name": "Services",
+      "description": "Medical services offered",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Service_Code", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Service_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Description", "type": "TEXT" },
+        { "name": "Duration_Minutes", "type": "INT" },
+        { "name": "Price", "type": "DECIMAL(10,2)", "nullable": false },
+        { "name": "Category", "type": "NVARCHAR(100)" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_service_code", "columns": ["Service_Code", "Company_ID"], "unique": true },
+        { "name": "idx_service_name", "columns": ["Service_Name"] }
+      ]
+    },
+    {
+      "name": "Services_lang",
+      "description": "Services translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Service_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Services(ID)" },
+        { "name": "Service_Name", "type": "NVARCHAR(200)" },
+        { "name": "Description", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_service_lang", "columns": ["Service_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Sessions",
+      "description": "Treatment sessions",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Session_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Appointment_ID", "type": "NVARCHAR(60)", "foreignKey": "Appointments(ID)" },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Doctor_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Doctors(ID)" },
+        { "name": "Service_ID", "type": "NVARCHAR(60)", "foreignKey": "Services(ID)" },
+        { "name": "Session_Date", "type": "DATETIME", "nullable": false },
+        { "name": "Duration_Minutes", "type": "INT" },
+        { "name": "Chief_Complaint", "type": "TEXT" },
+        { "name": "Assessment", "type": "TEXT" },
+        { "name": "Treatment_Given", "type": "TEXT" },
+        { "name": "Progress_Notes", "type": "TEXT" },
+        { "name": "Next_Session_Plan", "type": "TEXT" },
+        { "name": "Status", "type": "NVARCHAR(50)", "default": "'Completed'" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_session_number", "columns": ["Session_Number", "Company_ID"], "unique": true },
+        { "name": "idx_patient_sessions", "columns": ["Patient_ID", "Session_Date"] }
+      ]
+    },
+    {
+      "name": "Sessions_lang",
+      "description": "Sessions translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Session_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Sessions(ID)" },
+        { "name": "Chief_Complaint", "type": "TEXT" },
+        { "name": "Assessment", "type": "TEXT" },
+        { "name": "Treatment_Given", "type": "TEXT" },
+        { "name": "Progress_Notes", "type": "TEXT" },
+        { "name": "Next_Session_Plan", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_session_lang", "columns": ["Session_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Treatments",
+      "description": "Treatment types",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Treatment_Code", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Treatment_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Description", "type": "TEXT" },
+        { "name": "Category", "type": "NVARCHAR(100)" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_treatment_code", "columns": ["Treatment_Code", "Company_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Treatments_lang",
+      "description": "Treatments translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Treatment_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Treatments(ID)" },
+        { "name": "Treatment_Name", "type": "NVARCHAR(200)" },
+        { "name": "Description", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_treatment_lang", "columns": ["Treatment_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Treatment_Plans",
+      "description": "Patient treatment plans",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Plan_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Doctor_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Doctors(ID)" },
+        { "name": "Start_Date", "type": "DATE", "nullable": false },
+        { "name": "End_Date", "type": "DATE" },
+        { "name": "Diagnosis", "type": "TEXT" },
+        { "name": "Goals", "type": "TEXT" },
+        { "name": "Treatment_Details", "type": "TEXT" },
+        { "name": "Frequency", "type": "NVARCHAR(100)" },
+        { "name": "Status", "type": "NVARCHAR(50)", "default": "'Active'" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_plan_number", "columns": ["Plan_Number", "Company_ID"], "unique": true },
+        { "name": "idx_patient_plans", "columns": ["Patient_ID", "Status"] }
+      ]
+    },
+    {
+      "name": "Treatment_Plans_lang",
+      "description": "Treatment plans translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Plan_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Treatment_Plans(ID)" },
+        { "name": "Diagnosis", "type": "TEXT" },
+        { "name": "Goals", "type": "TEXT" },
+        { "name": "Treatment_Details", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_plan_lang", "columns": ["Plan_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Medical_Records",
+      "description": "Patient medical records",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Record_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Doctor_ID", "type": "NVARCHAR(60)", "foreignKey": "Doctors(ID)" },
+        { "name": "Record_Date", "type": "DATETIME", "nullable": false },
+        { "name": "Record_Type", "type": "NVARCHAR(100)" },
+        { "name": "Title", "type": "NVARCHAR(200)" },
+        { "name": "Content", "type": "TEXT" },
+        { "name": "Attachments", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_record_number", "columns": ["Record_Number", "Company_ID"], "unique": true },
+        { "name": "idx_patient_records", "columns": ["Patient_ID", "Record_Date"] }
+      ]
+    },
+    {
+      "name": "Medical_Records_lang",
+      "description": "Medical records translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Record_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Medical_Records(ID)" },
+        { "name": "Title", "type": "NVARCHAR(200)" },
+        { "name": "Content", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_record_lang", "columns": ["Record_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Assessments",
+      "description": "Patient assessments",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Assessment_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Doctor_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Doctors(ID)" },
+        { "name": "Assessment_Date", "type": "DATETIME", "nullable": false },
+        { "name": "Assessment_Type", "type": "NVARCHAR(100)" },
+        { "name": "Findings", "type": "TEXT" },
+        { "name": "Measurements", "type": "TEXT" },
+        { "name": "Recommendations", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_assessment_number", "columns": ["Assessment_Number", "Company_ID"], "unique": true },
+        { "name": "idx_patient_assessments", "columns": ["Patient_ID", "Assessment_Date"] }
+      ]
+    },
+    {
+      "name": "Assessments_lang",
+      "description": "Assessments translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Assessment_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Assessments(ID)" },
+        { "name": "Findings", "type": "TEXT" },
+        { "name": "Recommendations", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_assessment_lang", "columns": ["Assessment_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "description": "Patient invoices",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Invoice_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Session_ID", "type": "NVARCHAR(60)", "foreignKey": "Sessions(ID)" },
+        { "name": "Invoice_Date", "type": "DATETIME", "nullable": false },
+        { "name": "Due_Date", "type": "DATE" },
+        { "name": "Subtotal", "type": "DECIMAL(10,2)", "nullable": false },
+        { "name": "Tax_Amount", "type": "DECIMAL(10,2)", "default": "0" },
+        { "name": "Discount_Amount", "type": "DECIMAL(10,2)", "default": "0" },
+        { "name": "Total_Amount", "type": "DECIMAL(10,2)", "nullable": false },
+        { "name": "Paid_Amount", "type": "DECIMAL(10,2)", "default": "0" },
+        { "name": "Balance", "type": "DECIMAL(10,2)" },
+        { "name": "Status", "type": "NVARCHAR(50)", "default": "'Unpaid'" },
+        { "name": "Notes", "type": "TEXT" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_invoice_number", "columns": ["Invoice_Number", "Company_ID"], "unique": true },
+        { "name": "idx_patient_invoices", "columns": ["Patient_ID", "Status"] }
+      ]
+    },
+    {
+      "name": "Invoice_Items",
+      "description": "Invoice line items",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Invoice_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Invoices(ID)" },
+        { "name": "Service_ID", "type": "NVARCHAR(60)", "foreignKey": "Services(ID)" },
+        { "name": "Description", "type": "NVARCHAR(500)" },
+        { "name": "Quantity", "type": "INT", "default": "1" },
+        { "name": "Unit_Price", "type": "DECIMAL(10,2)", "nullable": false },
+        { "name": "Total_Price", "type": "DECIMAL(10,2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_invoice_items", "columns": ["Invoice_ID"] }
+      ]
+    },
+    {
+      "name": "Payments",
+      "description": "Payment transactions",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Payment_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Invoice_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Invoices(ID)" },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Patients(ID)" },
+        { "name": "Payment_Date", "type": "DATETIME", "nullable": false },
+        { "name": "Amount", "type": "DECIMAL(10,2)", "nullable": false },
+        { "name": "Payment_Method_ID", "type": "NVARCHAR(60)", "foreignKey": "Payment_Methods(ID)" },
+        { "name": "Reference_Number", "type": "NVARCHAR(100)" },
+        { "name": "Notes", "type": "TEXT" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_payment_number", "columns": ["Payment_Number", "Company_ID"], "unique": true },
+        { "name": "idx_invoice_payments", "columns": ["Invoice_ID"] }
+      ]
+    },
+    {
+      "name": "Payment_Methods",
+      "description": "Payment methods",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Method_Name", "type": "NVARCHAR(100)", "nullable": false },
+        { "name": "Description", "type": "NVARCHAR(500)" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_method_name", "columns": ["Method_Name", "Company_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Payment_Methods_lang",
+      "description": "Payment methods translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Method_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Payment_Methods(ID)" },
+        { "name": "Method_Name", "type": "NVARCHAR(100)" },
+        { "name": "Description", "type": "NVARCHAR(500)" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_method_lang", "columns": ["Method_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Equipment",
+      "description": "Medical equipment",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Equipment_Code", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Equipment_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Description", "type": "TEXT" },
+        { "name": "Manufacturer", "type": "NVARCHAR(200)" },
+        { "name": "Model", "type": "NVARCHAR(100)" },
+        { "name": "Serial_Number", "type": "NVARCHAR(100)" },
+        { "name": "Purchase_Date", "type": "DATE" },
+        { "name": "Purchase_Price", "type": "DECIMAL(10,2)" },
+        { "name": "Room_ID", "type": "NVARCHAR(60)", "foreignKey": "Rooms(ID)" },
+        { "name": "Status", "type": "NVARCHAR(50)", "default": "'Available'" },
+        { "name": "Last_Maintenance_Date", "type": "DATE" },
+        { "name": "Next_Maintenance_Date", "type": "DATE" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_equipment_code", "columns": ["Equipment_Code", "Company_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Equipment_lang",
+      "description": "Equipment translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Equipment_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Equipment(ID)" },
+        { "name": "Equipment_Name", "type": "NVARCHAR(200)" },
+        { "name": "Description", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_equipment_lang", "columns": ["Equipment_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "description": "Treatment rooms",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Room_Code", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Room_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Room_Type", "type": "NVARCHAR(100)" },
+        { "name": "Floor", "type": "NVARCHAR(50)" },
+        { "name": "Capacity", "type": "INT" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_room_code", "columns": ["Room_Code", "Company_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Rooms_lang",
+      "description": "Rooms translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Room_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Rooms(ID)" },
+        { "name": "Room_Name", "type": "NVARCHAR(200)" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_room_lang", "columns": ["Room_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "description": "Medical supplies inventory",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Item_Code", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Item_Name", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Description", "type": "TEXT" },
+        { "name": "Category", "type": "NVARCHAR(100)" },
+        { "name": "Unit", "type": "NVARCHAR(50)" },
+        { "name": "Quantity_On_Hand", "type": "INT", "default": "0" },
+        { "name": "Reorder_Level", "type": "INT" },
+        { "name": "Unit_Cost", "type": "DECIMAL(10,2)" },
+        { "name": "Supplier", "type": "NVARCHAR(200)" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_item_code", "columns": ["Item_Code", "Company_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Inventory_lang",
+      "description": "Inventory translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Inventory_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Inventory(ID)" },
+        { "name": "Item_Name", "type": "NVARCHAR(200)" },
+        { "name": "Description", "type": "TEXT" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_inventory_lang", "columns": ["Inventory_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Inventory_Transactions",
+      "description": "Inventory movement transactions",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Transaction_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Inventory_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Inventory(ID)" },
+        { "name": "Transaction_Type", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Quantity", "type": "INT", "nullable": false },
+        { "name": "Transaction_Date", "type": "DATETIME", "nullable": false },
+        { "name": "Reference_Number", "type": "NVARCHAR(100)" },
+        { "name": "Notes", "type": "TEXT" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_transaction_number", "columns": ["Transaction_Number", "Company_ID"], "unique": true },
+        { "name": "idx_inventory_transactions", "columns": ["Inventory_ID", "Transaction_Date"] }
+      ]
+    },
+    {
+      "name": "Website_Pages",
+      "description": "Website content pages",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Page_Code", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "Page_Title", "type": "NVARCHAR(200)", "nullable": false },
+        { "name": "Page_Content", "type": "TEXT" },
+        { "name": "Page_Type", "type": "NVARCHAR(50)" },
+        { "name": "Meta_Description", "type": "NVARCHAR(500)" },
+        { "name": "Meta_Keywords", "type": "NVARCHAR(500)" },
+        { "name": "Active", "type": "BIT", "default": "1" },
+        { "name": "Sort_Order", "type": "INT", "default": "0" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "User_Insert", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Users(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_page_code", "columns": ["Page_Code", "Company_ID"], "unique": true }
+      ]
+    },
+    {
+      "name": "Website_Pages_lang",
+      "description": "Website pages translations",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Page_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Website_Pages(ID)" },
+        { "name": "Page_Title", "type": "NVARCHAR(200)" },
+        { "name": "Page_Content", "type": "TEXT" },
+        { "name": "Meta_Description", "type": "NVARCHAR(500)" },
+        { "name": "Meta_Keywords", "type": "NVARCHAR(500)" },
+        { "name": "lang", "type": "CHAR(2)", "nullable": false },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_page_lang", "columns": ["Page_ID", "lang"], "unique": true }
+      ]
+    },
+    {
+      "name": "Online_Bookings",
+      "description": "Online appointment bookings",
+      "columns": [
+        { "name": "ID", "type": "NVARCHAR(60)", "primaryKey": true },
+        { "name": "Booking_Number", "type": "NVARCHAR(50)", "nullable": false },
+        { "name": "First_Name", "type": "NVARCHAR(100)", "nullable": false },
+        { "name": "Last_Name", "type": "NVARCHAR(100)", "nullable": false },
+        { "name": "Phone", "type": "NVARCHAR(20)", "nullable": false },
+        { "name": "Email", "type": "NVARCHAR(100)" },
+        { "name": "Service_ID", "type": "NVARCHAR(60)", "foreignKey": "Services(ID)" },
+        { "name": "Preferred_Date", "type": "DATE", "nullable": false },
+        { "name": "Preferred_Time", "type": "NVARCHAR(50)" },
+        { "name": "Notes", "type": "TEXT" },
+        { "name": "Status", "type": "NVARCHAR(50)", "default": "'Pending'" },
+        { "name": "Patient_ID", "type": "NVARCHAR(60)", "foreignKey": "Patients(ID)" },
+        { "name": "Appointment_ID", "type": "NVARCHAR(60)", "foreignKey": "Appointments(ID)" },
+        { "name": "lang", "type": "CHAR(2)", "default": "'ar'" },
+        { "name": "Company_ID", "type": "NVARCHAR(60)", "nullable": false, "foreignKey": "Companies(ID)" },
+        { "name": "begin_date", "type": "DATETIME", "default": "getdate()" }
+      ],
+      "indexes": [
+        { "name": "idx_booking_number", "columns": ["Booking_Number", "Company_ID"], "unique": true },
+        { "name": "idx_booking_status", "columns": ["Status", "Preferred_Date"] }
+      ]
+    }
+  ]
+}

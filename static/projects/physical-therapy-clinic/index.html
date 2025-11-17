@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>عيادات دكتورة مروة حسين للعلاج الطبيعي | Dr. Marwa Hussein Physical Therapy Clinics</title>
+  <meta name="description" content="عيادات متخصصة في العلاج الطبيعي وإعادة التأهيل | Specialized Physical Therapy and Rehabilitation Clinics">
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- Load Mishkah Libraries -->
+  <script src="../../lib/mishkah-utils.js"></script>
+  <script src="../../lib/mishkah.core.js"></script>
+  <script src="../../lib/mishkah-ui.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Main Application Script -->
+  <script>
+    (async function() {
+      const M = Mishkah;
+      const D = M.DSL;
+      const UI = M.UI;
+
+      // Application State
+      const db = {
+        env: {
+          lang: 'ar',
+          dir: 'rtl',
+          theme: 'light'
+        },
+        data: {
+          currentPage: 'home',
+          showBookingForm: false,
+          services: [
+            {
+              id: 1,
+              name_ar: 'العلاج الطبيعي للعمود الفقري',
+              name_en: 'Spinal Physical Therapy',
+              description_ar: 'علاج متخصص لآلام الظهر والرقبة وتصحيح القوام',
+              description_en: 'Specialized treatment for back and neck pain and posture correction',
+              icon: '🦴'
+            },
+            {
+              id: 2,
+              name_ar: 'العلاج الطبيعي للمفاصل',
+              name_en: 'Joint Physical Therapy',
+              description_ar: 'علاج التهابات المفاصل وإصابات الأربطة',
+              description_en: 'Treatment of arthritis and ligament injuries',
+              icon: '🦵'
+            },
+            {
+              id: 3,
+              name_ar: 'العلاج الطبيعي الرياضي',
+              name_en: 'Sports Physical Therapy',
+              description_ar: 'تأهيل الإصابات الرياضية والوقاية منها',
+              description_en: 'Sports injury rehabilitation and prevention',
+              icon: '⚽'
+            },
+            {
+              id: 4,
+              name_ar: 'العلاج الطبيعي للأطفال',
+              name_en: 'Pediatric Physical Therapy',
+              description_ar: 'علاج مشاكل النمو الحركي عند الأطفال',
+              description_en: 'Treatment of developmental motor problems in children',
+              icon: '👶'
+            },
+            {
+              id: 5,
+              name_ar: 'العلاج الطبيعي لكبار السن',
+              name_en: 'Geriatric Physical Therapy',
+              description_ar: 'علاج خاص لكبار السن لتحسين الحركة والتوازن',
+              description_en: 'Special treatment for elderly to improve mobility and balance',
+              icon: '👴'
+            },
+            {
+              id: 6,
+              name_ar: 'العلاج بالتمارين العلاجية',
+              name_en: 'Therapeutic Exercise',
+              description_ar: 'برامج تمارين مخصصة لكل حالة',
+              description_en: 'Customized exercise programs for each case',
+              icon: '🏋️'
+            }
+          ],
+          doctors: [
+            {
+              id: 1,
+              name_ar: 'د. مروة حسين',
+              name_en: 'Dr. Marwa Hussein',
+              specialization_ar: 'أخصائية العلاج الطبيعي وإعادة التأهيل',
+              specialization_en: 'Physical Therapy and Rehabilitation Specialist',
+              experience: 15,
+              bio_ar: 'خبرة 15 عاماً في مجال العلاج الطبيعي وإعادة التأهيل، حاصلة على دكتوراه في العلاج الطبيعي',
+              bio_en: '15 years of experience in physical therapy and rehabilitation, PhD holder in Physical Therapy',
+              image: 'images/doctor-1.jpg'
+            }
+          ],
+          bookingForm: {
+            firstName: '',
+            lastName: '',
+            phone: '',
+            email: '',
+            serviceId: '',
+            preferredDate: '',
+            preferredTime: '',
+            notes: ''
+          },
+          testimonials: [
+            {
+              id: 1,
+              name_ar: 'أحمد محمد',
+              name_en: 'Ahmed Mohamed',
+              text_ar: 'تجربة رائعة مع الدكتورة مروة، علاج احترافي ونتائج ممتازة',
+              text_en: 'Wonderful experience with Dr. Marwa, professional treatment and excellent results',
+              rating: 5
+            },
+            {
+              id: 2,
+              name_ar: 'فاطمة علي',
+              name_en: 'Fatima Ali',
+              text_ar: 'أفضل عيادة علاج طبيعي جربتها، فريق متعاون وخدمة متميزة',
+              text_en: 'Best physical therapy clinic I have tried, cooperative team and distinguished service',
+              rating: 5
+            },
+            {
+              id: 3,
+              name_ar: 'محمود سالم',
+              name_en: 'Mahmoud Salem',
+              text_ar: 'شفيت من آلام الظهر المزمنة بفضل العلاج المتخصص',
+              text_en: 'I recovered from chronic back pain thanks to the specialized treatment',
+              rating: 5
+            }
+          ]
+        },
+        i18n: {
+          dict: {
+            // Navigation
+            'nav.home': { ar: 'الرئيسية', en: 'Home' },
+            'nav.services': { ar: 'الخدمات', en: 'Services' },
+            'nav.about': { ar: 'من نحن', en: 'About Us' },
+            'nav.contact': { ar: 'اتصل بنا', en: 'Contact Us' },
+            'nav.book': { ar: 'احجز الآن', en: 'Book Now' },
+
+            // Hero Section
+            'hero.title': { ar: 'عيادات دكتورة مروة حسين', en: 'Dr. Marwa Hussein Clinics' },
+            'hero.subtitle': { ar: 'للعلاج الطبيعي وإعادة التأهيل', en: 'For Physical Therapy and Rehabilitation' },
+            'hero.description': { ar: 'نقدم أحدث تقنيات العلاج الطبيعي بأيدي خبراء متخصصين', en: 'We provide the latest physical therapy techniques by specialized experts' },
+            'hero.cta': { ar: 'احجز موعدك الآن', en: 'Book Your Appointment' },
+
+            // Services Section
+            'services.title': { ar: 'خدماتنا', en: 'Our Services' },
+            'services.subtitle': { ar: 'نقدم مجموعة متكاملة من خدمات العلاج الطبيعي', en: 'We offer a comprehensive range of physical therapy services' },
+
+            // About Section
+            'about.title': { ar: 'من نحن', en: 'About Us' },
+            'about.description': { ar: 'عيادات متخصصة في العلاج الطبيعي وإعادة التأهيل تحت إشراف الدكتورة مروة حسين. نلتزم بتقديم أفضل رعاية صحية باستخدام أحدث التقنيات والأساليب العلاجية.', en: 'Specialized clinics in physical therapy and rehabilitation under the supervision of Dr. Marwa Hussein. We are committed to providing the best healthcare using the latest technologies and therapeutic methods.' },
+            'about.experience': { ar: 'سنوات من الخبرة', en: 'Years of Experience' },
+            'about.patients': { ar: 'مريض سعيد', en: 'Happy Patients' },
+            'about.success': { ar: 'نسبة نجاح', en: 'Success Rate' },
+
+            // Testimonials
+            'testimonials.title': { ar: 'آراء المرضى', en: 'Patient Reviews' },
+            'testimonials.subtitle': { ar: 'ماذا يقول مرضانا عنا', en: 'What our patients say about us' },
+
+            // Contact Section
+            'contact.title': { ar: 'اتصل بنا', en: 'Contact Us' },
+            'contact.phone': { ar: 'الهاتف', en: 'Phone' },
+            'contact.email': { ar: 'البريد الإلكتروني', en: 'Email' },
+            'contact.address': { ar: 'العنوان', en: 'Address' },
+            'contact.hours': { ar: 'ساعات العمل', en: 'Working Hours' },
+
+            // Booking Form
+            'booking.title': { ar: 'احجز موعدك', en: 'Book Your Appointment' },
+            'booking.firstName': { ar: 'الاسم الأول', en: 'First Name' },
+            'booking.lastName': { ar: 'الاسم الأخير', en: 'Last Name' },
+            'booking.phone': { ar: 'رقم الهاتف', en: 'Phone Number' },
+            'booking.email': { ar: 'البريد الإلكتروني', en: 'Email' },
+            'booking.service': { ar: 'الخدمة المطلوبة', en: 'Required Service' },
+            'booking.selectService': { ar: 'اختر الخدمة', en: 'Select Service' },
+            'booking.date': { ar: 'التاريخ المفضل', en: 'Preferred Date' },
+            'booking.time': { ar: 'الوقت المفضل', en: 'Preferred Time' },
+            'booking.notes': { ar: 'ملاحظات', en: 'Notes' },
+            'booking.submit': { ar: 'إرسال الطلب', en: 'Submit Request' },
+            'booking.cancel': { ar: 'إلغاء', en: 'Cancel' },
+            'booking.success': { ar: 'تم إرسال طلبك بنجاح! سنتواصل معك قريباً', en: 'Your request has been sent successfully! We will contact you soon' },
+
+            // Footer
+            'footer.rights': { ar: 'جميع الحقوق محفوظة', en: 'All Rights Reserved' },
+            'footer.clinic': { ar: 'عيادات دكتورة مروة حسين للعلاج الطبيعي', en: 'Dr. Marwa Hussein Physical Therapy Clinics' }
+          }
+        }
+      };
+
+      // Translation Helper
+      const t = function(key) {
+        const lang = db.env.lang || 'ar';
+        const dict = db.i18n.dict || {};
+        return dict[key] && dict[key][lang] ? dict[key][lang] : key;
+      };
+
+      // Get translated field
+      const tf = function(obj, field) {
+        const lang = db.env.lang || 'ar';
+        return obj[field + '_' + lang] || obj[field] || '';
+      };
+
+      // Event Handlers
+      const orders = {
+        'lang:switch': function(event, context) {
+          const newLang = event.target.dataset.lang;
+          context.db.env.lang = newLang;
+          context.db.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
+          document.documentElement.setAttribute('lang', newLang);
+          document.documentElement.setAttribute('dir', context.db.env.dir);
+          context.rebuild();
+        },
+
+        'nav:click': function(event, context) {
+          const page = event.target.dataset.page;
+          context.db.data.currentPage = page;
+
+          // Scroll to section
+          const section = document.getElementById(page);
+          if (section) {
+            section.scrollIntoView({ behavior: 'smooth' });
+          }
+
+          context.rebuild();
+        },
+
+        'booking:open': function(event, context) {
+          context.db.data.showBookingForm = true;
+          context.rebuild();
+        },
+
+        'booking:close': function(event, context) {
+          context.db.data.showBookingForm = false;
+          context.db.data.bookingForm = {
+            firstName: '',
+            lastName: '',
+            phone: '',
+            email: '',
+            serviceId: '',
+            preferredDate: '',
+            preferredTime: '',
+            notes: ''
+          };
+          context.rebuild();
+        },
+
+        'booking:input': function(event, context) {
+          const field = event.target.name;
+          const value = event.target.value;
+          context.db.data.bookingForm[field] = value;
+        },
+
+        'booking:submit': async function(event, context) {
+          event.preventDefault();
+          const form = context.db.data.bookingForm;
+
+          // Validate
+          if (!form.firstName || !form.lastName || !form.phone || !form.preferredDate) {
+            alert(context.db.env.lang === 'ar' ? 'الرجاء ملء جميع الحقول المطلوبة' : 'Please fill all required fields');
+            return;
+          }
+
+          // Here you would send the data to your backend
+          console.log('Booking submitted:', form);
+
+          // Show success message
+          alert(t('booking.success'));
+
+          // Close form
+          context.db.data.showBookingForm = false;
+          context.db.data.bookingForm = {
+            firstName: '',
+            lastName: '',
+            phone: '',
+            email: '',
+            serviceId: '',
+            preferredDate: '',
+            preferredTime: '',
+            notes: ''
+          };
+          context.rebuild();
+        }
+      };
+
+      // Components
+      function Navbar(db, D) {
+        return D.Containers.Nav({ attrs: { class: 'navbar' } }, [
+          D.Containers.Div({ attrs: { class: 'navbar-container' } }, [
+            // Logo
+            D.Containers.Div({ attrs: { class: 'navbar-brand' } }, [
+              D.Text.H2({}, [t('hero.title')])
+            ]),
+
+            // Navigation Links
+            D.Containers.Div({ attrs: { class: 'navbar-links' } }, [
+              D.Text.A({ attrs: { href: '#home', gkey: 'nav:click', 'data-page': 'home', class: db.data.currentPage === 'home' ? 'active' : '' } }, [t('nav.home')]),
+              D.Text.A({ attrs: { href: '#services', gkey: 'nav:click', 'data-page': 'services', class: db.data.currentPage === 'services' ? 'active' : '' } }, [t('nav.services')]),
+              D.Text.A({ attrs: { href: '#about', gkey: 'nav:click', 'data-page': 'about', class: db.data.currentPage === 'about' ? 'active' : '' } }, [t('nav.about')]),
+              D.Text.A({ attrs: { href: '#contact', gkey: 'nav:click', 'data-page': 'contact', class: db.data.currentPage === 'contact' ? 'active' : '' } }, [t('nav.contact')]),
+              D.Forms.Button({ attrs: { class: 'btn btn-primary', gkey: 'booking:open' } }, [t('nav.book')])
+            ]),
+
+            // Language Switcher
+            D.Containers.Div({ attrs: { class: 'lang-switcher' } }, [
+              D.Forms.Button({
+                attrs: {
+                  class: 'lang-btn' + (db.env.lang === 'ar' ? ' active' : ''),
+                  gkey: 'lang:switch',
+                  'data-lang': 'ar'
+                }
+              }, ['ع']),
+              D.Forms.Button({
+                attrs: {
+                  class: 'lang-btn' + (db.env.lang === 'en' ? ' active' : ''),
+                  gkey: 'lang:switch',
+                  'data-lang': 'en'
+                }
+              }, ['EN'])
+            ])
+          ])
+        ]);
+      }
+
+      function HeroSection(db, D) {
+        return D.Containers.Section({ attrs: { id: 'home', class: 'hero-section' } }, [
+          D.Containers.Div({ attrs: { class: 'hero-content' } }, [
+            D.Text.H1({ attrs: { class: 'hero-title' } }, [t('hero.title')]),
+            D.Text.H2({ attrs: { class: 'hero-subtitle' } }, [t('hero.subtitle')]),
+            D.Text.P({ attrs: { class: 'hero-description' } }, [t('hero.description')]),
+            D.Forms.Button({ attrs: { class: 'btn btn-large btn-primary', gkey: 'booking:open' } }, [t('hero.cta')])
+          ])
+        ]);
+      }
+
+      function ServicesSection(db, D) {
+        return D.Containers.Section({ attrs: { id: 'services', class: 'services-section' } }, [
+          D.Containers.Div({ attrs: { class: 'section-header' } }, [
+            D.Text.H2({ attrs: { class: 'section-title' } }, [t('services.title')]),
+            D.Text.P({ attrs: { class: 'section-subtitle' } }, [t('services.subtitle')])
+          ]),
+          D.Containers.Div({ attrs: { class: 'services-grid' } },
+            db.data.services.map(function(service) {
+              return D.Containers.Div({ attrs: { class: 'service-card', key: service.id } }, [
+                D.Text.Span({ attrs: { class: 'service-icon' } }, [service.icon]),
+                D.Text.H3({ attrs: { class: 'service-name' } }, [tf(service, 'name')]),
+                D.Text.P({ attrs: { class: 'service-description' } }, [tf(service, 'description')])
+              ]);
+            })
+          )
+        ]);
+      }
+
+      function AboutSection(db, D) {
+        return D.Containers.Section({ attrs: { id: 'about', class: 'about-section' } }, [
+          D.Containers.Div({ attrs: { class: 'section-header' } }, [
+            D.Text.H2({ attrs: { class: 'section-title' } }, [t('about.title')])
+          ]),
+          D.Containers.Div({ attrs: { class: 'about-content' } }, [
+            D.Containers.Div({ attrs: { class: 'about-text' } }, [
+              D.Text.P({}, [t('about.description')])
+            ]),
+            D.Containers.Div({ attrs: { class: 'about-stats' } }, [
+              D.Containers.Div({ attrs: { class: 'stat' } }, [
+                D.Text.H3({}, ['15+']),
+                D.Text.P({}, [t('about.experience')])
+              ]),
+              D.Containers.Div({ attrs: { class: 'stat' } }, [
+                D.Text.H3({}, ['5000+']),
+                D.Text.P({}, [t('about.patients')])
+              ]),
+              D.Containers.Div({ attrs: { class: 'stat' } }, [
+                D.Text.H3({}, ['98%']),
+                D.Text.P({}, [t('about.success')])
+              ])
+            ])
+          ])
+        ]);
+      }
+
+      function TestimonialsSection(db, D) {
+        return D.Containers.Section({ attrs: { class: 'testimonials-section' } }, [
+          D.Containers.Div({ attrs: { class: 'section-header' } }, [
+            D.Text.H2({ attrs: { class: 'section-title' } }, [t('testimonials.title')]),
+            D.Text.P({ attrs: { class: 'section-subtitle' } }, [t('testimonials.subtitle')])
+          ]),
+          D.Containers.Div({ attrs: { class: 'testimonials-grid' } },
+            db.data.testimonials.map(function(testimonial) {
+              return D.Containers.Div({ attrs: { class: 'testimonial-card', key: testimonial.id } }, [
+                D.Containers.Div({ attrs: { class: 'testimonial-rating' } }, [
+                  D.Text.Span({}, ['⭐'.repeat(testimonial.rating)])
+                ]),
+                D.Text.P({ attrs: { class: 'testimonial-text' } }, [tf(testimonial, 'text')]),
+                D.Text.Strong({ attrs: { class: 'testimonial-name' } }, [tf(testimonial, 'name')])
+              ]);
+            })
+          )
+        ]);
+      }
+
+      function ContactSection(db, D) {
+        return D.Containers.Section({ attrs: { id: 'contact', class: 'contact-section' } }, [
+          D.Containers.Div({ attrs: { class: 'section-header' } }, [
+            D.Text.H2({ attrs: { class: 'section-title' } }, [t('contact.title')])
+          ]),
+          D.Containers.Div({ attrs: { class: 'contact-grid' } }, [
+            D.Containers.Div({ attrs: { class: 'contact-item' } }, [
+              D.Text.Span({ attrs: { class: 'contact-icon' } }, ['📞']),
+              D.Text.H3({}, [t('contact.phone')]),
+              D.Text.P({}, ['+966 50 123 4567'])
+            ]),
+            D.Containers.Div({ attrs: { class: 'contact-item' } }, [
+              D.Text.Span({ attrs: { class: 'contact-icon' } }, ['✉️']),
+              D.Text.H3({}, [t('contact.email')]),
+              D.Text.P({}, ['info@marwaclinic.com'])
+            ]),
+            D.Containers.Div({ attrs: { class: 'contact-item' } }, [
+              D.Text.Span({ attrs: { class: 'contact-icon' } }, ['📍']),
+              D.Text.H3({}, [t('contact.address')]),
+              D.Text.P({}, [db.env.lang === 'ar' ? 'الرياض، المملكة العربية السعودية' : 'Riyadh, Saudi Arabia'])
+            ]),
+            D.Containers.Div({ attrs: { class: 'contact-item' } }, [
+              D.Text.Span({ attrs: { class: 'contact-icon' } }, ['🕐']),
+              D.Text.H3({}, [t('contact.hours')]),
+              D.Text.P({}, [db.env.lang === 'ar' ? 'السبت - الخميس: 8 صباحاً - 8 مساءً' : 'Saturday - Thursday: 8 AM - 8 PM'])
+            ])
+          ])
+        ]);
+      }
+
+      function BookingForm(db, D) {
+        if (!db.data.showBookingForm) return null;
+
+        return D.Containers.Div({ attrs: { class: 'modal-overlay', gkey: 'booking:close' } }, [
+          D.Containers.Div({
+            attrs: {
+              class: 'modal-content booking-modal',
+              onclick: 'event.stopPropagation()'
+            }
+          }, [
+            D.Text.H2({ attrs: { class: 'modal-title' } }, [t('booking.title')]),
+            D.Forms.Form({ attrs: { class: 'booking-form' }, events: { gkey: 'booking:submit' } }, [
+              D.Containers.Div({ attrs: { class: 'form-row' } }, [
+                D.Containers.Div({ attrs: { class: 'form-group' } }, [
+                  D.Forms.Label({}, [t('booking.firstName') + ' *']),
+                  D.Inputs.Input({
+                    attrs: {
+                      type: 'text',
+                      name: 'firstName',
+                      value: db.data.bookingForm.firstName,
+                      required: true,
+                      gkey: 'booking:input'
+                    }
+                  })
+                ]),
+                D.Containers.Div({ attrs: { class: 'form-group' } }, [
+                  D.Forms.Label({}, [t('booking.lastName') + ' *']),
+                  D.Inputs.Input({
+                    attrs: {
+                      type: 'text',
+                      name: 'lastName',
+                      value: db.data.bookingForm.lastName,
+                      required: true,
+                      gkey: 'booking:input'
+                    }
+                  })
+                ])
+              ]),
+
+              D.Containers.Div({ attrs: { class: 'form-row' } }, [
+                D.Containers.Div({ attrs: { class: 'form-group' } }, [
+                  D.Forms.Label({}, [t('booking.phone') + ' *']),
+                  D.Inputs.Input({
+                    attrs: {
+                      type: 'tel',
+                      name: 'phone',
+                      value: db.data.bookingForm.phone,
+                      required: true,
+                      gkey: 'booking:input'
+                    }
+                  })
+                ]),
+                D.Containers.Div({ attrs: { class: 'form-group' } }, [
+                  D.Forms.Label({}, [t('booking.email')]),
+                  D.Inputs.Input({
+                    attrs: {
+                      type: 'email',
+                      name: 'email',
+                      value: db.data.bookingForm.email,
+                      gkey: 'booking:input'
+                    }
+                  })
+                ])
+              ]),
+
+              D.Containers.Div({ attrs: { class: 'form-group' } }, [
+                D.Forms.Label({}, [t('booking.service')]),
+                D.Inputs.Select({
+                  attrs: {
+                    name: 'serviceId',
+                    gkey: 'booking:input'
+                  }
+                }, [
+                  D.Inputs.Option({ attrs: { value: '' } }, [t('booking.selectService')]),
+                  ...db.data.services.map(function(service) {
+                    return D.Inputs.Option({
+                      attrs: {
+                        value: service.id,
+                        selected: db.data.bookingForm.serviceId == service.id
+                      }
+                    }, [tf(service, 'name')]);
+                  })
+                ])
+              ]),
+
+              D.Containers.Div({ attrs: { class: 'form-row' } }, [
+                D.Containers.Div({ attrs: { class: 'form-group' } }, [
+                  D.Forms.Label({}, [t('booking.date') + ' *']),
+                  D.Inputs.Input({
+                    attrs: {
+                      type: 'date',
+                      name: 'preferredDate',
+                      value: db.data.bookingForm.preferredDate,
+                      required: true,
+                      gkey: 'booking:input'
+                    }
+                  })
+                ]),
+                D.Containers.Div({ attrs: { class: 'form-group' } }, [
+                  D.Forms.Label({}, [t('booking.time')]),
+                  D.Inputs.Input({
+                    attrs: {
+                      type: 'time',
+                      name: 'preferredTime',
+                      value: db.data.bookingForm.preferredTime,
+                      gkey: 'booking:input'
+                    }
+                  })
+                ])
+              ]),
+
+              D.Containers.Div({ attrs: { class: 'form-group' } }, [
+                D.Forms.Label({}, [t('booking.notes')]),
+                D.Inputs.Textarea({
+                  attrs: {
+                    name: 'notes',
+                    rows: 4,
+                    gkey: 'booking:input'
+                  }
+                }, [db.data.bookingForm.notes])
+              ]),
+
+              D.Containers.Div({ attrs: { class: 'form-actions' } }, [
+                D.Forms.Button({ attrs: { type: 'button', class: 'btn btn-secondary', gkey: 'booking:close' } }, [t('booking.cancel')]),
+                D.Forms.Button({ attrs: { type: 'submit', class: 'btn btn-primary' } }, [t('booking.submit')])
+              ])
+            ])
+          ])
+        ]);
+      }
+
+      function Footer(db, D) {
+        return D.Containers.Footer({ attrs: { class: 'footer' } }, [
+          D.Containers.Div({ attrs: { class: 'footer-content' } }, [
+            D.Text.P({}, [t('footer.rights') + ' © 2024 ' + t('footer.clinic')])
+          ])
+        ]);
+      }
+
+      // Main App Body
+      M.app.setBody(function(stateWrapper, D) {
+        const state = stateWrapper;
+
+        return D.Containers.Div({ attrs: { class: 'app-container' } }, [
+          Navbar(state, D),
+          D.Containers.Main({}, [
+            HeroSection(state, D),
+            ServicesSection(state, D),
+            AboutSection(state, D),
+            TestimonialsSection(state, D),
+            ContactSection(state, D)
+          ]),
+          BookingForm(state, D),
+          Footer(state, D)
+        ].filter(Boolean));
+      });
+
+      // Create and Mount App
+      const app = M.app.createApp(db, orders);
+      app.mount('#app');
+
+      console.log('Physical Therapy Clinic website loaded successfully!');
+    })();
+  </script>
+</body>
+</html>
