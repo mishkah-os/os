@@ -4,327 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>لوحة تحكم ERP - مركز العلاج الطبيعي | ERP Dashboard - Physical Therapy Center</title>
-  <link rel="stylesheet" href="css/styles.css">
   <!-- Load Mishkah Libraries -->
   <script src="../../lib/mishkah-utils.js"></script>
   <script src="../../lib/mishkah.core.js"></script>
   <script src="../../lib/mishkah-ui.js"></script>
-  <style>
-    :root {
-      --primary: #2563eb;
-      --primary-foreground: #ffffff;
-      --secondary: #64748b;
-      --secondary-foreground: #ffffff;
-      --background: #ffffff;
-      --foreground: #0f172a;
-      --card: #ffffff;
-      --card-foreground: #0f172a;
-      --border: #e2e8f0;
-      --input: #e2e8f0;
-      --ring: #2563eb;
-      --accent: #f1f5f9;
-      --accent-foreground: #0f172a;
-      --muted-foreground: #64748b;
-      --destructive: #ef4444;
-      --destructive-foreground: #ffffff;
-      --surface-1: #f8fafc;
-      --surface-2: #f1f5f9;
-      --radius: 0.5rem;
-      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-    }
-
-    [data-theme="dark"] {
-      --background: #0f172a;
-      --foreground: #f8fafc;
-      --card: #1e293b;
-      --card-foreground: #f8fafc;
-      --border: #334155;
-      --input: #334155;
-      --accent: #1e293b;
-      --accent-foreground: #f8fafc;
-      --surface-1: #1e293b;
-      --surface-2: #334155;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: var(--background);
-      color: var(--foreground);
-      line-height: 1.6;
-    }
-
-    .dashboard-container {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    .sidebar {
-      width: 250px;
-      background: var(--card);
-      border-right: 1px solid var(--border);
-      padding: 1.5rem;
-      position: fixed;
-      height: 100vh;
-      overflow-y: auto;
-    }
-
-    .sidebar-header {
-      margin-bottom: 2rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .sidebar-title {
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: var(--primary);
-    }
-
-    .sidebar-menu {
-      list-style: none;
-    }
-
-    .sidebar-menu-item {
-      margin-bottom: 0.5rem;
-    }
-
-    .sidebar-menu-link {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.75rem 1rem;
-      border-radius: var(--radius);
-      text-decoration: none;
-      color: var(--foreground);
-      transition: all 0.2s;
-      cursor: pointer;
-    }
-
-    .sidebar-menu-link:hover {
-      background: var(--accent);
-    }
-
-    .sidebar-menu-link.active {
-      background: var(--primary);
-      color: var(--primary-foreground);
-    }
-
-    .main-content {
-      flex: 1;
-      margin-left: 250px;
-      padding: 2rem;
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 2rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 2rem;
-    }
-
-    .stat-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.5rem;
-      box-shadow: var(--shadow);
-    }
-
-    .stat-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
-
-    .stat-card-title {
-      font-size: 0.875rem;
-      color: var(--muted-foreground);
-      font-weight: 500;
-    }
-
-    .stat-card-icon {
-      font-size: 1.5rem;
-    }
-
-    .stat-card-value {
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-    }
-
-    .stat-card-change {
-      font-size: 0.875rem;
-      color: #10b981;
-    }
-
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.5rem;
-      box-shadow: var(--shadow);
-      margin-bottom: 1.5rem;
-    }
-
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.5rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .card-title {
-      font-size: 1.25rem;
-      font-weight: 700;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1rem;
-      border-radius: var(--radius);
-      font-size: 0.875rem;
-      font-weight: 500;
-      border: none;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: var(--primary-foreground);
-    }
-
-    .btn-primary:hover {
-      opacity: 0.9;
-    }
-
-    .btn-secondary {
-      background: var(--secondary);
-      color: var(--secondary-foreground);
-    }
-
-    .table-container {
-      overflow-x: auto;
-    }
-
-    .table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .table th {
-      background: var(--surface-1);
-      padding: 0.75rem;
-      text-align: right;
-      font-weight: 600;
-      border-bottom: 2px solid var(--border);
-    }
-
-    .table td {
-      padding: 0.75rem;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .table tr:hover {
-      background: var(--accent);
-    }
-
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.75rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-
-    .badge-success {
-      background: #dcfce7;
-      color: #166534;
-    }
-
-    .badge-warning {
-      background: #fef3c7;
-      color: #92400e;
-    }
-
-    .badge-danger {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .badge-info {
-      background: #dbeafe;
-      color: #1e40af;
-    }
-
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-      padding: 1rem;
-    }
-
-    .modal-content {
-      background: var(--card);
-      border-radius: var(--radius);
-      padding: 2rem;
-      max-width: 600px;
-      width: 100%;
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-
-    .form-group {
-      margin-bottom: 1rem;
-    }
-
-    .form-label {
-      display: block;
-      margin-bottom: 0.5rem;
-      font-weight: 500;
-    }
-
-    .form-input {
-      width: 100%;
-      padding: 0.5rem;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: var(--background);
-      color: var(--foreground);
-    }
-
-    .form-actions {
-      display: flex;
-      gap: 1rem;
-      justify-content: flex-end;
-      margin-top: 1.5rem;
-    }
-  </style>
 </head>
 <body>
   <div id="app"></div>
@@ -334,6 +17,7 @@
       const M = Mishkah;
       const D = M.DSL;
       const UI = M.UI;
+      const { tw, token } = M.utils.twcss;
 
       // Application State
       const db = {
@@ -382,8 +66,6 @@
             'phone': { ar: 'الهاتف', en: 'Phone' },
             'status': { ar: 'الحالة', en: 'Status' },
             'lastVisit': { ar: 'آخر زيارة', en: 'Last Visit' },
-            'sessions': { ar: 'الجلسات', en: 'Sessions' },
-            'actions': { ar: 'الإجراءات', en: 'Actions' },
             'patient': { ar: 'المريض', en: 'Patient' },
             'date': { ar: 'التاريخ', en: 'Date' },
             'time': { ar: 'الوقت', en: 'Time' },
@@ -411,7 +93,8 @@
           gkeys: ['nav:click'],
           handler: function(event, context) {
             const page = event.target.dataset.page;
-            context.db.data.currentPage = page;
+            const state = context.getState();
+            state.data.currentPage = page;
             context.rebuild();
           }
         },
@@ -421,10 +104,22 @@
           gkeys: ['lang:switch'],
           handler: function(event, context) {
             const newLang = event.target.dataset.lang;
-            context.db.env.lang = newLang;
-            context.db.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
+            const state = context.getState();
+            state.env.lang = newLang;
+            state.env.dir = newLang === 'ar' ? 'rtl' : 'ltr';
             document.documentElement.setAttribute('lang', newLang);
-            document.documentElement.setAttribute('dir', context.db.env.dir);
+            document.documentElement.setAttribute('dir', state.env.dir);
+            context.rebuild();
+          }
+        },
+
+        'theme:toggle': {
+          on: ['click'],
+          gkeys: ['theme:toggle'],
+          handler: function(event, context) {
+            const state = context.getState();
+            state.env.theme = state.env.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', state.env.theme);
             context.rebuild();
           }
         },
@@ -434,8 +129,9 @@
           gkeys: ['modal:open'],
           handler: function(event, context) {
             const modalType = event.target.dataset.modalType;
-            context.db.data.showModal = true;
-            context.db.data.modalType = modalType;
+            const state = context.getState();
+            state.data.showModal = true;
+            state.data.modalType = modalType;
             context.rebuild();
           }
         },
@@ -444,8 +140,9 @@
           on: ['click'],
           gkeys: ['modal:close'],
           handler: function(event, context) {
-            context.db.data.showModal = false;
-            context.db.data.modalType = null;
+            const state = context.getState();
+            state.data.showModal = false;
+            state.data.modalType = null;
             context.rebuild();
           }
         }
@@ -453,15 +150,15 @@
 
       // Components
       function Sidebar(db, D) {
-        return D.Containers.Aside({ attrs: { class: 'sidebar' } }, [
-          D.Containers.Div({ attrs: { class: 'sidebar-header' } }, [
-            D.Text.H2({ attrs: { class: 'sidebar-title' } }, ['ERP - مركز العلاج الطبيعي'])
+        return D.Containers.Aside({ attrs: { class: tw`w-[250px] bg-[var(--card)] border-r border-[var(--border)] p-6 fixed h-screen overflow-y-auto` } }, [
+          D.Containers.Div({ attrs: { class: tw`mb-8 pb-4 border-b border-[var(--border)]` } }, [
+            D.Text.H2({ attrs: { class: tw`text-lg font-bold text-[var(--primary)]` } }, ['ERP - مركز العلاج الطبيعي'])
           ]),
           D.Lists.Ul({ attrs: { class: 'sidebar-menu' } }, [
             D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
-                  class: 'sidebar-menu-link' + (db.data.currentPage === 'dashboard' ? ' active' : ''),
+                  class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'dashboard' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
                   'data-m-gkey': 'nav:click',
                   'data-page': 'dashboard'
                 }
@@ -470,7 +167,7 @@
             D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
-                  class: 'sidebar-menu-link' + (db.data.currentPage === 'patients' ? ' active' : ''),
+                  class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'patients' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
                   'data-m-gkey': 'nav:click',
                   'data-page': 'patients'
                 }
@@ -479,7 +176,7 @@
             D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
-                  class: 'sidebar-menu-link' + (db.data.currentPage === 'appointments' ? ' active' : ''),
+                  class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'appointments' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
                   'data-m-gkey': 'nav:click',
                   'data-page': 'appointments'
                 }
@@ -488,7 +185,7 @@
             D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
-                  class: 'sidebar-menu-link' + (db.data.currentPage === 'sessions' ? ' active' : ''),
+                  class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'sessions' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
                   'data-m-gkey': 'nav:click',
                   'data-page': 'sessions'
                 }
@@ -497,7 +194,7 @@
             D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
-                  class: 'sidebar-menu-link' + (db.data.currentPage === 'reports' ? ' active' : ''),
+                  class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'reports' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
                   'data-m-gkey': 'nav:click',
                   'data-page': 'reports'
                 }
@@ -506,7 +203,7 @@
             D.Lists.Li({ attrs: { class: 'sidebar-menu-item' } }, [
               D.Text.A({
                 attrs: {
-                  class: 'sidebar-menu-link' + (db.data.currentPage === 'settings' ? ' active' : ''),
+                  class: tw`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors cursor-pointer ${db.data.currentPage === 'settings' ? 'bg-[var(--primary)] text-[var(--primary-foreground)]' : 'hover:bg-[var(--accent)]'}`,
                   'data-m-gkey': 'nav:click',
                   'data-page': 'settings'
                 }
@@ -517,52 +214,62 @@
       }
 
       function Header(db, D) {
-        return D.Containers.Div({ attrs: { class: 'header' } }, [
-          D.Text.H1({}, [t(db.data.currentPage)]),
-          UI.Switcher({
-            attrs: { 'data-m-gkey': 'lang:switch' },
-            value: db.env.lang,
-            options: [
-              { label: 'ع', value: 'ar', attrs: { 'data-lang': 'ar' } },
-              { label: 'EN', value: 'en', attrs: { 'data-lang': 'en' } }
-            ]
-          })
+        return D.Containers.Div({ attrs: { class: tw`${token('split')} mb-8 pb-4 border-b border-[var(--border)]` } }, [
+          D.Text.H1({ attrs: { class: tw`text-2xl font-bold` } }, [t(db.data.currentPage)]),
+          D.Containers.Div({ attrs: { class: tw`${token('hstack')}` } }, [
+            UI.Switcher({
+              attrs: { 'data-m-gkey': 'lang:switch' },
+              value: db.env.lang,
+              options: [
+                { label: 'ع', value: 'ar', attrs: { 'data-lang': 'ar' } },
+                { label: 'EN', value: 'en', attrs: { 'data-lang': 'en' } }
+              ]
+            }),
+            UI.Button({
+              attrs: {
+                'data-m-gkey': 'theme:toggle',
+                title: db.env.theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'
+              },
+              variant: 'ghost',
+              size: 'md'
+            }, [db.env.theme === 'dark' ? '🌞' : '🌙'])
+          ])
         ]);
       }
 
       function StatsGrid(db, D) {
-        return D.Containers.Div({ attrs: { class: 'stats-grid' } }, [
-          D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-            D.Containers.Div({ attrs: { class: 'stat-card-header' } }, [
-              D.Text.Span({ attrs: { class: 'stat-card-title' } }, [t('totalPatients')]),
-              D.Text.Span({ attrs: { class: 'stat-card-icon' } }, ['👥'])
+        return D.Containers.Div({ attrs: { class: tw`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8` } }, [
+          D.Containers.Div({ attrs: { class: tw`${token('card')} p-6` } }, [
+            D.Containers.Div({ attrs: { class: tw`${token('split')} mb-4` } }, [
+              D.Text.Span({ attrs: { class: tw`text-sm font-medium ${token('muted')}` } }, [t('totalPatients')]),
+              D.Text.Span({ attrs: { class: tw`text-2xl` } }, ['👥'])
             ]),
-            D.Text.Div({ attrs: { class: 'stat-card-value' } }, [String(db.data.stats.totalPatients)]),
-            D.Text.Div({ attrs: { class: 'stat-card-change' } }, ['↑ 12% من الشهر الماضي'])
+            D.Containers.Div({ attrs: { class: tw`text-3xl font-bold mb-2` } }, [String(db.data.stats.totalPatients)]),
+            D.Containers.Div({ attrs: { class: tw`text-sm text-green-600` } }, ['↑ 12% من الشهر الماضي'])
           ]),
-          D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-            D.Containers.Div({ attrs: { class: 'stat-card-header' } }, [
-              D.Text.Span({ attrs: { class: 'stat-card-title' } }, [t('todayAppointments')]),
-              D.Text.Span({ attrs: { class: 'stat-card-icon' } }, ['📅'])
+          D.Containers.Div({ attrs: { class: tw`${token('card')} p-6` } }, [
+            D.Containers.Div({ attrs: { class: tw`${token('split')} mb-4` } }, [
+              D.Text.Span({ attrs: { class: tw`text-sm font-medium ${token('muted')}` } }, [t('todayAppointments')]),
+              D.Text.Span({ attrs: { class: tw`text-2xl` } }, ['📅'])
             ]),
-            D.Text.Div({ attrs: { class: 'stat-card-value' } }, [String(db.data.stats.todayAppointments)]),
-            D.Text.Div({ attrs: { class: 'stat-card-change' } }, ['5 مؤكد، 7 قيد الانتظار'])
+            D.Containers.Div({ attrs: { class: tw`text-3xl font-bold mb-2` } }, [String(db.data.stats.todayAppointments)]),
+            D.Containers.Div({ attrs: { class: tw`text-sm ${token('muted')}` } }, ['5 مؤكد، 7 قيد الانتظار'])
           ]),
-          D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-            D.Containers.Div({ attrs: { class: 'stat-card-header' } }, [
-              D.Text.Span({ attrs: { class: 'stat-card-title' } }, [t('completedSessions')]),
-              D.Text.Span({ attrs: { class: 'stat-card-icon' } }, ['✅'])
+          D.Containers.Div({ attrs: { class: tw`${token('card')} p-6` } }, [
+            D.Containers.Div({ attrs: { class: tw`${token('split')} mb-4` } }, [
+              D.Text.Span({ attrs: { class: tw`text-sm font-medium ${token('muted')}` } }, [t('completedSessions')]),
+              D.Text.Span({ attrs: { class: tw`text-2xl` } }, ['✅'])
             ]),
-            D.Text.Div({ attrs: { class: 'stat-card-value' } }, [String(db.data.stats.completedSessions)]),
-            D.Text.Div({ attrs: { class: 'stat-card-change' } }, ['↑ 8% من الشهر الماضي'])
+            D.Containers.Div({ attrs: { class: tw`text-3xl font-bold mb-2` } }, [String(db.data.stats.completedSessions)]),
+            D.Containers.Div({ attrs: { class: tw`text-sm text-green-600` } }, ['↑ 8% من الشهر الماضي'])
           ]),
-          D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-            D.Containers.Div({ attrs: { class: 'stat-card-header' } }, [
-              D.Text.Span({ attrs: { class: 'stat-card-title' } }, [t('revenue')]),
-              D.Text.Span({ attrs: { class: 'stat-card-icon' } }, ['💰'])
+          D.Containers.Div({ attrs: { class: tw`${token('card')} p-6` } }, [
+            D.Containers.Div({ attrs: { class: tw`${token('split')} mb-4` } }, [
+              D.Text.Span({ attrs: { class: tw`text-sm font-medium ${token('muted')}` } }, [t('revenue')]),
+              D.Text.Span({ attrs: { class: tw`text-2xl` } }, ['💰'])
             ]),
-            D.Text.Div({ attrs: { class: 'stat-card-value' } }, [String(db.data.stats.revenue) + ' ج.م']),
-            D.Text.Div({ attrs: { class: 'stat-card-change' } }, ['↑ 15% من الشهر الماضي'])
+            D.Containers.Div({ attrs: { class: tw`text-3xl font-bold mb-2` } }, [String(db.data.stats.revenue) + ' ج.م']),
+            D.Containers.Div({ attrs: { class: tw`text-sm text-green-600` } }, ['↑ 15% من الشهر الماضي'])
           ])
         ]);
       }
@@ -570,81 +277,83 @@
       function DashboardPage(db, D) {
         return D.Containers.Div({}, [
           StatsGrid(db, D),
-          D.Containers.Div({ attrs: { class: 'card' } }, [
-            D.Containers.Div({ attrs: { class: 'card-header' } }, [
-              D.Text.H2({ attrs: { class: 'card-title' } }, [t('recentPatients')]),
-              D.Forms.Button({
+          D.Containers.Div({ attrs: { class: tw`${token('card')} mb-6` } }, [
+            D.Containers.Div({ attrs: { class: tw`${token('card/header')}` } }, [
+              D.Text.H2({ attrs: { class: tw`${token('card/title')}` } }, [t('recentPatients')]),
+              UI.Button({
                 attrs: {
-                  class: 'btn btn-primary',
                   'data-m-gkey': 'modal:open',
                   'data-modal-type': 'patient'
-                }
+                },
+                variant: 'solid',
+                size: 'sm'
               }, ['+ ' + t('addNew')])
             ]),
-            D.Containers.Div({ attrs: { class: 'table-container' } }, [
-              D.Containers.Table({ attrs: { class: 'table' } }, [
-                D.Containers.Thead({}, [
+            D.Containers.Div({ attrs: { class: tw`${token('card/content')} overflow-x-auto` } }, [
+              D.Containers.Table({ attrs: { class: tw`w-full` } }, [
+                D.Containers.Thead({ attrs: { class: tw`bg-[var(--surface-1)]` } }, [
                   D.Containers.Tr({}, [
-                    D.Containers.Th({}, [t('name')]),
-                    D.Containers.Th({}, [t('phone')]),
-                    D.Containers.Th({}, [t('status')]),
-                    D.Containers.Th({}, [t('lastVisit')]),
-                    D.Containers.Th({}, [t('sessions')])
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('name')]),
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('phone')]),
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('status')]),
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('lastVisit')]),
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('sessions')])
                   ])
                 ]),
                 D.Containers.Tbody({},
                   db.data.patients.map(function(patient) {
-                    return D.Containers.Tr({ attrs: { key: patient.id } }, [
-                      D.Containers.Td({}, [patient.name]),
-                      D.Containers.Td({}, [patient.phone]),
-                      D.Containers.Td({}, [
+                    return D.Containers.Tr({ attrs: { key: patient.id, class: tw`hover:bg-[var(--accent)]` } }, [
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [patient.name]),
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [patient.phone]),
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [
                         D.Text.Span({
                           attrs: {
-                            class: 'badge badge-' + (patient.status === 'active' ? 'success' : 'info')
+                            class: tw`${token('badge')} ${patient.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`
                           }
                         }, [t(patient.status)])
                       ]),
-                      D.Containers.Td({}, [patient.lastVisit]),
-                      D.Containers.Td({}, [String(patient.totalSessions)])
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [patient.lastVisit]),
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [String(patient.totalSessions)])
                     ]);
                   })
                 )
               ])
             ])
           ]),
-          D.Containers.Div({ attrs: { class: 'card' } }, [
-            D.Containers.Div({ attrs: { class: 'card-header' } }, [
-              D.Text.H2({ attrs: { class: 'card-title' } }, [t('upcomingAppointments')]),
-              D.Forms.Button({
+          D.Containers.Div({ attrs: { class: tw`${token('card')}` } }, [
+            D.Containers.Div({ attrs: { class: tw`${token('card/header')}` } }, [
+              D.Text.H2({ attrs: { class: tw`${token('card/title')}` } }, [t('upcomingAppointments')]),
+              UI.Button({
                 attrs: {
-                  class: 'btn btn-primary',
                   'data-m-gkey': 'modal:open',
                   'data-modal-type': 'appointment'
-                }
+                },
+                variant: 'solid',
+                size: 'sm'
               }, ['+ ' + t('addNew')])
             ]),
-            D.Containers.Div({ attrs: { class: 'table-container' } }, [
-              D.Containers.Table({ attrs: { class: 'table' } }, [
-                D.Containers.Thead({}, [
+            D.Containers.Div({ attrs: { class: tw`${token('card/content')} overflow-x-auto` } }, [
+              D.Containers.Table({ attrs: { class: tw`w-full` } }, [
+                D.Containers.Thead({ attrs: { class: tw`bg-[var(--surface-1)]` } }, [
                   D.Containers.Tr({}, [
-                    D.Containers.Th({}, [t('patient')]),
-                    D.Containers.Th({}, [t('date')]),
-                    D.Containers.Th({}, [t('time')]),
-                    D.Containers.Th({}, [t('service')]),
-                    D.Containers.Th({}, [t('status')])
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('patient')]),
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('date')]),
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('time')]),
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('service')]),
+                    D.Containers.Th({ attrs: { class: tw`p-3 text-right font-semibold border-b-2 border-[var(--border)]` } }, [t('status')])
                   ])
                 ]),
                 D.Containers.Tbody({},
                   db.data.appointments.map(function(appointment) {
-                    return D.Containers.Tr({ attrs: { key: appointment.id } }, [
-                      D.Containers.Td({}, [appointment.patientName]),
-                      D.Containers.Td({}, [appointment.date]),
-                      D.Containers.Td({}, [appointment.time]),
-                      D.Containers.Td({}, [appointment.service]),
-                      D.Containers.Td({}, [
+                    return D.Containers.Tr({ attrs: { key: appointment.id, class: tw`hover:bg-[var(--accent)]` } }, [
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [appointment.patientName]),
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [appointment.date]),
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [appointment.time]),
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [appointment.service]),
+                      D.Containers.Td({ attrs: { class: tw`p-3 border-b border-[var(--border)]` } }, [
                         D.Text.Span({
                           attrs: {
-                            class: 'badge badge-' + (appointment.status === 'confirmed' ? 'success' : 'warning')
+                            class: tw`${token('badge')} ${appointment.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`
                           }
                         }, [t(appointment.status)])
                       ])
@@ -658,7 +367,7 @@
       }
 
       function MainContent(db, D) {
-        return D.Containers.Main({ attrs: { class: 'main-content' } }, [
+        return D.Containers.Main({ attrs: { class: tw`flex-1 ml-[250px] p-8 ${token('surface')}` } }, [
           Header(db, D),
           db.data.currentPage === 'dashboard' ? DashboardPage(db, D) : D.Text.P({}, ['صفحة ' + t(db.data.currentPage) + ' قيد التطوير'])
         ]);
@@ -668,7 +377,7 @@
       M.app.setBody(function(stateWrapper, D) {
         const state = stateWrapper;
 
-        return D.Containers.Div({ attrs: { class: 'dashboard-container' } }, [
+        return D.Containers.Div({ attrs: { class: tw`flex min-h-screen ${token('surface')}` } }, [
           Sidebar(state, D),
           MainContent(state, D)
         ]);
