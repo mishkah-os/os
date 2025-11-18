@@ -13,6 +13,8 @@
   let currentTable = null;
   let currentData = null;
   let isDirty = false;
+  let availableBranches = [];
+  let availableModules = [];
 
   // ==================== HELPERS ====================
 
@@ -203,6 +205,7 @@
         <h2>📊 ${data.name}</h2>
         <div class="actions">
           <button class="btn" onclick="reloadTable()">🔄 تحديث</button>
+          <button class="btn" onclick="saveSeeds()" style="background: #f59e0b; color: white; border-color: #f59e0b;">🌱 حفظ البذور</button>
           <button class="btn btn-primary" onclick="addRow()">➕ إضافة صف</button>
           <button class="btn btn-success" onclick="saveChanges()" ${!isDirty ? 'disabled' : ''}>💾 حفظ التغييرات</button>
         </div>
@@ -230,8 +233,18 @@
 
         html += '<td>';
 
-        if (col.isreferences) {
-          // FK field with {value, id} structure
+        // Read-only ID fields (primary keys)
+        if (col.name.toLowerCase() === 'id' || col.primaryKey) {
+          html += `
+            <input type="text"
+              id="${cellId}"
+              value="${escapeHtml(String(value || ''))}"
+              readonly
+              style="background: #f3f4f6; cursor: not-allowed; font-family: monospace; font-size: 12px;">
+          `;
+        }
+        // Foreign Key fields
+        else if (col.isreferences) {
           const fkValue = typeof value === 'object' && value !== null ? value.value || value.id : value;
           const fkId = typeof value === 'object' && value !== null ? value.id : value;
 
@@ -242,34 +255,105 @@
                 id="${cellId}"
                 value="${escapeHtml(fkValue || '')}"
                 onchange="markDirty(${rowIndex}, '${col.name}', this.value, true)"
-                placeholder="${col.trans_name}">
-              <span class="fk-badge">${escapeHtml(String(fkId || ''))}</span>
+                placeholder="${col.trans_name || col.name}"
+                style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+              <span class="fk-badge" style="padding: 4px 10px; background: #dbeafe; color: #1e40af; border-radius: 6px; font-size: 11px; font-weight: 600;">${escapeHtml(String(fkId || ''))}</span>
             </div>
           `;
-        } else if (col.type.includes('datetime')) {
-          // DateTime field
+        }
+        // Date fields
+        else if (col.type.toLowerCase().includes('date') && !col.type.toLowerCase().includes('time')) {
+          const dateValue = value ? new Date(value).toISOString().slice(0, 10) : '';
+          html += `
+            <input type="date"
+              id="${cellId}"
+              value="${dateValue}"
+              onchange="markDirty(${rowIndex}, '${col.name}', this.value)"
+              style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 100%;">
+          `;
+        }
+        // DateTime fields
+        else if (col.type.toLowerCase().includes('datetime') || col.type.toLowerCase().includes('timestamp')) {
           const dateValue = value ? new Date(value).toISOString().slice(0, 16) : '';
           html += `
             <input type="datetime-local"
               id="${cellId}"
               value="${dateValue}"
-              onchange="markDirty(${rowIndex}, '${col.name}', this.value)">
+              onchange="markDirty(${rowIndex}, '${col.name}', this.value)"
+              style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 100%;">
           `;
-        } else if (col.type.includes('int') || col.type.includes('decimal')) {
-          // Number field
+        }
+        // Time fields
+        else if (col.type.toLowerCase().includes('time')) {
+          const timeValue = value || '';
+          html += `
+            <input type="time"
+              id="${cellId}"
+              value="${timeValue}"
+              onchange="markDirty(${rowIndex}, '${col.name}', this.value)"
+              style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 100%;">
+          `;
+        }
+        // Boolean/Checkbox fields
+        else if (col.type.toLowerCase().includes('bool') || col.type.toLowerCase().includes('bit')) {
+          const checked = value === 1 || value === true || value === 'true' || value === '1';
+          html += `
+            <label style="display: flex; align-items: center; justify-content: center; cursor: pointer;">
+              <input type="checkbox"
+                id="${cellId}"
+                ${checked ? 'checked' : ''}
+                onchange="markDirty(${rowIndex}, '${col.name}', this.checked ? 1 : 0)"
+                style="width: 20px; height: 20px; cursor: pointer;">
+            </label>
+          `;
+        }
+        // Integer/Number fields
+        else if (col.type.toLowerCase().includes('int') || col.type.toLowerCase().includes('integer')) {
           html += `
             <input type="number"
               id="${cellId}"
               value="${value || 0}"
-              onchange="markDirty(${rowIndex}, '${col.name}', this.value)">
+              step="1"
+              onchange="markDirty(${rowIndex}, '${col.name}', parseInt(this.value) || 0)"
+              style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 100%; text-align: right;">
           `;
-        } else {
-          // Text field
+        }
+        // Decimal/Float fields
+        else if (col.type.toLowerCase().includes('decimal') || col.type.toLowerCase().includes('float') || col.type.toLowerCase().includes('double')) {
+          html += `
+            <input type="number"
+              id="${cellId}"
+              value="${value || 0}"
+              step="0.01"
+              onchange="markDirty(${rowIndex}, '${col.name}', parseFloat(this.value) || 0)"
+              style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 100%; text-align: right;">
+          `;
+        }
+        // Long text fields (description, notes, etc.)
+        else if (
+          col.name.toLowerCase().includes('description') ||
+          col.name.toLowerCase().includes('notes') ||
+          col.name.toLowerCase().includes('comment') ||
+          col.name.toLowerCase().includes('details') ||
+          (typeof value === 'string' && value.length > 100)
+        ) {
+          html += `
+            <textarea
+              id="${cellId}"
+              onchange="markDirty(${rowIndex}, '${col.name}', this.value)"
+              rows="2"
+              style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 100%; resize: vertical; font-family: inherit;">${escapeHtml(String(value || ''))}</textarea>
+          `;
+        }
+        // Regular text fields
+        else {
           html += `
             <input type="text"
               id="${cellId}"
               value="${escapeHtml(String(value || ''))}"
-              onchange="markDirty(${rowIndex}, '${col.name}', this.value)">
+              onchange="markDirty(${rowIndex}, '${col.name}', this.value)"
+              placeholder="${col.trans_name || col.name}"
+              style="padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; width: 100%;">
           `;
         }
 
@@ -397,9 +481,258 @@
     showToast('قيد التطوير', 'info');
   };
 
+  // ==================== BRANCHES & MODULES ====================
+
+  async function loadBranches() {
+    try {
+      const response = await fetch('/api/branches');
+      const data = await response.json();
+
+      if (data.branches) {
+        availableBranches = data.branches;
+        const select = document.getElementById('branchId');
+        select.innerHTML = '<option value="">-- اختر الفرع --</option>';
+
+        data.branches.forEach(branch => {
+          const option = document.createElement('option');
+          option.value = branch;
+          option.textContent = branch;
+          select.appendChild(option);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load branches:', error);
+      showToast('فشل تحميل الفروع', 'error');
+    }
+  }
+
+  async function loadModules(branchId) {
+    if (!branchId) {
+      document.getElementById('moduleId').innerHTML = '<option value="">-- اختر الموديول --</option>';
+      document.getElementById('connectBtn').disabled = true;
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/branches/${branchId}/modules`);
+      const data = await response.json();
+
+      if (data.modules) {
+        availableModules = data.modules;
+        const select = document.getElementById('moduleId');
+        select.innerHTML = '<option value="">-- اختر الموديول --</option>';
+
+        data.modules.forEach(module => {
+          const option = document.createElement('option');
+          option.value = module;
+          option.textContent = module;
+          select.appendChild(option);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load modules:', error);
+      showToast('فشل تحميل الموديولات', 'error');
+    }
+  }
+
+  // ==================== SAVE SEEDS ====================
+
+  window.saveSeeds = async function() {
+    if (!crud || !store) {
+      showToast('غير متصل بالخادم', 'error');
+      return;
+    }
+
+    // Show table selection dialog
+    const snapshot = store.snapshot();
+    if (!snapshot || !snapshot.tables) {
+      showToast('لا توجد بيانات لحفظها', 'error');
+      return;
+    }
+
+    const tables = Object.keys(snapshot.tables || {});
+    if (tables.length === 0) {
+      showToast('لا توجد جداول', 'error');
+      return;
+    }
+
+    // Create dialog for table selection
+    const selectedTables = await showTableSelectionDialog(tables);
+
+    if (!selectedTables || selectedTables.length === 0) {
+      return;
+    }
+
+    try {
+      showToast('جاري حفظ البذور...', 'info');
+
+      const seeds = {};
+
+      for (const tableName of selectedTables) {
+        const tableData = snapshot.tables[tableName];
+        if (tableData) {
+          seeds[tableName] = Object.values(tableData);
+        }
+      }
+
+      const branchId = document.getElementById('branchId').value;
+      const moduleId = document.getElementById('moduleId').value;
+
+      const response = await fetch('/api/seeds', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          branchId,
+          moduleId,
+          seeds
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        showToast(`✅ تم حفظ البذور: ${result.recordCount} سجل من ${result.tables.length} جدول`, 'success');
+      } else {
+        showToast('فشل حفظ البذور', 'error');
+      }
+
+    } catch (error) {
+      console.error('Save seeds error:', error);
+      showToast(`فشل حفظ البذور: ${error.message}`, 'error');
+    }
+  };
+
+  async function showTableSelectionDialog(tables) {
+    return new Promise((resolve) => {
+      // Create modal overlay
+      const overlay = document.createElement('div');
+      overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      `;
+
+      const dialog = document.createElement('div');
+      dialog.style.cssText = `
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      `;
+
+      dialog.innerHTML = `
+        <h3 style="margin: 0 0 16px; color: #111827; font-size: 18px;">اختر الجداول لحفظ البذور</h3>
+        <div style="margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; gap: 8px; padding: 8px; cursor: pointer; border-radius: 6px; background: #f9fafb; margin-bottom: 8px;">
+            <input type="checkbox" id="selectAll" style="width: 18px; height: 18px;">
+            <span style="font-weight: 600;">تحديد الكل</span>
+          </label>
+        </div>
+        <div id="tableList" style="margin-bottom: 20px; max-height: 400px; overflow-y: auto;"></div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button id="cancelBtn" style="padding: 10px 20px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; font-weight: 500;">إلغاء</button>
+          <button id="confirmBtn" style="padding: 10px 20px; border: none; border-radius: 6px; background: #667eea; color: white; cursor: pointer; font-weight: 500;">حفظ البذور</button>
+        </div>
+      `;
+
+      const tableList = dialog.querySelector('#tableList');
+      tables.forEach(tableName => {
+        const label = document.createElement('label');
+        label.style.cssText = `
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px;
+          cursor: pointer;
+          border-radius: 6px;
+          transition: background 0.2s;
+        `;
+        label.onmouseover = () => label.style.background = '#f3f4f6';
+        label.onmouseout = () => label.style.background = 'transparent';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = tableName;
+        checkbox.className = 'table-checkbox';
+        checkbox.style.cssText = 'width: 16px; height: 16px;';
+
+        const span = document.createElement('span');
+        span.textContent = tableName;
+        span.style.fontSize = '14px';
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        tableList.appendChild(label);
+      });
+
+      // Select all functionality
+      const selectAll = dialog.querySelector('#selectAll');
+      selectAll.onchange = () => {
+        const checkboxes = dialog.querySelectorAll('.table-checkbox');
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+      };
+
+      dialog.querySelector('#cancelBtn').onclick = () => {
+        overlay.remove();
+        resolve(null);
+      };
+
+      dialog.querySelector('#confirmBtn').onclick = () => {
+        const checkboxes = dialog.querySelectorAll('.table-checkbox:checked');
+        const selected = Array.from(checkboxes).map(cb => cb.value);
+        overlay.remove();
+        resolve(selected);
+      };
+
+      overlay.appendChild(dialog);
+      document.body.appendChild(overlay);
+
+      // Close on overlay click
+      overlay.onclick = (e) => {
+        if (e.target === overlay) {
+          overlay.remove();
+          resolve(null);
+        }
+      };
+    });
+  }
+
   // ==================== INIT ====================
 
   document.addEventListener('DOMContentLoaded', () => {
+    // Load branches on init
+    loadBranches();
+
+    // Branch selection handler
+    document.getElementById('branchId').onchange = (e) => {
+      loadModules(e.target.value);
+    };
+
+    // Module selection handler
+    document.getElementById('moduleId').onchange = (e) => {
+      const branchId = document.getElementById('branchId').value;
+      const moduleId = e.target.value;
+
+      if (branchId && moduleId) {
+        document.getElementById('connectBtn').disabled = false;
+      } else {
+        document.getElementById('connectBtn').disabled = true;
+      }
+    };
+
     document.getElementById('connectBtn').onclick = connect;
 
     // Check if already connected via query params
