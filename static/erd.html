@@ -4064,14 +4064,33 @@
     return { status, available:true, ready, save, get, list, remove, createBlank, createSeed };
     })();
 
+    const CLOUD_EVENT_PREFIX = '[Mishkah][ERD][Cloud]';
+
+    function logCloudEvent(step, payload){
+      try {
+        const stamp = new Date().toISOString();
+        if(payload !== undefined){
+          console.log(`${CLOUD_EVENT_PREFIX} ${stamp} :: ${step}`, payload);
+        } else {
+          console.log(`${CLOUD_EVENT_PREFIX} ${stamp} :: ${step}`);
+        }
+      } catch(err){
+        console.warn(`${CLOUD_EVENT_PREFIX} failed to log event`, err);
+      }
+    }
+
     const SchemaCloud = (function(){
       async function fetchJson(url, options = {}){
+        logCloudEvent('fetch:start', { url, method: options.method || 'GET' });
         const response = await fetch(url, options);
         if(!response.ok){
           const text = await response.text().catch(()=> '');
+          logCloudEvent('fetch:error', { url, status: response.status, body: text });
           throw new Error(`HTTP ${response.status}: ${text || 'فشل الطلب'}`);
         }
-        return response.json();
+        const json = await response.json();
+        logCloudEvent('fetch:success', { url, method: options.method || 'GET', payloadKeys: Object.keys(json || {}) });
+        return json;
       }
 
       function normaliseIdentifier(value){
@@ -4171,9 +4190,11 @@
       async function listIndex(){
         try {
           const index = await fetchJson('/api/schemas');
+          logCloudEvent('index:loaded', index);
           return index;
         } catch(error){
           console.warn('[Mishkah][ERD] failed to load cloud schema index', error);
+          logCloudEvent('index:error', { message: error.message || String(error) });
           return { global: [], branches: {} };
         }
       }
@@ -4181,6 +4202,7 @@
       async function fetchSchema(selection){
         const scope = selection?.scope === 'branch' ? 'branch' : 'global';
         let path = '';
+        logCloudEvent('fetchSchema:selection', selection);
         if(scope === 'branch'){
           if(!selection?.branchId || !selection?.moduleId){
             throw new Error('يرجى اختيار الفرع والموديول قبل التحميل من السحابة');
@@ -4194,12 +4216,15 @@
           path = `/api/schemas/global/${encodeURIComponent(name)}`;
         }
         const payload = await fetchJson(path);
-        return normalizeResponse(payload, selection);
+        const normalised = normalizeResponse(payload, selection);
+        logCloudEvent('fetchSchema:resolved', { selection, schemaId: normalised?.id, tables: normalised?.schema?.tables?.length || 0 });
+        return normalised;
       }
 
       async function saveSchema(selection, schema){
         const scope = selection?.scope === 'branch' ? 'branch' : 'global';
         let path = '';
+        logCloudEvent('saveSchema:selection', { scope, selection });
         if(scope === 'branch'){
           if(!selection?.branchId || !selection?.moduleId){
             throw new Error('يرجى تحديد الفرع والموديول قبل الحفظ على السحابة');
@@ -4217,6 +4242,7 @@
           headers:{ 'Content-Type':'application/json' },
           body: JSON.stringify({ schema })
         });
+        logCloudEvent('saveSchema:success', { path });
         return true;
       }
 
@@ -4228,11 +4254,14 @@
         const response = await fetch('/api/branches');
         if(!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        return Array.isArray(data.branches)
+        const mapped = Array.isArray(data.branches)
           ? data.branches.map(entry => ({ id: entry.id || entry.branchId || entry.name, label: entry.name || entry.label || entry.id }))
           : [];
+        logCloudEvent('branches:loaded', mapped);
+        return mapped;
       } catch(error){
         console.warn('[Mishkah][ERD] failed to load branches list', error);
+        logCloudEvent('branches:error', { message: error.message || String(error) });
         return [];
       }
     }
@@ -4274,6 +4303,7 @@
         }
       }
 
+      logCloudEvent('selection:normalised', { before: selection, after: resolved });
       return resolved;
     }
 
@@ -4330,6 +4360,7 @@
 
     async function applyCloudSchemaRecord(ctx, record, options = {}){
       const { silent = false } = options;
+      logCloudEvent('apply:record', { id: record?.id, tables: record?.schema?.tables?.length || 0, silent });
       const registry = Schema.Registry.fromJSON(record.schema || { tables: [] });
       const layout = computeLayout(registry, record.layout);
       const list = await SchemaLibrary.list();
@@ -4388,12 +4419,13 @@
     const firstTable = activeRegistry.list()[0]?.name || null;
     const initialLayoutPoint = firstTable ? (initialLayout[firstTable] || { x:120, y:120 }) : { x:120, y:120 };
     const uiPreferences = readUIPreferences();
-    const initialCloudSelection = {
+    const initialCloudSelection = normaliseCloudSelection({
       scope:'global',
       schemaName: (cloudIndex.global && cloudIndex.global[0]) || '',
       branchId: cloudBranches[0]?.id || '',
       moduleId: (cloudBranches[0] && cloudIndex.branches?.[cloudBranches[0].id]?.[0]) || ''
-    };
+    }, cloudIndex, cloudBranches);
+    logCloudEvent('state:init', { selection: initialCloudSelection, index: cloudIndex, branches: cloudBranches });
 
     const erdState = {
       head:{ title: activeRecord.title || 'مخطط قاعدة بيانات مشكاة' },
@@ -9304,6 +9336,7 @@
           const mode = target.getAttribute('data-mode') || 'local';
           const state = ctx.getState();
           const currentMode = state.data.cloud?.mode || 'local';
+          logCloudEvent('event:set-mode:click', { requestedMode: mode, currentMode });
           if(mode === currentMode) return;
 
           ctx.setState(s=>({
@@ -9326,6 +9359,7 @@
             try{
               const [index, branches] = await Promise.all([SchemaCloud.listIndex(), fetchBranchList()]);
               const selection = normaliseCloudSelection(previousSelection, index, branches);
+              logCloudEvent('event:set-mode:ready', { selection });
               ctx.setState(s=>({
                 ...s,
                 data:{
@@ -9341,6 +9375,7 @@
                 }
               }));
               if(hasLoadableCloudSelection(selection)){
+                logCloudEvent('event:set-mode:autoload', selection);
                 ctx.setState(s=>({
                   ...s,
                   data:{
@@ -9352,6 +9387,7 @@
                   const record = await SchemaCloud.fetchSchema(selection);
                   await applyCloudSchemaRecord(ctx, record, { silent:true });
                 } catch(error){
+                  logCloudEvent('event:set-mode:error', { message: error.message || String(error) });
                   ctx.setState(s=>({
                     ...s,
                     data:{
@@ -9372,6 +9408,7 @@
                   cloud:{ ...(s.data.cloud || {}), status:'error', error:String(error.message || error) }
                 }
               }));
+              logCloudEvent('event:set-mode:fatal', { message: error.message || String(error) });
               UI.pushToast(ctx, { title:'تعذر تحميل قائمة الهياكل السحابية', message:String(error.message || error), icon:'🛑' });
             }
           } else {
@@ -9494,6 +9531,7 @@
         on:['click'],
         gkeys:['erd:cloud:refresh'],
         handler:async (_e,ctx)=>{
+          logCloudEvent('event:refresh:click');
           ctx.setState(s=>({
             ...s,
             data:{
@@ -9516,6 +9554,7 @@
                 }
               }
             }));
+            logCloudEvent('event:refresh:done', { index, branches });
             UI.pushToast(ctx, { title:'تم تحديث قائمة الهياكل السحابية', icon:'🔄' });
           } catch(error){
             ctx.setState(s=>({
@@ -9525,6 +9564,7 @@
                 cloud:{ ...(s.data.cloud || {}), status:'error', error: String(error.message || error) }
               }
             }));
+            logCloudEvent('event:refresh:error', { message: error.message || String(error) });
             UI.pushToast(ctx, { title:'تعذر تحديث القائمة', message:String(error), icon:'🛑' });
           }
         }
@@ -9535,6 +9575,7 @@
         handler:async (_e,ctx)=>{
           const state = ctx.getState();
           const selection = state.data.cloud?.selection || {};
+          logCloudEvent('event:load:click', selection);
           if(!hasLoadableCloudSelection(selection)){
             UI.pushToast(ctx, { title:'اختر مخططاً سحابياً صالحاً قبل التحميل', icon:'ℹ️' });
             return;
@@ -9549,6 +9590,7 @@
           try{
             const record = await SchemaCloud.fetchSchema(selection);
             await applyCloudSchemaRecord(ctx, record);
+            logCloudEvent('event:load:success', { selection, schemaId: record?.id });
           } catch(error){
             ctx.setState(s=>({
               ...s,
@@ -9557,6 +9599,7 @@
                 cloud:{ ...(s.data.cloud || {}), status:'error', error:String(error.message || error) }
               }
             }));
+            logCloudEvent('event:load:error', { message: error.message || String(error) });
             UI.pushToast(ctx, { title:'تعذر تحميل المخطط السحابي', message:String(error), icon:'🛑' });
           }
         }
