@@ -217,6 +217,29 @@ function getModuleSchemaFallbackPath(moduleId) {
     : path.join(ROOT_DIR, def.schemaFallbackPath);
 }
 
+async function resolveBranchSchemaPath(branchId, moduleId) {
+  const moduleDir = getBranchModuleDir(branchId, moduleId);
+  const schemaJson = path.join(moduleDir, 'schema.json');
+  if (await fileExists(schemaJson)) {
+    return schemaJson;
+  }
+  const legacyDefinition = path.join(moduleDir, 'schema', 'definition.json');
+  if (await fileExists(legacyDefinition)) {
+    return legacyDefinition;
+  }
+  return null;
+}
+
+async function readBranchSchema(branchId, moduleId) {
+  const schemaPath = await resolveBranchSchemaPath(branchId, moduleId);
+  if (!schemaPath) {
+    throw Object.assign(new Error('Schema not found'), { code: 'ENOENT' });
+  }
+  const payload = await readFile(schemaPath, 'utf-8');
+  const schema = JSON.parse(payload);
+  return { schema, path: schemaPath };
+}
+
 function getModuleSeedPath(branchId, moduleId) {
   const def = getModuleConfig(moduleId);
   const relative = def.seedPath || path.join('seeds', 'initial.json');
@@ -3677,6 +3700,51 @@ async function ensureModuleStore(branchId, moduleId) {
   return store;
 }
 
+const SIMPLE_SELECT_REGEX = /^\s*select\s+\*\s+from\s+([a-zA-Z0-9_]+)(?:\s+limit\s+(\d+))?\s*;?\s*$/i;
+
+async function executeModuleStoreSelect(sql, branchId, moduleId) {
+  if (!sql || !branchId || !moduleId) {
+    return null;
+  }
+  const match = SIMPLE_SELECT_REGEX.exec(sql);
+  if (!match) {
+    return null;
+  }
+  const requestedTable = match[1];
+  const limit = match[2] ? Number.parseInt(match[2], 10) : null;
+  if (!requestedTable) {
+    return null;
+  }
+
+  try {
+    const store = await ensureModuleStore(branchId, moduleId);
+    const canonicalName =
+      (typeof store.findCanonicalTableName === 'function' && store.findCanonicalTableName(requestedTable)) || requestedTable;
+    let rows = [];
+    try {
+      rows = store.listTable(canonicalName);
+    } catch (_error) {
+      return null;
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return null;
+    }
+    const sliced = Number.isFinite(limit) && limit >= 0 ? rows.slice(0, limit) : rows;
+    return {
+      rows: sliced,
+      meta: {
+        count: sliced.length,
+        source: 'module-store',
+        branchId,
+        moduleId
+      }
+    };
+  } catch (error) {
+    logger.warn({ err: error, branchId, moduleId, sql }, 'Module-store SQL fallback failed');
+    return null;
+  }
+}
+
 async function ensureBranchModules(branchId) {
   const modules = getBranchModules(branchId);
   const stores = [];
@@ -6480,9 +6548,9 @@ const httpServer = createServer(async (req, res) => {
           try {
             const modules = await readdir(branchPath);
             for (const moduleId of modules) {
-              const schemaPath = path.join(branchPath, moduleId, 'schema.json');
               try {
-                await access(schemaPath, FS_CONSTANTS.F_OK);
+                const resolved = await resolveBranchSchemaPath(branchId, moduleId);
+                if (!resolved) continue;
                 if (!schemas.branches[branchId]) {
                   schemas.branches[branchId] = [];
                 }
@@ -6518,10 +6586,15 @@ const httpServer = createServer(async (req, res) => {
       // /api/schemas/branch/dar/pos
 
       let schemaPath;
+      let schema;
       if (parts[2] === 'global' && parts[3]) {
         schemaPath = path.join(ROOT_DIR, 'data', 'schemas', `${parts[3]}.json`);
+        const schemaData = await readFile(schemaPath, 'utf-8');
+        schema = JSON.parse(schemaData);
       } else if (parts[2] === 'branch' && parts[3] && parts[4]) {
-        schemaPath = path.join(BRANCHES_DIR, parts[3], 'modules', parts[4], 'schema.json');
+        const result = await readBranchSchema(parts[3], parts[4]);
+        schemaPath = result.path;
+        schema = result.schema;
       } else {
         jsonResponse(res, 400, {
           error: 'Invalid schema path',
@@ -6530,9 +6603,6 @@ const httpServer = createServer(async (req, res) => {
         });
         return;
       }
-
-      const schemaData = await readFile(schemaPath, 'utf-8');
-      const schema = JSON.parse(schemaData);
 
       jsonResponse(res, 200, {
         success: true,
@@ -6732,7 +6802,31 @@ const httpServer = createServer(async (req, res) => {
       const branchId = body.branchId || body.branch_id || null;
       const moduleId = body.moduleId || body.module_id || null;
 
-      const result = executeRawQuery(body.sql, params, { branchId, moduleId });
+      let result = null;
+      try {
+        result = executeRawQuery(body.sql, params, { branchId, moduleId });
+      } catch (error) {
+        if (branchId && moduleId) {
+          const fallback = await executeModuleStoreSelect(body.sql, branchId, moduleId);
+          if (fallback) {
+            const duration = Date.now() - startTime;
+            recordHttpRequest('POST', true, duration);
+            jsonResponse(res, 200, fallback);
+            return;
+          }
+        }
+        throw error;
+      }
+
+      if ((!result || result.rows.length === 0) && branchId && moduleId) {
+        const fallback = await executeModuleStoreSelect(body.sql, branchId, moduleId);
+        if (fallback) {
+          const duration = Date.now() - startTime;
+          recordHttpRequest('POST', true, duration);
+          jsonResponse(res, 200, fallback);
+          return;
+        }
+      }
 
       const duration = Date.now() - startTime;
       recordHttpRequest('POST', true, duration);

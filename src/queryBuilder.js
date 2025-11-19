@@ -514,26 +514,37 @@ export function getDatabaseSchema() {
   const db = getDatabase();
 
   try {
-    // Get all tables
     const tablesQuery = db.prepare(`
-      SELECT name, type, sql
+      SELECT name, type, sql, tbl_name AS tableName
       FROM sqlite_master
       WHERE type IN ('table', 'view')
       ORDER BY name
     `);
     const tables = tablesQuery.all();
 
-    // Get column info for each table
     const schema = tables.map(table => {
-      const columnsQuery = db.prepare(`PRAGMA table_info(${table.name})`);
-      const columns = columnsQuery.all();
+      const safeName = String(table.name).replace(/'/g, "''");
+      let columns = [];
+      let indexes = [];
 
-      const indexesQuery = db.prepare(`PRAGMA index_list(${table.name})`);
-      const indexes = indexesQuery.all();
+      try {
+        const columnsQuery = db.prepare(`PRAGMA table_info('${safeName}')`);
+        columns = columnsQuery.all();
+      } catch (error) {
+        columns = [];
+      }
+
+      try {
+        const indexesQuery = db.prepare(`PRAGMA index_list('${safeName}')`);
+        indexes = indexesQuery.all();
+      } catch (error) {
+        indexes = [];
+      }
 
       return {
         name: table.name,
         type: table.type,
+        tableName: table.tableName,
         createStatement: table.sql,
         columns: columns.map(col => ({
           id: col.cid,
@@ -546,12 +557,51 @@ export function getDatabaseSchema() {
         indexes: indexes.map(idx => ({
           name: idx.name,
           unique: Boolean(idx.unique),
+          origin: idx.origin,
           partial: Boolean(idx.partial)
         }))
       };
     });
 
-    return { tables: schema };
+    const triggersQuery = db.prepare(`
+      SELECT name, tbl_name AS tableName, sql, type
+      FROM sqlite_master
+      WHERE type = 'trigger'
+      ORDER BY name
+    `);
+    const triggers = triggersQuery.all().map(trigger => ({
+      name: trigger.name,
+      tableName: trigger.tableName,
+      type: trigger.type,
+      createStatement: trigger.sql
+    }));
+
+    const rawIndexesQuery = db.prepare(`
+      SELECT name, tbl_name AS tableName, sql, type
+      FROM sqlite_master
+      WHERE type = 'index' AND sql IS NOT NULL
+      ORDER BY name
+    `);
+    const rawIndexes = rawIndexesQuery.all().map(index => ({
+      name: index.name,
+      tableName: index.tableName,
+      type: index.type,
+      createStatement: index.sql
+    }));
+
+    const columnsByTable = {};
+    schema.forEach(entry => {
+      columnsByTable[entry.name] = entry.columns;
+    });
+
+    return {
+      tables: schema,
+      triggers,
+      indexes: rawIndexes,
+      functions: [],
+      procedures: [],
+      columnsByTable
+    };
   } catch (error) {
     logger.error({ err: error }, 'Failed to get database schema');
     throw error;
