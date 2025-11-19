@@ -221,6 +221,96 @@
     waitingForMake: false
   };
 
+  var pwaStorageAttr = parseDatasetValue('pwaStorage', null);
+  var defaultPwaStorageKey = pwaStorageAttr || (typeof userConfig.pwaStorageKey === 'string' && userConfig.pwaStorageKey.trim()
+    ? userConfig.pwaStorageKey.trim()
+    : 'mishkah:pwa:installed');
+
+  var pwaState = {
+    storageKey: defaultPwaStorageKey,
+    installEvent: null,
+    listeners: new Set(),
+    installed: false
+  };
+
+  function readPwaFlag(key) {
+    var storageKey = key || pwaState.storageKey;
+    if (!global.localStorage || !storageKey) return false;
+    try {
+      return !!global.localStorage.getItem(storageKey);
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function writePwaFlag(key, source) {
+    var storageKey = key || pwaState.storageKey;
+    if (!global.localStorage || !storageKey) return false;
+    try {
+      global.localStorage.setItem(storageKey, JSON.stringify({
+        installedAt: new Date().toISOString(),
+        source: source || 'manual'
+      }));
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function clearPwaFlag(key) {
+    var storageKey = key || pwaState.storageKey;
+    if (!global.localStorage || !storageKey) return false;
+    try {
+      global.localStorage.removeItem(storageKey);
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function isStandaloneDisplay() {
+    try {
+      if (global.matchMedia) {
+        var mq = global.matchMedia('(display-mode: standalone)');
+        if (mq && mq.matches) return true;
+        var mqMinimal = global.matchMedia('(display-mode: minimal-ui)');
+        if (mqMinimal && mqMinimal.matches) return true;
+      }
+      if (global.navigator && typeof global.navigator.standalone === 'boolean' && global.navigator.standalone) {
+        return true;
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+    return false;
+  }
+
+  function ensurePwaInstalled(key) {
+    var installed = isStandaloneDisplay() || readPwaFlag(key);
+    if (installed && !pwaState.installed) {
+      pwaState.installed = true;
+    }
+    return installed;
+  }
+
+  function notifyPwaListeners(event) {
+    pwaState.listeners.forEach(function (listener) {
+      try { listener(event); }
+      catch (err) {
+        if (global.console && console.warn) console.warn('[MishkahAuto] PWA listener failed', err);
+      }
+    });
+  }
+
+  function handleBeforeInstallPrompt(event) {
+    if (!event) return;
+    try { event.preventDefault(); }
+    catch (_err) { /* ignore */ }
+    pwaState.installEvent = event;
+    notifyPwaListeners(event);
+  }
+
+
   var twcssAutoWarned = false;
 
   function toList(input) {
@@ -898,6 +988,110 @@
     target[key] = value;
   }
 
+  function resolvePwaInstall(key) {
+    var storageKey = key || pwaState.storageKey;
+    pwaState.installed = ensurePwaInstalled(storageKey);
+    return pwaState.installed;
+  }
+
+  var pwaApi = {
+    get storageKey() {
+      return pwaState.storageKey;
+    },
+    setStorageKey: function (key) {
+      if (!key) return;
+      pwaState.storageKey = String(key);
+      resolvePwaInstall(pwaState.storageKey);
+    },
+    isStandalone: isStandaloneDisplay,
+    isInstalled: function (key) {
+      return resolvePwaInstall(key || pwaState.storageKey);
+    },
+    markInstalled: function (source, key) {
+      writePwaFlag(key || pwaState.storageKey, source || 'manual');
+      pwaState.installed = true;
+      return true;
+    },
+    clearInstalled: function (key) {
+      clearPwaFlag(key || pwaState.storageKey);
+      pwaState.installed = isStandaloneDisplay();
+      return pwaState.installed;
+    },
+    hasPendingPrompt: function () {
+      return !!(pwaState.installEvent && typeof pwaState.installEvent.prompt === 'function');
+    },
+    promptInstall: function () {
+      return new Promise(function (resolve, reject) {
+        var evt = pwaState.installEvent;
+        if (!evt || typeof evt.prompt !== 'function') {
+          reject(new Error('install-prompt-unavailable'));
+          return;
+        }
+        pwaState.installEvent = null;
+        try {
+          var outcome = evt.prompt();
+          var handleResult = function (result) {
+            try {
+              if (result && result.outcome === 'accepted') {
+                pwaApi.markInstalled('prompt');
+              }
+            } catch (_err) {
+              /* ignore */
+            }
+            resolve(result || null);
+          };
+          if (outcome && typeof outcome.then === 'function') {
+            outcome.then(handleResult).catch(reject);
+          } else {
+            resolve(null);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
+    },
+    onBeforeInstallPrompt: function (listener) {
+      if (typeof listener !== 'function') return function () { };
+      pwaState.listeners.add(listener);
+      if (pwaState.installEvent) {
+        try { listener(pwaState.installEvent); }
+        catch (_err) { /* ignore */ }
+      }
+      return function () {
+        pwaState.listeners.delete(listener);
+      };
+    },
+    getPendingEvent: function () {
+      return pwaState.installEvent;
+    }
+  };
+
+  resolvePwaInstall();
+
+  if (global.addEventListener) {
+    global.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    global.addEventListener('appinstalled', function () {
+      pwaApi.markInstalled('appinstalled');
+    });
+  }
+
+  var standaloneQuery = (global.matchMedia && global.matchMedia('(display-mode: standalone)')) || null;
+  if (standaloneQuery) {
+    var syncStandalone = function (event) {
+      if (event && event.matches) {
+        pwaApi.markInstalled('display-mode');
+      }
+    };
+    if (typeof standaloneQuery.addEventListener === 'function') {
+      standaloneQuery.addEventListener('change', syncStandalone);
+    } else if (typeof standaloneQuery.addListener === 'function') {
+      standaloneQuery.addListener(syncStandalone);
+    }
+    if (standaloneQuery.matches) {
+      pwaApi.markInstalled('display-mode');
+    }
+  }
+
   var api = global.MishkahAuto || {};
   api.__version = autoState.__version;
   api.config = autoState.config;
@@ -915,6 +1109,8 @@
   api.formatLang = function (lang) { return formatLabel(LANG_LABELS, normalizeLang(lang)); };
   api.formatTheme = function (theme) { return formatLabel(THEME_LABELS, String(theme || '').toLowerCase()); };
 
+  api.pwa = pwaApi;
+
   global.MishkahAuto = api;
 
   var host = global.Mishkah;
@@ -929,6 +1125,7 @@
   var autoNamespace = host.auto || {};
   host.auto = autoNamespace;
   autoNamespace.config = api.config;
+  autoNamespace.pwa = pwaApi;
   autoNamespace.ready = api.ready;
   autoNamespace.whenReady = api.whenReady;
   autoNamespace.onState = api.onState;

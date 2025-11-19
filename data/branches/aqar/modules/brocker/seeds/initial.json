@@ -1,0 +1,753 @@
+{
+  "version": 1,
+  "meta": {
+    "branchId": "aqar",
+    "moduleId": "brocker",
+    "counter": 0,
+    "labCounter": 0
+  },
+  "tables": {
+    "regions": [
+      {
+        "id": "region-new-cairo",
+        "name": "التجمع الخامس",
+        "city": "القاهرة الجديدة",
+        "country": "مصر",
+        "slug": "new-cairo",
+        "priority": 1,
+        "is_primary_market": true
+      },
+      {
+        "id": "region-zayed",
+        "name": "الشيخ زايد",
+        "city": "الجيزة",
+        "country": "مصر",
+        "slug": "sheikh-zayed",
+        "priority": 2,
+        "is_primary_market": true
+      },
+      {
+        "id": "region-capital",
+        "name": "العاصمة الإدارية",
+        "city": "القاهرة",
+        "country": "مصر",
+        "slug": "new-capital",
+        "priority": 3,
+        "is_primary_market": false
+      }
+    ],
+    "app_settings": [
+      {
+        "id": "brocker-app-config",
+        "lang": "ar",
+        "brand_name": "Brocker Mishkah",
+        "tagline": "منصة ذكية لإدارة مكاتب العقارات",
+        "hero_title": "منصة متكاملة للوسطاء",
+        "hero_subtitle": "ابحث، أدر، وتابع طلبات عملائك عبر تجربة PWA مصممة للموبايل.",
+        "brand_logo": "https://images.mishkah.app/brocker/logo-light.svg",
+        "support_phone": "+201222334455",
+        "support_whatsapp": "+201222334455",
+        "theme_color": "#0f172a",
+        "background_color": "#05070f",
+        "pwa_install_required": false,
+        "pwa_install_message": "لتحصل على إشعارات فورية وتتبع حي، قم بتثبيت التطبيق على جهازك.",
+        "pwa_storage_key": "brocker:pwa:installed",
+        "pwa_manifest_url": "/api/pwa/aqar/brocker/manifest.json",
+        "pwa_icons": [
+          {
+            "src": "https://images.mishkah.app/brocker/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+          },
+          {
+            "src": "https://images.mishkah.app/brocker/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+          }
+        ],
+        "primary_cta_label": "تواصل معنا",
+        "primary_cta_link": "https://wa.me/201222334455",
+        "created_at": "2024-11-25T09:00:00Z",
+        "updated_at": "2024-11-30T10:00:00Z"
+      }
+    ],
+    "hero_slides": [
+      {
+        "id": "slide-explore",
+        "title": "اكتشف عقارات جاهزة للتسليم",
+        "subtitle": "أحدث المشروعات في القاهرة الجديدة بخيارات تمويل مرنة.",
+        "media_type": "image",
+        "media_url": "https://images.mishkah.app/brocker/hero-newcairo.jpg",
+        "cta_label": "ابدأ البحث",
+        "cta_action": "search",
+        "priority": 1,
+        "created_at": "2024-11-20T08:00:00Z"
+      },
+      {
+        "id": "slide-dashboard",
+        "title": "لوحة تحكم فورية للوسطاء",
+        "subtitle": "تابع الطلبات، فعّل الوحدات، واستجب من أي مكان.",
+        "media_type": "video",
+        "media_url": "https://videos.mishkah.app/brocker/dashboard-loop.mp4",
+        "cta_label": "شاهد التجربة",
+        "cta_action": "video",
+        "priority": 2,
+        "created_at": "2024-11-21T08:00:00Z"
+      },
+      {
+        "id": "slide-otp",
+        "title": "دخول آمن عبر واتساب",
+        "subtitle": "تحقق فوري للوسطاء المعتمدين مع سجل تدقيق كامل.",
+        "media_type": "image",
+        "media_url": "https://images.mishkah.app/brocker/hero-otp.jpg",
+        "cta_label": "سجل وسيط جديد",
+        "cta_action": "broker-onboard",
+        "priority": 3,
+        "created_at": "2024-11-22T08:00:00Z"
+      }
+    ],
+    "unit_types": [
+      {
+        "id": "unit-type-apartment",
+        "name": "شقة سكنية",
+        "description": "وحدات بمساحات متوسطة لعائلات صغيرة",
+        "lang": "ar"
+      },
+      {
+        "id": "unit-type-villa",
+        "name": "فيلا مستقلة",
+        "description": "خصوصية كاملة وحديقة خاصة",
+        "lang": "ar"
+      },
+      {
+        "id": "unit-type-chalet",
+        "name": "شاليه بحري",
+        "description": "إطلالات بحرية مع تراس واسع",
+        "lang": "ar"
+      },
+      {
+        "id": "unit-type-factory",
+        "name": "مصنع خفيف",
+        "description": "مساحات صناعية بترخيص تشغيلي",
+        "lang": "ar"
+      },
+      {
+        "id": "unit-type-retail",
+        "name": "محل تجاري",
+        "description": "واجهات تجارية على ميادين رئيسية",
+        "lang": "ar"
+      }
+    ],
+    "developers": [
+      {
+        "id": "dev-mishkah",
+        "company_name": "مشكاة للتطوير",
+        "description": "مجموعة متخصصة في مشاريع mixed-use",
+        "logo_url": "https://images.mishkah.app/brocker/dev-mishkah.svg",
+        "contact_email": "hello@mishkah.dev",
+        "contact_phone": "+20225777000",
+        "address": "القاهرة الجديدة - محور محمد نجيب",
+        "created_at": "2023-02-10T09:00:00Z",
+        "lang": "ar"
+      },
+      {
+        "id": "dev-hilal",
+        "company_name": "الهلال للتطوير",
+        "description": "مشاريع فيلا فاخرة في زايد",
+        "logo_url": "https://images.mishkah.app/brocker/dev-hilal.svg",
+        "contact_email": "sales@hilal.dev",
+        "contact_phone": "+202112334455",
+        "address": "الشيخ زايد - الحي السادس",
+        "created_at": "2022-11-05T10:00:00Z",
+        "lang": "ar"
+      }
+    ],
+    "projects": [
+      {
+        "id": "proj-nour-heights",
+        "developer_id": "dev-mishkah",
+        "project_name": "Nour Heights",
+        "description": "مجمع متكامل بشقق فاخرة وخدمات فندقية",
+        "location": "التجمع الخامس - شارع النوادي",
+        "delivery_date": "2025-09-01",
+        "project_status": "under_construction",
+        "created_at": "2023-04-01T09:00:00Z",
+        "lang": "ar",
+        "region_id": "region-new-cairo",
+        "district": "حي النوادي"
+      },
+      {
+        "id": "proj-hayat-villas",
+        "developer_id": "dev-hilal",
+        "project_name": "Hayat Villas",
+        "description": "فلل مستقلة بحدائق داخل الشيخ زايد",
+        "location": "الشيخ زايد - محور 26 يوليو",
+        "delivery_date": "2026-03-01",
+        "project_status": "upcoming",
+        "created_at": "2023-06-15T09:00:00Z",
+        "lang": "ar",
+        "region_id": "region-zayed",
+        "district": "الحي العاشر"
+      },
+      {
+        "id": "proj-capital-gate",
+        "developer_id": "dev-mishkah",
+        "project_name": "Capital Gate",
+        "description": "مكاتب ومحلات متكاملة في محور الأعمال",
+        "location": "العاصمة الإدارية - محور محمد بن زايد",
+        "delivery_date": "2024-12-01",
+        "project_status": "delivered",
+        "created_at": "2022-08-20T09:00:00Z",
+        "lang": "ar",
+        "region_id": "region-capital",
+        "district": "داون تاون"
+      }
+    ],
+    "project_media": [
+      {
+        "id": "media-nour-master",
+        "project_id": "proj-nour-heights",
+        "media_type": "image",
+        "url": "https://images.mishkah.app/brocker/projects/nour-master.jpg",
+        "description": "مخطط رئيسي"
+      },
+      {
+        "id": "media-hayat-tour",
+        "project_id": "proj-hayat-villas",
+        "media_type": "video",
+        "url": "https://videos.mishkah.app/brocker/projects/hayat-tour.mp4",
+        "description": "جولة افتراضية"
+      }
+    ],
+    "buildings": [
+      {
+        "id": "bld-nour-t1",
+        "project_id": "proj-nour-heights",
+        "building_name": "برج الندى",
+        "floors_count": 12,
+        "description": "برج بواجهة زجاجية"
+      },
+      {
+        "id": "bld-nour-t2",
+        "project_id": "proj-nour-heights",
+        "building_name": "برج البانوراما",
+        "floors_count": 15,
+        "description": "إطلالة على محور النوادي"
+      },
+      {
+        "id": "bld-hayat-cluster",
+        "project_id": "proj-hayat-villas",
+        "building_name": "مجموعة فيلات C",
+        "floors_count": 2,
+        "description": "فلل منفصلة"
+      },
+      {
+        "id": "bld-capital-retail",
+        "project_id": "proj-capital-gate",
+        "building_name": "كابيتال جريت مول",
+        "floors_count": 5,
+        "description": "محور تجاري"
+      }
+    ],
+    "units": [
+      {
+        "id": "unit-nour-0901",
+        "building_id": "bld-nour-t1",
+        "unit_code": "NH-09-01",
+        "unit_type_id": "unit-type-apartment",
+        "bedrooms": 3,
+        "bathrooms": 3,
+        "area": 165,
+        "price": 3500000,
+        "availability_status": "available",
+        "floor_number": 9,
+        "view": "واجهة مفتوحة",
+        "finishing_status": "تشطيب فندقي",
+        "created_at": "2024-11-01T08:00:00Z",
+        "lang": "ar"
+      },
+      {
+        "id": "unit-nour-1203",
+        "building_id": "bld-nour-t2",
+        "unit_code": "NH-12-03",
+        "unit_type_id": "unit-type-apartment",
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area": 132,
+        "price": 2800000,
+        "availability_status": "available",
+        "floor_number": 12,
+        "view": "حدائق داخلية",
+        "finishing_status": "مفروش جزئياً",
+        "created_at": "2024-10-18T08:00:00Z",
+        "lang": "ar"
+      },
+      {
+        "id": "unit-hayat-villa05",
+        "building_id": "bld-hayat-cluster",
+        "unit_code": "HV-05",
+        "unit_type_id": "unit-type-villa",
+        "bedrooms": 4,
+        "bathrooms": 5,
+        "area": 420,
+        "price": 9200000,
+        "availability_status": "available",
+        "floor_number": 0,
+        "view": "حديقة خاصة",
+        "finishing_status": "نصف تشطيب",
+        "created_at": "2024-09-05T08:00:00Z",
+        "lang": "ar"
+      },
+      {
+        "id": "unit-capital-retail-a3",
+        "building_id": "bld-capital-retail",
+        "unit_code": "CG-A3",
+        "unit_type_id": "unit-type-retail",
+        "bedrooms": 0,
+        "bathrooms": 1,
+        "area": 95,
+        "price": 4500000,
+        "availability_status": "available",
+        "floor_number": 1,
+        "view": "شارع رئيسي",
+        "finishing_status": "على الطوب",
+        "created_at": "2024-08-12T08:00:00Z",
+        "lang": "ar"
+      }
+    ],
+    "unit_media": [
+      {
+        "id": "media-nour-0901-1",
+        "unit_id": "unit-nour-0901",
+        "media_type": "image",
+        "url": "https://images.mishkah.app/brocker/units/nour0901-living.jpg",
+        "description": "غرفة المعيشة",
+        "priority": 1
+      },
+      {
+        "id": "media-nour-0901-2",
+        "unit_id": "unit-nour-0901",
+        "media_type": "image",
+        "url": "https://images.mishkah.app/brocker/units/nour0901-view.jpg",
+        "description": "إطلالة بانورامية",
+        "priority": 2
+      },
+      {
+        "id": "media-nour-1203-1",
+        "unit_id": "unit-nour-1203",
+        "media_type": "video",
+        "url": "https://videos.mishkah.app/brocker/units/nour1203-tour.mp4",
+        "description": "جولة افتراضية",
+        "priority": 1
+      },
+      {
+        "id": "media-hayat-villa05-1",
+        "unit_id": "unit-hayat-villa05",
+        "media_type": "image",
+        "url": "https://images.mishkah.app/brocker/units/hayat-villa-garden.jpg",
+        "description": "حديقة خاصة",
+        "priority": 1
+      },
+      {
+        "id": "media-capital-retail-a3-1",
+        "unit_id": "unit-capital-retail-a3",
+        "media_type": "image",
+        "url": "https://images.mishkah.app/brocker/units/capital-retail-front.jpg",
+        "description": "واجهة المحل",
+        "priority": 1
+      }
+    ],
+    "unit_features": [
+      {
+        "id": "feature-smart-home",
+        "name": "نظام سمارت",
+        "description": "تحكم مركزي في الإضاءة والتكييف",
+        "data_type": "boolean",
+        "lang": "ar"
+      },
+      {
+        "id": "feature-parking",
+        "name": "موقف مغطى",
+        "description": "موقف خاص في البدروم",
+        "data_type": "integer",
+        "lang": "ar"
+      },
+      {
+        "id": "feature-garden",
+        "name": "حديقة",
+        "description": "مساحة خضراء خاصة",
+        "data_type": "decimal",
+        "lang": "ar"
+      },
+      {
+        "id": "feature-license",
+        "name": "ترخيص تجاري",
+        "description": "جاهزية قانونية للنشاط التجاري",
+        "data_type": "string",
+        "lang": "ar"
+      }
+    ],
+    "feature_values": [
+      {
+        "id": "fv-nour-0901-smart",
+        "unit_id": "unit-nour-0901",
+        "feature_id": "feature-smart-home",
+        "value": "true",
+        "created_at": "2024-11-01T08:10:00Z"
+      },
+      {
+        "id": "fv-nour-0901-parking",
+        "unit_id": "unit-nour-0901",
+        "feature_id": "feature-parking",
+        "value": "2",
+        "created_at": "2024-11-01T08:10:00Z"
+      },
+      {
+        "id": "fv-hayat-garden",
+        "unit_id": "unit-hayat-villa05",
+        "feature_id": "feature-garden",
+        "value": "120",
+        "created_at": "2024-09-05T08:10:00Z"
+      },
+      {
+        "id": "fv-capital-license",
+        "unit_id": "unit-capital-retail-a3",
+        "feature_id": "feature-license",
+        "value": "سجل تجاري فئة أ",
+        "created_at": "2024-08-12T08:10:00Z"
+      }
+    ],
+    "users": [
+      {
+        "id": "user-rahma",
+        "full_name": "رهام سمير",
+        "email": "rehamsamir@brocker.app",
+        "phone": "+201000111222",
+        "password_hash": "hashed-secret",
+        "role": "agent",
+        "status": "active",
+        "created_at": "2023-03-01T09:00:00Z",
+        "updated_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "user-youssef",
+        "full_name": "يوسف الشربيني",
+        "email": "youssef@brocker.app",
+        "phone": "+201115556677",
+        "password_hash": "hashed-secret",
+        "role": "agent",
+        "status": "active",
+        "created_at": "2023-03-02T09:00:00Z",
+        "updated_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "user-salma",
+        "full_name": "سلمى الخطاب",
+        "email": "salma@brocker.app",
+        "phone": "+201066699944",
+        "password_hash": "hashed-secret",
+        "role": "agent",
+        "status": "active",
+        "created_at": "2023-04-10T09:00:00Z",
+        "updated_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "user-ops",
+        "full_name": "فريق الدعم",
+        "email": "ops@brocker.app",
+        "phone": "+201200334455",
+        "password_hash": "hashed-secret",
+        "role": "admin",
+        "status": "active",
+        "created_at": "2022-12-01T09:00:00Z",
+        "updated_at": "2024-11-30T10:00:00Z"
+      }
+    ],
+    "user_sessions": [
+      {
+        "id": "session-rahma",
+        "user_id": "user-rahma",
+        "token": "otp-rahma-1122",
+        "expires_at": "2024-12-05T10:00:00Z",
+        "created_at": "2024-11-30T10:00:00Z"
+      }
+    ],
+    "brokers": [
+      {
+        "id": "broker-rahma",
+        "full_name": "رهام سمير",
+        "email": "rehamsamir@brocker.app",
+        "phone": "+201000111222",
+        "company_name": "Brocker Studio",
+        "license_number": "BR-45822",
+        "user_id": "user-rahma",
+        "created_at": "2023-03-01T09:00:00Z",
+        "region_id": "region-new-cairo",
+        "avatar_url": "https://images.mishkah.app/brocker/brokers/rahma.jpg",
+        "cover_url": "https://images.mishkah.app/brocker/brokers/rahma-cover.jpg",
+        "bio": "خبيرة عقارات فاخرة في القاهرة الجديدة",
+        "whatsapp": "https://wa.me/201000111222",
+        "otp_channel": "https://api.whatsapp.com/send?phone=201000111222",
+        "service_regions": [
+          "region-new-cairo",
+          "region-capital"
+        ],
+        "rating": 4.9,
+        "active_since": "2016-05-01",
+        "updated_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "broker-youssef",
+        "full_name": "يوسف الشربيني",
+        "email": "youssef@brocker.app",
+        "phone": "+201115556677",
+        "company_name": "Sky Keys",
+        "license_number": "BR-37719",
+        "user_id": "user-youssef",
+        "created_at": "2023-03-02T09:00:00Z",
+        "region_id": "region-zayed",
+        "avatar_url": "https://images.mishkah.app/brocker/brokers/youssef.jpg",
+        "cover_url": "https://images.mishkah.app/brocker/brokers/youssef-cover.jpg",
+        "bio": "متخصص في الفلل والمجمعات المغلقة",
+        "whatsapp": "https://wa.me/201115556677",
+        "otp_channel": "https://api.whatsapp.com/send?phone=201115556677",
+        "service_regions": [
+          "region-zayed"
+        ],
+        "rating": 4.7,
+        "active_since": "2014-09-12",
+        "updated_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "broker-salma",
+        "full_name": "سلمى الخطاب",
+        "email": "salma@brocker.app",
+        "phone": "+201066699944",
+        "company_name": "Axis Realty",
+        "license_number": "BR-51104",
+        "user_id": "user-salma",
+        "created_at": "2023-04-10T09:00:00Z",
+        "region_id": "region-capital",
+        "avatar_url": "https://images.mishkah.app/brocker/brokers/salma.jpg",
+        "cover_url": "https://images.mishkah.app/brocker/brokers/salma-cover.jpg",
+        "bio": "تدير مساحات تجارية في العاصمة",
+        "whatsapp": "https://wa.me/201066699944",
+        "otp_channel": "https://api.whatsapp.com/send?phone=201066699944",
+        "service_regions": [
+          "region-capital",
+          "region-new-cairo"
+        ],
+        "rating": 4.8,
+        "active_since": "2015-01-20",
+        "updated_at": "2024-11-30T10:00:00Z"
+      }
+    ],
+    "listings": [
+      {
+        "id": "listing-nour-0901-sale",
+        "unit_id": "unit-nour-0901",
+        "broker_id": "broker-rahma",
+        "listing_type": "sale",
+        "listing_status": "active",
+        "price_amount": 4300000,
+        "currency": "EGP",
+        "price_period": "one_time",
+        "available_from": "2024-12-15",
+        "security_deposit": null,
+        "created_at": "2024-11-01T09:30:00Z",
+        "lang": "ar",
+        "headline": "شقة 3 غرف مع تراس بانورامي",
+        "excerpt": "165م بتشطيب فندقي وموقفين سيارات في برج الندى",
+        "region_id": "region-new-cairo",
+        "primary_media_id": "media-nour-0901-1",
+        "tags": [
+          "تشطيب فندقي",
+          "موقف مزدوج"
+        ],
+        "highlights": [
+          {
+            "label": "المقدم",
+            "value": "10%"
+          },
+          {
+            "label": "خطة سداد",
+            "value": "6 سنوات"
+          }
+        ],
+        "featured_order": 1,
+        "primary_highlight": "جاهزة للتسليم",
+        "updated_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "listing-nour-1203-rent",
+        "unit_id": "unit-nour-1203",
+        "broker_id": "broker-rahma",
+        "listing_type": "rent",
+        "listing_status": "active",
+        "price_amount": 42000,
+        "currency": "EGP",
+        "price_period": "monthly",
+        "available_from": "2025-01-05",
+        "security_deposit": 84000,
+        "created_at": "2024-11-10T09:30:00Z",
+        "lang": "ar",
+        "headline": "شقة مفروشة بالكامل",
+        "excerpt": "132م مع شرفة واسعة وخدمة فندقية",
+        "region_id": "region-new-cairo",
+        "primary_media_id": "media-nour-1203-1",
+        "tags": [
+          "مفروش",
+          "إطلالة خضراء"
+        ],
+        "highlights": [
+          {
+            "label": "يشمل الصيانة",
+            "value": "نعم"
+          }
+        ],
+        "featured_order": 2,
+        "primary_highlight": "إيجار شهري",
+        "updated_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "listing-hayat-villa05",
+        "unit_id": "unit-hayat-villa05",
+        "broker_id": "broker-youssef",
+        "listing_type": "sale",
+        "listing_status": "active",
+        "price_amount": 12500000,
+        "currency": "EGP",
+        "price_period": "one_time",
+        "available_from": "2025-06-01",
+        "security_deposit": null,
+        "created_at": "2024-10-01T10:00:00Z",
+        "lang": "ar",
+        "headline": "فيلا مستقلة مع حديقة 120م",
+        "excerpt": "تصميم عصري في قلب زايد مع إمكانية توسعة",
+        "region_id": "region-zayed",
+        "primary_media_id": "media-hayat-villa05-1",
+        "tags": [
+          "حديقة",
+          "نصف تشطيب"
+        ],
+        "highlights": [
+          {
+            "label": "مساحة الأرض",
+            "value": "520م"
+          }
+        ],
+        "featured_order": 3,
+        "primary_highlight": "نصف تشطيب",
+        "updated_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "listing-capital-retail-a3",
+        "unit_id": "unit-capital-retail-a3",
+        "broker_id": "broker-salma",
+        "listing_type": "sale",
+        "listing_status": "active",
+        "price_amount": 5700000,
+        "currency": "EGP",
+        "price_period": "one_time",
+        "available_from": "2024-12-01",
+        "security_deposit": null,
+        "created_at": "2024-08-25T10:00:00Z",
+        "lang": "ar",
+        "headline": "محل تجاري بواجهة 9 م",
+        "excerpt": "جاهز للترخيص التجاري في محور الأعمال",
+        "region_id": "region-capital",
+        "primary_media_id": "media-capital-retail-a3-1",
+        "tags": [
+          "مرخص",
+          "محور الأعمال"
+        ],
+        "highlights": [
+          {
+            "label": "تشطيب",
+            "value": "على الطوب"
+          }
+        ],
+        "featured_order": 4,
+        "primary_highlight": "ترخيص تجاري",
+        "updated_at": "2024-11-30T10:00:00Z"
+      }
+    ],
+    "notifications": [
+      {
+        "id": "notif-inquiry-01",
+        "user_id": "user-rahma",
+        "title": "طلب جديد",
+        "message": "عميل يطلب مشاهدة شقة NH-09-01",
+        "notification_type": "inquiry",
+        "is_read": false,
+        "channel": "push",
+        "payload": {
+          "listingId": "listing-nour-0901-sale"
+        },
+        "action_url": "https://app.brocker.local/requests/inq-001",
+        "priority": 1,
+        "created_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "notif-otp-rahma",
+        "user_id": "user-rahma",
+        "title": "رمز تحقق",
+        "message": "رمز الدخول هو 447712",
+        "notification_type": "otp",
+        "is_read": true,
+        "channel": "whatsapp",
+        "payload": {
+          "otp": "447712"
+        },
+        "action_url": "https://wa.me/201000111222",
+        "priority": 2,
+        "created_at": "2024-11-29T07:30:00Z"
+      }
+    ],
+    "inquiries": [
+      {
+        "id": "inq-001",
+        "user_id": null,
+        "project_id": "proj-nour-heights",
+        "unit_id": "unit-nour-0901",
+        "listing_id": "listing-nour-0901-sale",
+        "message": "أرغب في معاينة الشقة نهاية الأسبوع",
+        "status": "new",
+        "contact_name": "أحمد منصور",
+        "contact_phone": "+201008889999",
+        "contact_channel": "phone",
+        "preferred_contact_time": "مساء",
+        "notes": "يفضل التمويل البنكي",
+        "created_at": "2024-11-30T10:00:00Z"
+      },
+      {
+        "id": "inq-002",
+        "user_id": null,
+        "project_id": "proj-capital-gate",
+        "unit_id": "unit-capital-retail-a3",
+        "listing_id": "listing-capital-retail-a3",
+        "message": "أحتاج تفاصيل الترخيص",
+        "status": "replied",
+        "contact_name": "ليلى بدر",
+        "contact_phone": "+201090002211",
+        "contact_channel": "whatsapp",
+        "preferred_contact_time": "صباح",
+        "notes": "تاجر ذهب",
+        "created_at": "2024-11-20T12:00:00Z"
+      }
+    ],
+    "reservations": [],
+    "transactions": [],
+    "inquiry_replies": [],
+    "developers_lang": [],
+    "projects_lang": [],
+    "units_lang": [],
+    "listings_lang": [],
+    "unit_features_lang": [],
+    "inquiries_lang": [],
+    "inquiry_replies_lang": [],
+    "unit_layouts": []
+  }
+}
