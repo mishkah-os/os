@@ -24,12 +24,21 @@
       background: #f5f5f5;
       padding: 0;
       margin: 0;
-      overflow: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    body.sql-resizing {
+      cursor: row-resize;
+      user-select: none;
     }
 
     .container {
       max-width: 100%;
-      width: 100vw;
+      width: 100%;
       margin: 0;
       background: white;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -37,6 +46,7 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      flex: 1 0 auto;
     }
 
     .header {
@@ -243,6 +253,7 @@
 
     .sql-sidebar {
       width: 280px;
+      flex: 0 0 280px;
       background: white;
       border: 1px solid #e5e7eb;
       border-radius: 12px;
@@ -251,6 +262,7 @@
       flex-direction: column;
       min-height: 0;
       max-height: 100%;
+      overflow-y: auto;
     }
 
     .sql-sidebar-header {
@@ -324,6 +336,7 @@
       flex-direction: column;
       min-height: 0;
       box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+      gap: 12px;
     }
 
     .sql-toolbar {
@@ -348,30 +361,63 @@
     }
 
     .sql-editor {
+      --sql-editor-height: 260px;
       flex: 0 0 auto;
       border: 1px solid #e5e7eb;
       border-radius: 10px;
       overflow: hidden;
       background: #0d1117;
+      height: var(--sql-editor-height);
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
     }
 
     .sql-editor .CodeMirror {
-      height: 240px;
+      flex: 1;
+      height: 100%;
       font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
       font-size: 13px;
       line-height: 1.5;
       direction: ltr;
     }
 
+    .sql-resizer {
+      flex: 0 0 auto;
+      height: 12px;
+      border-radius: 999px;
+      background: #e5e7eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: row-resize;
+      position: relative;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .sql-resizer::after {
+      content: '';
+      width: 80px;
+      height: 2px;
+      border-radius: 999px;
+      background: #9ca3af;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.05);
+    }
+
+    .sql-resizer:hover,
+    .sql-resizer.dragging {
+      background: #c7d2fe;
+      box-shadow: inset 0 0 0 1px #a5b4fc;
+    }
+
     .sql-results {
       flex: 1;
-      margin-top: 16px;
       border: 1px solid #e5e7eb;
       border-radius: 10px;
       padding: 16px;
       background: #f9fafb;
       max-width: 100%;
-      min-height: 0;
+      min-height: 180px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -381,6 +427,7 @@
       flex: 1;
       width: 100%;
       max-width: 100%;
+      max-height: 100%;
       overflow: auto;
       border-radius: 8px;
       background: white;
@@ -760,6 +807,7 @@
             <div class="sql-editor" id="sqlEditorContainer">
               <textarea id="sqlEditor" placeholder="SELECT * FROM order_header LIMIT 10;"></textarea>
             </div>
+            <div class="sql-resizer" id="sqlResizer" role="separator" aria-orientation="horizontal" aria-label="تغيير حجم مساحة التحرير والنتائج"></div>
             <div class="sql-results" id="sqlResults">
               <div class="sql-placeholder">
                 <strong>منطقة نتائج الاستعلام</strong>

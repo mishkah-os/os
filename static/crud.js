@@ -19,6 +19,8 @@
   let sqlSchema = null;
   let sqlAutocompleteTokens = [];
   let sqlContextMenu = null;
+  let sqlLayoutController = null;
+  let sqlResizeSetupDone = false;
   let activePanel = 'crud';
 
   // ==================== HELPERS ====================
@@ -98,6 +100,18 @@
     document.querySelectorAll('.view-panel').forEach(section => {
       section.classList.toggle('active', section.dataset.panel === panel);
     });
+
+    if (panel === 'sqlite') {
+      requestAnimationFrame(() => {
+        setupSqlResizer();
+        if (typeof sqlLayoutController?.clamp === 'function') {
+          sqlLayoutController.clamp();
+        }
+        if (sqlEditor && typeof sqlEditor.refresh === 'function') {
+          sqlEditor.refresh();
+        }
+      });
+    }
   }
 
   function quoteIdentifier(name) {
@@ -1002,6 +1016,7 @@
     document.addEventListener('click', hideSqlContextMenu);
 
     fetchSqlSchema();
+    setupSqlResizer();
   }
 
   function triggerSqlAutocomplete(editor) {
@@ -1242,6 +1257,96 @@
     if (!sqlContextMenu) return;
     sqlContextMenu.classList.remove('visible');
     sqlContextMenu.innerHTML = '';
+  }
+
+  function setupSqlResizer() {
+    if (sqlResizeSetupDone) {
+      if (typeof sqlLayoutController?.clamp === 'function') {
+        sqlLayoutController.clamp();
+      }
+      return;
+    }
+
+    const workspace = document.querySelector('.sql-workspace');
+    const editorContainer = document.getElementById('sqlEditorContainer');
+    const resizer = document.getElementById('sqlResizer');
+
+    if (!workspace || !editorContainer || !resizer) {
+      return;
+    }
+
+    const MIN_EDITOR = 140;
+    const MIN_RESULTS = 200;
+    const state = { active: false, startY: 0, startHeight: 0 };
+
+    function pointerY(event) {
+      return event.touches?.[0]?.clientY ?? event.clientY;
+    }
+
+    function applyHeight(desiredHeight) {
+      const workspaceHeight = workspace.getBoundingClientRect().height || 0;
+      const maxHeight = Math.max(MIN_EDITOR, workspaceHeight - MIN_RESULTS);
+      const nextHeight = Math.min(Math.max(desiredHeight, MIN_EDITOR), maxHeight);
+
+      editorContainer.style.setProperty('--sql-editor-height', `${nextHeight}px`);
+      editorContainer.style.height = `${nextHeight}px`;
+      editorContainer.dataset.height = String(nextHeight);
+
+      if (sqlEditor && typeof sqlEditor.refresh === 'function') {
+        sqlEditor.refresh();
+      }
+    }
+
+    function clampHeight() {
+      const stored = parseFloat(editorContainer.dataset.height);
+      const fallback = Number.isFinite(stored)
+        ? stored
+        : editorContainer.getBoundingClientRect().height || 260;
+      applyHeight(fallback);
+    }
+
+    function stopDrag() {
+      if (!state.active) return;
+      state.active = false;
+      resizer.classList.remove('dragging');
+      document.body.classList.remove('sql-resizing');
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('mouseup', stopDrag);
+      window.removeEventListener('touchend', stopDrag);
+      window.removeEventListener('touchcancel', stopDrag);
+    }
+
+    function handleMove(event) {
+      if (!state.active) return;
+      event.preventDefault();
+      const clientY = pointerY(event);
+      const delta = clientY - state.startY;
+      applyHeight(state.startHeight + delta);
+    }
+
+    function startDrag(event) {
+      event.preventDefault();
+      state.active = true;
+      state.startY = pointerY(event);
+      state.startHeight = editorContainer.getBoundingClientRect().height || MIN_EDITOR;
+      resizer.classList.add('dragging');
+      document.body.classList.add('sql-resizing');
+      window.addEventListener('mousemove', handleMove);
+      window.addEventListener('touchmove', handleMove, { passive: false });
+      window.addEventListener('mouseup', stopDrag);
+      window.addEventListener('touchend', stopDrag);
+      window.addEventListener('touchcancel', stopDrag);
+    }
+
+    resizer.addEventListener('mousedown', startDrag);
+    resizer.addEventListener('touchstart', startDrag, { passive: false });
+    window.addEventListener('resize', clampHeight);
+
+    sqlLayoutController = { clamp: clampHeight };
+    sqlResizeSetupDone = true;
+
+    requestAnimationFrame(() => clampHeight());
   }
 
   // ==================== INIT ====================
