@@ -4245,6 +4245,7 @@
         logCloudEvent('saveSchema:success', { path });
         return true;
       }
+    }
 
       return { listIndex, fetchSchema, saveSchema };
     })();
@@ -9331,9 +9332,16 @@
         on:['click'],
         gkeys:['erd:cloud:set-mode'],
         handler:async (e,ctx)=>{
-          const target = e.currentTarget || e.target;
+          let target = e && e.target ? e.target : null;
+          if(target && target.nodeType !== 1){
+            target = target.parentElement;
+          }
+          if(target && typeof target.closest === 'function'){
+            target = target.closest('[data-m-gkey~="erd:cloud:set-mode"]');
+          }
           if(!target) return;
-          const mode = target.getAttribute('data-mode') || 'local';
+          const modeAttr = target.getAttribute('data-mode');
+          const mode = modeAttr === 'cloud' ? 'cloud' : 'local';
           const state = ctx.getState();
           const currentMode = state.data.cloud?.mode || 'local';
           logCloudEvent('event:set-mode:click', { requestedMode: mode, currentMode });
