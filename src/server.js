@@ -161,6 +161,26 @@ function safeDecode(value) {
   }
 }
 
+function resolveWorkspacePath(requestedPath) {
+  if (typeof requestedPath !== 'string') {
+    return null;
+  }
+  const trimmedPath = requestedPath.trim();
+  if (!trimmedPath) {
+    return null;
+  }
+  const absolutePath = path.resolve(ROOT_DIR, trimmedPath);
+  const workspaceRootWithSep = ROOT_DIR.endsWith(path.sep) ? ROOT_DIR : `${ROOT_DIR}${path.sep}`;
+  if (absolutePath !== ROOT_DIR && !absolutePath.startsWith(workspaceRootWithSep)) {
+    return null;
+  }
+  const relativePath = path.relative(ROOT_DIR, absolutePath);
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return null;
+  }
+  return { absolutePath, relativePath };
+}
+
 function isVersionConflict(error) {
   return error instanceof VersionConflictError || (error && error.code === 'VERSION_CONFLICT');
 }
@@ -6697,10 +6717,17 @@ const httpServer = createServer(async (req, res) => {
     const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : moduleId;
     const description = typeof body.description === 'string' ? body.description : '';
     const tables = parseModuleList(body.tables);
-    const schemaFallbackPath =
+    const defaultSchemaFallbackPath = path.join('data', 'schemas', `${moduleId}.json`);
+    const requestedSchemaFallbackPath =
       typeof body.schemaFallbackPath === 'string' && body.schemaFallbackPath.trim()
         ? body.schemaFallbackPath.trim()
-        : `data/schemas/${moduleId}.json`;
+        : defaultSchemaFallbackPath;
+    const schemaPathInfo = resolveWorkspacePath(requestedSchemaFallbackPath);
+    if (!schemaPathInfo) {
+      jsonResponse(res, 400, { error: 'invalid-schema-fallback-path' });
+      return;
+    }
+    const { relativePath: schemaFallbackPath, absolutePath: resolvedFallbackPath } = schemaPathInfo;
     const seedFallbackPath =
       typeof body.seedFallbackPath === 'string' && body.seedFallbackPath.trim() ? body.seedFallbackPath.trim() : undefined;
     const moduleRecord = {
@@ -6718,9 +6745,6 @@ const httpServer = createServer(async (req, res) => {
     }
     modulesConfig.modules[moduleId] = moduleRecord;
     await persistModulesConfig();
-    const resolvedFallbackPath = path.isAbsolute(schemaFallbackPath)
-      ? schemaFallbackPath
-      : path.join(ROOT_DIR, schemaFallbackPath);
     const schemaPayload = body.schema && typeof body.schema === 'object' ? body.schema : { tables: [] };
     if (!(await fileExists(resolvedFallbackPath)) || body.schema) {
       await writeJson(resolvedFallbackPath, schemaPayload);
