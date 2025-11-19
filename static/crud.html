@@ -463,6 +463,241 @@
       color: #6b7280;
     }
 
+    .sql-panel {
+      flex-direction: column;
+      padding: 20px 30px;
+      gap: 16px;
+      background: #f9fafb;
+    }
+
+    .sql-admin-layout {
+      display: flex;
+      flex: 1;
+      gap: 20px;
+      min-height: 0;
+    }
+
+    .sql-sidebar {
+      width: 280px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .sql-sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .sql-sidebar h3 {
+      margin: 0;
+      font-size: 14px;
+      color: #111827;
+    }
+
+    .sql-tree {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .sql-tree-group {
+      margin-bottom: 16px;
+    }
+
+    .sql-tree-group h4 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 4px;
+    }
+
+    .sql-tree-items {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .sql-tree-item {
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #111827;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s;
+    }
+
+    .sql-tree-item:hover {
+      background: #f3f4f6;
+    }
+
+    .sql-tree-item small {
+      color: #6b7280;
+      font-size: 11px;
+    }
+
+    .sql-workspace {
+      flex: 1;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    }
+
+    .sql-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sql-toolbar h3 {
+      margin: 0;
+      font-size: 18px;
+      color: #111827;
+    }
+
+    .sql-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sql-editor {
+      flex: 0 0 260px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0d1117;
+    }
+
+    .sql-editor .CodeMirror {
+      height: 240px;
+      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      direction: ltr;
+    }
+
+    .sql-results {
+      flex: 1;
+      margin-top: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 16px;
+      background: #f9fafb;
+      max-width: 100%;
+      max-height: calc(100vh - 320px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sql-results .table-container {
+      flex: 1;
+      width: 100%;
+      max-width: 100%;
+      overflow: auto;
+      border-radius: 8px;
+      background: white;
+      scrollbar-gutter: stable both-edges;
+    }
+
+    .sql-placeholder {
+      text-align: center;
+      color: #6b7280;
+      padding: 30px 10px;
+      font-size: 14px;
+    }
+
+    .sql-placeholder strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #111827;
+    }
+
+    .sql-results table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .sql-results th,
+    .sql-results td {
+      border: 1px solid #e5e7eb;
+      padding: 6px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .sql-results thead {
+      background: #eef2ff;
+    }
+
+    .sql-meta {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+
+    .sql-context-menu {
+      position: fixed;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+      min-width: 200px;
+      z-index: 10000;
+      display: none;
+    }
+
+    .sql-context-menu.visible {
+      display: block;
+    }
+
+    .sql-context-menu button {
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      background: transparent;
+      text-align: right;
+      font-size: 13px;
+      cursor: pointer;
+      color: #111827;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .sql-context-menu button:hover {
+      background: #f3f4f6;
+    }
+
+    .sql-context-menu small {
+      color: #6b7280;
+    }
+
     .toolbar {
       display: flex;
       justify-content: space-between;
