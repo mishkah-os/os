@@ -936,7 +936,7 @@
 
   function Chip(text) {
     if (!text) return null;
-    return D.Containers.Span({ attrs: { class: 'rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300' } }, [text]);
+    return D.Text.Span({ attrs: { class: 'rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300' } }, [text]);
   }
 
   function inputClass(extra) {
