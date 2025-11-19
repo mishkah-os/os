@@ -1101,6 +1101,12 @@
     if (result?.meta?.queryTime != null) {
       metaParts.push(`الزمن: ${result.meta.queryTime}ms`);
     }
+    if (result?.meta?.source) {
+      const sourceLabel = result.meta.source === 'module-store'
+        ? 'لقطة الموديول'
+        : result.meta.source;
+      metaParts.push(`المصدر: ${sourceLabel}`);
+    }
 
     let html = '';
     if (metaParts.length) {
