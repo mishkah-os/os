@@ -74,6 +74,10 @@
   var tailwindEnabled = (typeof tailwindFlag === 'boolean') ? tailwindFlag
     : (typeof userConfig.tailwind === 'boolean' ? userConfig.tailwind : true);
 
+  var storesFlag = parseDatasetFlag(parseDatasetValue('stores', null), undefined);
+  var storesEnabled = (typeof storesFlag === 'boolean') ? storesFlag
+    : (typeof userConfig.stores === 'boolean' ? userConfig.stores : false);
+
   function joinBase(path, fallback) {
     if (path && /^(https?:)?\/\//i.test(path)) return path;
     if (path && path.charAt(0) === '/') return path;
@@ -120,6 +124,21 @@
       }
     }
   ];
+
+  if (storesEnabled) {
+    resources.push(
+      {
+        id: 'mishkah-store',
+        src: joinBase(paths.store || 'mishkah.store.js'),
+        test: function () { return typeof global.createStore === 'function'; }
+      },
+      {
+        id: 'mishkah-simple-store',
+        src: joinBase(paths.simpleStore || 'mishkah.simple-store.js'),
+        test: function () { return typeof global.createSimpleStore === 'function'; }
+      }
+    );
+  }
 
   var cssHref = joinBase(paths.css || 'mishkah-css.css');
 
@@ -220,6 +239,96 @@
     readyResolved: false,
     waitingForMake: false
   };
+
+  var pwaStorageAttr = parseDatasetValue('pwaStorage', null);
+  var defaultPwaStorageKey = pwaStorageAttr || (typeof userConfig.pwaStorageKey === 'string' && userConfig.pwaStorageKey.trim()
+    ? userConfig.pwaStorageKey.trim()
+    : 'mishkah:pwa:installed');
+
+  var pwaState = {
+    storageKey: defaultPwaStorageKey,
+    installEvent: null,
+    listeners: new Set(),
+    installed: false
+  };
+
+  function readPwaFlag(key) {
+    var storageKey = key || pwaState.storageKey;
+    if (!global.localStorage || !storageKey) return false;
+    try {
+      return !!global.localStorage.getItem(storageKey);
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function writePwaFlag(key, source) {
+    var storageKey = key || pwaState.storageKey;
+    if (!global.localStorage || !storageKey) return false;
+    try {
+      global.localStorage.setItem(storageKey, JSON.stringify({
+        installedAt: new Date().toISOString(),
+        source: source || 'manual'
+      }));
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function clearPwaFlag(key) {
+    var storageKey = key || pwaState.storageKey;
+    if (!global.localStorage || !storageKey) return false;
+    try {
+      global.localStorage.removeItem(storageKey);
+      return true;
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function isStandaloneDisplay() {
+    try {
+      if (global.matchMedia) {
+        var mq = global.matchMedia('(display-mode: standalone)');
+        if (mq && mq.matches) return true;
+        var mqMinimal = global.matchMedia('(display-mode: minimal-ui)');
+        if (mqMinimal && mqMinimal.matches) return true;
+      }
+      if (global.navigator && typeof global.navigator.standalone === 'boolean' && global.navigator.standalone) {
+        return true;
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+    return false;
+  }
+
+  function ensurePwaInstalled(key) {
+    var installed = isStandaloneDisplay() || readPwaFlag(key);
+    if (installed && !pwaState.installed) {
+      pwaState.installed = true;
+    }
+    return installed;
+  }
+
+  function notifyPwaListeners(event) {
+    pwaState.listeners.forEach(function (listener) {
+      try { listener(event); }
+      catch (err) {
+        if (global.console && console.warn) console.warn('[MishkahAuto] PWA listener failed', err);
+      }
+    });
+  }
+
+  function handleBeforeInstallPrompt(event) {
+    if (!event) return;
+    try { event.preventDefault(); }
+    catch (_err) { /* ignore */ }
+    pwaState.installEvent = event;
+    notifyPwaListeners(event);
+  }
+
 
   var twcssAutoWarned = false;
 
@@ -748,40 +857,45 @@
     };
   }
 
+  function prepareAutoDatabase(db) {
+    if (!autoEnabled) return db || {};
+    var database = Object.assign({}, db || {});
+    var cssLibrary = mapCssLibrary(cssOption) || cssOption;
+    var env = Object.assign({ css: cssOption, cssLibrary: cssLibrary, cssEngine: cssLibrary }, database.env || {});
+    if (!env.theme) env.theme = userConfig.defaultTheme || 'light';
+    if (!env.lang) env.lang = (Array.isArray(userConfig.defaultLangs) && userConfig.defaultLangs[0]) || 'ar';
+    if (!env.dir) env.dir = RTL_LANGS.has(env.lang) ? 'rtl' : 'ltr';
+    database.env = env;
+    setDocumentLang(env.lang, env.dir);
+    if (cssOption === 'mishkah') {
+      ensureStyle(cssHref, 'mishkah-css');
+    }
+    return database;
+  }
+
+  function applyTwcssAuto(appInstance, database) {
+    if (!autoEnabled || !appInstance) return;
+    try {
+      var host = global.Mishkah;
+      if (host && host.utils && host.utils.twcss && typeof host.utils.twcss.auto === 'function') {
+        host.utils.twcss.auto(database, appInstance, { tailwind: tailwindEnabled });
+      } else if (!twcssAutoWarned) {
+        twcssAutoWarned = true;
+        if (global.console && console.warn) {
+          console.warn('[MishkahAuto] twcss.auto غير متوفر، لن يتم تفعيل توكنز Mishkah تلقائياً.');
+        }
+      }
+    } catch (err) {
+      if (global.console && console.warn) console.warn('[MishkahAuto] فشل تفعيل twcss.auto', err);
+    }
+  }
+
   function patchAppMake(M) {
     if (!M || !M.app || typeof M.app.make !== 'function') return;
     if (M.app.make.__mishkahAutoPatch) return;
     var originalMake = M.app.make;
-    function applyTwcssAuto(appInstance, databaseSnapshot) {
-      if (!autoEnabled || !appInstance) return;
-      try {
-        var host = global.Mishkah;
-        if (host && host.utils && host.utils.twcss && typeof host.utils.twcss.auto === 'function') {
-          host.utils.twcss.auto(databaseSnapshot, appInstance, { tailwind: tailwindEnabled });
-        } else if (!twcssAutoWarned) {
-          twcssAutoWarned = true;
-          if (global.console && console.warn) {
-            console.warn('[MishkahAuto] twcss.auto غير متوفر، لن يتم تفعيل توكنز Mishkah تلقائياً.');
-          }
-        }
-      } catch (err) {
-        if (global.console && console.warn) console.warn('[MishkahAuto] فشل تفعيل twcss.auto', err);
-      }
-    }
     M.app.make = function (db, options) {
-      var database = db || {};
-      if (autoEnabled) {
-        database = Object.assign({}, database);
-        var cssLibrary = mapCssLibrary(cssOption) || cssOption;
-        database.env = Object.assign({ css: cssOption, cssLibrary: cssLibrary, cssEngine: cssLibrary }, database.env || {});
-        if (!database.env.theme) database.env.theme = userConfig.defaultTheme || 'light';
-        if (!database.env.lang) database.env.lang = (Array.isArray(userConfig.defaultLangs) && userConfig.defaultLangs[0]) || 'ar';
-        if (!database.env.dir) database.env.dir = RTL_LANGS.has(database.env.lang) ? 'rtl' : 'ltr';
-        setDocumentLang(database.env.lang, database.env.dir);
-        if (cssOption === 'mishkah') {
-          ensureStyle(cssHref, 'mishkah-css');
-        }
-      }
+      var database = prepareAutoDatabase(db);
       var mergedOptions = options ? Object.assign({}, options) : {};
       if (autoEnabled) {
         mergedOptions.orders = mergeOrders(mergedOptions.orders, buildAutoOrders());
@@ -898,6 +1012,110 @@
     target[key] = value;
   }
 
+  function resolvePwaInstall(key) {
+    var storageKey = key || pwaState.storageKey;
+    pwaState.installed = ensurePwaInstalled(storageKey);
+    return pwaState.installed;
+  }
+
+  var pwaApi = {
+    get storageKey() {
+      return pwaState.storageKey;
+    },
+    setStorageKey: function (key) {
+      if (!key) return;
+      pwaState.storageKey = String(key);
+      resolvePwaInstall(pwaState.storageKey);
+    },
+    isStandalone: isStandaloneDisplay,
+    isInstalled: function (key) {
+      return resolvePwaInstall(key || pwaState.storageKey);
+    },
+    markInstalled: function (source, key) {
+      writePwaFlag(key || pwaState.storageKey, source || 'manual');
+      pwaState.installed = true;
+      return true;
+    },
+    clearInstalled: function (key) {
+      clearPwaFlag(key || pwaState.storageKey);
+      pwaState.installed = isStandaloneDisplay();
+      return pwaState.installed;
+    },
+    hasPendingPrompt: function () {
+      return !!(pwaState.installEvent && typeof pwaState.installEvent.prompt === 'function');
+    },
+    promptInstall: function () {
+      return new Promise(function (resolve, reject) {
+        var evt = pwaState.installEvent;
+        if (!evt || typeof evt.prompt !== 'function') {
+          reject(new Error('install-prompt-unavailable'));
+          return;
+        }
+        pwaState.installEvent = null;
+        try {
+          var outcome = evt.prompt();
+          var handleResult = function (result) {
+            try {
+              if (result && result.outcome === 'accepted') {
+                pwaApi.markInstalled('prompt');
+              }
+            } catch (_err) {
+              /* ignore */
+            }
+            resolve(result || null);
+          };
+          if (outcome && typeof outcome.then === 'function') {
+            outcome.then(handleResult).catch(reject);
+          } else {
+            resolve(null);
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
+    },
+    onBeforeInstallPrompt: function (listener) {
+      if (typeof listener !== 'function') return function () { };
+      pwaState.listeners.add(listener);
+      if (pwaState.installEvent) {
+        try { listener(pwaState.installEvent); }
+        catch (_err) { /* ignore */ }
+      }
+      return function () {
+        pwaState.listeners.delete(listener);
+      };
+    },
+    getPendingEvent: function () {
+      return pwaState.installEvent;
+    }
+  };
+
+  resolvePwaInstall();
+
+  if (global.addEventListener) {
+    global.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    global.addEventListener('appinstalled', function () {
+      pwaApi.markInstalled('appinstalled');
+    });
+  }
+
+  var standaloneQuery = (global.matchMedia && global.matchMedia('(display-mode: standalone)')) || null;
+  if (standaloneQuery) {
+    var syncStandalone = function (event) {
+      if (event && event.matches) {
+        pwaApi.markInstalled('display-mode');
+      }
+    };
+    if (typeof standaloneQuery.addEventListener === 'function') {
+      standaloneQuery.addEventListener('change', syncStandalone);
+    } else if (typeof standaloneQuery.addListener === 'function') {
+      standaloneQuery.addListener(syncStandalone);
+    }
+    if (standaloneQuery.matches) {
+      pwaApi.markInstalled('display-mode');
+    }
+  }
+
   var api = global.MishkahAuto || {};
   api.__version = autoState.__version;
   api.config = autoState.config;
@@ -915,6 +1133,8 @@
   api.formatLang = function (lang) { return formatLabel(LANG_LABELS, normalizeLang(lang)); };
   api.formatTheme = function (theme) { return formatLabel(THEME_LABELS, String(theme || '').toLowerCase()); };
 
+  api.pwa = pwaApi;
+
   global.MishkahAuto = api;
 
   var host = global.Mishkah;
@@ -929,10 +1149,108 @@
   var autoNamespace = host.auto || {};
   host.auto = autoNamespace;
   autoNamespace.config = api.config;
+  autoNamespace.pwa = pwaApi;
   autoNamespace.ready = api.ready;
   autoNamespace.whenReady = api.whenReady;
   autoNamespace.onState = api.onState;
   autoNamespace.attach = api.attach;
+  function ensureDslCore() {
+    return api.whenReady.then(function (M) {
+      if (!M || !M.app || typeof M.app.createApp !== 'function' || typeof M.app.setBody !== 'function') {
+        throw new Error('Mishkah core DSL غير متوفر.');
+      }
+      return M;
+    });
+  }
+
+  function proxyAppMethods(promise, defaultMount) {
+    var proxy = {
+      ready: function (callback) {
+        return promise.then(function (app) {
+          if (typeof callback === 'function') callback(app);
+          return app;
+        });
+      },
+      mount: function (selector) {
+        var target = selector || defaultMount;
+        if (!target) return promise;
+        return promise.then(function (app) {
+          app.mount(target);
+          return app;
+        });
+      },
+      then: function () {
+        return promise.then.apply(promise, arguments);
+      },
+      catch: function () {
+        return promise.catch.apply(promise, arguments);
+      },
+      promise: promise
+    };
+    var methods = ['getState', 'setState', 'setOrders', 'freeze', 'unfreeze', 'flush', 'rebuild'];
+    methods.forEach(function (name) {
+      proxy[name] = function () {
+        var args = Array.prototype.slice.call(arguments);
+        return promise.then(function (app) {
+          if (typeof app[name] === 'function') {
+            return app[name].apply(app, args);
+          }
+          return undefined;
+        });
+      };
+    });
+    return proxy;
+  }
+
+  function createDslApp(database, body, orders, mountTarget) {
+    var dbSnapshot = prepareAutoDatabase(database);
+    var ordersSnapshot = (orders && typeof orders === 'object') ? Object.assign({}, orders) : {};
+    if (autoEnabled) {
+      ordersSnapshot = mergeOrders(ordersSnapshot, buildAutoOrders());
+    }
+    var view = (typeof body === 'function') ? body : function () { return null; };
+    var target = (mountTarget === false) ? null : (mountTarget || '#app');
+    var deferred = createDeferred();
+    ensureDslCore().then(function (M) {
+      try {
+        M.app.setBody(view);
+      } catch (err) {
+        if (global.console && console.error) console.error('[MishkahAuto] setBody فشل', err);
+      }
+      var app = M.app.createApp(dbSnapshot, ordersSnapshot);
+      applyTwcssAuto(app, dbSnapshot);
+      attachApp(app);
+      deferred.resolve(app);
+      if (target) {
+        try {
+          app.mount(target);
+        } catch (err) {
+          if (global.console && console.error) console.error('[MishkahAuto] mount فشل', err);
+        }
+      }
+    }).catch(function (error) {
+      deferred.reject(error);
+    });
+    return proxyAppMethods(deferred.promise, target);
+  }
+
+  api.app = {
+    create: createDslApp,
+    setBody: function (body) {
+      return ensureDslCore().then(function (M) {
+        return M.app.setBody(body);
+      });
+    },
+    ready: function (callback) {
+      return ensureDslCore().then(function (M) {
+        if (typeof callback === 'function') callback(M.app);
+        return M.app;
+      });
+    }
+  };
+
+  autoNamespace.app = api.app;
+
   autoNamespace.make = function (config) {
     var cfg = (config && typeof config === 'object') ? config : {};
     var promise = api.whenReady.then(function (M) {

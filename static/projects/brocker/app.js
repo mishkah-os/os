@@ -1,0 +1,1373 @@
+(function () {
+  'use strict';
+
+  var global = window;
+  var M = global.Mishkah;
+  if (!M) {
+    console.error('[Brocker PWA] Mishkah core is required.');
+    return;
+  }
+
+  var D = M.DSL;
+  function ensureDslBinding(source) {
+    if (source && source.DSL) {
+      D = source.DSL;
+      return;
+    }
+    if (global.Mishkah && global.Mishkah.DSL) {
+      D = global.Mishkah.DSL;
+    }
+  }
+  if (!D) {
+    ensureDslBinding(global.Mishkah);
+    if (!D && global.MishkahAuto && typeof global.MishkahAuto.ready === 'function') {
+      try {
+        global.MishkahAuto.ready(function (readyM) {
+          ensureDslBinding(readyM);
+        });
+      } catch (err) {
+        console.warn('[Brocker PWA] unable to sync Mishkah DSL binding', err);
+      }
+    }
+  }
+  var UI = M.UI || {};
+  var twcss = (M.utils && M.utils.twcss) || {};
+  var tw = typeof twcss.tw === 'function'
+    ? twcss.tw
+    : function () {
+        return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');
+      };
+  var token = typeof twcss.token === 'function' ? twcss.token : function () { return ''; };
+
+  var params = new URLSearchParams(global.location.search || '');
+  var BRANCH_ID = params.get('branch') || params.get('branchId') || 'aqar';
+  var MODULE_ID = params.get('module') || params.get('moduleId') || 'brocker';
+
+  var REQUIRED_TABLES = new Set([
+    'app_settings',
+    'hero_slides',
+    'regions',
+    'unit_types',
+    'listings',
+    'brokers',
+    'units',
+    'unit_media',
+    'inquiries'
+  ]);
+
+  var initialDatabase = {
+    env: {
+      theme: 'dark',
+      lang: 'ar',
+      dir: 'rtl'
+    },
+    meta: {
+      branchId: BRANCH_ID,
+      moduleId: MODULE_ID
+    },
+    state: {
+      loading: true,
+      error: null,
+      activeView: 'home',
+      filters: {
+        regionId: null,
+        unitTypeId: null,
+        listingType: null
+      },
+      selectedListingId: null,
+      selectedBrokerId: null,
+      readyTables: [],
+      toast: null,
+      dashboard: {
+        inquiryStatus: 'all'
+      },
+      brokerAuth: {
+        phone: '',
+        stage: 'otp'
+      },
+      pwa: {
+        storageKey: (global.MishkahAuto && global.MishkahAuto.pwa && global.MishkahAuto.pwa.storageKey) || 'mishkah:pwa:installed',
+        installRequired: false,
+        installed: false,
+        showGate: false,
+        message: '',
+        canPrompt: false,
+        manifestUrl: null,
+        promptError: null
+      }
+    },
+    data: {
+      appSettings: null,
+      heroSlides: [],
+      regions: [],
+      unitTypes: [],
+      listings: [],
+      brokers: [],
+      units: [],
+      unitMedia: [],
+      unitLayouts: [],
+      featureValues: [],
+      unitFeatures: [],
+      inquiries: [],
+      notifications: []
+    }
+  };
+
+  var realtime = null;
+  var appInstance = null;
+
+  function setToast(ctx, payload) {
+    ctx.setState(function (db) {
+      return Object.assign({}, db, {
+        state: Object.assign({}, db.state, { toast: payload })
+      });
+    });
+  }
+
+  function updatePwaState(ctx, patch) {
+    ctx.setState(function (db) {
+      var current = db.state && db.state.pwa ? db.state.pwa : {};
+      var merged = Object.assign({}, current, patch || {});
+      if (merged.installRequired && merged.installed) merged.showGate = false;
+      else if (merged.installRequired) merged.showGate = !merged.installed;
+      return Object.assign({}, db, { state: Object.assign({}, db.state, { pwa: merged }) });
+    });
+  }
+
+  var orders = {
+    'ui.view.switch': {
+      on: ['click'],
+      gkeys: ['nav-home', 'nav-brokers', 'nav-dashboard', 'nav-listing'],
+      handler: function (event, ctx) {
+        var target = event.currentTarget;
+        if (!target) return;
+        var view = target.getAttribute('data-view');
+        if (!view) return;
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              activeView: view,
+              selectedListingId: view === 'listing' ? db.state.selectedListingId : db.state.selectedListingId,
+              selectedBrokerId: view === 'brokers' ? db.state.selectedBrokerId : db.state.selectedBrokerId
+            })
+          });
+        });
+      }
+    },
+    'ui.search.form': {
+      on: ['submit'],
+      gkeys: ['search-form'],
+      handler: function (event) {
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      }
+    },
+    'ui.search.filter': {
+      on: ['change'],
+      gkeys: ['search-filter'],
+      handler: function (event, ctx) {
+        var target = event.target;
+        if (!target) return;
+        var key = target.getAttribute('data-filter-key');
+        if (!key) return;
+        var value = target.value || null;
+        ctx.setState(function (db) {
+          var filters = Object.assign({}, db.state.filters);
+          filters[key] = value || null;
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, { filters: filters })
+          });
+        });
+      }
+    },
+    'ui.search.reset': {
+      on: ['click'],
+      gkeys: ['search-reset'],
+      handler: function (_event, ctx) {
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              filters: { regionId: null, unitTypeId: null, listingType: null }
+            })
+          });
+        });
+      }
+    },
+    'ui.listing.select': {
+      on: ['click'],
+      gkeys: ['listing-card'],
+      handler: function (event, ctx) {
+        var target = event.currentTarget;
+        if (!target) return;
+        var id = target.getAttribute('data-listing-id');
+        if (!id) return;
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              selectedListingId: id,
+              activeView: 'listing'
+            })
+          });
+        });
+      }
+    },
+    'ui.listing.back': {
+      on: ['click'],
+      gkeys: ['listing-back'],
+      handler: function (_event, ctx) {
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, { activeView: 'home' })
+          });
+        });
+      }
+    },
+    'ui.inquiry.submit': {
+      on: ['submit'],
+      gkeys: ['inquiry-form'],
+      handler: function (event, ctx) {
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
+        if (!realtime || !event || !event.target || typeof FormData === 'undefined') {
+          setToast(ctx, { kind: 'error', message: 'الاتصال غير متاح الآن.' });
+          return;
+        }
+        var form = event.target;
+        var listingId = form.getAttribute('data-listing-id');
+        var fd = new FormData(form);
+        var name = (fd.get('leadName') || '').trim();
+        var phone = (fd.get('leadPhone') || '').trim();
+        var message = (fd.get('leadMessage') || '').trim();
+        var preferred = (fd.get('leadPreferred') || 'any').trim() || 'any';
+        if (!listingId || !name || !phone || !message) {
+          setToast(ctx, { kind: 'error', message: 'يرجى استكمال الحقول.' });
+          return;
+        }
+        var snapshot = ctx.database;
+        var listing = snapshot && snapshot.data ? snapshot.data.listings.find(function (row) { return row.id === listingId; }) : null;
+        var record = {
+          listing_id: listingId,
+          unit_id: listing ? listing.unit_id : null,
+          project_id: listing ? listing.project_id || null : null,
+          message: message,
+          status: 'new',
+          contact_name: name,
+          contact_phone: phone,
+          contact_channel: 'phone',
+          preferred_contact_time: preferred,
+          notes: 'Lead submitted from Mishkah brocker PWA',
+          lang: (snapshot && snapshot.env && snapshot.env.lang) || 'ar',
+          created_at: new Date().toISOString()
+        };
+        realtime.insert('inquiries', record, { reason: 'pwa-lead' })
+          .then(function () {
+            try { form.reset(); } catch (_err) {}
+            setToast(ctx, { kind: 'success', message: 'تم إرسال طلبك بنجاح.' });
+          })
+          .catch(function (error) {
+            console.error('[Brocker PWA] inquiry submit failed', error);
+            setToast(ctx, { kind: 'error', message: 'تعذر إرسال الطلب.' });
+          });
+      }
+    },
+    'ui.dashboard.inquiryFilter': {
+      on: ['change'],
+      gkeys: ['inquiry-filter'],
+      handler: function (event, ctx) {
+        var value = event && event.target ? event.target.value : 'all';
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              dashboard: Object.assign({}, db.state.dashboard, { inquiryStatus: value || 'all' })
+            })
+          });
+        });
+      }
+    },
+    'ui.dashboard.inquiryStatus': {
+      on: ['click'],
+      gkeys: ['inquiry-status'],
+      handler: function (event, ctx) {
+        if (!realtime) return;
+        var target = event.currentTarget;
+        if (!target) return;
+        var id = target.getAttribute('data-inquiry-id');
+        var nextStatus = target.getAttribute('data-next-status');
+        if (!id || !nextStatus) return;
+        var inquiry = ctx.database.data.inquiries.find(function (row) { return row.id === id; });
+        if (!inquiry) return;
+        var updated = Object.assign({}, inquiry, { status: nextStatus });
+        realtime.update('inquiries', updated, { reason: 'pwa-dashboard' })
+          .then(function () {
+            setToast(ctx, { kind: 'success', message: 'تم تحديث الطلب.' });
+          })
+          .catch(function (error) {
+            console.error('[Brocker PWA] update inquiry failed', error);
+            setToast(ctx, { kind: 'error', message: 'لم يتم تحديث الطلب.' });
+          });
+      }
+    },
+    'ui.dashboard.listingStatus': {
+      on: ['click'],
+      gkeys: ['listing-status'],
+      handler: function (event, ctx) {
+        if (!realtime) return;
+        var target = event.currentTarget;
+        if (!target) return;
+        var id = target.getAttribute('data-listing-id');
+        var nextStatus = target.getAttribute('data-next-status');
+        if (!id || !nextStatus) return;
+        var listing = ctx.database.data.listings.find(function (row) { return row.id === id; });
+        if (!listing) return;
+        var updated = Object.assign({}, listing, { listing_status: nextStatus });
+        realtime.update('listings', updated, { reason: 'pwa-dashboard' })
+          .then(function () {
+            setToast(ctx, { kind: 'success', message: 'تم تعديل حالة الإعلان.' });
+          })
+          .catch(function (error) {
+            console.error('[Brocker PWA] update listing failed', error);
+            setToast(ctx, { kind: 'error', message: 'تعذر تعديل الإعلان.' });
+          });
+      }
+    },
+    'ui.broker.select': {
+      on: ['click'],
+      gkeys: ['broker-card'],
+      handler: function (event, ctx) {
+        var target = event.currentTarget;
+        if (!target) return;
+        var brokerId = target.getAttribute('data-broker-id');
+        if (!brokerId) return;
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              selectedBrokerId: brokerId,
+              activeView: 'brokers'
+            })
+          });
+        });
+      }
+    },
+    'ui.broker.back': {
+      on: ['click'],
+      gkeys: ['broker-back'],
+      handler: function (_event, ctx) {
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, { selectedBrokerId: null })
+          });
+        });
+      }
+    },
+    'ui.broker.auth': {
+      on: ['submit'],
+      gkeys: ['broker-auth'],
+      handler: function (event, ctx) {
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
+        if (!event || !event.target || typeof FormData === 'undefined') return;
+        var fd = new FormData(event.target);
+        var phone = (fd.get('brokerPhone') || '').trim();
+        var region = (fd.get('brokerRegion') || '').trim();
+        if (!phone) {
+          setToast(ctx, { kind: 'error', message: 'أدخل رقم الهاتف.' });
+          return;
+        }
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              brokerAuth: { phone: phone, region: region || null, stage: 'otp' }
+            })
+          });
+        });
+        setToast(ctx, { kind: 'success', message: 'تم إرسال رمز التحقق عبر واتساب.' });
+      }
+    },
+    'ui.toast.dismiss': {
+      on: ['click'],
+      gkeys: ['toast-dismiss'],
+      handler: function (_event, ctx) {
+        ctx.setState(function (db) {
+          return Object.assign({}, db, { state: Object.assign({}, db.state, { toast: null }) });
+        });
+      }
+    },
+    'ui.pwa.install': {
+      on: ['click'],
+      gkeys: ['pwa-install'],
+      handler: function (_event, ctx) {
+        var helper = global.MishkahAuto && global.MishkahAuto.pwa;
+        if (!helper) {
+          setToast(ctx, { kind: 'error', message: 'التثبيت غير مدعوم.' });
+          return;
+        }
+        helper.promptInstall()
+          .catch(function (error) {
+            console.warn('[Brocker PWA] install prompt failed', error);
+            setToast(ctx, { kind: 'error', message: 'تعذر فتح نافذة التثبيت.' });
+          });
+      }
+    },
+    'ui.pwa.skip': {
+      on: ['click'],
+      gkeys: ['pwa-skip'],
+      handler: function (_event, ctx) {
+        var helper = global.MishkahAuto && global.MishkahAuto.pwa;
+        if (helper) helper.markInstalled('manual');
+        ctx.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              pwa: Object.assign({}, db.state.pwa, { installed: true, showGate: false })
+            })
+          });
+        });
+      }
+    }
+  };
+  function AppView(db) {
+    var listingModels = buildListingModels(db);
+    var view = db.state.activeView;
+    var content;
+    if (db.state.loading) content = LoadingSection();
+    else if (view === 'listing' && db.state.selectedListingId) content = ListingDetailView(db, listingModels);
+    else if (view === 'brokers') content = BrokersView(db, listingModels);
+    else if (view === 'dashboard') content = DashboardView(db, listingModels);
+    else content = HomeView(db, listingModels);
+
+    var toast = db.state.toast ? ToastBanner(db.state.toast) : null;
+    var errorBanner = db.state.error ? ErrorBanner(db.state.error) : null;
+    var installBanner = (!db.state.loading && db.state.pwa && !db.state.pwa.showGate && !db.state.pwa.installed)
+      ? InstallBanner(db)
+      : null;
+
+    return D.Containers.Main({ attrs: { class: tw('relative min-h-screen bg-slate-950 text-slate-100 pb-24', token('body')) } }, [
+      errorBanner,
+      toast,
+      content,
+      BottomNav(db),
+      installBanner,
+      db.state.pwa && db.state.pwa.showGate ? InstallGate(db) : null
+    ]);
+  }
+
+  function HomeView(db, listingModels) {
+    var settings = db.data.appSettings;
+    var slides = db.data.heroSlides || [];
+    var filtered = filterListings(listingModels, db.state.filters).slice(0, 6);
+    return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 space-y-6 max-w-6xl mx-auto') } }, [
+      HeaderSection(settings),
+      HeroSection(settings, slides),
+      SearchPanel(db, listingModels),
+      LatestListingsGrid(filtered)
+    ]);
+  }
+  function ListingDetailView(db, listingModels) {
+    var target = listingModels.find(function (model) { return model.listing.id === db.state.selectedListingId; });
+    if (!target) {
+      return D.Containers.Section({ attrs: { class: 'px-4 py-10 text-center text-slate-400' } }, ['لم يتم العثور على الوحدة المختارة.']);
+    }
+    return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-4 max-w-5xl mx-auto space-y-6') } }, [
+      DetailToolbar(),
+      DetailGallery(target),
+      DetailSummary(target),
+      InquiryForm(target),
+      RelatedHighlights(db, target)
+    ]);
+  }
+
+  function BrokersView(db, listingModels) {
+    var brokers = (db.data.brokers || []).slice().sort(function (a, b) {
+      var ar = Number.isFinite(a && a.rating) ? a.rating : 0;
+      var br = Number.isFinite(b && b.rating) ? b.rating : 0;
+      return br - ar;
+    });
+    var selected = db.state.selectedBrokerId ? brokers.find(function (entry) { return entry.id === db.state.selectedBrokerId; }) : null;
+    var brokerListings = selected ? listingModels.filter(function (model) { return model.listing.broker_id === selected.id; }) : [];
+    return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 max-w-6xl mx-auto space-y-6') } }, [
+      HeaderSection(db.data.appSettings),
+      selected ? BrokerProfile(selected, brokerListings) : BrokerGrid(brokers),
+      BrokerAuthPanel(db)
+    ]);
+  }
+
+  function DashboardView(db, listingModels) {
+    return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 max-w-6xl mx-auto space-y-6') } }, [
+      HeaderSection(db.data.appSettings),
+      DashboardStats(db, listingModels),
+      InquiryBoard(db, listingModels),
+      NotificationFeed(db)
+    ]);
+  }
+  function DetailSummary(model) {
+    var unit = model.unit || {};
+    var broker = model.broker;
+    var features = model.features || [];
+    var highlights = Array.isArray(model.listing.highlights) ? model.listing.highlights : [];
+    return D.Containers.Div({ attrs: { class: tw('space-y-4 rounded-3xl border border-white/5 bg-slate-900/40 p-6') } }, [
+      D.Text.H2({ attrs: { class: 'text-xl font-semibold text-white' } }, [model.listing.headline || 'تفاصيل الوحدة']),
+      unit.description ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [unit.description]) : null,
+      D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-3 text-xs text-slate-400' } }, [
+        unit.area ? Chip(unit.area + ' م²') : null,
+        Number.isFinite(unit.bedrooms) ? Chip(unit.bedrooms + ' غرف') : null,
+        Number.isFinite(unit.bathrooms) ? Chip(unit.bathrooms + ' حمام') : null,
+        model.region ? Chip(model.region.name) : null
+      ].filter(Boolean)),
+      highlights.length ? D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs' } }, highlights.map(function (text) { return Chip(text); })) : null,
+      features.length
+        ? D.Containers.Div({ attrs: { class: 'text-sm text-slate-300' } }, [
+            D.Text.Strong({ attrs: { class: 'text-slate-100' } }, ['مميزات الوحدة:']),
+            D.Containers.Ul({ attrs: { class: 'mt-2 space-y-1' } }, features.map(function (name) {
+              return D.Lists.Li({ attrs: { class: 'text-slate-300' } }, [name]);
+            }))
+          ])
+        : null,
+      broker ? BrokerBadge(broker) : null,
+      D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm pt-2 border-t border-white/5' } }, [
+        D.Text.Span({ attrs: { class: 'text-slate-400' } }, ['السعر']),
+        D.Text.Strong({ attrs: { class: 'text-emerald-400 text-lg' } }, [formatPrice(model.listing)])
+      ])
+    ]);
+  }
+  function InquiryForm(model) {
+    return D.Forms.Form({
+      attrs: {
+        class: tw('space-y-3 rounded-3xl border border-white/5 bg-slate-900/40 p-6'),
+        'data-m-gkey': 'inquiry-form',
+        'data-listing-id': model.listing.id
+      }
+    }, [
+      D.Text.H3({ attrs: { class: 'text-lg font-semibold text-white' } }, ['اطلب معاينة أو اتصال']),
+      D.Inputs.Input({ attrs: { name: 'leadName', placeholder: 'الاسم الكامل', class: inputClass() } }),
+      D.Inputs.Input({ attrs: { name: 'leadPhone', placeholder: 'رقم الجوال', class: inputClass(), type: 'tel' } }),
+      D.Inputs.Select({ attrs: { name: 'leadPreferred', class: inputClass() } }, [
+        D.Inputs.Option({ attrs: { value: 'any', selected: true } }, ['أي وقت']),
+        D.Inputs.Option({ attrs: { value: 'morning' } }, ['صباحاً']),
+        D.Inputs.Option({ attrs: { value: 'evening' } }, ['مساءً'])
+      ]),
+      D.Inputs.Textarea({ attrs: { name: 'leadMessage', placeholder: 'اذكر احتياجاتك أو موعد التواصل المفضل', class: inputClass(), rows: 3 } }),
+      D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30') } }, ['إرسال الطلب'])
+    ]);
+  }
+
+  function RelatedHighlights(db, model) {
+    var notifications = (db.data.notifications || []).filter(function (item) {
+      return item.user_id === model.listing.broker_id;
+    }).slice(0, 3);
+    if (!notifications.length) return null;
+    return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/30 p-4 space-y-2') } }, [
+      D.Text.Strong({ attrs: { class: 'text-sm text-slate-200' } }, ['تنبيهات من الوسيط']),
+      D.Containers.Ul({ attrs: { class: 'space-y-1 text-sm text-slate-300' } }, notifications.map(function (item) {
+        return D.Lists.Li({ attrs: { key: item.id } }, [item.message]);
+      }))
+    ]);
+  }
+  function BrokerBadge(broker) {
+    return D.Containers.Div({ attrs: { class: 'flex items-center gap-2 rounded-2xl border border-white/5 bg-slate-950/50 px-3 py-2 text-xs text-slate-300' } }, [
+      broker.avatar_url ? D.Media.Img({ attrs: { src: broker.avatar_url, alt: broker.full_name, class: 'h-8 w-8 rounded-full object-cover' } }) : null,
+      D.Containers.Div({}, [
+        D.Text.Span({ attrs: { class: 'text-sm text-white' } }, [broker.full_name || 'وسيط معتمد']),
+        broker.phone ? D.Text.Span({ attrs: { class: 'text-[11px] text-slate-400' } }, [broker.phone]) : null
+      ])
+    ]);
+  }
+  function BrokerGrid(brokers) {
+    if (!brokers.length) {
+      return D.Containers.Div({ attrs: { class: 'text-center text-slate-400 text-sm' } }, ['لا يوجد وسطاء حالياً.']);
+    }
+    var cards = brokers.map(function (broker) {
+      return D.Containers.Article({
+        attrs: {
+          class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-4 space-y-2 cursor-pointer hover:border-emerald-400/40'),
+          'data-m-gkey': 'broker-card',
+          'data-broker-id': broker.id
+        }
+      }, [
+        broker.avatar_url ? D.Media.Img({ attrs: { src: broker.avatar_url, alt: broker.full_name, class: 'h-12 w-12 rounded-full object-cover' } }) : null,
+        D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, [broker.full_name || 'وسيط معتمد']),
+        broker.company_name ? D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [broker.company_name]) : null,
+        broker.region_id ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, ['منطقة الخدمة: ' + broker.region_id]) : null,
+        broker.rating ? D.Text.Span({ attrs: { class: 'text-xs text-amber-400' } }, ['⭐ ' + broker.rating.toFixed(1)]) : null
+      ]);
+    });
+    return D.Containers.Div({ attrs: { class: 'grid gap-4 md:grid-cols-2 lg:grid-cols-3' } }, cards);
+  }
+
+  function BrokerProfile(broker, listingModels) {
+    var stats = D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs text-slate-400' } }, [
+      broker.region_id ? Chip('منطقة: ' + broker.region_id) : null,
+      broker.rating ? Chip('تقييم ' + broker.rating.toFixed(1)) : null,
+      broker.active_since ? Chip('منذ ' + broker.active_since) : null
+    ].filter(Boolean));
+    return D.Containers.Div({ attrs: { class: 'space-y-4' } }, [
+      D.Forms.Button({ attrs: { type: 'button', class: 'text-sm text-emerald-400', 'data-m-gkey': 'broker-back' } }, ['← جميع الوسطاء']),
+      D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-6 space-y-3') } }, [
+        D.Text.H2({ attrs: { class: 'text-lg font-semibold text-white' } }, [broker.full_name || 'وسيط معتمد']),
+        broker.bio ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [broker.bio]) : null,
+        stats,
+        D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs text-slate-400' } }, [
+          broker.phone ? Chip('📞 ' + broker.phone) : null,
+          broker.whatsapp ? Chip('واتساب ' + broker.whatsapp) : null
+        ].filter(Boolean))
+      ]),
+      listingModels.length
+        ? D.Containers.Div({ attrs: { class: 'space-y-2' } }, [
+            D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, ['وحدات الوسيط']),
+            LatestListingsGrid(listingModels)
+          ])
+        : D.Text.P({ attrs: { class: 'text-sm text-slate-400' } }, ['لا توجد وحدات مرتبطة بهذا الوسيط حالياً.'])
+    ]);
+  }
+  function BrokerAuthPanel(db) {
+    return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-dashed border-white/10 bg-slate-900/30 p-6 space-y-3') } }, [
+      D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, ['انضم كوسيط معتمد']),
+      D.Text.P({ attrs: { class: 'text-sm text-slate-400' } }, ['سجل بياناتك وسيتم إرسال رمز التحقق عبر واتساب.']),
+      D.Forms.Form({ attrs: { class: 'space-y-2', 'data-m-gkey': 'broker-auth' } }, [
+        D.Inputs.Input({ attrs: { name: 'brokerName', placeholder: 'الاسم التجاري', class: inputClass() } }),
+        D.Inputs.Input({ attrs: { name: 'brokerPhone', placeholder: 'رقم الجوال', class: inputClass(), type: 'tel', required: true } }),
+        D.Inputs.Input({ attrs: { name: 'brokerRegion', placeholder: 'منطقة الخدمة الرئيسية', class: inputClass() } }),
+        D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30') } }, ['طلب رمز OTP'])
+      ]),
+      db.state.brokerAuth && db.state.brokerAuth.phone
+        ? D.Text.Small({ attrs: { class: 'text-xs text-slate-400' } }, ['تم إرسال آخر رمز إلى: ' + db.state.brokerAuth.phone])
+        : null
+    ]);
+  }
+
+  function DashboardStats(db, listingModels) {
+    var inquiries = db.data.inquiries || [];
+    var totalListings = db.data.listings.length;
+    var activeListings = (db.data.listings || []).filter(function (listing) { return listing.listing_status === 'active'; }).length;
+    var newLeads = inquiries.filter(function (inquiry) { return inquiry.status === 'new'; }).length;
+    var cards = [
+      { label: 'إجمالي الطلبات', value: inquiries.length },
+      { label: 'طلبات جديدة', value: newLeads },
+      { label: 'عروض نشطة', value: activeListings },
+      { label: 'كل العروض', value: totalListings }
+    ].map(function (card) {
+      return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-4 text-center space-y-1') } }, [
+        D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [card.label]),
+        D.Text.Strong({ attrs: { class: 'text-2xl text-white' } }, [String(card.value)])
+      ]);
+    });
+    return D.Containers.Div({ attrs: { class: 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4' } }, cards);
+  }
+
+  function InquiryBoard(db, listingModels) {
+    var inquiries = (db.data.inquiries || []).slice().sort(function (a, b) {
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+    if (db.state.dashboard.inquiryStatus && db.state.dashboard.inquiryStatus !== 'all') {
+      inquiries = inquiries.filter(function (item) { return item.status === db.state.dashboard.inquiryStatus; });
+    }
+    if (!inquiries.length) {
+      return D.Containers.Div({ attrs: { class: 'rounded-3xl border border-white/5 bg-slate-900/30 p-6 text-sm text-slate-400' } }, ['لا توجد طلبات حالياً.']);
+    }
+    var listingIndex = indexBy(listingModels.map(function (model) { return model.listing; }), 'id');
+    var cards = inquiries.map(function (lead) {
+      var listing = listingIndex[lead.listing_id];
+      return D.Containers.Article({ attrs: { class: tw('space-y-2 rounded-2xl border border-white/5 bg-slate-950/50 p-4') } }, [
+        D.Text.Strong({ attrs: { class: 'text-sm text-white' } }, [lead.contact_name || 'عميل محتمل']),
+        D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [lead.contact_phone || 'بدون هاتف']),
+        lead.message ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-3' } }, [lead.message]) : null,
+        listing ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, ['الوحدة: ' + (listing.headline || listing.id)]) : null,
+        D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-xs text-slate-500' } }, [
+          D.Text.Span({}, [formatDate(lead.created_at)]),
+          D.Forms.Button({
+            attrs: {
+              type: 'button',
+              class: tw('rounded-full border px-3 py-1 text-xs', lead.status === 'new' ? 'border-emerald-400 text-emerald-300' : 'border-slate-600 text-slate-400'),
+              'data-m-gkey': 'inquiry-status',
+              'data-inquiry-id': lead.id,
+              'data-next-status': lead.status === 'new' ? 'replied' : 'closed'
+            }
+          }, [lead.status === 'new' ? 'تعيين كمردود' : 'إغلاق'])
+        ])
+      ]);
+    });
+    return D.Containers.Div({ attrs: { class: 'space-y-3' } }, [
+      D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-sm text-slate-400' } }, [
+        'ترتيب حسب أحدث الطلبات',
+        D.Inputs.Select({ attrs: { class: inputClass('text-xs'), 'data-m-gkey': 'inquiry-filter', value: db.state.dashboard.inquiryStatus } }, [
+          D.Inputs.Option({ attrs: { value: 'all' } }, ['الكل']),
+          D.Inputs.Option({ attrs: { value: 'new' } }, ['جديد']),
+          D.Inputs.Option({ attrs: { value: 'replied' } }, ['تم الرد']),
+          D.Inputs.Option({ attrs: { value: 'closed' } }, ['مغلق'])
+        ])
+      ]),
+      D.Containers.Div({ attrs: { class: 'space-y-3' } }, cards)
+    ]);
+  }
+
+  function NotificationFeed(db) {
+    var notifications = (db.data.notifications || []).slice().sort(function (a, b) {
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    }).slice(0, 4);
+    if (!notifications.length) return null;
+    return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-4 space-y-3') } }, [
+      D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, ['آخر التنبيهات']),
+      D.Containers.Div({ attrs: { class: 'space-y-2 text-sm text-slate-300' } }, notifications.map(function (item) {
+        return D.Containers.Div({ attrs: { key: item.id, class: 'rounded-2xl border border-white/5 bg-slate-950/40 p-3' } }, [
+          D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [item.title || 'تنبيه']),
+          D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [item.message]),
+          D.Text.Span({ attrs: { class: 'text-[10px] text-slate-500' } }, [formatDate(item.created_at)])
+        ]);
+      }))
+    ]);
+  }
+  function ToastBanner(payload) {
+    return D.Containers.Div({ attrs: { class: tw('fixed top-4 inset-x-0 mx-auto max-w-md rounded-full border border-white/10 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-lg shadow-black/40 z-40 flex items-center justify-between gap-2') } }, [
+      D.Text.Span({}, [payload.message || 'تم تنفيذ العملية.']),
+      D.Forms.Button({ attrs: { type: 'button', class: 'text-xs text-slate-400', 'data-m-gkey': 'toast-dismiss' } }, ['إغلاق'])
+    ]);
+  }
+
+  function ErrorBanner(message) {
+    return D.Containers.Div({ attrs: { class: tw('bg-rose-900/60 text-rose-50 text-sm text-center py-2 px-4') } }, [message]);
+  }
+
+  function InstallBanner(db) {
+    var pwa = db.state.pwa;
+    if (!pwa) return null;
+    return D.Containers.Div({ attrs: { class: tw('fixed bottom-20 inset-x-0 mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/80 p-4 text-sm text-white shadow-2xl shadow-black/50 z-40 space-y-2') } }, [
+      D.Text.Strong({ attrs: { class: 'text-base' } }, ['حوّل المنصة إلى تطبيق']),
+      D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [pwa.message || 'ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.']),
+      D.Containers.Div({ attrs: { class: 'flex gap-2' } }, [
+        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, ['تثبيت']),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, ['لاحقاً'])
+      ])
+    ]);
+  }
+
+  function InstallGate(db) {
+    var pwa = db.state.pwa;
+    return D.Containers.Div({ attrs: { class: tw('fixed inset-0 z-50 grid place-items-center bg-slate-950/95 backdrop-blur') } }, [
+      D.Containers.Div({ attrs: { class: tw('max-w-sm space-y-4 rounded-3xl border border-white/10 bg-slate-900/80 p-6 text-center text-white') } }, [
+        D.Text.H2({ attrs: { class: 'text-xl font-semibold' } }, ['تثبيت التطبيق مطلوب']),
+        D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [pwa && pwa.message ? pwa.message : 'لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.']),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, ['تثبيت الآن']),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, ['تخطي للاختبار'])
+      ])
+    ]);
+  }
+
+  function BottomNav(db) {
+    var buttons = [
+      { key: 'nav-home', label: 'الرئيسية', view: 'home' },
+      { key: 'nav-brokers', label: 'الوسطاء', view: 'brokers' },
+      { key: 'nav-dashboard', label: 'الطلبات', view: 'dashboard' },
+      { key: 'nav-listing', label: 'تفاصيل', view: 'listing' }
+    ].map(function (item) {
+      var active = db.state.activeView === item.view;
+      return D.Forms.Button({
+        attrs: {
+          type: 'button',
+          class: tw('flex-1 rounded-full py-2 text-xs font-semibold', active ? 'bg-emerald-500 text-white' : 'bg-slate-900/70 text-slate-300'),
+          'data-m-gkey': item.key,
+          'data-view': item.view
+        }
+      }, [item.label]);
+    });
+    return D.Containers.Nav({ attrs: { class: tw('fixed bottom-4 left-0 right-0 mx-auto flex w-[90%] max-w-xl gap-2 rounded-full border border-white/10 bg-slate-950/80 p-2 backdrop-blur z-30') } }, buttons);
+  }
+
+  function LoadingSection() {
+    return D.Containers.Section({ attrs: { class: 'flex min-h-screen items-center justify-center text-slate-400' } }, ['جارِ تحميل بيانات الوسطاء...']);
+  }
+  function HeaderSection(settings) {
+    if (!settings) {
+      return D.Containers.Header({ attrs: { class: tw('space-y-1 text-center text-white') } }, [
+        D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, ['Brocker Mishkah'])
+      ]);
+    }
+    return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center text-white') } }, [
+      settings.brand_logo
+        ? D.Media.Img({ attrs: { src: settings.brand_logo, alt: settings.brand_name || 'Brocker', class: 'mx-auto h-16 w-16 object-contain' } })
+        : null,
+      D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, [settings.brand_name || 'منصة الوسطاء']),
+      settings.tagline ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [settings.tagline]) : null
+    ]);
+  }
+
+  function HeroSection(settings, slides) {
+    var cards = (slides || []).slice().sort(function (a, b) {
+      var ap = Number.isFinite(a && a.priority) ? a.priority : Number.MAX_SAFE_INTEGER;
+      var bp = Number.isFinite(b && b.priority) ? b.priority : Number.MAX_SAFE_INTEGER;
+      return ap - bp;
+    }).map(function (slide) {
+      return HeroSlideCard(slide);
+    });
+    return D.Containers.Section({ attrs: { class: tw('rounded-3xl border border-white/5 bg-gradient-to-br from-slate-900/80 to-slate-950/80 p-6 space-y-4') } }, [
+      D.Text.H2({ attrs: { class: 'text-lg font-semibold text-white' } }, [settings && settings.hero_title ? settings.hero_title : 'ابدأ من البحث الذكي عن العقارات']),
+      settings && settings.hero_subtitle ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [settings.hero_subtitle]) : null,
+      cards.length ? D.Containers.Div({ attrs: { class: tw('grid gap-4 md:grid-cols-3') } }, cards) : null
+    ]);
+  }
+
+  function HeroSlideCard(slide) {
+    if (!slide) return null;
+    var media = null;
+    if (slide.media_type === 'video') {
+      media = D.Media.Video({ attrs: { src: slide.media_url, class: 'h-32 w-full rounded-2xl object-cover', autoplay: true, muted: true, loop: true, playsinline: true } });
+    } else if (slide.media_url) {
+      media = D.Media.Img({ attrs: { src: slide.media_url, alt: slide.title || 'slide', class: 'h-32 w-full rounded-2xl object-cover' } });
+    }
+    return D.Containers.Article({ attrs: { key: slide.id, class: tw('space-y-2 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-white') } }, [
+      media,
+      D.Text.Strong({ attrs: { class: 'text-sm' } }, [slide.title || 'عرض مميز']),
+      slide.subtitle ? D.Text.P({ attrs: { class: 'text-xs text-slate-300' } }, [slide.subtitle]) : null,
+      slide.cta_label ? D.Text.Span({ attrs: { class: 'text-[11px] text-emerald-300' } }, [slide.cta_label]) : null
+    ]);
+  }
+
+  function SearchPanel(db, listingModels) {
+    var filters = db.state.filters || {};
+    var regions = (db.data.regions || []).slice().sort(function (a, b) {
+      return (a.priority || 99) - (b.priority || 99);
+    });
+    var unitTypes = (db.data.unitTypes || []).slice();
+    var listingTypeValues = uniqueValues(listingModels.map(function (model) { return model.listing; }), 'listing_type');
+    var regionOptions = [D.Inputs.Option({ attrs: { value: '' } }, ['كل المناطق'])].concat(regions.map(function (region) {
+      return D.Inputs.Option({ attrs: { value: region.id } }, [region.name || region.id]);
+    }));
+    var unitTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, ['كل أنواع الوحدات'])].concat(unitTypes.map(function (type) {
+      return D.Inputs.Option({ attrs: { value: type.id } }, [type.name || type.id]);
+    }));
+    var listingTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, ['كل طرق العرض'])].concat(listingTypeValues.map(function (value) {
+      return D.Inputs.Option({ attrs: { value: value } }, [formatListingType(value)]);
+    }));
+    return D.Forms.Form({ attrs: { class: tw('space-y-4 rounded-3xl border border-white/5 bg-slate-900/60 p-6 text-white'), 'data-m-gkey': 'search-form' } }, [
+      D.Text.H3({ attrs: { class: 'text-lg font-semibold' } }, ['ابحث عن الوحدة المناسبة']),
+      D.Containers.Div({ attrs: { class: 'grid gap-4 md:grid-cols-3' } }, [
+        SelectField({ label: 'المنطقة', options: regionOptions, value: filters.regionId || '', filterKey: 'regionId' }),
+        SelectField({ label: 'نوع الوحدة', options: unitTypeOptions, value: filters.unitTypeId || '', filterKey: 'unitTypeId' }),
+        SelectField({ label: 'نوع العرض', options: listingTypeOptions, value: filters.listingType || '', filterKey: 'listingType' })
+      ]),
+      D.Containers.Div({ attrs: { class: 'flex justify-end' } }, [
+        D.Forms.Button({ attrs: { type: 'button', class: 'text-sm text-slate-300 underline', 'data-m-gkey': 'search-reset' } }, ['إعادة التصفية'])
+      ])
+    ]);
+  }
+
+  function LatestListingsGrid(listingModels) {
+    if (!listingModels.length) {
+      return D.Containers.Div({ attrs: { class: 'text-center text-sm text-slate-400' } }, ['لا توجد وحدات متاحة حالياً.']);
+    }
+    return D.Containers.Div({ attrs: { class: 'grid gap-4 md:grid-cols-2 lg:grid-cols-3' } }, listingModels.map(function (model) {
+      return ListingCard(model);
+    }));
+  }
+
+  function ListingCard(model) {
+    var listing = model.listing;
+    var unit = model.unit || {};
+    var cover = model.coverMedia;
+    var badges = [
+      listing.primary_highlight ? Chip(listing.primary_highlight) : null,
+      model.unitType ? Chip(model.unitType.name) : null,
+      model.region ? Chip(model.region.name) : null,
+      listing.listing_type ? Chip(formatListingType(listing.listing_type)) : null
+    ].filter(Boolean);
+    return D.Containers.Article({
+      attrs: {
+        class: tw('overflow-hidden rounded-3xl border border-white/5 bg-slate-950/60 text-white cursor-pointer transition hover:border-emerald-400/50'),
+        'data-m-gkey': 'listing-card',
+        'data-listing-id': listing.id
+      }
+    }, [
+      cover
+        ? D.Media.Img({ attrs: { src: cover.url, alt: listing.headline || listing.id, class: 'h-48 w-full object-cover' } })
+        : D.Containers.Div({ attrs: { class: 'h-48 w-full bg-slate-900 grid place-items-center text-slate-500' } }, ['بدون صورة']),
+      D.Containers.Div({ attrs: { class: 'space-y-2 p-4' } }, [
+        D.Text.Strong({ attrs: { class: 'text-base' } }, [listing.headline || 'وحدة متاحة']),
+        listing.excerpt ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-2' } }, [listing.excerpt]) : null,
+        badges.length ? D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs text-slate-400' } }, badges) : null,
+        D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm text-slate-300 pt-2 border-t border-white/5' } }, [
+          D.Text.Span({}, [unit.area ? unit.area + ' م²' : '']),
+          D.Text.Strong({ attrs: { class: 'text-emerald-400' } }, [formatPrice(listing)])
+        ])
+      ])
+    ]);
+  }
+
+  function DetailToolbar() {
+    return D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm text-slate-300' } }, [
+      D.Forms.Button({ attrs: { type: 'button', class: 'text-slate-300', 'data-m-gkey': 'listing-back' } }, ['← العودة للنتائج']),
+      D.Text.Span({}, ['استكشف التفاصيل الكاملة للوحدة'])
+    ]);
+  }
+
+  function DetailGallery(model) {
+    var mediaItems = (model.media || []).slice().sort(function (a, b) {
+      var ap = Number.isFinite(a && a.priority) ? a.priority : 999;
+      var bp = Number.isFinite(b && b.priority) ? b.priority : 999;
+      return ap - bp;
+    });
+    if (!mediaItems.length) {
+      return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-dashed border-white/10 bg-slate-950/40 p-10 text-center text-slate-500') } }, ['لا توجد وسائط للوحدة.']);
+    }
+    var hero = mediaItems[0];
+    var gallery = mediaItems.slice(1, 4);
+    return D.Containers.Div({ attrs: { class: 'space-y-3' } }, [
+      GalleryMediaItem(hero, 'hero'),
+      gallery.length ? D.Containers.Div({ attrs: { class: 'grid gap-3 sm:grid-cols-3' } }, gallery.map(function (item) { return GalleryMediaItem(item, 'thumb'); })) : null
+    ]);
+  }
+
+  function GalleryMediaItem(media, variant) {
+    if (!media) return null;
+    var classes = variant === 'hero' ? 'h-72 w-full rounded-3xl object-cover' : 'h-32 w-full rounded-2xl object-cover';
+    if (media.media_type === 'video') {
+      return D.Media.Video({ attrs: { src: media.url, controls: true, muted: true, class: classes } });
+    }
+    return D.Media.Img({ attrs: { src: media.url, alt: media.description || 'media', class: classes } });
+  }
+  function SelectField(config) {
+    var options = Array.isArray(config.options) ? config.options : [];
+    var value = config.value == null ? '' : config.value;
+    return D.Containers.Div({ attrs: { class: 'space-y-1' } }, [
+      config.label ? D.Forms.Label({ attrs: { class: 'text-xs text-slate-300' } }, [config.label]) : null,
+      D.Inputs.Select({
+        attrs: {
+          class: inputClass(),
+          'data-m-gkey': 'search-filter',
+          'data-filter-key': config.filterKey || '',
+          value: value
+        }
+      }, options)
+    ]);
+  }
+
+  function Chip(text) {
+    if (!text) return null;
+    return D.Containers.Span({ attrs: { class: 'rounded-full border border-white/10 px-3 py-1 text-xs text-slate-300' } }, [text]);
+  }
+
+  function inputClass(extra) {
+    return tw('w-full rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white focus:border-emerald-400 outline-none', extra || '');
+  }
+
+  function formatPrice(listing) {
+    if (!listing) return '';
+    var amount = Number(listing.price_amount || listing.price || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return listing.currency ? listing.currency : '—';
+    }
+    try {
+      var lang = initialDatabase.env && initialDatabase.env.lang ? initialDatabase.env.lang : 'ar';
+      var fmt = new Intl.NumberFormat(lang === 'ar' ? 'ar-EG' : 'en-US', { style: 'currency', currency: listing.currency || 'EGP', maximumFractionDigits: 0 });
+      var text = fmt.format(amount);
+      if (listing.price_period && listing.price_period !== 'one_time') {
+        text += ' / ' + listing.price_period;
+      }
+      return text;
+    } catch (_err) {
+      return amount.toLocaleString() + ' ' + (listing.currency || '');
+    }
+  }
+
+  function formatDate(value) {
+    if (!value) return '';
+    try {
+      var date = value instanceof Date ? value : new Date(value);
+      var lang = initialDatabase.env && initialDatabase.env.lang ? initialDatabase.env.lang : 'ar';
+      var fmt = new Intl.DateTimeFormat(lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' });
+      return fmt.format(date);
+    } catch (_err) {
+      return String(value);
+    }
+  }
+
+  function formatListingType(value) {
+    if (!value) return '';
+    var normalized = String(value).toLowerCase();
+    if (normalized === 'sale') return 'تمليك';
+    if (normalized === 'rent') return 'إيجار';
+    if (normalized === 'lease') return 'إيجار تشغيلي';
+    return value;
+  }
+
+  function findById(rows, id) {
+    if (!id || !Array.isArray(rows)) return null;
+    return rows.find(function (row) { return row && row.id === id; }) || null;
+  }
+
+  function indexBy(rows, key) {
+    var map = {};
+    (rows || []).forEach(function (row) {
+      if (!row || row[key] == null) return;
+      map[row[key]] = row;
+    });
+    return map;
+  }
+
+  function uniqueValues(rows, key) {
+    var seen = new Set();
+    var values = [];
+    (rows || []).forEach(function (row) {
+      if (!row || row[key] == null) return;
+      var value = row[key];
+      var normalized = typeof value === 'string' ? value : String(value);
+      if (seen.has(normalized)) return;
+      seen.add(normalized);
+      values.push(normalized);
+    });
+    return values;
+  }
+
+  function filterListings(listingModels, filters) {
+    var list = Array.isArray(listingModels) ? listingModels : [];
+    if (!filters) return list;
+    return list.filter(function (model) {
+      if (filters.regionId && model.listing.region_id !== filters.regionId) return false;
+      if (filters.unitTypeId && (!model.unit || model.unit.unit_type_id !== filters.unitTypeId)) return false;
+      if (filters.listingType && model.listing.listing_type !== filters.listingType) return false;
+      return true;
+    });
+  }
+
+  function groupBy(rows, key) {
+    var bucket = Object.create(null);
+    (rows || []).forEach(function (row) {
+      if (!row || row[key] == null) return;
+      var id = row[key];
+      if (!bucket[id]) bucket[id] = [];
+      bucket[id].push(row);
+    });
+    return bucket;
+  }
+
+  function groupFeatures(values, featureIndex) {
+    return (values || []).map(function (entry) {
+      var def = entry && featureIndex[entry.feature_id];
+      var label = def && def.name ? def.name : 'ميزة';
+      return entry && entry.value ? label + ': ' + entry.value : label;
+    });
+  }
+
+  function buildListingModels(db) {
+    var listings = (db.data && db.data.listings) || [];
+    if (!listings.length) return [];
+    var units = indexBy(db.data.units || [], 'id');
+    var brokers = indexBy(db.data.brokers || [], 'id');
+    var regions = indexBy(db.data.regions || [], 'id');
+    var unitTypes = indexBy(db.data.unitTypes || [], 'id');
+    var mediaByUnit = groupBy(db.data.unitMedia || [], 'unit_id');
+    var layoutsByUnit = groupBy(db.data.unitLayouts || [], 'unit_id');
+    var featureValuesByUnit = groupBy(db.data.featureValues || [], 'unit_id');
+    var featureIndex = indexBy(db.data.unitFeatures || [], 'id');
+    var models = listings.map(function (listing) {
+      var unit = listing.unit_id ? units[listing.unit_id] || null : null;
+      var broker = listing.broker_id ? brokers[listing.broker_id] || null : null;
+      var region = listing.region_id ? regions[listing.region_id] || null : null;
+      var mediaList = (mediaByUnit[listing.unit_id] || []).slice().sort(function (a, b) {
+        var ap = Number.isFinite(a && a.priority) ? a.priority : 999;
+        var bp = Number.isFinite(b && b.priority) ? b.priority : 999;
+        return ap - bp;
+      });
+      var cover = listing.primary_media_id ? findById(mediaList, listing.primary_media_id) : mediaList[0];
+      var featureLabels = groupFeatures(featureValuesByUnit[listing.unit_id], featureIndex);
+      return {
+        listing: listing,
+        unit: unit,
+        broker: broker,
+        region: region,
+        unitType: unit && unit.unit_type_id ? unitTypes[unit.unit_type_id] || null : null,
+        media: mediaList,
+        coverMedia: cover,
+        layouts: layoutsByUnit[listing.unit_id] || [],
+        features: featureLabels
+      };
+    });
+    return models.sort(function (a, b) {
+      var ap = Number.isFinite(a.listing.featured_order) ? a.listing.featured_order : Number.MAX_SAFE_INTEGER;
+      var bp = Number.isFinite(b.listing.featured_order) ? b.listing.featured_order : Number.MAX_SAFE_INTEGER;
+      if (ap !== bp) return ap - bp;
+      return new Date(b.listing.created_at || 0) - new Date(a.listing.created_at || 0);
+    });
+  }
+  function resolveApiBase() {
+    if (global.basedomain) return String(global.basedomain).replace(/\/+$/, '');
+    if (global.location && global.location.origin) return global.location.origin.replace(/\/+$/, '');
+    return '';
+  }
+
+  var TABLE_TO_DATA_KEY = {
+    app_settings: 'appSettings',
+    hero_slides: 'heroSlides',
+    regions: 'regions',
+    unit_types: 'unitTypes',
+    listings: 'listings',
+    brokers: 'brokers',
+    units: 'units',
+    unit_media: 'unitMedia',
+    unit_layouts: 'unitLayouts',
+    feature_values: 'featureValues',
+    unit_features: 'unitFeatures',
+    inquiries: 'inquiries',
+    notifications: 'notifications'
+  };
+
+  function commitTable(app, tableName, rows) {
+    if (!app) return;
+    var dataKey = TABLE_TO_DATA_KEY[tableName] || tableName;
+    var normalizedRows = Array.isArray(rows) ? rows : [];
+    if (tableName === 'hero_slides') {
+      normalizedRows = normalizedRows.slice().sort(function (a, b) {
+        var ap = Number.isFinite(a && a.priority) ? a.priority : Number.MAX_SAFE_INTEGER;
+        var bp = Number.isFinite(b && b.priority) ? b.priority : Number.MAX_SAFE_INTEGER;
+        return ap - bp;
+      });
+    }
+    app.setState(function (db) {
+      var data = Object.assign({}, db.data);
+      var nextEnv = Object.assign({}, db.env);
+      data[dataKey] = tableName === 'app_settings' ? (normalizedRows[0] || null) : normalizedRows.slice();
+      if (tableName === 'app_settings' && normalizedRows[0] && normalizedRows[0].lang) {
+        var lang = normalizedRows[0].lang;
+        nextEnv.lang = lang;
+        nextEnv.dir = lang && lang.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr';
+      }
+      var readyTables = Array.isArray(db.state.readyTables) ? db.state.readyTables.slice() : [];
+      if (readyTables.indexOf(tableName) === -1) readyTables.push(tableName);
+      var loading = false;
+      REQUIRED_TABLES.forEach(function (required) {
+        if (readyTables.indexOf(required) === -1) loading = true;
+      });
+      return Object.assign({}, db, {
+        env: nextEnv,
+        data: data,
+        state: Object.assign({}, db.state, {
+          readyTables: readyTables,
+          loading: loading
+        })
+      });
+    });
+    if (tableName === 'app_settings') {
+      var settings = normalizedRows[0] || null;
+      updateThemeTokens(settings);
+      syncPwaFromSettings(settings);
+    }
+  }
+
+  function buildManifestUrl() {
+    return '/api/pwa/' + encodeURIComponent(BRANCH_ID) + '/' + encodeURIComponent(MODULE_ID) + '/manifest.json';
+  }
+
+  function syncPwaFromSettings(settings) {
+    var helper = global.MishkahAuto && global.MishkahAuto.pwa;
+    var storageKey = settings && settings.pwa_storage_key ? settings.pwa_storage_key : initialDatabase.state.pwa.storageKey;
+    if (helper && storageKey) {
+      helper.setStorageKey(storageKey);
+    }
+    if (!appInstance) return;
+    updatePwaState(appInstance, {
+      storageKey: storageKey,
+      installRequired: !!(settings && settings.pwa_install_required),
+      message: settings && settings.pwa_install_message ? settings.pwa_install_message : '',
+      manifestUrl: settings && settings.pwa_manifest_url ? settings.pwa_manifest_url : buildManifestUrl(),
+      installed: helper ? helper.isInstalled(storageKey) : (appInstance.database && appInstance.database.state && appInstance.database.state.pwa && appInstance.database.state.pwa.installed)
+    });
+  }
+
+  function updateThemeTokens(settings) {
+    if (!settings || !global.document) return;
+    var root = global.document.documentElement;
+    var body = global.document.body;
+    if (root && root.style) {
+      if (settings.theme_color) root.style.setProperty('--brocker-theme-color', settings.theme_color);
+      if (settings.background_color) root.style.setProperty('--brocker-background-color', settings.background_color);
+    }
+    if (body && settings.background_color) {
+      body.style.backgroundColor = settings.background_color;
+    }
+    var meta = global.document.querySelector && global.document.querySelector('meta[name="theme-color"]');
+    if (meta && settings.theme_color) {
+      meta.setAttribute('content', settings.theme_color);
+    }
+  }
+
+  function fetchModuleSchema(branchId, moduleId) {
+    var params = new URLSearchParams({ branch: branchId, module: moduleId });
+    var base = resolveApiBase();
+    var url = (base || '') + '/api/schema?' + params.toString();
+    return fetch(url, { cache: 'no-store' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('schema-request-failed');
+        return res.json();
+      })
+      .then(function (payload) {
+        var modules = payload && payload.modules ? payload.modules : {};
+        var entry = modules[moduleId];
+        if (!entry || !entry.schema) {
+          throw new Error('schema-missing');
+        }
+        return { schema: entry.schema, moduleEntry: entry };
+      });
+  }
+
+  function fetchPwaConfig() {
+    var base = resolveApiBase();
+    var url = (base || '') + '/api/pwa/' + encodeURIComponent(BRANCH_ID) + '/' + encodeURIComponent(MODULE_ID);
+    return fetch(url, { cache: 'no-store' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('pwa-config-missing');
+        return res.json();
+      })
+      .catch(function (error) {
+        console.warn('[Brocker PWA] failed to fetch PWA payload', error);
+        return null;
+      });
+  }
+
+  function setupPwaHooks(app) {
+    if (!app) return;
+    var helper = global.MishkahAuto && global.MishkahAuto.pwa;
+    if (helper) {
+      updatePwaState(app, { installed: helper.isInstalled(), storageKey: helper.storageKey });
+      helper.onBeforeInstallPrompt(function () {
+        updatePwaState(app, { canPrompt: helper.hasPendingPrompt ? helper.hasPendingPrompt() : true });
+      });
+    }
+    fetchPwaConfig().then(function (payload) {
+      if (!payload) return;
+      if (payload.settings) {
+        updateThemeTokens(payload.settings);
+        syncPwaFromSettings(payload.settings);
+      }
+      updatePwaState(app, { manifestUrl: buildManifestUrl() });
+    });
+    if (global.addEventListener) {
+      global.addEventListener('appinstalled', function () {
+        updatePwaState(app, { installed: true, showGate: false });
+      });
+    }
+  }
+
+  function bootstrapRealtime(app) {
+    if (!app) return;
+    if (typeof global.createDBAuto !== 'function') {
+      console.error('[Brocker PWA] createDBAuto is not available.');
+      app.setState(function (db) {
+        return Object.assign({}, db, {
+          state: Object.assign({}, db.state, { error: 'الاتصال المباشر غير متاح.', loading: false })
+        });
+      });
+      return;
+    }
+    fetchModuleSchema(BRANCH_ID, MODULE_ID)
+      .then(function (payload) {
+        var schema = payload && payload.schema ? payload.schema : null;
+        if (!schema) throw new Error('schema-invalid');
+        var selection = Array.isArray(payload.moduleEntry && payload.moduleEntry.tables) && payload.moduleEntry.tables.length
+          ? payload.moduleEntry.tables
+          : Object.keys(TABLE_TO_DATA_KEY);
+        realtime = global.createDBAuto(schema, selection, {
+          branchId: BRANCH_ID,
+          moduleId: MODULE_ID,
+          role: 'brocker-pwa',
+          historyLimit: 200,
+          autoReconnect: true,
+          logger: console
+        });
+        return realtime.ready().then(function () {
+          Object.keys(TABLE_TO_DATA_KEY).forEach(function (tableName) {
+            realtime.watch(tableName, function (rows) {
+              commitTable(app, tableName, Array.isArray(rows) ? rows : []);
+            });
+          });
+          realtime.status(function (status) {
+            if (status === 'error') {
+              app.setState(function (db) {
+                return Object.assign({}, db, {
+                  state: Object.assign({}, db.state, { error: 'انقطع الاتصال بقاعدة البيانات.' })
+                });
+              });
+            } else if (status === 'ready') {
+              app.setState(function (db) {
+                if (!db.state.error) return db;
+                return Object.assign({}, db, {
+                  state: Object.assign({}, db.state, { error: null })
+                });
+              });
+            }
+          });
+        });
+      })
+      .catch(function (error) {
+        console.error('[Brocker PWA] failed to bootstrap realtime', error);
+        app.setState(function (db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              error: 'تعذر تحميل البيانات، حاول لاحقاً.',
+              loading: false
+            })
+          });
+        });
+      });
+  }
+
+  function finalizeApp(app, opts) {
+    if (!app) return;
+    var options = opts || {};
+    if (!options.skipTwcss && twcss && typeof twcss.auto === 'function') {
+      try {
+        twcss.auto(initialDatabase, app, { pageScaffold: true });
+      } catch (err) {
+        console.warn('[Brocker PWA] failed to activate twcss.auto', err);
+      }
+    }
+    if (!options.skipAutoAttach && global.MishkahAuto && typeof global.MishkahAuto.attach === 'function') {
+      try {
+        global.MishkahAuto.attach(app);
+      } catch (err) {
+        console.warn('[Brocker PWA] failed to attach MishkahAuto', err);
+      }
+    }
+    setupPwaHooks(app);
+    bootstrapRealtime(app);
+    global.BrockerPwaApp = app;
+  }
+
+  function bootWithAutoDsl() {
+    var helper = global.MishkahAuto && global.MishkahAuto.app;
+    if (!helper || typeof helper.create !== 'function') return false;
+    try {
+      var controller = helper.create(initialDatabase, AppView, orders, '#app');
+      controller.ready(function (app) {
+        appInstance = app;
+        finalizeApp(app, { skipTwcss: true, skipAutoAttach: true });
+      }).catch(function (error) {
+        console.error('[Brocker PWA] DSL helper failed', error);
+      });
+      return true;
+    } catch (err) {
+      console.error('[Brocker PWA] unable to boot via MishkahAuto.app', err);
+      return false;
+    }
+  }
+
+  function bootFallback() {
+    var readyHelper = global.MishkahAuto && typeof global.MishkahAuto.ready === 'function'
+      ? global.MishkahAuto.ready.bind(global.MishkahAuto)
+      : function (cb) {
+          return Promise.resolve().then(function () {
+            if (typeof cb === 'function') cb(M);
+            return M;
+          });
+        };
+    return readyHelper(function (readyM) {
+      if (!readyM || !readyM.app || typeof readyM.app.createApp !== 'function') {
+        throw new Error('mishkah-core-not-ready');
+      }
+      readyM.app.setBody(AppView);
+      var app = readyM.app.createApp(initialDatabase, orders);
+      app.mount('#app');
+      appInstance = app;
+      finalizeApp(app);
+      return readyM;
+    }).catch(function (error) {
+      console.error('[Brocker PWA] fallback boot failed', error);
+    });
+  }
+
+  if (!bootWithAutoDsl()) {
+    bootFallback();
+  }
+})();
