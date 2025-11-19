@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mishkah Dynamic CRUD Testing</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <style>
     * {
       margin: 0;
@@ -115,6 +118,48 @@
       background: currentColor;
     }
 
+    .tabs-bar {
+      display: flex;
+      gap: 10px;
+      padding: 16px 30px 0;
+      border-bottom: 1px solid #e5e7eb;
+      background: white;
+    }
+
+    .tab {
+      padding: 8px 18px;
+      border: none;
+      background: #f3f4f6;
+      color: #374151;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: #111827;
+      color: white;
+      box-shadow: 0 4px 12px rgba(17, 24, 39, 0.15);
+    }
+
+    .panel-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .view-panel {
+      display: none !important;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .view-panel.active {
+      display: flex !important;
+    }
+
     .main-content {
       display: flex;
       flex: 1;
@@ -165,6 +210,241 @@
     .content-area {
       flex: 1;
       padding: 20px 30px;
+    }
+
+    .sql-panel {
+      flex-direction: column;
+      padding: 20px 30px;
+      gap: 16px;
+      background: #f9fafb;
+    }
+
+    .sql-admin-layout {
+      display: flex;
+      flex: 1;
+      gap: 20px;
+      min-height: 0;
+    }
+
+    .sql-sidebar {
+      width: 280px;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .sql-sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .sql-sidebar h3 {
+      margin: 0;
+      font-size: 14px;
+      color: #111827;
+    }
+
+    .sql-tree {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .sql-tree-group {
+      margin-bottom: 16px;
+    }
+
+    .sql-tree-group h4 {
+      font-size: 12px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 4px;
+    }
+
+    .sql-tree-items {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .sql-tree-item {
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #111827;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s;
+    }
+
+    .sql-tree-item:hover {
+      background: #f3f4f6;
+    }
+
+    .sql-tree-item small {
+      color: #6b7280;
+      font-size: 11px;
+    }
+
+    .sql-workspace {
+      flex: 1;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+    }
+
+    .sql-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sql-toolbar h3 {
+      margin: 0;
+      font-size: 18px;
+      color: #111827;
+    }
+
+    .sql-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .sql-editor {
+      flex: 0 0 260px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0d1117;
+    }
+
+    .sql-editor .CodeMirror {
+      height: 240px;
+      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      direction: ltr;
+    }
+
+    .sql-results {
+      flex: 1;
+      margin-top: 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 16px;
+      background: #f9fafb;
+      max-width: 100%;
+      max-height: calc(100vh - 320px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sql-results .table-container {
+      flex: 1;
+      width: 100%;
+      max-width: 100%;
+      overflow: auto;
+      border-radius: 8px;
+      background: white;
+      scrollbar-gutter: stable both-edges;
+    }
+
+    .sql-placeholder {
+      text-align: center;
+      color: #6b7280;
+      padding: 30px 10px;
+      font-size: 14px;
+    }
+
+    .sql-placeholder strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #111827;
+    }
+
+    .sql-results table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .sql-results th,
+    .sql-results td {
+      border: 1px solid #e5e7eb;
+      padding: 6px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .sql-results thead {
+      background: #eef2ff;
+    }
+
+    .sql-meta {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+
+    .sql-context-menu {
+      position: fixed;
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
+      min-width: 200px;
+      z-index: 10000;
+      display: none;
+    }
+
+    .sql-context-menu.visible {
+      display: block;
+    }
+
+    .sql-context-menu button {
+      width: 100%;
+      padding: 10px 14px;
+      border: none;
+      background: transparent;
+      text-align: right;
+      font-size: 13px;
+      cursor: pointer;
+      color: #111827;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .sql-context-menu button:hover {
+      background: #f3f4f6;
+    }
+
+    .sql-context-menu small {
+      color: #6b7280;
     }
 
     .toolbar {
@@ -413,34 +693,75 @@
       </div>
     </div>
 
-    <!-- Main Content -->
-    <div class="main-content">
-      <!-- Sidebar - Tables List -->
-      <div class="sidebar">
-        <h3>الجداول المتاحة</h3>
-        <ul class="table-list" id="tablesList">
-          <li class="table-item">⏳ جاري التحميل...</li>
-        </ul>
+    <div class="tabs-bar">
+      <button class="tab active" type="button" data-tab="crud">🧩 CRUD</button>
+      <button class="tab" type="button" data-tab="sqlite">🗄️ SQLite Admin</button>
+    </div>
+
+    <div class="panel-wrapper">
+      <div class="main-content view-panel active" id="crudPanel" data-panel="crud">
+        <div class="sidebar">
+          <h3>الجداول المتاحة</h3>
+          <ul class="table-list" id="tablesList">
+            <li class="table-item">⏳ جاري التحميل...</li>
+          </ul>
+        </div>
+
+        <div class="content-area">
+          <div id="contentArea">
+            <div class="empty-state">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+              </svg>
+              <h3>اختر جدول للبدء</h3>
+              <p>اختر جدول من القائمة الجانبية لعرض البيانات</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <!-- Content Area -->
-      <div class="content-area">
-        <div id="contentArea">
-          <div class="empty-state">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a 2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-            </svg>
-            <h3>اختر جدول للبدء</h3>
-            <p>اختر جدول من القائمة الجانبية لعرض البيانات</p>
+      <div class="sql-panel view-panel" id="sqlPanel" data-panel="sqlite">
+        <div class="sql-admin-layout">
+          <div class="sql-sidebar">
+            <div class="sql-sidebar-header">
+              <h3>عناصر قاعدة البيانات</h3>
+              <button class="btn" id="refreshSchemaBtn" style="padding: 6px 12px; font-size: 12px;">🔄 تحديث</button>
+            </div>
+            <p style="font-size: 12px; color: #6b7280; margin-bottom: 10px;">استخدم الزر الأيمن للحصول على CREATE أو استعلام جاهز</p>
+            <ul class="sql-tree" id="sqlObjectsTree">
+              <li class="sql-placeholder">جاري تحميل عناصر SQLite...</li>
+            </ul>
+          </div>
+
+          <div class="sql-workspace">
+            <div class="sql-toolbar">
+              <h3>محرر الاستعلام</h3>
+              <div class="sql-actions">
+                <button class="btn" id="refreshAutocompleteBtn">♻️ تحديث الإكمال</button>
+                <button class="btn btn-primary" id="runSqlBtn">▶️ تنفيذ الاستعلام (Ctrl + Enter)</button>
+              </div>
+            </div>
+            <div class="sql-editor" id="sqlEditorContainer">
+              <textarea id="sqlEditor" placeholder="SELECT * FROM order_header LIMIT 10;"></textarea>
+            </div>
+            <div class="sql-results" id="sqlResults">
+              <div class="sql-placeholder">
+                <strong>منطقة نتائج الاستعلام</strong>
+                أدخل استعلام SQL ثم اضغط تشغيل لعرض البيانات من قاعدة SQLite
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
   <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="/lib/mishkah.store.js"></script>
   <script src="/lib/mishkah.crud.js"></script>
   <script src="/crud.js"></script>
+  <div id="sqlContextMenu" class="sql-context-menu"></div>
 </body>
 </html>
