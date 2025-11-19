@@ -4079,7 +4079,9 @@
       }
     }
 
-    const SchemaCloud = (function(){
+    const SchemaCloud = {};
+
+    (function(api){
       async function fetchJson(url, options = {}){
         logCloudEvent('fetch:start', { url, method: options.method || 'GET' });
         const response = await fetch(url, options);
@@ -4245,10 +4247,11 @@
         logCloudEvent('saveSchema:success', { path });
         return true;
       }
-    }
 
-      return { listIndex, fetchSchema, saveSchema };
-    })();
+      api.listIndex = listIndex;
+      api.fetchSchema = fetchSchema;
+      api.saveSchema = saveSchema;
+    })(SchemaCloud);
 
     async function fetchBranchList(){
       try{
