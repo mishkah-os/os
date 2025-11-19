@@ -9,6 +9,27 @@
   }
 
   var D = M.DSL;
+  function ensureDslBinding(source) {
+    if (source && source.DSL) {
+      D = source.DSL;
+      return;
+    }
+    if (global.Mishkah && global.Mishkah.DSL) {
+      D = global.Mishkah.DSL;
+    }
+  }
+  if (!D) {
+    ensureDslBinding(global.Mishkah);
+    if (!D && global.MishkahAuto && typeof global.MishkahAuto.ready === 'function') {
+      try {
+        global.MishkahAuto.ready(function (readyM) {
+          ensureDslBinding(readyM);
+        });
+      } catch (err) {
+        console.warn('[Brocker PWA] unable to sync Mishkah DSL binding', err);
+      }
+    }
+  }
   var UI = M.UI || {};
   var twcss = (M.utils && M.utils.twcss) || {};
   var tw = typeof twcss.tw === 'function'
