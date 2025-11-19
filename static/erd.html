@@ -1078,6 +1078,7 @@
       'context.table.columns':{ ar:'إدارة الأعمدة', en:'Manage columns' },
       'context.table.addUnique':{ ar:'إضافة قيد فريد', en:'Add unique constraint' },
       'context.table.addIndex':{ ar:'إضافة فهرس', en:'Add index' },
+      'context.table.translation':{ ar:'إنشاء جدول ترجمة', en:'Create translation table' },
       'context.table.generateFk':{ ar:'توليد علاقة خارجية', en:'Generate foreign key' },
       'context.table.exportSql':{ ar:'تصدير هذا الجدول (SQL)', en:'Export this table (SQL)' },
       'context.table.exportJson':{ ar:'تصدير هذا الجدول (JSON)', en:'Export this table (JSON)' },
@@ -1096,7 +1097,21 @@
       'context.field.index.add':{ ar:'إضافة إلى الفهرس', en:'Add to index' },
       'context.field.index.remove':{ ar:'إزالة من الفهرس', en:'Remove from index' },
       'context.field.relationships':{ ar:'العلاقات', en:'Relationships' },
-      'context.field.createFk':{ ar:'إنشاء علاقة خارجية من هذا الحقل', en:'Create FK from this field' }
+      'context.field.createFk':{ ar:'إنشاء علاقة خارجية من هذا الحقل', en:'Create FK from this field' },
+      'cloud.create.section':{ ar:'إدارة السحابة', en:'Cloud management' },
+      'cloud.create.branch.title':{ ar:'فرع جديد', en:'New branch' },
+      'cloud.create.branch.id':{ ar:'معرّف الفرع', en:'Branch ID' },
+      'cloud.create.branch.label':{ ar:'اسم العرض', en:'Display name' },
+      'cloud.create.branch.modules':{ ar:'الموديولات (افصل بفاصلة)', en:'Modules (comma separated)' },
+      'cloud.create.branch.submit':{ ar:'إنشاء الفرع', en:'Create branch' },
+      'cloud.create.module.title':{ ar:'موديول جديد', en:'New module' },
+      'cloud.create.module.id':{ ar:'معرّف الموديول', en:'Module ID' },
+      'cloud.create.module.label':{ ar:'اسم الموديول', en:'Module name' },
+      'cloud.create.module.tables':{ ar:'الجداول (افصل بفاصلة)', en:'Tables (comma separated)' },
+      'cloud.create.module.submit':{ ar:'حفظ الموديول', en:'Save module' },
+      'cloud.create.schema.title':{ ar:'مخطط عام جديد', en:'New global schema' },
+      'cloud.create.schema.name':{ ar:'اسم المخطط العام', en:'Global schema name' },
+      'cloud.create.schema.submit':{ ar:'إنشاء المخطط', en:'Create schema' }
     };
 
     const X6_CDN_SOURCES = [
@@ -3021,6 +3036,26 @@
         .slice(0, 64);
     }
 
+    function normalizeCloudIdentifier(value){
+      if(value == null) return '';
+      return String(value)
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9:_-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    }
+
+    function parseDraftListInput(value){
+      if(value == null) return [];
+      const parts = String(value)
+        .split(/[,\n\s]+/)
+        .map(part => normalizeCloudIdentifier(part))
+        .filter(Boolean);
+      return Array.from(new Set(parts));
+    }
+
     function identifierFromLabel(label, fallback){
       const sanitized = sanitizeSqlIdentifier(label || '');
       if(sanitized) return sanitized;
@@ -4248,9 +4283,44 @@
         return true;
       }
 
+      async function createBranch(payload = {}){
+        await fetchJson('/api/branches', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+        logCloudEvent('branch:create:success', { branchId: payload.id || payload.branchId || payload.name });
+        return true;
+      }
+
+      async function createModule(payload = {}){
+        await fetchJson('/api/modules', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify(payload)
+        });
+        logCloudEvent('module:create:success', { moduleId: payload.id || payload.moduleId || payload.name });
+        return true;
+      }
+
+      async function createGlobalSchema(name, schema){
+        if(!name) throw new Error('يرجى إدخال اسم المخطط العام');
+        const path = `/api/schemas/global/${encodeURIComponent(name)}`;
+        await fetchJson(path, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ schema: schema || { tables: [] } })
+        });
+        logCloudEvent('schema:create:success', { name });
+        return true;
+      }
+
       api.listIndex = listIndex;
       api.fetchSchema = fetchSchema;
       api.saveSchema = saveSchema;
+      api.createBranch = createBranch;
+      api.createModule = createModule;
+      api.createGlobalSchema = createGlobalSchema;
     })(SchemaCloud);
 
     async function fetchBranchList(){
@@ -4459,7 +4529,8 @@
           selection: initialCloudSelection,
           status:'idle',
           error:null,
-          lastLoaded:null
+          lastLoaded:null,
+          drafts:{}
         }
       },
       ui:{
@@ -4582,6 +4653,82 @@
       };
     }
 
+    function getPrimaryKeyField(table){
+      if(!table || !Array.isArray(table.fields)) return null;
+      return table.fields.find(field => field && field.primaryKey) || table.fields[0] || null;
+    }
+
+    function isTranslatableField(field){
+      if(!field) return false;
+      if(field.primaryKey) return false;
+      if(field.references) return false;
+      const type = String(field.type || '').toLowerCase();
+      return type === 'string' || type === 'text';
+    }
+
+    function ensureLangFieldOnTable(table){
+      if(!table || typeof table.getField !== 'function' || typeof table.addField !== 'function') return false;
+      const existing = table.getField('lang');
+      if(existing) return false;
+      table.addField({
+        name:'lang',
+        columnName:'lang',
+        type:'string',
+        nullable:false,
+        maxLength:2,
+        comment:'لغة السجل الأصلي'
+      });
+      return true;
+    }
+
+    function buildTranslationTableConfig(sourceTable, options = {}){
+      if(!sourceTable) return null;
+      const baseName = sourceTable.name || 'table';
+      const translationName = options.name || `${baseName}_lang`;
+      const layout = options.layout || { x: AUTO_LAYOUT_ORIGIN_X, y: AUTO_LAYOUT_ORIGIN_Y };
+      const baseSql = sourceTable.sqlName || Schema.utils.toSnakeCase(baseName);
+      const fkColumn = `${baseSql}_id`;
+      const pkField = getPrimaryKeyField(sourceTable);
+      const fkType = pkField?.type || 'uuid';
+      const refColumn = pkField?.columnName || 'id';
+      const translationFields = [
+        { name:'id', columnName:'id', type:'uuid', nullable:false, primaryKey:true },
+        {
+          name: fkColumn,
+          columnName: fkColumn,
+          type: fkType,
+          nullable:false,
+          references:{ table: sourceTable.name, column: refColumn, onDelete:'CASCADE', onUpdate:'CASCADE' }
+        }
+      ];
+      const seen = new Set(translationFields.map(field => field.name));
+      const textFields = Array.isArray(sourceTable.fields) ? sourceTable.fields.filter(isTranslatableField) : [];
+      textFields.forEach(field => {
+        if(seen.has(field.name) || field.name === 'lang') return;
+        translationFields.push({
+          name: field.name,
+          columnName: field.columnName,
+          type: field.type || 'string',
+          nullable:true,
+          comment: field.comment || ''
+        });
+        seen.add(field.name);
+      });
+      translationFields.push({ name:'lang', columnName:'lang', type:'string', nullable:false, maxLength:2, comment:'رمز اللغة' });
+      translationFields.push({ name:'created_date', columnName:'created_date', type:'datetime', nullable:true, comment:'تاريخ الإنشاء' });
+      translationFields.push({ name:'modified_date', columnName:'modified_date', type:'datetime', nullable:true, comment:'آخر تعديل' });
+      const indexName = `${sanitizeSqlIdentifier(translationName) || translationName}_lang_unique`;
+      return {
+        name: translationName,
+        label: `${sourceTable.label || sourceTable.name} (ترجمات)`,
+        comment: `Translations for ${sourceTable.name}`,
+        classCode: sourceTable.classCode || '',
+        layout,
+        fields: translationFields,
+        indexes:[{ name: indexName, columns:[fkColumn, 'lang'], unique:true }]
+      };
+    }
+
     function focusTableOnCanvas(tableName, fieldName){
       if(!tableName || typeof document === 'undefined') return;
       const state = erdAppInstance ? erdAppInstance.getState() : lastDiagramState;
@@ -4652,7 +4799,85 @@
           ui:{ ...(s.ui || {}), hiddenTables: nextHidden }
         };
       });
-      
+
+    }
+
+    async function handleCreateTranslationTable(ctx, tableName){
+      if(!tableName) return;
+      const state = ctx.getState();
+      const t = createTranslator(state);
+      const registry = getRegistry(state);
+      const sourceTable = registry.get(tableName);
+      if(!sourceTable){
+        UI.pushToast(ctx, { title:t('toast.columns.tableMissing', 'الجدول غير موجود'), icon:'⚠️' });
+        return;
+      }
+      const translationName = `${sourceTable.name}_lang`;
+      if(registry.get(translationName)){
+        UI.pushToast(ctx, { title:'جدول الترجمة موجود بالفعل', icon:'ℹ️' });
+        return;
+      }
+      const baseLayout = state.data?.layout || {};
+      const basePoint = baseLayout[tableName] || { x: AUTO_LAYOUT_ORIGIN_X, y: AUTO_LAYOUT_ORIGIN_Y };
+      const translationLayout = { x: basePoint.x + TABLE_WIDTH + 160, y: basePoint.y };
+      const config = buildTranslationTableConfig(sourceTable, { name: translationName, layout: translationLayout });
+      if(!config){
+        UI.pushToast(ctx, { title:'تعذر توليد جدول الترجمة', icon:'🛑' });
+        return;
+      }
+      try {
+        registry.register(config);
+        ensureLangFieldOnTable(sourceTable);
+      } catch(error){
+        console.warn('[Mishkah][ERD] translation table create failed', error);
+        UI.pushToast(ctx, { title:'فشل إنشاء جدول الترجمة', message:String(error), icon:'🛑' });
+        return;
+      }
+      const schemaJSON = registry.toJSON();
+      let nextState = null;
+      ctx.setState(s=>{
+        const now = Date.now();
+        const layout = ensureLayout({ data:{ layout: s.data.layout, schema: schemaJSON } }, translationName, { registry });
+        const record = {
+          id: s.data.schemaId,
+          name: s.data.schemaMeta?.name || '',
+          title: s.data.schemaMeta?.title || '',
+          description: s.data.schemaMeta?.description || '',
+          schema: schemaJSON,
+          layout,
+          canvas: s.data.canvas,
+          classes: s.data.classes || [],
+          createdAt: s.data.schemaCreatedAt,
+          updatedAt: now
+        };
+        const translationTable = registry.get(translationName);
+        let draft = {
+          ...s,
+          data:{
+            ...s.data,
+            schema: schemaJSON,
+            layout,
+            schemaUpdatedAt: now,
+            library:{ ...(s.data.library || {}), items: mergeLibraryItems(s.data.library?.items || [], record) }
+          },
+          ui:{
+            ...(s.ui || {}),
+            form:{
+              ...(s.ui?.form || {}),
+              field:{ ...(s.ui?.form?.field || {}), table: translationName },
+              relation:{ ...(s.ui?.form?.relation || {}), sourceTable: translationName, sourceField:'' },
+              columns:{ table: translationName, rows: buildColumnsFormRows(translationTable) }
+            }
+          }
+        };
+        draft = withTableSelection(draft, translationName);
+        nextState = draft;
+        return draft;
+      });
+      if(nextState){
+        schedulePersist(recordFromState(nextState));
+      }
+      UI.pushToast(ctx, { title:'تم إنشاء جدول الترجمة', icon:'🌐' });
     }
 
     function openRenameTable(ctx, tableName){
@@ -4966,6 +5191,14 @@
       const branches = cloud.branches || [];
       const status = cloud.status || 'idle';
       const error = cloud.error || null;
+      const drafts = cloud.drafts || {};
+      const branchIdDraft = drafts['branch.id'] || '';
+      const branchLabelDraft = drafts['branch.label'] || '';
+      const branchModulesDraft = drafts['branch.modules'] || '';
+      const moduleIdDraft = drafts['module.id'] || '';
+      const moduleLabelDraft = drafts['module.label'] || '';
+      const moduleTablesDraft = drafts['module.tables'] || '';
+      const schemaNameDraft = drafts['schema.name'] || '';
       const globalOptions = (index.global || []).map(name => ({ label: name || t('cloud.schema.unnamed', 'بدون اسم'), value: name }));
       const branchOptions = branches.map(entry => ({ label: entry.label || entry.id, value: entry.id }));
       const moduleOptions = selection.branchId ? (index.branches?.[selection.branchId] || []) : [];
@@ -4992,6 +5225,28 @@
       const branchFields = scope === 'branch'
         ? [branchSelect, moduleSelect, moduleInput].filter(Boolean)
         : [];
+      const creationSection = D.Containers.Div({ attrs:{ class: tw`rounded-2xl border border-dashed border-[var(--border)]/80 bg-[var(--surface-1)]/70 p-3 space-y-4` }}, [
+        D.Text.Span({ attrs:{ class: tw`text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]` }}, [t('cloud.create.section', 'إدارة السحابة')]),
+        D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, [
+          D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [t('cloud.create.branch.title', 'فرع جديد')]),
+          UI.Input({ attrs:{ gkey:'erd:cloud:draft', 'data-field':'branch.id', placeholder:t('cloud.create.branch.id', 'branch-id'), value: branchIdDraft } }),
+          UI.Input({ attrs:{ gkey:'erd:cloud:draft', 'data-field':'branch.label', placeholder:t('cloud.create.branch.label', 'اسم العرض'), value: branchLabelDraft } }),
+          UI.Input({ attrs:{ gkey:'erd:cloud:draft', 'data-field':'branch.modules', placeholder:t('cloud.create.branch.modules', 'modules'), value: branchModulesDraft } }),
+          UI.Button({ attrs:{ gkey:'erd:cloud:create-branch', class: tw`w-full` }, variant:'soft', size:'sm' }, [`🏬 ${t('cloud.create.branch.submit', 'إنشاء الفرع')}`])
+        ]),
+        D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, [
+          D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [t('cloud.create.module.title', 'موديول جديد')]),
+          UI.Input({ attrs:{ gkey:'erd:cloud:draft', 'data-field':'module.id', placeholder:t('cloud.create.module.id', 'module-id'), value: moduleIdDraft } }),
+          UI.Input({ attrs:{ gkey:'erd:cloud:draft', 'data-field':'module.label', placeholder:t('cloud.create.module.label', 'اسم الموديول'), value: moduleLabelDraft } }),
+          UI.Input({ attrs:{ gkey:'erd:cloud:draft', 'data-field':'module.tables', placeholder:t('cloud.create.module.tables', 'tables'), value: moduleTablesDraft } }),
+          UI.Button({ attrs:{ gkey:'erd:cloud:create-module', class: tw`w-full` }, variant:'soft', size:'sm' }, [`🧩 ${t('cloud.create.module.submit', 'حفظ الموديول')}`])
+        ]),
+        D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2` }}, [
+          D.Text.Span({ attrs:{ class: tw`text-sm font-semibold` }}, [t('cloud.create.schema.title', 'مخطط عام جديد')]),
+          UI.Input({ attrs:{ gkey:'erd:cloud:draft', 'data-field':'schema.name', placeholder:t('cloud.create.schema.name', 'schema-name'), value: schemaNameDraft } }),
+          UI.Button({ attrs:{ gkey:'erd:cloud:create-schema', class: tw`w-full` }, variant:'soft', size:'sm' }, [`📦 ${t('cloud.create.schema.submit', 'إنشاء المخطط')}`])
+        ])
+      ]);
       return D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-3` }}, [
         D.Containers.Div({ attrs:{ class: tw`flex flex-col gap-2 border border-dashed border-[var(--border)] rounded-xl p-3 bg-[var(--surface-1)]/70` }}, [
           scopeSelect,
@@ -5004,7 +5259,8 @@
             UI.Button({ attrs:{ gkey:'erd:cloud:load', class: tw`flex-1` }, variant:'solid', size:'sm' }, [`☁️ ${t('cloud.load', 'تحميل المخطط')}`]),
             UI.Button({ attrs:{ gkey:'erd:cloud:save', class: tw`flex-1` }, variant:'ghost', size:'sm' }, [`💾 ${t('cloud.save', 'حفظ على السحابة')}`])
           ])
-        ].concat(statusNode ? [statusNode] : []))
+        ].concat(statusNode ? [statusNode] : [])),
+        creationSection
       ]);
     }
 
@@ -6295,6 +6551,7 @@
             { id:'table:columns', label:t('context.table.columns', 'إدارة الأعمدة'), icon:'🗂️', table: menu.table },
             { id:'table:add-unique', label:t('context.table.addUnique', 'إضافة قيد فريد'), icon:'☆', table: menu.table },
             { id:'table:add-index', label:t('context.table.addIndex', 'إضافة فهرس'), icon:'#', table: menu.table },
+            { id:'table:create-translation', label:t('context.table.translation', 'إنشاء جدول ترجمة'), icon:'🌐', table: menu.table },
             { id:'table:generate-fk', label:t('context.table.generateFk', 'توليد علاقة خارجية'), icon:'🔗', table: menu.table }
           ]
         });
@@ -8895,6 +9152,9 @@
             case 'table:generate-fk':
               openRelationModal(ctx, tableName, '');
               break;
+            case 'table:create-translation':
+              await handleCreateTranslationTable(ctx, tableName);
+              break;
             case 'table:toggle-visibility':
               toggleTableVisibility(ctx, tableName);
               UI.pushToast(ctx, { title:'تم تحديث حالة الظهور', icon:'👁️' });
@@ -9626,6 +9886,193 @@
             UI.pushToast(ctx, { title:'تم حفظ المخطط على السحابة', icon:'💾' });
           } catch(error){
             UI.pushToast(ctx, { title:'تعذر حفظ المخطط', message:String(error), icon:'🛑' });
+          }
+        }
+      },
+      'erd.cloud.draftInput':{
+        on:['input','change'],
+        gkeys:['erd:cloud:draft'],
+        handler:(e,ctx)=>{
+          const field = e.target?.getAttribute('data-field');
+          if(!field) return;
+          const value = e.target?.value ?? '';
+          ctx.setState(s=>({
+            ...s,
+            data:{
+              ...s.data,
+              cloud:{
+                ...(s.data.cloud || {}),
+                drafts:{ ...(s.data.cloud?.drafts || {}), [field]: value }
+              }
+            }
+          }));
+        }
+      },
+      'erd.cloud.createBranch':{
+        on:['click'],
+        gkeys:['erd:cloud:create-branch'],
+        handler:async (_e,ctx)=>{
+          const state = ctx.getState();
+          const drafts = state.data.cloud?.drafts || {};
+          const branchId = normalizeCloudIdentifier(drafts['branch.id'] || drafts['branchId'] || drafts['branch.name'] || '');
+          if(!branchId){
+            UI.pushToast(ctx, { title:'أدخل معرّف الفرع', icon:'⚠️' });
+            return;
+          }
+          const label = (drafts['branch.label'] || '').trim() || branchId;
+          const modules = parseDraftListInput(drafts['branch.modules']);
+          logCloudEvent('event:create-branch:click', { branchId, modules });
+          ctx.setState(s=>({
+            ...s,
+            data:{
+              ...s.data,
+              cloud:{ ...(s.data.cloud || {}), status:'loading', error:null }
+            }
+          }));
+          try{
+            await SchemaCloud.createBranch({ id: branchId, label, modules });
+            const [index, branches] = await Promise.all([SchemaCloud.listIndex(), fetchBranchList()]);
+            ctx.setState(s=>{
+              const clearedDrafts = { ...(s.data.cloud?.drafts || {}) };
+              clearedDrafts['branch.id'] = '';
+              clearedDrafts['branch.label'] = '';
+              clearedDrafts['branch.modules'] = '';
+              return {
+                ...s,
+                data:{
+                  ...s.data,
+                  cloud:{
+                    ...(s.data.cloud || {}),
+                    index,
+                    branches,
+                    selection: normaliseCloudSelection(s.data.cloud?.selection || {}, index, branches),
+                    status:'idle',
+                    error:null,
+                    drafts: clearedDrafts
+                  }
+                }
+              };
+            });
+            UI.pushToast(ctx, { title:'تم إنشاء الفرع', icon:'🏬' });
+          } catch(error){
+            ctx.setState(s=>({
+              ...s,
+              data:{
+                ...s.data,
+                cloud:{ ...(s.data.cloud || {}), status:'error', error:String(error.message || error) }
+              }
+            }));
+            UI.pushToast(ctx, { title:'تعذر إنشاء الفرع', message:String(error), icon:'🛑' });
+          }
+        }
+      },
+      'erd.cloud.createModule':{
+        on:['click'],
+        gkeys:['erd:cloud:create-module'],
+        handler:async (_e,ctx)=>{
+          const state = ctx.getState();
+          const drafts = state.data.cloud?.drafts || {};
+          const moduleId = normalizeCloudIdentifier(drafts['module.id'] || drafts['moduleId'] || drafts['module.name'] || '');
+          if(!moduleId){
+            UI.pushToast(ctx, { title:'أدخل معرّف الموديول', icon:'⚠️' });
+            return;
+          }
+          const label = (drafts['module.label'] || '').trim() || moduleId;
+          const tables = parseDraftListInput(drafts['module.tables']);
+          logCloudEvent('event:create-module:click', { moduleId, tables });
+          ctx.setState(s=>({
+            ...s,
+            data:{
+              ...s.data,
+              cloud:{ ...(s.data.cloud || {}), status:'loading', error:null }
+            }
+          }));
+          try{
+            await SchemaCloud.createModule({ id: moduleId, label, tables });
+            const index = await SchemaCloud.listIndex();
+            ctx.setState(s=>{
+              const clearedDrafts = { ...(s.data.cloud?.drafts || {}) };
+              clearedDrafts['module.id'] = '';
+              clearedDrafts['module.label'] = '';
+              clearedDrafts['module.tables'] = '';
+              return {
+                ...s,
+                data:{
+                  ...s.data,
+                  cloud:{
+                    ...(s.data.cloud || {}),
+                    index,
+                    status:'idle',
+                    error:null,
+                    drafts: clearedDrafts,
+                    selection: normaliseCloudSelection(s.data.cloud?.selection || {}, index, s.data.cloud?.branches || [])
+                  }
+                }
+              };
+            });
+            UI.pushToast(ctx, { title:'تم حفظ الموديول', icon:'🧩' });
+          } catch(error){
+            ctx.setState(s=>({
+              ...s,
+              data:{
+                ...s.data,
+                cloud:{ ...(s.data.cloud || {}), status:'error', error:String(error.message || error) }
+              }
+            }));
+            UI.pushToast(ctx, { title:'تعذر حفظ الموديول', message:String(error), icon:'🛑' });
+          }
+        }
+      },
+      'erd.cloud.createSchema':{
+        on:['click'],
+        gkeys:['erd:cloud:create-schema'],
+        handler:async (_e,ctx)=>{
+          const state = ctx.getState();
+          const drafts = state.data.cloud?.drafts || {};
+          const schemaName = normalizeCloudIdentifier(drafts['schema.name'] || drafts['schemaName'] || '');
+          if(!schemaName){
+            UI.pushToast(ctx, { title:'أدخل اسم المخطط العام', icon:'⚠️' });
+            return;
+          }
+          logCloudEvent('event:create-schema:click', { schemaName });
+          ctx.setState(s=>({
+            ...s,
+            data:{
+              ...s.data,
+              cloud:{ ...(s.data.cloud || {}), status:'loading', error:null }
+            }
+          }));
+          try{
+            await SchemaCloud.createGlobalSchema(schemaName, state.data.schema || { tables: [] });
+            const index = await SchemaCloud.listIndex();
+            ctx.setState(s=>{
+              const clearedDrafts = { ...(s.data.cloud?.drafts || {}) };
+              clearedDrafts['schema.name'] = '';
+              return {
+                ...s,
+                data:{
+                  ...s.data,
+                  cloud:{
+                    ...(s.data.cloud || {}),
+                    index,
+                    status:'idle',
+                    error:null,
+                    drafts: clearedDrafts,
+                    selection: normaliseCloudSelection(s.data.cloud?.selection || {}, index, s.data.cloud?.branches || [])
+                  }
+                }
+              };
+            });
+            UI.pushToast(ctx, { title:'تم إنشاء المخطط العام', icon:'📦' });
+          } catch(error){
+            ctx.setState(s=>({
+              ...s,
+              data:{
+                ...s.data,
+                cloud:{ ...(s.data.cloud || {}), status:'error', error:String(error.message || error) }
+              }
+            }));
+            UI.pushToast(ctx, { title:'تعذر إنشاء المخطط العام', message:String(error), icon:'🛑' });
           }
         }
       },

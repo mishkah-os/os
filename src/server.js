@@ -191,6 +191,33 @@ function parseCookies(header) {
   return cookies;
 }
 
+function normalizeIdentifier(value) {
+  if (value === undefined || value === null) return '';
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function parseModuleList(input) {
+  if (!input) return [];
+  if (Array.isArray(input)) {
+    return Array.from(new Set(input.map((item) => normalizeIdentifier(item)).filter(Boolean)));
+  }
+  if (typeof input === 'string') {
+    return parseModuleList(
+      input
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    );
+  }
+  return [];
+}
+
 function encodeBranchId(branchId) {
   return encodeURIComponent(branchId);
 }
@@ -3532,6 +3559,32 @@ for (const schemaPath of schemaPaths) {
 const modulesConfig = (await readJsonSafe(MODULES_CONFIG_PATH, { modules: {} })) || { modules: {} };
 const branchConfig = (await readJsonSafe(BRANCHES_CONFIG_PATH, { branches: {}, patterns: [], defaults: [] })) || { branches: {}, patterns: [], defaults: [] };
 
+async function persistModulesConfig() {
+  await writeJson(MODULES_CONFIG_PATH, modulesConfig);
+}
+
+async function persistBranchConfig() {
+  await writeJson(BRANCHES_CONFIG_PATH, branchConfig);
+}
+
+async function ensureBranchDirectory(branchId) {
+  await mkdir(path.join(getBranchDir(branchId), 'modules'), { recursive: true });
+}
+
+async function scaffoldBranchModule(branchId, moduleId, options = {}) {
+  await ensureBranchDirectory(branchId);
+  const moduleDir = getBranchModuleDir(branchId, moduleId);
+  await mkdir(moduleDir, { recursive: true });
+  const schemaPath = path.join(moduleDir, 'schema.json');
+  if (options.schema) {
+    await writeJson(schemaPath, options.schema);
+    return;
+  }
+  if (!(await fileExists(schemaPath))) {
+    await writeJson(schemaPath, { tables: [] });
+  }
+}
+
 const moduleStores = new Map(); // key => `${branchId}::${moduleId}`
 const clients = new Map();
 const branchClients = new Map();
@@ -3815,13 +3868,31 @@ async function buildBranchSnapshot(branchId) {
 
 function listBranchSummaries() {
   const summaries = new Map();
+  if (branchConfig.branches) {
+    for (const [branchId, entry] of Object.entries(branchConfig.branches)) {
+      const modules = Array.isArray(entry.modules)
+        ? entry.modules.map((moduleId) => ({ moduleId, version: null, meta: {} }))
+        : [];
+      summaries.set(branchId, {
+        id: branchId,
+        label: entry.label || branchId,
+        modules
+      });
+    }
+  }
   for (const [key, store] of moduleStores.entries()) {
     const [branchId, moduleId] = key.split('::');
     if (!summaries.has(branchId)) {
-      summaries.set(branchId, { id: branchId, modules: [] });
+      summaries.set(branchId, { id: branchId, label: branchId, modules: [] });
     }
     const entry = summaries.get(branchId);
-    entry.modules.push({ moduleId, version: store.version, meta: deepClone(store.meta || {}) });
+    const existing = entry.modules.find((item) => item.moduleId === moduleId);
+    const meta = { moduleId, version: store.version, meta: deepClone(store.meta || {}) };
+    if (existing) {
+      Object.assign(existing, meta);
+    } else {
+      entry.modules.push(meta);
+    }
   }
   return Array.from(summaries.values());
 }
@@ -4523,11 +4594,89 @@ async function handleBranchesApi(req, res, url) {
       jsonResponse(res, 200, { branches: listBranchSummaries() });
       return;
     }
+    if (req.method === 'POST') {
+      let body = {};
+      try {
+        body = (await readBody(req)) || {};
+      } catch (error) {
+        jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+        return;
+      }
+      const branchId = normalizeIdentifier(body.id || body.branchId || body.name);
+      if (!branchId) {
+        jsonResponse(res, 400, { error: 'missing-branch-id' });
+        return;
+      }
+      if (branchConfig.branches?.[branchId]) {
+        jsonResponse(res, 409, { error: 'branch-exists', branchId });
+        return;
+      }
+      const modules = parseModuleList(body.modules);
+      for (const moduleId of modules) {
+        if (!modulesConfig.modules?.[moduleId]) {
+          jsonResponse(res, 400, { error: 'module-not-registered', moduleId });
+          return;
+        }
+      }
+      const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : branchId;
+      branchConfig.branches = branchConfig.branches || {};
+      branchConfig.branches[branchId] = { label, modules };
+      await persistBranchConfig();
+      await ensureBranchDirectory(branchId);
+      const schemaOverrides = body.schemas && typeof body.schemas === 'object' ? body.schemas : {};
+      for (const moduleId of modules) {
+        const override = schemaOverrides[moduleId];
+        await scaffoldBranchModule(branchId, moduleId, {
+          schema: override && typeof override === 'object' ? override : undefined
+        });
+      }
+      jsonResponse(res, 201, { branchId, label, modules });
+      return;
+    }
     jsonResponse(res, 405, { error: 'method-not-allowed' });
     return;
   }
 
   const branchId = safeDecode(segments[2]);
+
+  if (segments.length === 4 && segments[3] === 'modules') {
+    if (req.method === 'GET') {
+      jsonResponse(res, 200, { branchId, modules: getBranchModules(branchId) });
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = {};
+      try {
+        body = (await readBody(req)) || {};
+      } catch (error) {
+        jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+        return;
+      }
+      const moduleId = normalizeIdentifier(body.id || body.moduleId || body.name);
+      if (!moduleId) {
+        jsonResponse(res, 400, { error: 'missing-module-id' });
+        return;
+      }
+      if (!modulesConfig.modules?.[moduleId]) {
+        jsonResponse(res, 404, { error: 'module-not-found', moduleId });
+        return;
+      }
+      const existing = new Set(getBranchModules(branchId));
+      existing.add(moduleId);
+      branchConfig.branches = branchConfig.branches || {};
+      const branchEntry = branchConfig.branches[branchId] || { label: branchId, modules: [] };
+      branchEntry.modules = Array.from(existing);
+      branchConfig.branches[branchId] = branchEntry;
+      await persistBranchConfig();
+      await scaffoldBranchModule(branchId, moduleId, {
+        schema: body.schema && typeof body.schema === 'object' ? body.schema : undefined
+      });
+      jsonResponse(res, 200, { branchId, modules: branchEntry.modules });
+      return;
+    }
+    jsonResponse(res, 405, { error: 'method-not-allowed' });
+    return;
+  }
 
   if (segments.length === 3) {
     if (req.method === 'GET') {
@@ -6516,6 +6665,67 @@ const httpServer = createServer(async (req, res) => {
       logger.warn({ err: error, branchId }, 'Failed to build state response');
       jsonResponse(res, 500, { error: 'state-unavailable', message: error.message });
     }
+    return;
+  }
+  if (url.pathname === '/api/modules' && req.method === 'GET') {
+    const modules = Object.entries(modulesConfig.modules || {}).map(([id, def]) => ({
+      id,
+      label: def.label || id,
+      description: def.description || '',
+      tables: Array.isArray(def.tables) ? def.tables : []
+    }));
+    jsonResponse(res, 200, { modules });
+    return;
+  }
+  if (url.pathname === '/api/modules' && req.method === 'POST') {
+    let body = {};
+    try {
+      body = (await readBody(req)) || {};
+    } catch (error) {
+      jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+      return;
+    }
+    const moduleId = normalizeIdentifier(body.id || body.moduleId || body.name);
+    if (!moduleId) {
+      jsonResponse(res, 400, { error: 'missing-module-id' });
+      return;
+    }
+    if (modulesConfig.modules?.[moduleId]) {
+      jsonResponse(res, 409, { error: 'module-exists', moduleId });
+      return;
+    }
+    const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : moduleId;
+    const description = typeof body.description === 'string' ? body.description : '';
+    const tables = parseModuleList(body.tables);
+    const schemaFallbackPath =
+      typeof body.schemaFallbackPath === 'string' && body.schemaFallbackPath.trim()
+        ? body.schemaFallbackPath.trim()
+        : `data/schemas/${moduleId}.json`;
+    const seedFallbackPath =
+      typeof body.seedFallbackPath === 'string' && body.seedFallbackPath.trim() ? body.seedFallbackPath.trim() : undefined;
+    const moduleRecord = {
+      label,
+      description,
+      schemaPath: 'schema/definition.json',
+      schemaFallbackPath,
+      seedPath: 'seeds/initial.json',
+      livePath: 'live/data.json',
+      historyPath: 'history',
+      tables
+    };
+    if (seedFallbackPath) {
+      moduleRecord.seedFallbackPath = seedFallbackPath;
+    }
+    modulesConfig.modules[moduleId] = moduleRecord;
+    await persistModulesConfig();
+    const resolvedFallbackPath = path.isAbsolute(schemaFallbackPath)
+      ? schemaFallbackPath
+      : path.join(ROOT_DIR, schemaFallbackPath);
+    const schemaPayload = body.schema && typeof body.schema === 'object' ? body.schema : { tables: [] };
+    if (!(await fileExists(resolvedFallbackPath)) || body.schema) {
+      await writeJson(resolvedFallbackPath, schemaPayload);
+    }
+    jsonResponse(res, 201, { moduleId, label, tables, schemaFallbackPath });
     return;
   }
   if (url.pathname.startsWith('/api/pos-sync') || url.pathname.startsWith('/api/sync')) {
