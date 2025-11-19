@@ -191,6 +191,33 @@ function parseCookies(header) {
   return cookies;
 }
 
+function normalizeIdentifier(value) {
+  if (value === undefined || value === null) return '';
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function parseModuleList(input) {
+  if (!input) return [];
+  if (Array.isArray(input)) {
+    return Array.from(new Set(input.map((item) => normalizeIdentifier(item)).filter(Boolean)));
+  }
+  if (typeof input === 'string') {
+    return parseModuleList(
+      input
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+    );
+  }
+  return [];
+}
+
 function encodeBranchId(branchId) {
   return encodeURIComponent(branchId);
 }
@@ -215,6 +242,29 @@ function getModuleSchemaFallbackPath(moduleId) {
   return path.isAbsolute(def.schemaFallbackPath)
     ? def.schemaFallbackPath
     : path.join(ROOT_DIR, def.schemaFallbackPath);
+}
+
+async function resolveBranchSchemaPath(branchId, moduleId) {
+  const moduleDir = getBranchModuleDir(branchId, moduleId);
+  const schemaJson = path.join(moduleDir, 'schema.json');
+  if (await fileExists(schemaJson)) {
+    return schemaJson;
+  }
+  const legacyDefinition = path.join(moduleDir, 'schema', 'definition.json');
+  if (await fileExists(legacyDefinition)) {
+    return legacyDefinition;
+  }
+  return null;
+}
+
+async function readBranchSchema(branchId, moduleId) {
+  const schemaPath = await resolveBranchSchemaPath(branchId, moduleId);
+  if (!schemaPath) {
+    throw Object.assign(new Error('Schema not found'), { code: 'ENOENT' });
+  }
+  const payload = await readFile(schemaPath, 'utf-8');
+  const schema = JSON.parse(payload);
+  return { schema, path: schemaPath };
 }
 
 function getModuleSeedPath(branchId, moduleId) {
@@ -3509,6 +3559,32 @@ for (const schemaPath of schemaPaths) {
 const modulesConfig = (await readJsonSafe(MODULES_CONFIG_PATH, { modules: {} })) || { modules: {} };
 const branchConfig = (await readJsonSafe(BRANCHES_CONFIG_PATH, { branches: {}, patterns: [], defaults: [] })) || { branches: {}, patterns: [], defaults: [] };
 
+async function persistModulesConfig() {
+  await writeJson(MODULES_CONFIG_PATH, modulesConfig);
+}
+
+async function persistBranchConfig() {
+  await writeJson(BRANCHES_CONFIG_PATH, branchConfig);
+}
+
+async function ensureBranchDirectory(branchId) {
+  await mkdir(path.join(getBranchDir(branchId), 'modules'), { recursive: true });
+}
+
+async function scaffoldBranchModule(branchId, moduleId, options = {}) {
+  await ensureBranchDirectory(branchId);
+  const moduleDir = getBranchModuleDir(branchId, moduleId);
+  await mkdir(moduleDir, { recursive: true });
+  const schemaPath = path.join(moduleDir, 'schema.json');
+  if (options.schema) {
+    await writeJson(schemaPath, options.schema);
+    return;
+  }
+  if (!(await fileExists(schemaPath))) {
+    await writeJson(schemaPath, { tables: [] });
+  }
+}
+
 const moduleStores = new Map(); // key => `${branchId}::${moduleId}`
 const clients = new Map();
 const branchClients = new Map();
@@ -3677,6 +3753,51 @@ async function ensureModuleStore(branchId, moduleId) {
   return store;
 }
 
+const SIMPLE_SELECT_REGEX = /^\s*select\s+\*\s+from\s+([a-zA-Z0-9_]+)(?:\s+limit\s+(\d+))?\s*;?\s*$/i;
+
+async function executeModuleStoreSelect(sql, branchId, moduleId) {
+  if (!sql || !branchId || !moduleId) {
+    return null;
+  }
+  const match = SIMPLE_SELECT_REGEX.exec(sql);
+  if (!match) {
+    return null;
+  }
+  const requestedTable = match[1];
+  const limit = match[2] ? Number.parseInt(match[2], 10) : null;
+  if (!requestedTable) {
+    return null;
+  }
+
+  try {
+    const store = await ensureModuleStore(branchId, moduleId);
+    const canonicalName =
+      (typeof store.findCanonicalTableName === 'function' && store.findCanonicalTableName(requestedTable)) || requestedTable;
+    let rows = [];
+    try {
+      rows = store.listTable(canonicalName);
+    } catch (_error) {
+      return null;
+    }
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return null;
+    }
+    const sliced = Number.isFinite(limit) && limit >= 0 ? rows.slice(0, limit) : rows;
+    return {
+      rows: sliced,
+      meta: {
+        count: sliced.length,
+        source: 'module-store',
+        branchId,
+        moduleId
+      }
+    };
+  } catch (error) {
+    logger.warn({ err: error, branchId, moduleId, sql }, 'Module-store SQL fallback failed');
+    return null;
+  }
+}
+
 async function ensureBranchModules(branchId) {
   const modules = getBranchModules(branchId);
   const stores = [];
@@ -3747,13 +3868,31 @@ async function buildBranchSnapshot(branchId) {
 
 function listBranchSummaries() {
   const summaries = new Map();
+  if (branchConfig.branches) {
+    for (const [branchId, entry] of Object.entries(branchConfig.branches)) {
+      const modules = Array.isArray(entry.modules)
+        ? entry.modules.map((moduleId) => ({ moduleId, version: null, meta: {} }))
+        : [];
+      summaries.set(branchId, {
+        id: branchId,
+        label: entry.label || branchId,
+        modules
+      });
+    }
+  }
   for (const [key, store] of moduleStores.entries()) {
     const [branchId, moduleId] = key.split('::');
     if (!summaries.has(branchId)) {
-      summaries.set(branchId, { id: branchId, modules: [] });
+      summaries.set(branchId, { id: branchId, label: branchId, modules: [] });
     }
     const entry = summaries.get(branchId);
-    entry.modules.push({ moduleId, version: store.version, meta: deepClone(store.meta || {}) });
+    const existing = entry.modules.find((item) => item.moduleId === moduleId);
+    const meta = { moduleId, version: store.version, meta: deepClone(store.meta || {}) };
+    if (existing) {
+      Object.assign(existing, meta);
+    } else {
+      entry.modules.push(meta);
+    }
   }
   return Array.from(summaries.values());
 }
@@ -4455,11 +4594,89 @@ async function handleBranchesApi(req, res, url) {
       jsonResponse(res, 200, { branches: listBranchSummaries() });
       return;
     }
+    if (req.method === 'POST') {
+      let body = {};
+      try {
+        body = (await readBody(req)) || {};
+      } catch (error) {
+        jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+        return;
+      }
+      const branchId = normalizeIdentifier(body.id || body.branchId || body.name);
+      if (!branchId) {
+        jsonResponse(res, 400, { error: 'missing-branch-id' });
+        return;
+      }
+      if (branchConfig.branches?.[branchId]) {
+        jsonResponse(res, 409, { error: 'branch-exists', branchId });
+        return;
+      }
+      const modules = parseModuleList(body.modules);
+      for (const moduleId of modules) {
+        if (!modulesConfig.modules?.[moduleId]) {
+          jsonResponse(res, 400, { error: 'module-not-registered', moduleId });
+          return;
+        }
+      }
+      const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : branchId;
+      branchConfig.branches = branchConfig.branches || {};
+      branchConfig.branches[branchId] = { label, modules };
+      await persistBranchConfig();
+      await ensureBranchDirectory(branchId);
+      const schemaOverrides = body.schemas && typeof body.schemas === 'object' ? body.schemas : {};
+      for (const moduleId of modules) {
+        const override = schemaOverrides[moduleId];
+        await scaffoldBranchModule(branchId, moduleId, {
+          schema: override && typeof override === 'object' ? override : undefined
+        });
+      }
+      jsonResponse(res, 201, { branchId, label, modules });
+      return;
+    }
     jsonResponse(res, 405, { error: 'method-not-allowed' });
     return;
   }
 
   const branchId = safeDecode(segments[2]);
+
+  if (segments.length === 4 && segments[3] === 'modules') {
+    if (req.method === 'GET') {
+      jsonResponse(res, 200, { branchId, modules: getBranchModules(branchId) });
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = {};
+      try {
+        body = (await readBody(req)) || {};
+      } catch (error) {
+        jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+        return;
+      }
+      const moduleId = normalizeIdentifier(body.id || body.moduleId || body.name);
+      if (!moduleId) {
+        jsonResponse(res, 400, { error: 'missing-module-id' });
+        return;
+      }
+      if (!modulesConfig.modules?.[moduleId]) {
+        jsonResponse(res, 404, { error: 'module-not-found', moduleId });
+        return;
+      }
+      const existing = new Set(getBranchModules(branchId));
+      existing.add(moduleId);
+      branchConfig.branches = branchConfig.branches || {};
+      const branchEntry = branchConfig.branches[branchId] || { label: branchId, modules: [] };
+      branchEntry.modules = Array.from(existing);
+      branchConfig.branches[branchId] = branchEntry;
+      await persistBranchConfig();
+      await scaffoldBranchModule(branchId, moduleId, {
+        schema: body.schema && typeof body.schema === 'object' ? body.schema : undefined
+      });
+      jsonResponse(res, 200, { branchId, modules: branchEntry.modules });
+      return;
+    }
+    jsonResponse(res, 405, { error: 'method-not-allowed' });
+    return;
+  }
 
   if (segments.length === 3) {
     if (req.method === 'GET') {
@@ -6450,6 +6667,67 @@ const httpServer = createServer(async (req, res) => {
     }
     return;
   }
+  if (url.pathname === '/api/modules' && req.method === 'GET') {
+    const modules = Object.entries(modulesConfig.modules || {}).map(([id, def]) => ({
+      id,
+      label: def.label || id,
+      description: def.description || '',
+      tables: Array.isArray(def.tables) ? def.tables : []
+    }));
+    jsonResponse(res, 200, { modules });
+    return;
+  }
+  if (url.pathname === '/api/modules' && req.method === 'POST') {
+    let body = {};
+    try {
+      body = (await readBody(req)) || {};
+    } catch (error) {
+      jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+      return;
+    }
+    const moduleId = normalizeIdentifier(body.id || body.moduleId || body.name);
+    if (!moduleId) {
+      jsonResponse(res, 400, { error: 'missing-module-id' });
+      return;
+    }
+    if (modulesConfig.modules?.[moduleId]) {
+      jsonResponse(res, 409, { error: 'module-exists', moduleId });
+      return;
+    }
+    const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim() : moduleId;
+    const description = typeof body.description === 'string' ? body.description : '';
+    const tables = parseModuleList(body.tables);
+    const schemaFallbackPath =
+      typeof body.schemaFallbackPath === 'string' && body.schemaFallbackPath.trim()
+        ? body.schemaFallbackPath.trim()
+        : `data/schemas/${moduleId}.json`;
+    const seedFallbackPath =
+      typeof body.seedFallbackPath === 'string' && body.seedFallbackPath.trim() ? body.seedFallbackPath.trim() : undefined;
+    const moduleRecord = {
+      label,
+      description,
+      schemaPath: 'schema/definition.json',
+      schemaFallbackPath,
+      seedPath: 'seeds/initial.json',
+      livePath: 'live/data.json',
+      historyPath: 'history',
+      tables
+    };
+    if (seedFallbackPath) {
+      moduleRecord.seedFallbackPath = seedFallbackPath;
+    }
+    modulesConfig.modules[moduleId] = moduleRecord;
+    await persistModulesConfig();
+    const resolvedFallbackPath = path.isAbsolute(schemaFallbackPath)
+      ? schemaFallbackPath
+      : path.join(ROOT_DIR, schemaFallbackPath);
+    const schemaPayload = body.schema && typeof body.schema === 'object' ? body.schema : { tables: [] };
+    if (!(await fileExists(resolvedFallbackPath)) || body.schema) {
+      await writeJson(resolvedFallbackPath, schemaPayload);
+    }
+    jsonResponse(res, 201, { moduleId, label, tables, schemaFallbackPath });
+    return;
+  }
   if (url.pathname.startsWith('/api/pos-sync') || url.pathname.startsWith('/api/sync')) {
     const handled = await handleSyncApi(req, res, url);
     if (handled) return;
@@ -6480,9 +6758,9 @@ const httpServer = createServer(async (req, res) => {
           try {
             const modules = await readdir(branchPath);
             for (const moduleId of modules) {
-              const schemaPath = path.join(branchPath, moduleId, 'schema.json');
               try {
-                await access(schemaPath, FS_CONSTANTS.F_OK);
+                const resolved = await resolveBranchSchemaPath(branchId, moduleId);
+                if (!resolved) continue;
                 if (!schemas.branches[branchId]) {
                   schemas.branches[branchId] = [];
                 }
@@ -6518,10 +6796,15 @@ const httpServer = createServer(async (req, res) => {
       // /api/schemas/branch/dar/pos
 
       let schemaPath;
+      let schema;
       if (parts[2] === 'global' && parts[3]) {
         schemaPath = path.join(ROOT_DIR, 'data', 'schemas', `${parts[3]}.json`);
+        const schemaData = await readFile(schemaPath, 'utf-8');
+        schema = JSON.parse(schemaData);
       } else if (parts[2] === 'branch' && parts[3] && parts[4]) {
-        schemaPath = path.join(BRANCHES_DIR, parts[3], 'modules', parts[4], 'schema.json');
+        const result = await readBranchSchema(parts[3], parts[4]);
+        schemaPath = result.path;
+        schema = result.schema;
       } else {
         jsonResponse(res, 400, {
           error: 'Invalid schema path',
@@ -6530,9 +6813,6 @@ const httpServer = createServer(async (req, res) => {
         });
         return;
       }
-
-      const schemaData = await readFile(schemaPath, 'utf-8');
-      const schema = JSON.parse(schemaData);
 
       jsonResponse(res, 200, {
         success: true,
@@ -6732,7 +7012,31 @@ const httpServer = createServer(async (req, res) => {
       const branchId = body.branchId || body.branch_id || null;
       const moduleId = body.moduleId || body.module_id || null;
 
-      const result = executeRawQuery(body.sql, params, { branchId, moduleId });
+      let result = null;
+      try {
+        result = executeRawQuery(body.sql, params, { branchId, moduleId });
+      } catch (error) {
+        if (branchId && moduleId) {
+          const fallback = await executeModuleStoreSelect(body.sql, branchId, moduleId);
+          if (fallback) {
+            const duration = Date.now() - startTime;
+            recordHttpRequest('POST', true, duration);
+            jsonResponse(res, 200, fallback);
+            return;
+          }
+        }
+        throw error;
+      }
+
+      if ((!result || result.rows.length === 0) && branchId && moduleId) {
+        const fallback = await executeModuleStoreSelect(body.sql, branchId, moduleId);
+        if (fallback) {
+          const duration = Date.now() - startTime;
+          recordHttpRequest('POST', true, duration);
+          jsonResponse(res, 200, fallback);
+          return;
+        }
+      }
 
       const duration = Date.now() - startTime;
       recordHttpRequest('POST', true, duration);
