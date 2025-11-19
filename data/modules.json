@@ -85,6 +85,45 @@
         "revenue_report"
       ],
       "description": "Gym management system for memberships, services, and POS."
+    },
+    "brocker": {
+      "label": "Brocker PWA",
+      "schemaFallbackPath": "data/schemas/brocker_schema.json",
+      "seedFallbackPath": "data/seeds/brocker-mock-data.json",
+      "livePath": "live/data.json",
+      "historyPath": "history",
+      "tables": [
+        "users",
+        "user_sessions",
+        "developers",
+        "projects",
+        "project_media",
+        "buildings",
+        "units",
+        "unit_media",
+        "unit_layouts",
+        "listings",
+        "reservations",
+        "transactions",
+        "inquiries",
+        "inquiry_replies",
+        "notifications",
+        "unit_types",
+        "brokers",
+        "unit_features",
+        "feature_values",
+        "developers_lang",
+        "projects_lang",
+        "units_lang",
+        "listings_lang",
+        "unit_features_lang",
+        "inquiries_lang",
+        "inquiry_replies_lang",
+        "app_settings",
+        "hero_slides",
+        "regions"
+      ],
+      "description": "Real estate broker-first dataset powering the Mishkah PWA experience."
     }
   }
 }
