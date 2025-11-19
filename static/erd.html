@@ -4237,6 +4237,54 @@
       }
     }
 
+    function normaliseCloudSelection(selection, index, branches){
+      const resolved = { ...(selection || {}) };
+      const globalList = Array.isArray(index?.global) ? index.global.filter(Boolean) : [];
+      const branchMap = index?.branches || {};
+      const branchIdsFromMap = Object.keys(branchMap);
+      const branchIds = Array.isArray(branches)
+        ? branches.map(entry => entry.id).filter(Boolean)
+        : branchIdsFromMap;
+
+      if(resolved.scope !== 'branch' && resolved.scope !== 'global'){
+        resolved.scope = globalList.length ? 'global' : 'branch';
+      }
+
+      if(resolved.scope === 'branch'){
+        if(!resolved.branchId || !branchIds.includes(resolved.branchId)){
+          resolved.branchId = branchIds[0] || '';
+        }
+        if(resolved.branchId){
+          const modules = branchMap[resolved.branchId] || [];
+          if(!resolved.moduleId || !modules.includes(resolved.moduleId)){
+            resolved.moduleId = modules[0] || '';
+          }
+        }
+        if(!resolved.branchId || !resolved.moduleId){
+          if(globalList.length){
+            resolved.scope = 'global';
+          }
+        }
+      }
+
+      if(resolved.scope !== 'branch'){
+        resolved.scope = 'global';
+        if(!resolved.schemaName || !globalList.includes(resolved.schemaName)){
+          resolved.schemaName = globalList[0] || '';
+        }
+      }
+
+      return resolved;
+    }
+
+    function hasLoadableCloudSelection(selection){
+      if(!selection) return false;
+      if(selection.scope === 'branch'){
+        return Boolean(selection.branchId && selection.moduleId);
+      }
+      return Boolean(selection.schemaName);
+    }
+
     await SchemaLibrary.ready();
 
     let libraryItems = await SchemaLibrary.list();
@@ -4278,6 +4326,62 @@
         map[nameKey] = point;
       });
       return map;
+    }
+
+    async function applyCloudSchemaRecord(ctx, record, options = {}){
+      const { silent = false } = options;
+      const registry = Schema.Registry.fromJSON(record.schema || { tables: [] });
+      const layout = computeLayout(registry, record.layout);
+      const list = await SchemaLibrary.list();
+      const first = registry.list()[0]?.name || null;
+      const layoutPoint = first ? (layout[first] || { x:120, y:120 }) : { x:120, y:120 };
+      const classes = normaliseClasses(record.classes || []);
+      const classificationForm = {
+        rows: classes.map(item => ({ ...item })),
+        bulkText: classes.length ? JSON.stringify(classes, null, 2) : ''
+      };
+      ctx.setState(s=>({
+        ...s,
+        head:{ ...(s.head || {}), title: record.title || 'مخطط قاعدة بيانات مشكاة' },
+        data:{
+          ...s.data,
+          schemaId: record.id,
+          schemaMeta:{ name: record.name, title: record.title, description: record.description || '' },
+          schemaCreatedAt: record.createdAt,
+          schemaUpdatedAt: record.updatedAt,
+          schema: registry.toJSON(),
+          layout,
+          selection:{ table:first, field:null },
+          canvas: normaliseCanvas(record.canvas),
+          library:{ ...(s.data.library || {}), items: list },
+          classes,
+          cloud:{ ...(s.data.cloud || {}), status:'idle', error:null, lastLoaded: Date.now() }
+        },
+        ui:{
+          ...(s.ui || {}),
+          form:{
+            ...(s.ui?.form || {}),
+            field:{ ...(s.ui?.form?.field || {}), table:first || '' },
+            relation:{
+              ...(s.ui?.form?.relation || {}),
+              sourceTable:first || '',
+              sourceField:'',
+              targetTable:'',
+              targetField:'',
+              onDelete:'CASCADE',
+              onUpdate:'CASCADE'
+            },
+            layout:{ x: layoutPoint.x, y: layoutPoint.y },
+            schemaMeta:{ name: record.name, title: record.title, description: record.description || '' },
+            classification: classificationForm,
+            table:{ ...(s.ui?.form?.table || {}), classCode:'' }
+          }
+        }
+      }));
+
+      if(!silent){
+        UI.pushToast(ctx, { title:'تم تحميل المخطط من السحابة', icon:'☁️' });
+      }
     }
 
     const initialLayout = computeLayout(activeRegistry, activeRecord.layout);
@@ -9194,10 +9298,14 @@
       'erd.cloud.setMode':{
         on:['click'],
         gkeys:['erd:cloud:set-mode'],
-        handler:(e,ctx)=>{
+        handler:async (e,ctx)=>{
           const target = e.currentTarget || e.target;
           if(!target) return;
           const mode = target.getAttribute('data-mode') || 'local';
+          const state = ctx.getState();
+          const currentMode = state.data.cloud?.mode || 'local';
+          if(mode === currentMode) return;
+
           ctx.setState(s=>({
             ...s,
             data:{
@@ -9205,6 +9313,76 @@
               cloud:{ ...(s.data.cloud || {}), mode }
             }
           }));
+
+          if(mode === 'cloud'){
+            const previousSelection = state.data.cloud?.selection || {};
+            ctx.setState(s=>({
+              ...s,
+              data:{
+                ...s.data,
+                cloud:{ ...(s.data.cloud || {}), status:'loading', error:null }
+              }
+            }));
+            try{
+              const [index, branches] = await Promise.all([SchemaCloud.listIndex(), fetchBranchList()]);
+              const selection = normaliseCloudSelection(previousSelection, index, branches);
+              ctx.setState(s=>({
+                ...s,
+                data:{
+                  ...s.data,
+                  cloud:{
+                    ...(s.data.cloud || {}),
+                    index,
+                    branches,
+                    selection,
+                    status:'idle',
+                    error:null
+                  }
+                }
+              }));
+              if(hasLoadableCloudSelection(selection)){
+                ctx.setState(s=>({
+                  ...s,
+                  data:{
+                    ...s.data,
+                    cloud:{ ...(s.data.cloud || {}), status:'loading', error:null }
+                  }
+                }));
+                try{
+                  const record = await SchemaCloud.fetchSchema(selection);
+                  await applyCloudSchemaRecord(ctx, record, { silent:true });
+                } catch(error){
+                  ctx.setState(s=>({
+                    ...s,
+                    data:{
+                      ...s.data,
+                      cloud:{ ...(s.data.cloud || {}), status:'error', error:String(error.message || error) }
+                    }
+                  }));
+                  UI.pushToast(ctx, { title:'تعذر تحميل المخطط السحابي', message:String(error.message || error), icon:'🛑' });
+                }
+              } else {
+                UI.pushToast(ctx, { title:'لا توجد هياكل سحابية متاحة', icon:'ℹ️' });
+              }
+            } catch(error){
+              ctx.setState(s=>({
+                ...s,
+                data:{
+                  ...s.data,
+                  cloud:{ ...(s.data.cloud || {}), status:'error', error:String(error.message || error) }
+                }
+              }));
+              UI.pushToast(ctx, { title:'تعذر تحميل قائمة الهياكل السحابية', message:String(error.message || error), icon:'🛑' });
+            }
+          } else {
+            ctx.setState(s=>({
+              ...s,
+              data:{
+                ...s.data,
+                cloud:{ ...(s.data.cloud || {}), status:'idle', error:null }
+              }
+            }));
+          }
         }
       },
       'erd.cloud.setScope':{
@@ -9333,6 +9511,7 @@
                   ...(s.data.cloud || {}),
                   index,
                   branches,
+                  selection: normaliseCloudSelection(s.data.cloud?.selection || {}, index, branches),
                   status:'idle'
                 }
               }
@@ -9356,6 +9535,10 @@
         handler:async (_e,ctx)=>{
           const state = ctx.getState();
           const selection = state.data.cloud?.selection || {};
+          if(!hasLoadableCloudSelection(selection)){
+            UI.pushToast(ctx, { title:'اختر مخططاً سحابياً صالحاً قبل التحميل', icon:'ℹ️' });
+            return;
+          }
           ctx.setState(s=>({
             ...s,
             data:{
@@ -9365,47 +9548,7 @@
           }));
           try{
             const record = await SchemaCloud.fetchSchema(selection);
-            const registry = Schema.Registry.fromJSON(record.schema || { tables: [] });
-            const layout = computeLayout(registry, record.layout);
-            const list = await SchemaLibrary.list();
-            const first = registry.list()[0]?.name || null;
-            const layoutPoint = first ? (layout[first] || { x:120, y:120 }) : { x:120, y:120 };
-            const classes = normaliseClasses(record.classes || []);
-            const classificationForm = {
-              rows: classes.map(item => ({ ...item })),
-              bulkText: classes.length ? JSON.stringify(classes, null, 2) : ''
-            };
-            ctx.setState(s=>({
-              ...s,
-              head:{ ...(s.head || {}), title: record.title || 'مخطط قاعدة بيانات مشكاة' },
-              data:{
-                ...s.data,
-                schemaId: record.id,
-                schemaMeta:{ name: record.name, title: record.title, description: record.description || '' },
-                schemaCreatedAt: record.createdAt,
-                schemaUpdatedAt: record.updatedAt,
-                schema: registry.toJSON(),
-                layout,
-                selection:{ table:first, field:null },
-                canvas: normaliseCanvas(record.canvas),
-                library:{ ...(s.data.library || {}), items: list },
-                classes,
-                cloud:{ ...(s.data.cloud || {}), status:'idle', error:null, lastLoaded: Date.now() }
-              },
-              ui:{
-                ...(s.ui || {}),
-                form:{
-                  ...(s.ui?.form || {}),
-                  field:{ ...(s.ui?.form?.field || {}), table:first || '' },
-                  relation:{ ...(s.ui?.form?.relation || {}), sourceTable:first || '', sourceField:'', targetTable:'', targetField:'', onDelete:'CASCADE', onUpdate:'CASCADE' },
-                  layout:{ x: layoutPoint.x, y: layoutPoint.y },
-                  schemaMeta:{ name: record.name, title: record.title, description: record.description || '' },
-                  classification: classificationForm,
-                  table:{ ...(s.ui?.form?.table || {}), classCode:'' }
-                }
-              }
-            }));
-            UI.pushToast(ctx, { title:'تم تحميل المخطط من السحابة', icon:'☁️' });
+            await applyCloudSchemaRecord(ctx, record);
           } catch(error){
             ctx.setState(s=>({
               ...s,

@@ -353,8 +353,22 @@
       border: 1px solid #e5e7eb;
       border-radius: 10px;
       padding: 16px;
-      overflow: auto;
       background: #f9fafb;
+      max-width: 100%;
+      max-height: calc(100vh - 320px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sql-results .table-container {
+      flex: 1;
+      width: 100%;
+      max-width: 100%;
+      overflow: auto;
+      border-radius: 8px;
+      background: white;
+      scrollbar-gutter: stable both-edges;
     }
 
     .sql-placeholder {
@@ -371,7 +385,8 @@
     }
 
     .sql-results table {
-      width: 100%;
+      width: max-content;
+      min-width: 100%;
       border-collapse: collapse;
       font-size: 13px;
     }
