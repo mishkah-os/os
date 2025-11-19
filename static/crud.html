@@ -8,6 +8,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <style>
+    :root {
+      --app-chrome-offset: 200px;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -21,14 +25,14 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f5f5f5;
+      background: #e5e7eb;
       padding: 0;
       margin: 0;
-      min-height: 100vh;
+      height: 100vh;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
-      overflow-x: hidden;
+      overflow: hidden;
     }
 
     body.sql-resizing {
@@ -37,13 +41,13 @@
     }
 
     .container {
-      max-width: 100%;
       width: 100%;
       margin: 0;
       background: white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       overflow: hidden;
-      min-height: 100vh;
+      height: 100%;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       flex: 1 0 auto;
@@ -52,41 +56,52 @@
     .header {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 20px 30px;
+      padding: 8px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 48px;
     }
 
     .header h1 {
-      font-size: 24px;
-      margin-bottom: 5px;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      white-space: nowrap;
     }
 
-    .header p {
-      opacity: 0.9;
-      font-size: 14px;
+    .tabs-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 6px 18px 10px;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      flex-wrap: wrap;
     }
 
     .connection-bar {
-      background: #f9fafb;
-      border-bottom: 1px solid #e5e7eb;
-      padding: 15px 30px;
       display: flex;
-      gap: 15px;
+      gap: 10px;
       align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .connection-bar input,
     .connection-bar select,
     .connection-bar button {
-      padding: 8px 16px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
       border: 1px solid #d1d5db;
-      border-radius: 4px;
-      font-size: 14px;
     }
 
-    .connection-bar input,
     .connection-bar select {
-      flex: 1;
-      max-width: 200px;
+      min-width: 150px;
+      background: white;
     }
 
     .connection-bar button {
@@ -94,7 +109,7 @@
       color: white;
       border: none;
       cursor: pointer;
-      font-weight: 500;
+      font-weight: 600;
       transition: background 0.2s;
     }
 
@@ -136,14 +151,14 @@
 
     .tabs-bar {
       display: flex;
-      gap: 10px;
-      padding: 16px 30px 0;
-      border-bottom: 1px solid #e5e7eb;
-      background: white;
+      gap: 8px;
+      padding: 0;
+      flex: 1 1 auto;
+      min-width: 200px;
     }
 
     .tab {
-      padding: 8px 18px;
+      padding: 6px 14px;
       border: none;
       background: #f3f4f6;
       color: #374151;
@@ -151,6 +166,7 @@
       cursor: pointer;
       font-weight: 600;
       transition: all 0.2s;
+      font-size: 13px;
     }
 
     .tab.active {
@@ -160,11 +176,15 @@
     }
 
     .panel-wrapper {
-      flex: 1;
+      flex: 0 0 auto;
+      height: calc(100vh - var(--app-chrome-offset));
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      min-height: 0;
       overflow: hidden;
+      background: #f3f4f6;
+      padding: 12px 16px 16px;
+      gap: 12px;
     }
 
     .view-panel {
@@ -172,10 +192,13 @@
       flex: 1;
       min-height: 0;
       overflow: hidden;
+      border-radius: 16px;
+      background: white;
     }
 
     .view-panel.active {
       display: flex !important;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
     }
 
     .main-content {
@@ -183,14 +206,19 @@
       flex: 1;
       overflow: hidden;
       min-height: 0;
+      height: 100%;
     }
 
     .sidebar {
       width: 250px;
       background: #f9fafb;
       border-left: 1px solid #e5e7eb;
-      padding: 20px;
+      padding: 16px;
       overflow-y: auto;
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
     }
 
     .sidebar h3 {
@@ -228,27 +256,31 @@
 
     .content-area {
       flex: 1;
-      padding: 20px 30px;
+      padding: 16px 24px;
       overflow: auto;
       min-height: 0;
+      display: flex;
+      flex-direction: column;
     }
 
     .sql-panel {
       flex: 1;
       flex-direction: column;
-      padding: 20px 30px;
+      padding: 16px;
       gap: 16px;
-      background: #f9fafb;
+      background: transparent;
       overflow: hidden;
       min-height: 0;
+      height: 100%;
     }
 
     .sql-admin-layout {
       display: flex;
       flex: 1;
-      gap: 20px;
+      gap: 16px;
       min-height: 0;
       overflow: hidden;
+      height: 100%;
     }
 
     .sql-sidebar {
@@ -261,7 +293,7 @@
       display: flex;
       flex-direction: column;
       min-height: 0;
-      max-height: 100%;
+      height: 100%;
       overflow-y: auto;
     }
 
@@ -337,6 +369,7 @@
       min-height: 0;
       box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
       gap: 12px;
+      height: 100%;
     }
 
     .sql-toolbar {
@@ -368,7 +401,7 @@
       overflow: hidden;
       background: #0d1117;
       height: var(--sql-editor-height);
-      min-height: 140px;
+      min-height: 0;
       display: flex;
       flex-direction: column;
     }
@@ -411,23 +444,21 @@
     }
 
     .sql-results {
-      flex: 1;
+      flex: 1 1 auto;
       border: 1px solid #e5e7eb;
       border-radius: 10px;
-      padding: 16px;
+      padding: 12px;
       background: #f9fafb;
-      max-width: 100%;
-      min-height: 180px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      min-height: 0;
     }
 
     .sql-results .table-container {
       flex: 1;
       width: 100%;
-      max-width: 100%;
-      max-height: 100%;
+      min-height: 0;
       overflow: auto;
       border-radius: 8px;
       background: white;
@@ -738,27 +769,27 @@
     <!-- Header -->
     <div class="header">
       <h1>🔥 Mishkah Dynamic CRUD</h1>
-      <p>اختبار النظام الديناميكي الكامل - Schema-driven CRUD</p>
     </div>
 
-    <!-- Connection Bar -->
-    <div class="connection-bar">
-      <select id="branchId">
-        <option value="">-- اختر الفرع --</option>
-      </select>
-      <select id="moduleId">
-        <option value="">-- اختر الموديول --</option>
-      </select>
-      <button id="connectBtn" disabled>🔌 اتصال</button>
-      <div class="status disconnected" id="statusIndicator">
-        <span class="status-dot"></span>
-        <span>غير متصل</span>
+    <div class="tabs-row">
+      <div class="tabs-bar">
+        <button class="tab active" type="button" data-tab="crud">🧩 CRUD</button>
+        <button class="tab" type="button" data-tab="sqlite">🗄️ SQLite Admin</button>
       </div>
-    </div>
 
-    <div class="tabs-bar">
-      <button class="tab active" type="button" data-tab="crud">🧩 CRUD</button>
-      <button class="tab" type="button" data-tab="sqlite">🗄️ SQLite Admin</button>
+      <div class="connection-bar">
+        <select id="branchId">
+          <option value="">-- اختر الفرع --</option>
+        </select>
+        <select id="moduleId">
+          <option value="">-- اختر الموديول --</option>
+        </select>
+        <button id="connectBtn" disabled>🔌 اتصال</button>
+        <div class="status disconnected" id="statusIndicator">
+          <span class="status-dot"></span>
+          <span>غير متصل</span>
+        </div>
+      </div>
     </div>
 
     <div class="panel-wrapper">

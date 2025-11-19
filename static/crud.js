@@ -22,6 +22,8 @@
   let sqlLayoutController = null;
   let sqlResizeSetupDone = false;
   let activePanel = 'crud';
+  let chromeResizeFrame = null;
+  let chromeObserver = null;
 
   // ==================== HELPERS ====================
 
@@ -112,6 +114,37 @@
         }
       });
     }
+  }
+
+  function updateChromeHeight() {
+    if (chromeResizeFrame) {
+      cancelAnimationFrame(chromeResizeFrame);
+    }
+
+    chromeResizeFrame = requestAnimationFrame(() => {
+      const header = document.querySelector('.header');
+      const tabsRow = document.querySelector('.tabs-row');
+      const headerHeight = header?.offsetHeight || 0;
+      const tabsHeight = tabsRow?.offsetHeight || 0;
+      const total = headerHeight + tabsHeight || 120;
+      document.documentElement.style.setProperty('--app-chrome-offset', `${total}px`);
+    });
+  }
+
+  function startChromeWatcher() {
+    updateChromeHeight();
+    setTimeout(updateChromeHeight, 250);
+
+    if (typeof ResizeObserver !== 'undefined' && !chromeObserver) {
+      const header = document.querySelector('.header');
+      const tabsRow = document.querySelector('.tabs-row');
+      if (header || tabsRow) {
+        chromeObserver = new ResizeObserver(() => updateChromeHeight());
+        [header, tabsRow].forEach(node => node && chromeObserver.observe(node));
+      }
+    }
+
+    window.addEventListener('resize', updateChromeHeight);
   }
 
   function quoteIdentifier(name) {
@@ -1275,8 +1308,8 @@
       return;
     }
 
-    const MIN_EDITOR = 140;
-    const MIN_RESULTS = 200;
+    const MIN_EDITOR = 0;
+    const MIN_RESULTS = 0;
     const state = { active: false, startY: 0, startHeight: 0 };
 
     function pointerY(event) {
@@ -1285,7 +1318,7 @@
 
     function applyHeight(desiredHeight) {
       const workspaceHeight = workspace.getBoundingClientRect().height || 0;
-      const maxHeight = Math.max(MIN_EDITOR, workspaceHeight - MIN_RESULTS);
+      const maxHeight = Math.max(0, workspaceHeight - MIN_RESULTS);
       const nextHeight = Math.min(Math.max(desiredHeight, MIN_EDITOR), maxHeight);
 
       editorContainer.style.setProperty('--sql-editor-height', `${nextHeight}px`);
@@ -1352,6 +1385,8 @@
   // ==================== INIT ====================
 
   document.addEventListener('DOMContentLoaded', () => {
+    startChromeWatcher();
+
     document.querySelectorAll('.tab').forEach(tab => {
       tab.addEventListener('click', () => setActivePanel(tab.dataset.tab));
     });
