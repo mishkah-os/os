@@ -74,6 +74,10 @@
   var tailwindEnabled = (typeof tailwindFlag === 'boolean') ? tailwindFlag
     : (typeof userConfig.tailwind === 'boolean' ? userConfig.tailwind : true);
 
+  var storesFlag = parseDatasetFlag(parseDatasetValue('stores', null), undefined);
+  var storesEnabled = (typeof storesFlag === 'boolean') ? storesFlag
+    : (typeof userConfig.stores === 'boolean' ? userConfig.stores : false);
+
   function joinBase(path, fallback) {
     if (path && /^(https?:)?\/\//i.test(path)) return path;
     if (path && path.charAt(0) === '/') return path;
@@ -120,6 +124,21 @@
       }
     }
   ];
+
+  if (storesEnabled) {
+    resources.push(
+      {
+        id: 'mishkah-store',
+        src: joinBase(paths.store || 'mishkah.store.js'),
+        test: function () { return typeof global.createStore === 'function'; }
+      },
+      {
+        id: 'mishkah-simple-store',
+        src: joinBase(paths.simpleStore || 'mishkah.simple-store.js'),
+        test: function () { return typeof global.createSimpleStore === 'function'; }
+      }
+    );
+  }
 
   var cssHref = joinBase(paths.css || 'mishkah-css.css');
 
@@ -838,40 +857,45 @@
     };
   }
 
+  function prepareAutoDatabase(db) {
+    if (!autoEnabled) return db || {};
+    var database = Object.assign({}, db || {});
+    var cssLibrary = mapCssLibrary(cssOption) || cssOption;
+    var env = Object.assign({ css: cssOption, cssLibrary: cssLibrary, cssEngine: cssLibrary }, database.env || {});
+    if (!env.theme) env.theme = userConfig.defaultTheme || 'light';
+    if (!env.lang) env.lang = (Array.isArray(userConfig.defaultLangs) && userConfig.defaultLangs[0]) || 'ar';
+    if (!env.dir) env.dir = RTL_LANGS.has(env.lang) ? 'rtl' : 'ltr';
+    database.env = env;
+    setDocumentLang(env.lang, env.dir);
+    if (cssOption === 'mishkah') {
+      ensureStyle(cssHref, 'mishkah-css');
+    }
+    return database;
+  }
+
+  function applyTwcssAuto(appInstance, database) {
+    if (!autoEnabled || !appInstance) return;
+    try {
+      var host = global.Mishkah;
+      if (host && host.utils && host.utils.twcss && typeof host.utils.twcss.auto === 'function') {
+        host.utils.twcss.auto(database, appInstance, { tailwind: tailwindEnabled });
+      } else if (!twcssAutoWarned) {
+        twcssAutoWarned = true;
+        if (global.console && console.warn) {
+          console.warn('[MishkahAuto] twcss.auto غير متوفر، لن يتم تفعيل توكنز Mishkah تلقائياً.');
+        }
+      }
+    } catch (err) {
+      if (global.console && console.warn) console.warn('[MishkahAuto] فشل تفعيل twcss.auto', err);
+    }
+  }
+
   function patchAppMake(M) {
     if (!M || !M.app || typeof M.app.make !== 'function') return;
     if (M.app.make.__mishkahAutoPatch) return;
     var originalMake = M.app.make;
-    function applyTwcssAuto(appInstance, databaseSnapshot) {
-      if (!autoEnabled || !appInstance) return;
-      try {
-        var host = global.Mishkah;
-        if (host && host.utils && host.utils.twcss && typeof host.utils.twcss.auto === 'function') {
-          host.utils.twcss.auto(databaseSnapshot, appInstance, { tailwind: tailwindEnabled });
-        } else if (!twcssAutoWarned) {
-          twcssAutoWarned = true;
-          if (global.console && console.warn) {
-            console.warn('[MishkahAuto] twcss.auto غير متوفر، لن يتم تفعيل توكنز Mishkah تلقائياً.');
-          }
-        }
-      } catch (err) {
-        if (global.console && console.warn) console.warn('[MishkahAuto] فشل تفعيل twcss.auto', err);
-      }
-    }
     M.app.make = function (db, options) {
-      var database = db || {};
-      if (autoEnabled) {
-        database = Object.assign({}, database);
-        var cssLibrary = mapCssLibrary(cssOption) || cssOption;
-        database.env = Object.assign({ css: cssOption, cssLibrary: cssLibrary, cssEngine: cssLibrary }, database.env || {});
-        if (!database.env.theme) database.env.theme = userConfig.defaultTheme || 'light';
-        if (!database.env.lang) database.env.lang = (Array.isArray(userConfig.defaultLangs) && userConfig.defaultLangs[0]) || 'ar';
-        if (!database.env.dir) database.env.dir = RTL_LANGS.has(database.env.lang) ? 'rtl' : 'ltr';
-        setDocumentLang(database.env.lang, database.env.dir);
-        if (cssOption === 'mishkah') {
-          ensureStyle(cssHref, 'mishkah-css');
-        }
-      }
+      var database = prepareAutoDatabase(db);
       var mergedOptions = options ? Object.assign({}, options) : {};
       if (autoEnabled) {
         mergedOptions.orders = mergeOrders(mergedOptions.orders, buildAutoOrders());
@@ -1130,6 +1154,103 @@
   autoNamespace.whenReady = api.whenReady;
   autoNamespace.onState = api.onState;
   autoNamespace.attach = api.attach;
+  function ensureDslCore() {
+    return api.whenReady.then(function (M) {
+      if (!M || !M.app || typeof M.app.createApp !== 'function' || typeof M.app.setBody !== 'function') {
+        throw new Error('Mishkah core DSL غير متوفر.');
+      }
+      return M;
+    });
+  }
+
+  function proxyAppMethods(promise, defaultMount) {
+    var proxy = {
+      ready: function (callback) {
+        return promise.then(function (app) {
+          if (typeof callback === 'function') callback(app);
+          return app;
+        });
+      },
+      mount: function (selector) {
+        var target = selector || defaultMount;
+        if (!target) return promise;
+        return promise.then(function (app) {
+          app.mount(target);
+          return app;
+        });
+      },
+      then: function () {
+        return promise.then.apply(promise, arguments);
+      },
+      catch: function () {
+        return promise.catch.apply(promise, arguments);
+      },
+      promise: promise
+    };
+    var methods = ['getState', 'setState', 'setOrders', 'freeze', 'unfreeze', 'flush', 'rebuild'];
+    methods.forEach(function (name) {
+      proxy[name] = function () {
+        var args = Array.prototype.slice.call(arguments);
+        return promise.then(function (app) {
+          if (typeof app[name] === 'function') {
+            return app[name].apply(app, args);
+          }
+          return undefined;
+        });
+      };
+    });
+    return proxy;
+  }
+
+  function createDslApp(database, body, orders, mountTarget) {
+    var dbSnapshot = prepareAutoDatabase(database);
+    var ordersSnapshot = (orders && typeof orders === 'object') ? Object.assign({}, orders) : {};
+    if (autoEnabled) {
+      ordersSnapshot = mergeOrders(ordersSnapshot, buildAutoOrders());
+    }
+    var view = (typeof body === 'function') ? body : function () { return null; };
+    var target = (mountTarget === false) ? null : (mountTarget || '#app');
+    var deferred = createDeferred();
+    ensureDslCore().then(function (M) {
+      try {
+        M.app.setBody(view);
+      } catch (err) {
+        if (global.console && console.error) console.error('[MishkahAuto] setBody فشل', err);
+      }
+      var app = M.app.createApp(dbSnapshot, ordersSnapshot);
+      applyTwcssAuto(app, dbSnapshot);
+      attachApp(app);
+      deferred.resolve(app);
+      if (target) {
+        try {
+          app.mount(target);
+        } catch (err) {
+          if (global.console && console.error) console.error('[MishkahAuto] mount فشل', err);
+        }
+      }
+    }).catch(function (error) {
+      deferred.reject(error);
+    });
+    return proxyAppMethods(deferred.promise, target);
+  }
+
+  api.app = {
+    create: createDslApp,
+    setBody: function (body) {
+      return ensureDslCore().then(function (M) {
+        return M.app.setBody(body);
+      });
+    },
+    ready: function (callback) {
+      return ensureDslCore().then(function (M) {
+        if (typeof callback === 'function') callback(M.app);
+        return M.app;
+      });
+    }
+  };
+
+  autoNamespace.app = api.app;
+
   autoNamespace.make = function (config) {
     var cfg = (config && typeof config === 'object') ? config : {};
     var promise = api.whenReady.then(function (M) {

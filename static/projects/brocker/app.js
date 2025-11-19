@@ -1282,23 +1282,71 @@
       });
   }
 
-  appInstance = M.app.createApp(initialDatabase, orders);
-  M.app.setBody(AppView);
-  if (twcss && typeof twcss.auto === 'function') {
+  function finalizeApp(app, opts) {
+    if (!app) return;
+    var options = opts || {};
+    if (!options.skipTwcss && twcss && typeof twcss.auto === 'function') {
+      try {
+        twcss.auto(initialDatabase, app, { pageScaffold: true });
+      } catch (err) {
+        console.warn('[Brocker PWA] failed to activate twcss.auto', err);
+      }
+    }
+    if (!options.skipAutoAttach && global.MishkahAuto && typeof global.MishkahAuto.attach === 'function') {
+      try {
+        global.MishkahAuto.attach(app);
+      } catch (err) {
+        console.warn('[Brocker PWA] failed to attach MishkahAuto', err);
+      }
+    }
+    setupPwaHooks(app);
+    bootstrapRealtime(app);
+    global.BrockerPwaApp = app;
+  }
+
+  function bootWithAutoDsl() {
+    var helper = global.MishkahAuto && global.MishkahAuto.app;
+    if (!helper || typeof helper.create !== 'function') return false;
     try {
-      twcss.auto(initialDatabase, appInstance, { pageScaffold: true });
+      var controller = helper.create(initialDatabase, AppView, orders, '#app');
+      controller.ready(function (app) {
+        appInstance = app;
+        finalizeApp(app, { skipTwcss: true, skipAutoAttach: true });
+      }).catch(function (error) {
+        console.error('[Brocker PWA] DSL helper failed', error);
+      });
+      return true;
     } catch (err) {
-      console.warn('[Brocker PWA] failed to activate twcss.auto', err);
+      console.error('[Brocker PWA] unable to boot via MishkahAuto.app', err);
+      return false;
     }
   }
-  if (global.MishkahAuto && typeof global.MishkahAuto.attach === 'function') {
-    try {
-      global.MishkahAuto.attach(appInstance);
-    } catch (err) {
-      console.warn('[Brocker PWA] failed to attach MishkahAuto', err);
-    }
+
+  function bootFallback() {
+    var readyHelper = global.MishkahAuto && typeof global.MishkahAuto.ready === 'function'
+      ? global.MishkahAuto.ready.bind(global.MishkahAuto)
+      : function (cb) {
+          return Promise.resolve().then(function () {
+            if (typeof cb === 'function') cb(M);
+            return M;
+          });
+        };
+    return readyHelper(function (readyM) {
+      if (!readyM || !readyM.app || typeof readyM.app.createApp !== 'function') {
+        throw new Error('mishkah-core-not-ready');
+      }
+      readyM.app.setBody(AppView);
+      var app = readyM.app.createApp(initialDatabase, orders);
+      app.mount('#app');
+      appInstance = app;
+      finalizeApp(app);
+      return readyM;
+    }).catch(function (error) {
+      console.error('[Brocker PWA] fallback boot failed', error);
+    });
   }
-  setupPwaHooks(appInstance);
-  bootstrapRealtime(appInstance);
-  global.BrockerPwaApp = appInstance;
+
+  if (!bootWithAutoDsl()) {
+    bootFallback();
+  }
 })();
