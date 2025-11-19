@@ -12,6 +12,10 @@
     "gim": {
       "label": "جيم — نظام إدارة الجيم",
       "modules": ["gym"]
+    },
+    "aqar": {
+      "label": "منصة عقار بروكر",
+      "modules": ["brocker"]
     }
   },
   "patterns": [
