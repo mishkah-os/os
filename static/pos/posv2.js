@@ -87,6 +87,18 @@
       });
       return normalized;
     };
+    const toTimestamp = (value)=>{
+      if(value == null) return Date.now();
+      if(typeof value === 'number') return value;
+      const parsed = new Date(value).getTime();
+      return Number.isFinite(parsed) ? parsed : Date.now();
+    };
+    const toIsoString = (value)=>{
+      if(!value) return null;
+      if(typeof value === 'string' && value.includes('T')) return value;
+      const ts = toTimestamp(value);
+      return new Date(ts).toISOString();
+    };
     const cloneDeep = (value)=>{
       if(value == null) return value;
       if(JSONX && typeof JSONX.clone === 'function') return JSONX.clone(value);
@@ -1750,13 +1762,6 @@
         return readyPromise;
       };
 
-      function toTimestamp(value){
-        if(value == null) return Date.now();
-        if(typeof value === 'number') return value;
-        const parsed = new Date(value).getTime();
-        return Number.isFinite(parsed) ? parsed : Date.now();
-      }
-
       function normalizeShiftRecord(record){
         if(!record) return null;
         const base = { ...record };
@@ -2346,6 +2351,45 @@
         supportsTempOrders:false
       };
     }
+
+    const resolveShiftTableName = ()=> POS_TABLE_HANDLES?.posShift || POS_TABLE_HANDLES?.pos_shift || 'pos_shift';
+
+    const insertShiftRemote = async (record)=>{
+      const store = window.__POS_DB__;
+      if(!store || typeof store.insert !== 'function') return null;
+      const table = resolveShiftTableName();
+      const nowIso = toIsoString(record?.openedAt || Date.now());
+      const payload = {
+        ...record,
+        status: record?.status || 'open',
+        isClosed: !!record?.isClosed,
+        openedAt: nowIso,
+        closedAt: record?.closedAt ? toIsoString(record.closedAt) : null,
+        createdAt: toIsoString(record?.createdAt || nowIso),
+        updatedAt: toIsoString(record?.updatedAt || nowIso),
+        version: Number.isFinite(record?.version) ? Math.max(1, Math.trunc(record.version)) : 1
+      };
+      const inserted = await store.insert(table, payload);
+      return inserted || payload;
+    };
+
+    const updateShiftRemote = async (record)=>{
+      const store = window.__POS_DB__;
+      if(!store || typeof store.update !== 'function') return null;
+      if(!record || !record.id) return null;
+      const table = resolveShiftTableName();
+      const currentVersion = Number.isFinite(record.version) ? Math.trunc(record.version) : 1;
+      const nextVersion = currentVersion + 1;
+      const payload = {
+        ...record,
+        version: nextVersion,
+        updatedAt: toIsoString(record.updatedAt || Date.now()),
+        closedAt: record.closedAt ? toIsoString(record.closedAt) : null,
+        openedAt: toIsoString(record.openedAt || record.createdAt || Date.now())
+      };
+      const updated = await store.update(table, payload);
+      return updated || payload;
+    };
 
     function createKDSBridge(url){
       let socket = null;
@@ -12695,12 +12739,17 @@
               cashierRole: effectiveEmployee.role,
               status:'open',
               closingCash:null,
-              isClosed:false
+              isClosed:false,
+              createdAt: toIsoString(now),
+              updatedAt: toIsoString(now),
+              version:1
             };
             const validatedShift = SHIFT_TABLE.createRecord(baseShiftInput);
+            const remoteShift = await insertShiftRemote(validatedShift);
+            const mergedShift = remoteShift ? { ...validatedShift, ...remoteShift } : validatedShift;
             persistedShift = posDB.available
-              ? await posDB.openShiftRecord(validatedShift)
-              : validatedShift;
+              ? await posDB.openShiftRecord(mergedShift)
+              : mergedShift;
           } catch(error){
             console.warn('[Mishkah][POS] shift open failed', error);
             UI.pushToast(ctx, { title:t.toast.indexeddb_error, icon:'🛑' });
@@ -12821,12 +12870,20 @@
             closingCash,
             closedAt: Date.now(),
             status:'closed',
-            isClosed:true
+            isClosed:true,
+            version: Number.isFinite(currentShift.version) ? Math.trunc(currentShift.version) : 1,
+            updatedAt: toIsoString(Date.now())
           };
           let closedShift = baseClosed;
+          try{
+            const remoteClosed = await updateShiftRemote(baseClosed);
+            if(remoteClosed) closedShift = { ...closedShift, ...remoteClosed };
+          } catch(err){
+            console.warn('[Mishkah][POS] remote shift close failed', err);
+          }
           if(posDB.available){
             try{
-              closedShift = await posDB.closeShiftRecord(currentShift.id, baseClosed);
+              closedShift = await posDB.closeShiftRecord(currentShift.id, closedShift);
             } catch(error){
               console.warn('[Mishkah][POS] shift close failed', error);
               UI.pushToast(ctx, { title:t.toast.indexeddb_error, icon:'🛑' });
