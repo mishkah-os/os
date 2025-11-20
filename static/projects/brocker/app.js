@@ -412,15 +412,39 @@
 
     // تحديث state أولاً مع loading
     ctx.setState(function (db) {
-      var nextEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
+      var nextEnv = Object.assign({}, db.env, {
+        lang: nextLang,
+        dir: dir,
+        _update: Date.now()
+      });
       persistPrefs(nextEnv);
       syncDocumentEnv(nextEnv);
       console.log('[Brocker PWA] State updated, new env:', nextEnv);
       return Object.assign({}, db, {
         env: nextEnv,
-        state: Object.assign({}, db.state, { loading: true })
+        state: Object.assign({}, db.state, {
+          loading: true,
+          _tick: (db.state._tick || 0) + 1
+        })
       });
     });
+
+    // إجبار re-render فوري
+    setTimeout(function() {
+      if (ctx && typeof ctx.rebuild === 'function') {
+        console.log('[Brocker PWA] Forcing rebuild after lang change');
+        ctx.rebuild();
+      } else if (ctx && typeof ctx.setState === 'function') {
+        console.log('[Brocker PWA] No rebuild, using dummy setState');
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              _dummy: Date.now()
+            })
+          });
+        });
+      }
+    }, 10);
 
     // إعادة تحميل البيانات باللغة الجديدة بعد delay قصير
     setTimeout(function() {
@@ -440,26 +464,37 @@
 
     // تحديث state مع rebuild إجباري
     ctx.setState(function (db) {
-      var nextEnv = Object.assign({}, db.env, { theme: nextTheme });
+      var nextEnv = Object.assign({}, db.env, {
+        theme: nextTheme,
+        _update: Date.now()
+      });
       persistPrefs(nextEnv);
       syncDocumentEnv(nextEnv);
       console.log('[Brocker PWA] Theme state updated, new env:', nextEnv);
-      return Object.assign({}, db, { env: nextEnv });
+      return Object.assign({}, db, {
+        env: nextEnv,
+        state: Object.assign({}, db.state, {
+          _tick: (db.state._tick || 0) + 1
+        })
+      });
     });
 
-    // إجبار إعادة render
+    // إجبار إعادة render فوري
     setTimeout(function() {
       if (ctx && typeof ctx.rebuild === 'function') {
-        console.log('[Brocker PWA] Calling rebuild()');
+        console.log('[Brocker PWA] Calling rebuild() for theme');
         ctx.rebuild();
-      } else {
-        console.warn('[Brocker PWA] rebuild() not available, trying setState');
-        // محاولة بديلة: setState مرة أخرى لإجبار re-render
-        if (ctx && typeof ctx.setState === 'function') {
-          ctx.setState(function(db) { return db; });
-        }
+      } else if (ctx && typeof ctx.setState === 'function') {
+        console.log('[Brocker PWA] No rebuild, using dummy setState');
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              _dummy: Date.now()
+            })
+          });
+        });
       }
-    }, 50);
+    }, 10);
   }
 
   var orders = {
