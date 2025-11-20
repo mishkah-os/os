@@ -25,7 +25,7 @@ import { VersionConflictError } from './moduleStore.js';
 import SequenceManager from './sequenceManager.js';
 import { initializeSqlite } from './db/sqlite.js';
 import { createQuery, executeRawQuery, getDatabaseSchema } from './queryBuilder.js';
-import { loadTranslationsPayload } from './backend/i18nLoader.js';
+import { attachTranslationsToRows, loadTranslationsPayload } from './backend/i18nLoader.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -5604,6 +5604,9 @@ async function handleBranchesApi(req, res, url) {
       const limit = Math.max(0, Number(params.get('limit') || params.get('take') || 0) || 0);
       const afterId = params.get('afterId') || params.get('after_id') || params.get('after') || params.get('lastId');
       const afterKey = params.get('afterKey') || params.get('cursor');
+      const requestLang = params.get('lang') || params.get('locale');
+      const fallbackLang = params.get('fallback') || params.get('fallbackLang') || 'ar';
+      const effectiveLang = requestLang || fallbackLang || 'ar';
       const afterCreatedParam =
         params.get('afterCreatedAt') ||
         params.get('after_created_at') ||
@@ -5670,13 +5673,17 @@ async function handleBranchesApi(req, res, url) {
       const limited = limit > 0 ? filtered.slice(0, limit) : filtered;
       const lastRecord = limited.length ? limited[limited.length - 1] : null;
       const cursor = lastRecord ? store.getRecordReference(tableName, lastRecord) : null;
+      const localizedRows = attachTranslationsToRows(store, tableName, limited, {
+        lang: effectiveLang,
+        fallbackLang
+      });
       jsonResponse(res, 200, {
         branchId,
         moduleId,
         table: tableName,
         count: limited.length,
         cursor,
-        rows: limited,
+        rows: localizedRows,
         meta: {
           limit: limit || null,
           order,
