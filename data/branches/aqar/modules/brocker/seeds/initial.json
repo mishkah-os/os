@@ -44,7 +44,7 @@
         "tagline": "منصة ذكية لإدارة مكاتب العقارات",
         "hero_title": "منصة متكاملة للوسطاء",
         "hero_subtitle": "ابحث، أدر، وتابع طلبات عملائك عبر تجربة PWA مصممة للموبايل.",
-        "brand_logo": "https://raw.githubusercontent.com/tabler/tabler-icons/master/icons/filled/building-community.svg",
+        "brand_logo": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons@latest/icons/filled/building-community.svg",
         "support_phone": "+201222334455",
         "support_whatsapp": "+201222334455",
         "theme_color": "#0f172a",
@@ -79,7 +79,7 @@
         "title": "اكتشف عقارات جاهزة للتسليم",
         "subtitle": "أحدث المشروعات في القاهرة الجديدة بخيارات تمويل مرنة.",
         "media_type": "image",
-        "media_url": "https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1600&q=80",
+        "media_url": "https://images.unsplash.com/photo-1582719478239-2f66c2401b1b?auto=format&fit=crop&w=1600&q=80",
         "cta_label": "ابدأ البحث",
         "cta_action": "search",
         "priority": 1,
@@ -101,7 +101,7 @@
         "title": "دخول آمن عبر واتساب",
         "subtitle": "تحقق فوري للوسطاء المعتمدين مع سجل تدقيق كامل.",
         "media_type": "image",
-        "media_url": "https://images.unsplash.com/photo-1582719478239-2f66c2401b1b?auto=format&fit=crop&w=1600&q=80",
+        "media_url": "https://images.unsplash.com/photo-1505691723518-36a5ac3be353?auto=format&fit=crop&w=1600&q=80",
         "cta_label": "سجل وسيط جديد",
         "cta_action": "broker-onboard",
         "priority": 3,
@@ -338,7 +338,7 @@
         "id": "media-nour-1203-1",
         "unit_id": "unit-nour-1203",
         "media_type": "video",
-        "url": "https://storage.googleapis.com/coverr-main/mp4/Footboys.mp4",
+        "url": "https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4",
         "description": "جولة افتراضية",
         "priority": 1
       },
@@ -748,6 +748,1632 @@
     "unit_features_lang": [],
     "inquiries_lang": [],
     "inquiry_replies_lang": [],
-    "unit_layouts": []
+    "unit_layouts": [],
+    "ui_labels": [
+      {
+        "id": "ui-nav.home-ar",
+        "key": "nav.home",
+        "lang": "ar",
+        "text": "الرئيسية",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-nav.home-en",
+        "key": "nav.home",
+        "lang": "en",
+        "text": "Home",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-nav.brokers-ar",
+        "key": "nav.brokers",
+        "lang": "ar",
+        "text": "الوسطاء",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-nav.brokers-en",
+        "key": "nav.brokers",
+        "lang": "en",
+        "text": "Brokers",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-nav.dashboard-ar",
+        "key": "nav.dashboard",
+        "lang": "ar",
+        "text": "الطلبات",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-nav.dashboard-en",
+        "key": "nav.dashboard",
+        "lang": "en",
+        "text": "Requests",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-nav.listing-ar",
+        "key": "nav.listing",
+        "lang": "ar",
+        "text": "تفاصيل",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-nav.listing-en",
+        "key": "nav.listing",
+        "lang": "en",
+        "text": "Details",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.resetFilters-ar",
+        "key": "actions.resetFilters",
+        "lang": "ar",
+        "text": "إعادة التصفية",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.resetFilters-en",
+        "key": "actions.resetFilters",
+        "lang": "en",
+        "text": "Reset filters",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.install-ar",
+        "key": "actions.install",
+        "lang": "ar",
+        "text": "تثبيت",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.install-en",
+        "key": "actions.install",
+        "lang": "en",
+        "text": "Install",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.skip-ar",
+        "key": "actions.skip",
+        "lang": "ar",
+        "text": "لاحقاً",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.skip-en",
+        "key": "actions.skip",
+        "lang": "en",
+        "text": "Later",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.installNow-ar",
+        "key": "actions.installNow",
+        "lang": "ar",
+        "text": "تثبيت الآن",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.installNow-en",
+        "key": "actions.installNow",
+        "lang": "en",
+        "text": "Install now",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.dismiss-ar",
+        "key": "actions.dismiss",
+        "lang": "ar",
+        "text": "إغلاق",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.dismiss-en",
+        "key": "actions.dismiss",
+        "lang": "en",
+        "text": "Dismiss",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.toggleTheme-ar",
+        "key": "actions.toggleTheme",
+        "lang": "ar",
+        "text": "تبديل الثيم",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.toggleTheme-en",
+        "key": "actions.toggleTheme",
+        "lang": "en",
+        "text": "Theme",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.toggleLang-ar",
+        "key": "actions.toggleLang",
+        "lang": "ar",
+        "text": "EN / AR",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.toggleLang-en",
+        "key": "actions.toggleLang",
+        "lang": "en",
+        "text": "EN / AR",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.title-ar",
+        "key": "search.title",
+        "lang": "ar",
+        "text": "ابحث عن الوحدة المناسبة",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.title-en",
+        "key": "search.title",
+        "lang": "en",
+        "text": "Find the right unit",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.region-ar",
+        "key": "search.region",
+        "lang": "ar",
+        "text": "المنطقة",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.region-en",
+        "key": "search.region",
+        "lang": "en",
+        "text": "Region",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.unitType-ar",
+        "key": "search.unitType",
+        "lang": "ar",
+        "text": "نوع الوحدة",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.unitType-en",
+        "key": "search.unitType",
+        "lang": "en",
+        "text": "Unit type",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.listingType-ar",
+        "key": "search.listingType",
+        "lang": "ar",
+        "text": "نوع العرض",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.listingType-en",
+        "key": "search.listingType",
+        "lang": "en",
+        "text": "Listing type",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.allRegions-ar",
+        "key": "search.allRegions",
+        "lang": "ar",
+        "text": "كل المناطق",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.allRegions-en",
+        "key": "search.allRegions",
+        "lang": "en",
+        "text": "All regions",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.allUnitTypes-ar",
+        "key": "search.allUnitTypes",
+        "lang": "ar",
+        "text": "كل أنواع الوحدات",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.allUnitTypes-en",
+        "key": "search.allUnitTypes",
+        "lang": "en",
+        "text": "All unit types",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.allListings-ar",
+        "key": "search.allListings",
+        "lang": "ar",
+        "text": "كل طرق العرض",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-search.allListings-en",
+        "key": "search.allListings",
+        "lang": "en",
+        "text": "All listing types",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listings.empty-ar",
+        "key": "listings.empty",
+        "lang": "ar",
+        "text": "لا توجد وحدات متاحة حالياً.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listings.empty-en",
+        "key": "listings.empty",
+        "lang": "en",
+        "text": "No listings available yet.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.back-ar",
+        "key": "listing.back",
+        "lang": "ar",
+        "text": "← العودة للنتائج",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.back-en",
+        "key": "listing.back",
+        "lang": "en",
+        "text": "← Back to results",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.gallery-ar",
+        "key": "listing.gallery",
+        "lang": "ar",
+        "text": "معرض الصور",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.gallery-en",
+        "key": "listing.gallery",
+        "lang": "en",
+        "text": "Gallery",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.details-ar",
+        "key": "listing.details",
+        "lang": "ar",
+        "text": "تفاصيل الوحدة",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.details-en",
+        "key": "listing.details",
+        "lang": "en",
+        "text": "Unit details",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.features-ar",
+        "key": "listing.features",
+        "lang": "ar",
+        "text": "المميزات",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.features-en",
+        "key": "listing.features",
+        "lang": "en",
+        "text": "Highlights",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.layouts-ar",
+        "key": "listing.layouts",
+        "lang": "ar",
+        "text": "المخططات",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.layouts-en",
+        "key": "listing.layouts",
+        "lang": "en",
+        "text": "Layouts",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.contact-ar",
+        "key": "listing.contact",
+        "lang": "ar",
+        "text": "تواصل مع وسيط",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.contact-en",
+        "key": "listing.contact",
+        "lang": "en",
+        "text": "Contact broker",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.priceOnCall-ar",
+        "key": "listing.priceOnCall",
+        "lang": "ar",
+        "text": "السعر عند الطلب",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.priceOnCall-en",
+        "key": "listing.priceOnCall",
+        "lang": "en",
+        "text": "Price on request",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.download-ar",
+        "key": "listing.download",
+        "lang": "ar",
+        "text": "تحميل",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.download-en",
+        "key": "listing.download",
+        "lang": "en",
+        "text": "Download",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.view360-ar",
+        "key": "listing.view360",
+        "lang": "ar",
+        "text": "مشاهدة 360°",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.view360-en",
+        "key": "listing.view360",
+        "lang": "en",
+        "text": "View 360°",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.type.sale-ar",
+        "key": "listing.type.sale",
+        "lang": "ar",
+        "text": "بيع",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.type.sale-en",
+        "key": "listing.type.sale",
+        "lang": "en",
+        "text": "Sale",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.type.rent-ar",
+        "key": "listing.type.rent",
+        "lang": "ar",
+        "text": "إيجار",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.type.rent-en",
+        "key": "listing.type.rent",
+        "lang": "en",
+        "text": "Rent",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.type.lease-ar",
+        "key": "listing.type.lease",
+        "lang": "ar",
+        "text": "إيجار تشغيلي",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.type.lease-en",
+        "key": "listing.type.lease",
+        "lang": "en",
+        "text": "Operational lease",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.type.short-ar",
+        "key": "listing.type.short",
+        "lang": "ar",
+        "text": "إيجار قصير",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.type.short-en",
+        "key": "listing.type.short",
+        "lang": "en",
+        "text": "Short stay",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.price-ar",
+        "key": "listing.price",
+        "lang": "ar",
+        "text": "السعر",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.price-en",
+        "key": "listing.price",
+        "lang": "en",
+        "text": "Price",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.defaultSuccess-ar",
+        "key": "toast.defaultSuccess",
+        "lang": "ar",
+        "text": "تم تنفيذ العملية.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.defaultSuccess-en",
+        "key": "toast.defaultSuccess",
+        "lang": "en",
+        "text": "Action completed.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.installError-ar",
+        "key": "toast.installError",
+        "lang": "ar",
+        "text": "التثبيت غير مدعوم.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.installError-en",
+        "key": "toast.installError",
+        "lang": "en",
+        "text": "Install not supported.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.installOpenError-ar",
+        "key": "toast.installOpenError",
+        "lang": "ar",
+        "text": "تعذر فتح نافذة التثبيت.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.installOpenError-en",
+        "key": "toast.installOpenError",
+        "lang": "en",
+        "text": "Could not open install dialog.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.requiredFields-ar",
+        "key": "toast.requiredFields",
+        "lang": "ar",
+        "text": "يرجى استكمال الحقول.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.requiredFields-en",
+        "key": "toast.requiredFields",
+        "lang": "en",
+        "text": "Please complete all fields.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.sent-ar",
+        "key": "toast.sent",
+        "lang": "ar",
+        "text": "تم إرسال طلبك بنجاح.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.sent-en",
+        "key": "toast.sent",
+        "lang": "en",
+        "text": "Your request was sent.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.failed-ar",
+        "key": "toast.failed",
+        "lang": "ar",
+        "text": "تعذر إرسال الطلب.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.failed-en",
+        "key": "toast.failed",
+        "lang": "en",
+        "text": "Could not submit request.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.connection-ar",
+        "key": "toast.connection",
+        "lang": "ar",
+        "text": "الاتصال غير متاح الآن.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.connection-en",
+        "key": "toast.connection",
+        "lang": "en",
+        "text": "Connection not available right now.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.brokerPhone-ar",
+        "key": "toast.brokerPhone",
+        "lang": "ar",
+        "text": "أدخل رقم الهاتف.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.brokerPhone-en",
+        "key": "toast.brokerPhone",
+        "lang": "en",
+        "text": "Enter phone number.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.updated-ar",
+        "key": "toast.updated",
+        "lang": "ar",
+        "text": "تم تحديث الطلب.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.updated-en",
+        "key": "toast.updated",
+        "lang": "en",
+        "text": "Request updated.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.notUpdated-ar",
+        "key": "toast.notUpdated",
+        "lang": "ar",
+        "text": "لم يتم تحديث الطلب.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.notUpdated-en",
+        "key": "toast.notUpdated",
+        "lang": "en",
+        "text": "Request not updated.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.listingUpdated-ar",
+        "key": "toast.listingUpdated",
+        "lang": "ar",
+        "text": "تم تعديل حالة الإعلان.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.listingUpdated-en",
+        "key": "toast.listingUpdated",
+        "lang": "en",
+        "text": "Listing status updated.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.listingNotUpdated-ar",
+        "key": "toast.listingNotUpdated",
+        "lang": "ar",
+        "text": "تعذر تعديل الإعلان.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-toast.listingNotUpdated-en",
+        "key": "toast.listingNotUpdated",
+        "lang": "en",
+        "text": "Could not update listing.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-labels.recentListings-ar",
+        "key": "labels.recentListings",
+        "lang": "ar",
+        "text": "أحدث الوحدات",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-labels.recentListings-en",
+        "key": "labels.recentListings",
+        "lang": "en",
+        "text": "Recent listings",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-labels.smartFilters-ar",
+        "key": "labels.smartFilters",
+        "lang": "ar",
+        "text": "تصفية ذكية",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-labels.smartFilters-en",
+        "key": "labels.smartFilters",
+        "lang": "en",
+        "text": "Smart filters",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-labels.orderByNewest-ar",
+        "key": "labels.orderByNewest",
+        "lang": "ar",
+        "text": "ترتيب حسب أحدث الطلبات",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-labels.orderByNewest-en",
+        "key": "labels.orderByNewest",
+        "lang": "en",
+        "text": "Sort by latest",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.empty-ar",
+        "key": "dashboard.empty",
+        "lang": "ar",
+        "text": "لا توجد طلبات حالياً.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.empty-en",
+        "key": "dashboard.empty",
+        "lang": "en",
+        "text": "No requests yet.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.assign-ar",
+        "key": "dashboard.assign",
+        "lang": "ar",
+        "text": "تعيين كمردود",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.assign-en",
+        "key": "dashboard.assign",
+        "lang": "en",
+        "text": "Mark as replied",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.close-ar",
+        "key": "dashboard.close",
+        "lang": "ar",
+        "text": "إغلاق",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.close-en",
+        "key": "dashboard.close",
+        "lang": "en",
+        "text": "Close",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-status.new-ar",
+        "key": "status.new",
+        "lang": "ar",
+        "text": "جديد",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-status.new-en",
+        "key": "status.new",
+        "lang": "en",
+        "text": "New",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-status.replied-ar",
+        "key": "status.replied",
+        "lang": "ar",
+        "text": "تم الرد",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-status.replied-en",
+        "key": "status.replied",
+        "lang": "en",
+        "text": "Replied",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-status.closed-ar",
+        "key": "status.closed",
+        "lang": "ar",
+        "text": "مغلق",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-status.closed-en",
+        "key": "status.closed",
+        "lang": "en",
+        "text": "Closed",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-status.all-ar",
+        "key": "status.all",
+        "lang": "ar",
+        "text": "الكل",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-status.all-en",
+        "key": "status.all",
+        "lang": "en",
+        "text": "All",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-pwa.installTitle-ar",
+        "key": "pwa.installTitle",
+        "lang": "ar",
+        "text": "حوّل المنصة إلى تطبيق",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-pwa.installTitle-en",
+        "key": "pwa.installTitle",
+        "lang": "en",
+        "text": "Turn the platform into an app",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-pwa.installDesc-ar",
+        "key": "pwa.installDesc",
+        "lang": "ar",
+        "text": "ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-pwa.installDesc-en",
+        "key": "pwa.installDesc",
+        "lang": "en",
+        "text": "Install to get faster experience and instant notifications.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-pwa.installRequired-ar",
+        "key": "pwa.installRequired",
+        "lang": "ar",
+        "text": "تثبيت التطبيق مطلوب",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-pwa.installRequired-en",
+        "key": "pwa.installRequired",
+        "lang": "en",
+        "text": "App installation required",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-pwa.installRequiredDesc-ar",
+        "key": "pwa.installRequiredDesc",
+        "lang": "ar",
+        "text": "لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-pwa.installRequiredDesc-en",
+        "key": "pwa.installRequiredDesc",
+        "lang": "en",
+        "text": "Install as a PWA for the full mobile experience.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.submit-ar",
+        "key": "forms.submit",
+        "lang": "ar",
+        "text": "إرسال",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.submit-en",
+        "key": "forms.submit",
+        "lang": "en",
+        "text": "Submit",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.contactPhone-ar",
+        "key": "forms.contactPhone",
+        "lang": "ar",
+        "text": "هاتف للتواصل",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.contactPhone-en",
+        "key": "forms.contactPhone",
+        "lang": "en",
+        "text": "Contact phone",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.contactName-ar",
+        "key": "forms.contactName",
+        "lang": "ar",
+        "text": "الاسم",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.contactName-en",
+        "key": "forms.contactName",
+        "lang": "en",
+        "text": "Name",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.message-ar",
+        "key": "forms.message",
+        "lang": "ar",
+        "text": "رسالة",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.message-en",
+        "key": "forms.message",
+        "lang": "en",
+        "text": "Message",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.preferredTime-ar",
+        "key": "forms.preferredTime",
+        "lang": "ar",
+        "text": "وقت مفضل للاتصال",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.preferredTime-en",
+        "key": "forms.preferredTime",
+        "lang": "en",
+        "text": "Preferred time to contact",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.preferredAny-ar",
+        "key": "forms.preferredAny",
+        "lang": "ar",
+        "text": "أي وقت",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.preferredAny-en",
+        "key": "forms.preferredAny",
+        "lang": "en",
+        "text": "Any time",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.preferredMorning-ar",
+        "key": "forms.preferredMorning",
+        "lang": "ar",
+        "text": "صباحاً",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.preferredMorning-en",
+        "key": "forms.preferredMorning",
+        "lang": "en",
+        "text": "Morning",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.preferredEvening-ar",
+        "key": "forms.preferredEvening",
+        "lang": "ar",
+        "text": "مساءً",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-forms.preferredEvening-en",
+        "key": "forms.preferredEvening",
+        "lang": "en",
+        "text": "Evening",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-notification.title-ar",
+        "key": "notification.title",
+        "lang": "ar",
+        "text": "تنبيه",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-notification.title-en",
+        "key": "notification.title",
+        "lang": "en",
+        "text": "Notification",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-misc.loading-ar",
+        "key": "misc.loading",
+        "lang": "ar",
+        "text": "جارِ تحميل بيانات الوسطاء...",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-misc.loading-en",
+        "key": "misc.loading",
+        "lang": "en",
+        "text": "Loading brokers...",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-misc.noBroker-ar",
+        "key": "misc.noBroker",
+        "lang": "ar",
+        "text": "لم يتم العثور على الوحدة المختارة.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-misc.noBroker-en",
+        "key": "misc.noBroker",
+        "lang": "en",
+        "text": "Selected unit not found.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-misc.noNotifications-ar",
+        "key": "misc.noNotifications",
+        "lang": "ar",
+        "text": "آخر التنبيهات",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-misc.noNotifications-en",
+        "key": "misc.noNotifications",
+        "lang": "en",
+        "text": "Notifications",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-misc.brokerBack-ar",
+        "key": "misc.brokerBack",
+        "lang": "ar",
+        "text": "← جميع الوسطاء",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-misc.brokerBack-en",
+        "key": "misc.brokerBack",
+        "lang": "en",
+        "text": "← All brokers",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-lead.potential-ar",
+        "key": "lead.potential",
+        "lang": "ar",
+        "text": "عميل محتمل",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-lead.potential-en",
+        "key": "lead.potential",
+        "lang": "en",
+        "text": "Potential lead",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-lead.noPhone-ar",
+        "key": "lead.noPhone",
+        "lang": "ar",
+        "text": "بدون هاتف",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-lead.noPhone-en",
+        "key": "lead.noPhone",
+        "lang": "en",
+        "text": "No phone",
+        "kind": "ui"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.brand_name-ar",
+        "key": "app_settings.brocker-app-config.brand_name",
+        "lang": "ar",
+        "text": "Brocker Mishkah",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.brand_name-en",
+        "key": "app_settings.brocker-app-config.brand_name",
+        "lang": "en",
+        "text": "Brocker Mishkah",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.tagline-ar",
+        "key": "app_settings.brocker-app-config.tagline",
+        "lang": "ar",
+        "text": "منصة ذكية لإدارة مكاتب العقارات",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.tagline-en",
+        "key": "app_settings.brocker-app-config.tagline",
+        "lang": "en",
+        "text": "Smart platform for broker offices",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.hero_title-ar",
+        "key": "app_settings.brocker-app-config.hero_title",
+        "lang": "ar",
+        "text": "منصة متكاملة للوسطاء",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.hero_title-en",
+        "key": "app_settings.brocker-app-config.hero_title",
+        "lang": "en",
+        "text": "Integrated platform for brokers",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.hero_subtitle-ar",
+        "key": "app_settings.brocker-app-config.hero_subtitle",
+        "lang": "ar",
+        "text": "ابحث، أدر، وتابع طلبات عملائك عبر تجربة PWA مصممة للموبايل.",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.hero_subtitle-en",
+        "key": "app_settings.brocker-app-config.hero_subtitle",
+        "lang": "en",
+        "text": "Search, manage, and track your clients with a mobile-first PWA experience.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listing.detail.subtitle-ar",
+        "key": "listing.detail.subtitle",
+        "lang": "ar",
+        "text": "استكشف التفاصيل الكاملة للوحدة",
+        "kind": "content"
+      },
+      {
+        "id": "content-listing.detail.subtitle-en",
+        "key": "listing.detail.subtitle",
+        "lang": "en",
+        "text": "Explore full unit details",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-explore.title-ar",
+        "key": "hero_slides.slide-explore.title",
+        "lang": "ar",
+        "text": "اكتشف عقارات جاهزة للتسليم",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-explore.title-en",
+        "key": "hero_slides.slide-explore.title",
+        "lang": "en",
+        "text": "Discover ready-to-move homes",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-explore.subtitle-ar",
+        "key": "hero_slides.slide-explore.subtitle",
+        "lang": "ar",
+        "text": "أحدث المشروعات في القاهرة الجديدة بخيارات تمويل مرنة.",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-explore.subtitle-en",
+        "key": "hero_slides.slide-explore.subtitle",
+        "lang": "en",
+        "text": "Latest New Cairo projects with flexible financing.",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-explore.cta_label-ar",
+        "key": "hero_slides.slide-explore.cta_label",
+        "lang": "ar",
+        "text": "ابدأ البحث",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-explore.cta_label-en",
+        "key": "hero_slides.slide-explore.cta_label",
+        "lang": "en",
+        "text": "Start searching",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-dashboard.title-ar",
+        "key": "hero_slides.slide-dashboard.title",
+        "lang": "ar",
+        "text": "لوحة تحكم فورية للوسطاء",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-dashboard.title-en",
+        "key": "hero_slides.slide-dashboard.title",
+        "lang": "en",
+        "text": "Instant broker dashboard",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-dashboard.subtitle-ar",
+        "key": "hero_slides.slide-dashboard.subtitle",
+        "lang": "ar",
+        "text": "تابع الطلبات، فعّل الوحدات، واستجب من أي مكان.",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-dashboard.subtitle-en",
+        "key": "hero_slides.slide-dashboard.subtitle",
+        "lang": "en",
+        "text": "Track requests, activate units, and respond anywhere.",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-dashboard.cta_label-ar",
+        "key": "hero_slides.slide-dashboard.cta_label",
+        "lang": "ar",
+        "text": "شاهد التجربة",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-dashboard.cta_label-en",
+        "key": "hero_slides.slide-dashboard.cta_label",
+        "lang": "en",
+        "text": "Watch the experience",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-otp.title-ar",
+        "key": "hero_slides.slide-otp.title",
+        "lang": "ar",
+        "text": "دخول آمن عبر واتساب",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-otp.title-en",
+        "key": "hero_slides.slide-otp.title",
+        "lang": "en",
+        "text": "Secure WhatsApp login",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-otp.subtitle-ar",
+        "key": "hero_slides.slide-otp.subtitle",
+        "lang": "ar",
+        "text": "تحقق فوري للوسطاء المعتمدين مع سجل تدقيق كامل.",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-otp.subtitle-en",
+        "key": "hero_slides.slide-otp.subtitle",
+        "lang": "en",
+        "text": "Instant verification for trusted brokers with full audit log.",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-otp.cta_label-ar",
+        "key": "hero_slides.slide-otp.cta_label",
+        "lang": "ar",
+        "text": "سجل وسيط جديد",
+        "kind": "content"
+      },
+      {
+        "id": "content-hero_slides.slide-otp.cta_label-en",
+        "key": "hero_slides.slide-otp.cta_label",
+        "lang": "en",
+        "text": "Register a broker",
+        "kind": "content"
+      },
+      {
+        "id": "content-regions.region-new-cairo.name-ar",
+        "key": "regions.region-new-cairo.name",
+        "lang": "ar",
+        "text": "التجمع الخامس",
+        "kind": "content"
+      },
+      {
+        "id": "content-regions.region-new-cairo.name-en",
+        "key": "regions.region-new-cairo.name",
+        "lang": "en",
+        "text": "New Cairo",
+        "kind": "content"
+      },
+      {
+        "id": "content-regions.region-zayed.name-ar",
+        "key": "regions.region-zayed.name",
+        "lang": "ar",
+        "text": "الشيخ زايد",
+        "kind": "content"
+      },
+      {
+        "id": "content-regions.region-zayed.name-en",
+        "key": "regions.region-zayed.name",
+        "lang": "en",
+        "text": "Sheikh Zayed",
+        "kind": "content"
+      },
+      {
+        "id": "content-regions.region-capital.name-ar",
+        "key": "regions.region-capital.name",
+        "lang": "ar",
+        "text": "العاصمة الإدارية",
+        "kind": "content"
+      },
+      {
+        "id": "content-regions.region-capital.name-en",
+        "key": "regions.region-capital.name",
+        "lang": "en",
+        "text": "New Capital",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-apartment.name-ar",
+        "key": "unit_types.unit-type-apartment.name",
+        "lang": "ar",
+        "text": "شقة سكنية",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-apartment.name-en",
+        "key": "unit_types.unit-type-apartment.name",
+        "lang": "en",
+        "text": "Apartment",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-villa.name-ar",
+        "key": "unit_types.unit-type-villa.name",
+        "lang": "ar",
+        "text": "فيلا مستقلة",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-villa.name-en",
+        "key": "unit_types.unit-type-villa.name",
+        "lang": "en",
+        "text": "Villa",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-chalet.name-ar",
+        "key": "unit_types.unit-type-chalet.name",
+        "lang": "ar",
+        "text": "شاليه بحري",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-chalet.name-en",
+        "key": "unit_types.unit-type-chalet.name",
+        "lang": "en",
+        "text": "Beach chalet",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-factory.name-ar",
+        "key": "unit_types.unit-type-factory.name",
+        "lang": "ar",
+        "text": "مصنع خفيف",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-factory.name-en",
+        "key": "unit_types.unit-type-factory.name",
+        "lang": "en",
+        "text": "Light factory",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-retail.name-ar",
+        "key": "unit_types.unit-type-retail.name",
+        "lang": "ar",
+        "text": "محل تجاري",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_types.unit-type-retail.name-en",
+        "key": "unit_types.unit-type-retail.name",
+        "lang": "en",
+        "text": "Retail shop",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_features.feature-smart-home.name-ar",
+        "key": "unit_features.feature-smart-home.name",
+        "lang": "ar",
+        "text": "نظام سمارت",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_features.feature-smart-home.name-en",
+        "key": "unit_features.feature-smart-home.name",
+        "lang": "en",
+        "text": "Smart system",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_features.feature-parking.name-ar",
+        "key": "unit_features.feature-parking.name",
+        "lang": "ar",
+        "text": "موقف مغطى",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_features.feature-parking.name-en",
+        "key": "unit_features.feature-parking.name",
+        "lang": "en",
+        "text": "Covered parking",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_features.feature-garden.name-ar",
+        "key": "unit_features.feature-garden.name",
+        "lang": "ar",
+        "text": "حديقة",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_features.feature-garden.name-en",
+        "key": "unit_features.feature-garden.name",
+        "lang": "en",
+        "text": "Garden",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_features.feature-license.name-ar",
+        "key": "unit_features.feature-license.name",
+        "lang": "ar",
+        "text": "سجل تجاري فئة أ",
+        "kind": "content"
+      },
+      {
+        "id": "content-unit_features.feature-license.name-en",
+        "key": "unit_features.feature-license.name",
+        "lang": "en",
+        "text": "Class A trade license",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-09-01.headline-ar",
+        "key": "listings.listing-nour-09-01.headline",
+        "lang": "ar",
+        "text": "شقة 3 غرف مع تراس بانورامي",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-09-01.headline-en",
+        "key": "listings.listing-nour-09-01.headline",
+        "lang": "en",
+        "text": "3BR apartment with panoramic terrace",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-09-01.excerpt-ar",
+        "key": "listings.listing-nour-09-01.excerpt",
+        "lang": "ar",
+        "text": "تشطيب فندقي مع مطبخ متكامل وإطلالة مفتوحة.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-09-01.excerpt-en",
+        "key": "listings.listing-nour-09-01.excerpt",
+        "lang": "en",
+        "text": "Hotel-finish with fitted kitchen and open view.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-09-01.primary_highlight-ar",
+        "key": "listings.listing-nour-09-01.primary_highlight",
+        "lang": "ar",
+        "text": "جاهزة للتسليم",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-09-01.primary_highlight-en",
+        "key": "listings.listing-nour-09-01.primary_highlight",
+        "lang": "en",
+        "text": "Ready for delivery",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-12-03.headline-ar",
+        "key": "listings.listing-nour-12-03.headline",
+        "lang": "ar",
+        "text": "شقة مفروشة بالكامل",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-12-03.headline-en",
+        "key": "listings.listing-nour-12-03.headline",
+        "lang": "en",
+        "text": "Fully furnished apartment",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-12-03.excerpt-ar",
+        "key": "listings.listing-nour-12-03.excerpt",
+        "lang": "ar",
+        "text": "مفروشة مع أجهزة كاملة وإدارة تأجير.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-12-03.excerpt-en",
+        "key": "listings.listing-nour-12-03.excerpt",
+        "lang": "en",
+        "text": "Furnished with full appliances and rental management.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-12-03.primary_highlight-ar",
+        "key": "listings.listing-nour-12-03.primary_highlight",
+        "lang": "ar",
+        "text": "مفروش",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-nour-12-03.primary_highlight-en",
+        "key": "listings.listing-nour-12-03.primary_highlight",
+        "lang": "en",
+        "text": "Furnished",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-hayat-villa05.headline-ar",
+        "key": "listings.listing-hayat-villa05.headline",
+        "lang": "ar",
+        "text": "فيلا مستقلة مع حديقة 120م",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-hayat-villa05.headline-en",
+        "key": "listings.listing-hayat-villa05.headline",
+        "lang": "en",
+        "text": "Standalone villa with 120m garden",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-hayat-villa05.excerpt-ar",
+        "key": "listings.listing-hayat-villa05.excerpt",
+        "lang": "ar",
+        "text": "نصف تشطيب مع إمكانية التقسيط حتى 6 سنوات.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-hayat-villa05.excerpt-en",
+        "key": "listings.listing-hayat-villa05.excerpt",
+        "lang": "en",
+        "text": "Semi-finished with installments up to 6 years.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-hayat-villa05.primary_highlight-ar",
+        "key": "listings.listing-hayat-villa05.primary_highlight",
+        "lang": "ar",
+        "text": "مساحات خضراء",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-hayat-villa05.primary_highlight-en",
+        "key": "listings.listing-hayat-villa05.primary_highlight",
+        "lang": "en",
+        "text": "Green retreat",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-capital-retail-a3.headline-ar",
+        "key": "listings.listing-capital-retail-a3.headline",
+        "lang": "ar",
+        "text": "محل تجاري بواجهة 9 م",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-capital-retail-a3.headline-en",
+        "key": "listings.listing-capital-retail-a3.headline",
+        "lang": "en",
+        "text": "Retail store with 9m frontage",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-capital-retail-a3.excerpt-ar",
+        "key": "listings.listing-capital-retail-a3.excerpt",
+        "lang": "ar",
+        "text": "واجهة على محور الأعمال وترخيص فئة أ.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-capital-retail-a3.excerpt-en",
+        "key": "listings.listing-capital-retail-a3.excerpt",
+        "lang": "en",
+        "text": "Frontage on business axis with Class A license.",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-capital-retail-a3.primary_highlight-ar",
+        "key": "listings.listing-capital-retail-a3.primary_highlight",
+        "lang": "ar",
+        "text": "جاهز للتشغيل",
+        "kind": "content"
+      },
+      {
+        "id": "content-listings.listing-capital-retail-a3.primary_highlight-en",
+        "key": "listings.listing-capital-retail-a3.primary_highlight",
+        "lang": "en",
+        "text": "Operational ready",
+        "kind": "content"
+      },
+      {
+        "id": "content-units.unit-nour-0901.description-ar",
+        "key": "units.unit-nour-0901.description",
+        "lang": "ar",
+        "text": "إطلالة مفتوحة على محور محمد نجيب.",
+        "kind": "content"
+      },
+      {
+        "id": "content-units.unit-nour-0901.description-en",
+        "key": "units.unit-nour-0901.description",
+        "lang": "en",
+        "text": "إطلالة مفتوحة على محور محمد نجيب.",
+        "kind": "content"
+      },
+      {
+        "id": "content-units.unit-nour-1203.description-ar",
+        "key": "units.unit-nour-1203.description",
+        "lang": "ar",
+        "text": "إطلالة هادئة على حدائق داخلية.",
+        "kind": "content"
+      },
+      {
+        "id": "content-units.unit-nour-1203.description-en",
+        "key": "units.unit-nour-1203.description",
+        "lang": "en",
+        "text": "إطلالة هادئة على حدائق داخلية.",
+        "kind": "content"
+      },
+      {
+        "id": "content-units.unit-hayat-villa05.description-ar",
+        "key": "units.unit-hayat-villa05.description",
+        "lang": "ar",
+        "text": "حديقة خاصة بمساحة 120 متر مع ممر جانبي.",
+        "kind": "content"
+      },
+      {
+        "id": "content-units.unit-hayat-villa05.description-en",
+        "key": "units.unit-hayat-villa05.description",
+        "lang": "en",
+        "text": "حديقة خاصة بمساحة 120 متر مع ممر جانبي.",
+        "kind": "content"
+      },
+      {
+        "id": "content-units.unit-capital-retail-a3.description-ar",
+        "key": "units.unit-capital-retail-a3.description",
+        "lang": "ar",
+        "text": "واجهة زجاجية على محور الأعمال.",
+        "kind": "content"
+      },
+      {
+        "id": "content-units.unit-capital-retail-a3.description-en",
+        "key": "units.unit-capital-retail-a3.description",
+        "lang": "en",
+        "text": "واجهة زجاجية على محور الأعمال.",
+        "kind": "content"
+      }
+    ]
   }
 }
