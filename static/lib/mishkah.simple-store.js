@@ -121,7 +121,8 @@ function createContext(store, config) {
     role: options.role || 'ws2-simple',
     historyLimit: Number.isFinite(options.historyLimit) ? options.historyLimit : 50,
     autoConnect: options.autoConnect !== false,
-    logger: options.logger || console
+    logger: options.logger || console,
+    lang: options.lang || null
   };
 
   const store = createStore({
@@ -129,6 +130,7 @@ function createContext(store, config) {
     moduleId: config.moduleId,
     role: config.role,
     historyLimit: config.historyLimit,
+    lang: config.lang,
     autoReconnect: options.autoReconnect !== false,
     logger: config.logger,
     wsUrl: options.wsUrl,

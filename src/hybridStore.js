@@ -144,9 +144,9 @@ export default class HybridStore extends ModuleStore {
     return super.listTable(tableName);
   }
 
-  getSnapshot() {
+  getSnapshot(options = {}) {
     this.refreshPersistedTables();
-    const snapshot = super.getSnapshot();
+    const snapshot = super.getSnapshot(options);
     // 🔍 DEBUG: Log job_order counts in snapshot
     if (snapshot.tables) {
       const jobOrderCounts = {

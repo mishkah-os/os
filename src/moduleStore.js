@@ -217,12 +217,75 @@ export default class ModuleStore {
     return currentVersion + 1;
   }
 
-  getSnapshot() {
+  /**
+   * Decorate records with translations from {tableName}_lang table
+   * @param {Array} records - Records to decorate
+   * @param {string} tableName - Table name
+   * @param {string} lang - Language code (e.g., 'en', 'ar')
+   * @returns {Array} Decorated records
+   */
+  decorateWithTranslations(records, tableName, lang) {
+    if (!lang || !Array.isArray(records) || !records.length) {
+      return records;
+    }
+
+    const langTableName = `${tableName}_lang`;
+    const langTable = this.data[langTableName];
+
+    // If no translation table exists, return original records
+    if (!Array.isArray(langTable) || !langTable.length) {
+      return records;
+    }
+
+    // Build translation lookup: {recordId: {field: translatedValue}}
+    const translationsMap = new Map();
+    for (const langRecord of langTable) {
+      const fkField = `${tableName}_id`;
+      const recordId = langRecord[fkField];
+      if (!recordId || langRecord.lang !== lang) continue;
+
+      if (!translationsMap.has(recordId)) {
+        translationsMap.set(recordId, {});
+      }
+
+      const translations = translationsMap.get(recordId);
+      // Copy all text fields from lang record (except id, lang, fk)
+      for (const key in langRecord) {
+        if (key === 'id' || key === 'lang' || key === fkField) continue;
+        if (langRecord[key] !== null && langRecord[key] !== undefined) {
+          translations[key] = langRecord[key];
+        }
+      }
+    }
+
+    // Merge translations into records
+    return records.map(record => {
+      const translations = translationsMap.get(record.id);
+      if (!translations) return record;
+
+      return Object.assign({}, record, translations);
+    });
+  }
+
+  getSnapshot(options = {}) {
+    const lang = options.lang || null;
+    const tables = deepClone(this.data);
+
+    // Apply translations if lang is specified
+    if (lang) {
+      for (const tableName in tables) {
+        const records = tables[tableName];
+        if (Array.isArray(records)) {
+          tables[tableName] = this.decorateWithTranslations(records, tableName, lang);
+        }
+      }
+    }
+
     return {
       moduleId: this.moduleId,
       branchId: this.branchId,
       version: this.version,
-      tables: deepClone(this.data),
+      tables,
       meta: deepClone(this.meta)
     };
   }
