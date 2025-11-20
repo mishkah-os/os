@@ -38,6 +38,7 @@
         return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');
       };
   var token = typeof twcss.token === 'function' ? twcss.token : function () { return ''; };
+  var delegatedAttached = false;
   var params = new URLSearchParams(global.location.search || '');
   var BRANCH_ID = params.get('branch') || params.get('branchId') || 'aqar';
   var MODULE_ID = params.get('module') || params.get('moduleId') || 'brocker';
@@ -54,11 +55,120 @@
     'inquiries'
   ]);
 
+  var PREF_STORAGE_KEY = 'brocker:prefs:v2';
+
+  var BASE_I18N = {
+    'nav.home': { ar: 'الرئيسية', en: 'Home' },
+    'nav.brokers': { ar: 'الوسطاء', en: 'Brokers' },
+    'nav.dashboard': { ar: 'الطلبات', en: 'Requests' },
+    'nav.listing': { ar: 'تفاصيل', en: 'Details' },
+    'actions.resetFilters': { ar: 'إعادة التصفية', en: 'Reset filters' },
+    'actions.install': { ar: 'تثبيت', en: 'Install' },
+    'actions.skip': { ar: 'لاحقاً', en: 'Later' },
+    'actions.installNow': { ar: 'تثبيت الآن', en: 'Install now' },
+    'actions.dismiss': { ar: 'إغلاق', en: 'Dismiss' },
+    'actions.toggleTheme': { ar: 'تبديل الثيم', en: 'Theme' },
+    'actions.toggleLang': { ar: 'EN / AR', en: 'EN / AR' },
+    'hero.title': { ar: 'ابدأ من البحث الذكي عن العقارات', en: 'Start with smart property search' },
+    'search.title': { ar: 'ابحث عن الوحدة المناسبة', en: 'Find the right unit' },
+    'search.region': { ar: 'المنطقة', en: 'Region' },
+    'search.unitType': { ar: 'نوع الوحدة', en: 'Unit type' },
+    'search.listingType': { ar: 'نوع العرض', en: 'Listing type' },
+    'search.allRegions': { ar: 'كل المناطق', en: 'All regions' },
+    'search.allUnitTypes': { ar: 'كل أنواع الوحدات', en: 'All unit types' },
+    'search.allListings': { ar: 'كل طرق العرض', en: 'All listing types' },
+    'listings.empty': { ar: 'لا توجد وحدات متاحة حالياً.', en: 'No listings available yet.' },
+    'listing.back': { ar: '← العودة للنتائج', en: '← Back to results' },
+    'listing.gallery': { ar: 'معرض الصور', en: 'Gallery' },
+    'listing.details': { ar: 'تفاصيل الوحدة', en: 'Unit details' },
+    'listing.features': { ar: 'المميزات', en: 'Highlights' },
+    'listing.layouts': { ar: 'المخططات', en: 'Layouts' },
+    'listing.contact': { ar: 'تواصل مع وسيط', en: 'Contact broker' },
+    'listing.priceOnCall': { ar: 'السعر عند الطلب', en: 'Price on request' },
+    'listing.download': { ar: 'تحميل', en: 'Download' },
+    'listing.view360': { ar: 'مشاهدة 360°', en: 'View 360°' },
+    'listing.type.sale': { ar: 'بيع', en: 'Sale' },
+    'listing.type.rent': { ar: 'إيجار', en: 'Rent' },
+    'listing.type.lease': { ar: 'إيجار تشغيلي', en: 'Operational lease' },
+    'listing.type.short': { ar: 'إيجار قصير', en: 'Short stay' },
+    'toast.defaultSuccess': { ar: 'تم تنفيذ العملية.', en: 'Action completed.' },
+    'toast.installError': { ar: 'التثبيت غير مدعوم.', en: 'Install not supported.' },
+    'toast.installOpenError': { ar: 'تعذر فتح نافذة التثبيت.', en: 'Could not open install dialog.' },
+    'toast.requiredFields': { ar: 'يرجى استكمال الحقول.', en: 'Please complete all fields.' },
+    'toast.sent': { ar: 'تم إرسال طلبك بنجاح.', en: 'Your request was sent.' },
+    'toast.failed': { ar: 'تعذر إرسال الطلب.', en: 'Could not submit request.' },
+    'toast.connection': { ar: 'الاتصال غير متاح الآن.', en: 'Connection not available right now.' },
+    'toast.brokerPhone': { ar: 'أدخل رقم الهاتف.', en: 'Enter phone number.' },
+    'toast.updated': { ar: 'تم تحديث الطلب.', en: 'Request updated.' },
+    'toast.notUpdated': { ar: 'لم يتم تحديث الطلب.', en: 'Request not updated.' },
+    'toast.listingUpdated': { ar: 'تم تعديل حالة الإعلان.', en: 'Listing status updated.' },
+    'toast.listingNotUpdated': { ar: 'تعذر تعديل الإعلان.', en: 'Could not update listing.' },
+    'labels.recentListings': { ar: 'أحدث الوحدات', en: 'Recent listings' },
+    'labels.smartFilters': { ar: 'تصفية ذكية', en: 'Smart filters' },
+    'labels.orderByNewest': { ar: 'ترتيب حسب أحدث الطلبات', en: 'Sort by latest' },
+    'dashboard.empty': { ar: 'لا توجد طلبات حالياً.', en: 'No requests yet.' },
+    'dashboard.assign': { ar: 'تعيين كمردود', en: 'Mark as replied' },
+    'dashboard.close': { ar: 'إغلاق', en: 'Close' },
+    'status.new': { ar: 'جديد', en: 'New' },
+    'status.replied': { ar: 'تم الرد', en: 'Replied' },
+    'status.closed': { ar: 'مغلق', en: 'Closed' },
+    'status.all': { ar: 'الكل', en: 'All' },
+    'pwa.installTitle': { ar: 'حوّل المنصة إلى تطبيق', en: 'Turn the platform into an app' },
+    'pwa.installDesc': {
+      ar: 'ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.',
+      en: 'Install to get faster experience and instant notifications.'
+    },
+    'pwa.installRequired': { ar: 'تثبيت التطبيق مطلوب', en: 'App installation required' },
+    'pwa.installRequiredDesc': {
+      ar: 'لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.',
+      en: 'Install as a PWA for the full mobile experience.'
+    },
+    'forms.submit': { ar: 'إرسال', en: 'Submit' },
+    'forms.contactPhone': { ar: 'هاتف للتواصل', en: 'Contact phone' },
+    'forms.contactName': { ar: 'الاسم', en: 'Name' },
+    'forms.message': { ar: 'رسالة', en: 'Message' },
+    'forms.preferredTime': { ar: 'وقت مفضل للاتصال', en: 'Preferred time to contact' },
+    'forms.preferredAny': { ar: 'أي وقت', en: 'Any time' },
+    'forms.preferredMorning': { ar: 'صباحاً', en: 'Morning' },
+    'forms.preferredEvening': { ar: 'مساءً', en: 'Evening' },
+    'listing.price': { ar: 'السعر', en: 'Price' },
+    'notification.title': { ar: 'تنبيه', en: 'Notification' },
+    'misc.loading': { ar: 'جارِ تحميل بيانات الوسطاء...', en: 'Loading brokers...' },
+    'misc.noBroker': { ar: 'لم يتم العثور على الوحدة المختارة.', en: 'Selected unit not found.' },
+    'misc.noNotifications': { ar: 'آخر التنبيهات', en: 'Notifications' },
+    'misc.brokerBack': { ar: '← جميع الوسطاء', en: '← All brokers' },
+    'lead.potential': { ar: 'عميل محتمل', en: 'Potential lead' },
+    'lead.noPhone': { ar: 'بدون هاتف', en: 'No phone' }
+  };
+
+  function loadPersistedPrefs() {
+    try {
+      var raw = global.localStorage ? global.localStorage.getItem(PREF_STORAGE_KEY) : null;
+      if (!raw) return {};
+      return JSON.parse(raw) || {};
+    } catch (_err) {
+      return {};
+    }
+  }
+
+  function persistPrefs(env) {
+    if (!global.localStorage) return;
+    try {
+      var payload = { theme: env.theme, lang: env.lang, dir: env.dir };
+      global.localStorage.setItem(PREF_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  var persisted = loadPersistedPrefs();
+
   var initialDatabase = {
     env: {
-      theme: 'dark',
-      lang: 'ar',
-      dir: 'rtl'
+      theme: persisted.theme || 'dark',
+      lang: persisted.lang || 'ar',
+      dir: persisted.dir || (persisted.lang === 'ar' ? 'rtl' : 'ltr'),
+      i18n: BASE_I18N
     },
     meta: {
       branchId: BRANCH_ID,
@@ -115,6 +225,70 @@
   var realtime = null;
   var appInstance = null;
 
+  var MEDIA_FALLBACKS = {
+    logo: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=600&q=70',
+    hero: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=75',
+    listing: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1400&q=75',
+    layout: 'https://images.unsplash.com/photo-1600585154340-0ef3c08f05ff?auto=format&fit=crop&w=1200&q=70',
+    broker: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=800&q=70'
+  };
+
+  function normalizeMediaUrl(url, fallback) {
+    if (url && /^https?:\/\//i.test(url)) return url;
+    if (url && url.indexOf('//') === 0) return (global.location ? global.location.protocol : 'https:') + url;
+    return fallback || MEDIA_FALLBACKS.listing;
+  }
+
+  function activeEnv() {
+    return (appInstance && appInstance.database && appInstance.database.env) || initialDatabase.env;
+  }
+
+  function currentLang(db) {
+    var source = db && db.env ? db.env : activeEnv();
+    return (source && source.lang) || 'ar';
+  }
+
+  function translate(key, fallback, lang) {
+    var env = activeEnv();
+    var locale = lang || (env && env.lang) || 'ar';
+    var map = (env && env.i18n) || BASE_I18N;
+    var entry = map[key];
+    if (entry && entry[locale]) return entry[locale];
+    if (entry && entry.ar) return entry.ar;
+    return typeof fallback === 'string' ? fallback : key;
+  }
+
+  function resolveDir(lang) {
+    return lang && lang.toLowerCase().indexOf('ar') === 0 ? 'rtl' : 'ltr';
+  }
+
+  function syncDocumentEnv(env) {
+    if (!global.document) return;
+    var root = global.document.documentElement;
+    var body = global.document.body;
+    var theme = env && env.theme ? env.theme : 'dark';
+    var lang = env && env.lang ? env.lang : 'ar';
+    var dir = env && env.dir ? env.dir : resolveDir(lang);
+    if (root) {
+      root.setAttribute('lang', lang);
+      root.setAttribute('dir', dir);
+      root.dataset.theme = theme;
+      root.style.setProperty('color-scheme', theme === 'light' ? 'light' : 'dark');
+    }
+    if (body) {
+      body.dataset.theme = theme;
+      if (env && env.background_color) {
+        body.style.backgroundColor = env.background_color;
+      }
+    }
+  }
+
+  syncDocumentEnv(initialDatabase.env);
+
+  function themed(db, darkClass, lightClass) {
+    return db && db.env && db.env.theme === 'light' ? lightClass : darkClass;
+  }
+
   function bindUiEvent(target, type, handler, options) {
     if (!target || !type || typeof handler !== 'function') return false;
     if (UI && UI.events && typeof UI.events.on === 'function') {
@@ -145,6 +319,37 @@
     return false;
   }
 
+  function attachDelegatedOrders(app) {
+    if (delegatedAttached || !global.document) return delegatedAttached;
+    var root = global.document.getElementById('app') || global.document.body;
+    if (!root) return false;
+    var events = new Set();
+    Object.keys(orders).forEach(function (key) {
+      var entry = orders[key];
+      if (!entry || !Array.isArray(entry.on)) return;
+      entry.on.forEach(function (type) { events.add(type); });
+    });
+    events.forEach(function (type) {
+      bindUiEvent(root, type, function (event) {
+        var target = event && event.target && event.target.closest ? event.target.closest('[data-m-gkey]') : null;
+        if (!target) return;
+        var gkey = target.getAttribute('data-m-gkey');
+        if (!gkey) return;
+        Object.keys(orders).forEach(function (orderKey) {
+          var entry = orders[orderKey];
+          if (!entry || !Array.isArray(entry.on) || !Array.isArray(entry.gkeys)) return;
+          if (entry.on.indexOf(event.type) === -1) return;
+          if (entry.gkeys.indexOf(gkey) === -1) return;
+          if (typeof entry.handler === 'function') {
+            entry.handler(event, app);
+          }
+        });
+      }, true);
+    });
+    delegatedAttached = true;
+    return true;
+  }
+
   function setToast(ctx, payload) {
     ctx.setState(function (db) {
       return Object.assign({}, db, {
@@ -160,6 +365,29 @@
       if (merged.installRequired && merged.installed) merged.showGate = false;
       else if (merged.installRequired) merged.showGate = !merged.installed;
       return Object.assign({}, db, { state: Object.assign({}, db.state, { pwa: merged }) });
+    });
+  }
+
+  function setEnvLanguage(ctx, lang) {
+    if (!ctx) return;
+    var nextLang = lang || 'ar';
+    var dir = resolveDir(nextLang);
+    ctx.setState(function (db) {
+      var nextEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
+      persistPrefs(nextEnv);
+      syncDocumentEnv(nextEnv);
+      return Object.assign({}, db, { env: nextEnv });
+    });
+  }
+
+  function setEnvTheme(ctx, theme) {
+    if (!ctx) return;
+    var nextTheme = theme === 'light' ? 'light' : 'dark';
+    ctx.setState(function (db) {
+      var nextEnv = Object.assign({}, db.env, { theme: nextTheme });
+      persistPrefs(nextEnv);
+      syncDocumentEnv(nextEnv);
+      return Object.assign({}, db, { env: nextEnv });
     });
   }
 
@@ -256,7 +484,7 @@
       handler: function (event, ctx) {
         if (event && typeof event.preventDefault === 'function') event.preventDefault();
         if (!realtime || !event || !event.target || typeof FormData === 'undefined') {
-          setToast(ctx, { kind: 'error', message: 'الاتصال غير متاح الآن.' });
+          setToast(ctx, { kind: 'error', message: translate('toast.connection', 'الاتصال غير متاح الآن.') });
           return;
         }
         var form = event.target;
@@ -267,7 +495,7 @@
         var message = (fd.get('leadMessage') || '').trim();
         var preferred = (fd.get('leadPreferred') || 'any').trim() || 'any';
         if (!listingId || !name || !phone || !message) {
-          setToast(ctx, { kind: 'error', message: 'يرجى استكمال الحقول.' });
+          setToast(ctx, { kind: 'error', message: translate('toast.requiredFields', 'يرجى استكمال الحقول.') });
           return;
         }
         var snapshot = ctx.database;
@@ -289,11 +517,11 @@
         realtime.insert('inquiries', record, { reason: 'pwa-lead' })
           .then(function () {
             try { form.reset(); } catch (_err) {}
-            setToast(ctx, { kind: 'success', message: 'تم إرسال طلبك بنجاح.' });
+            setToast(ctx, { kind: 'success', message: translate('toast.sent', 'تم إرسال طلبك بنجاح.') });
           })
           .catch(function (error) {
             console.error('[Brocker PWA] inquiry submit failed', error);
-            setToast(ctx, { kind: 'error', message: 'تعذر إرسال الطلب.' });
+            setToast(ctx, { kind: 'error', message: translate('toast.failed', 'تعذر إرسال الطلب.') });
           });
       }
     },
@@ -326,11 +554,11 @@
         var updated = Object.assign({}, inquiry, { status: nextStatus });
         realtime.update('inquiries', updated, { reason: 'pwa-dashboard' })
           .then(function () {
-            setToast(ctx, { kind: 'success', message: 'تم تحديث الطلب.' });
+            setToast(ctx, { kind: 'success', message: translate('toast.updated', 'تم تحديث الطلب.') });
           })
           .catch(function (error) {
             console.error('[Brocker PWA] update inquiry failed', error);
-            setToast(ctx, { kind: 'error', message: 'لم يتم تحديث الطلب.' });
+            setToast(ctx, { kind: 'error', message: translate('toast.notUpdated', 'لم يتم تحديث الطلب.') });
           });
       }
     },
@@ -349,11 +577,11 @@
         var updated = Object.assign({}, listing, { listing_status: nextStatus });
         realtime.update('listings', updated, { reason: 'pwa-dashboard' })
           .then(function () {
-            setToast(ctx, { kind: 'success', message: 'تم تعديل حالة الإعلان.' });
+            setToast(ctx, { kind: 'success', message: translate('toast.listingUpdated', 'تم تعديل حالة الإعلان.') });
           })
           .catch(function (error) {
             console.error('[Brocker PWA] update listing failed', error);
-            setToast(ctx, { kind: 'error', message: 'تعذر تعديل الإعلان.' });
+            setToast(ctx, { kind: 'error', message: translate('toast.listingNotUpdated', 'تعذر تعديل الإعلان.') });
           });
       }
     },
@@ -396,7 +624,7 @@
         var phone = (fd.get('brokerPhone') || '').trim();
         var region = (fd.get('brokerRegion') || '').trim();
         if (!phone) {
-          setToast(ctx, { kind: 'error', message: 'أدخل رقم الهاتف.' });
+          setToast(ctx, { kind: 'error', message: translate('toast.brokerPhone', 'أدخل رقم الهاتف.') });
           return;
         }
         ctx.setState(function (db) {
@@ -424,13 +652,13 @@
       handler: function (_event, ctx) {
         var helper = global.MishkahAuto && global.MishkahAuto.pwa;
         if (!helper) {
-          setToast(ctx, { kind: 'error', message: 'التثبيت غير مدعوم.' });
+          setToast(ctx, { kind: 'error', message: translate('toast.installError', 'التثبيت غير مدعوم.') });
           return;
         }
         helper.promptInstall()
           .catch(function (error) {
             console.warn('[Brocker PWA] install prompt failed', error);
-            setToast(ctx, { kind: 'error', message: 'تعذر فتح نافذة التثبيت.' });
+            setToast(ctx, { kind: 'error', message: translate('toast.installOpenError', 'تعذر فتح نافذة التثبيت.') });
           });
       }
     },
@@ -447,6 +675,24 @@
             })
           });
         });
+      }
+    },
+    'ui.env.theme': {
+      on: ['click'],
+      gkeys: ['theme-toggle'],
+      handler: function (_event, ctx) {
+        var current = (ctx && ctx.database && ctx.database.env && ctx.database.env.theme) || 'dark';
+        var next = current === 'dark' ? 'light' : 'dark';
+        setEnvTheme(ctx, next);
+      }
+    },
+    'ui.env.lang': {
+      on: ['click'],
+      gkeys: ['lang-toggle'],
+      handler: function (_event, ctx) {
+        var current = (ctx && ctx.database && ctx.database.env && ctx.database.env.lang) || 'ar';
+        var next = current === 'ar' ? 'en' : 'ar';
+        setEnvLanguage(ctx, next);
       }
     }
   };
@@ -466,13 +712,37 @@
       ? InstallBanner(db)
       : null;
 
-    return D.Containers.Main({ attrs: { class: tw('relative min-h-screen bg-slate-950 text-slate-100 pb-24', token('body')) } }, [
+    return D.Containers.Main({ attrs: { class: tw('relative min-h-screen pb-24 transition-colors', themed(db, 'bg-slate-950 text-slate-100', 'bg-slate-50 text-slate-900'), token('body')) } }, [
+      PreferencesBar(db),
       errorBanner,
       toast,
       content,
       BottomNav(db),
       installBanner,
       db.state.pwa && db.state.pwa.showGate ? InstallGate(db) : null
+    ]);
+  }
+
+  function PreferencesBar(db) {
+    var lang = currentLang(db);
+    return D.Containers.Div({ attrs: { class: tw('fixed top-3 left-0 right-0 z-30 mx-auto flex w-[92%] max-w-xl items-center justify-between gap-2 rounded-full border px-3 py-2 backdrop-blur transition-colors', themed(db, 'border-white/10 bg-slate-900/80 text-white', 'border-slate-200 bg-white/90 text-slate-700')) } }, [
+      D.Text.Span({ attrs: { class: 'text-xs font-semibold tracking-wide uppercase' } }, ['Brocker PWA']),
+      D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
+        D.Forms.Button({
+          attrs: {
+            type: 'button',
+            class: tw('rounded-full px-3 py-1 text-xs font-semibold transition-colors', themed(db, 'bg-slate-800 text-white border border-white/10', 'bg-slate-100 text-slate-800 border border-slate-200')),
+            'data-m-gkey': 'theme-toggle'
+          }
+        }, [translate('actions.toggleTheme', 'Theme')]),
+        D.Forms.Button({
+          attrs: {
+            type: 'button',
+            class: tw('rounded-full px-3 py-1 text-xs font-semibold transition-colors', themed(db, 'bg-emerald-500 text-white', 'bg-emerald-600 text-white')),
+            'data-m-gkey': 'lang-toggle'
+          }
+        }, [lang === 'ar' ? 'EN' : 'AR'])
+      ])
     ]);
   }
 
@@ -491,7 +761,7 @@
   function ListingDetailView(db, listingModels) {
     var target = listingModels.find(function (model) { return model.listing.id === db.state.selectedListingId; });
     if (!target) {
-      return D.Containers.Section({ attrs: { class: 'px-4 py-10 text-center text-slate-400' } }, ['لم يتم العثور على الوحدة المختارة.']);
+      return D.Containers.Section({ attrs: { class: 'px-4 py-10 text-center text-slate-400' } }, [translate('misc.noBroker', 'لم يتم العثور على الوحدة المختارة.')]);
     }
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-4 max-w-5xl mx-auto space-y-6') } }, [
       DetailToolbar(),
@@ -531,7 +801,7 @@
     var features = model.features || [];
     var highlights = Array.isArray(model.listing.highlights) ? model.listing.highlights : [];
     return D.Containers.Div({ attrs: { class: tw('space-y-4 rounded-3xl border border-white/5 bg-slate-900/40 p-6') } }, [
-      D.Text.H2({ attrs: { class: 'text-xl font-semibold text-white' } }, [model.listing.headline || 'تفاصيل الوحدة']),
+      D.Text.H2({ attrs: { class: 'text-xl font-semibold text-white' } }, [model.listing.headline || translate('listing.details', 'تفاصيل الوحدة')]),
       unit.description ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [unit.description]) : null,
       D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-3 text-xs text-slate-400' } }, [
         unit.area ? Chip(unit.area + ' م²') : null,
@@ -542,7 +812,7 @@
       highlights.length ? D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs' } }, highlights.map(function (text) { return Chip(text); })) : null,
       features.length
         ? D.Containers.Div({ attrs: { class: 'text-sm text-slate-300' } }, [
-            D.Text.Strong({ attrs: { class: 'text-slate-100' } }, ['مميزات الوحدة:']),
+            D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [translate('listing.features', 'مميزات الوحدة:')]),
             D.Containers.Ul({ attrs: { class: 'mt-2 space-y-1' } }, features.map(function (name) {
               return D.Lists.Li({ attrs: { class: 'text-slate-300' } }, [name]);
             }))
@@ -550,7 +820,7 @@
         : null,
       broker ? BrokerBadge(broker) : null,
       D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm pt-2 border-t border-white/5' } }, [
-        D.Text.Span({ attrs: { class: 'text-slate-400' } }, ['السعر']),
+        D.Text.Span({ attrs: { class: 'text-slate-400' } }, [translate('listing.price', 'السعر') || '']),
         D.Text.Strong({ attrs: { class: 'text-emerald-400 text-lg' } }, [formatPrice(model.listing)])
       ])
     ]);
@@ -563,16 +833,16 @@
         'data-listing-id': model.listing.id
       }
     }, [
-      D.Text.H3({ attrs: { class: 'text-lg font-semibold text-white' } }, ['اطلب معاينة أو اتصال']),
-      D.Inputs.Input({ attrs: { name: 'leadName', placeholder: 'الاسم الكامل', class: inputClass() } }),
-      D.Inputs.Input({ attrs: { name: 'leadPhone', placeholder: 'رقم الجوال', class: inputClass(), type: 'tel' } }),
+      D.Text.H3({ attrs: { class: 'text-lg font-semibold text-white' } }, [translate('listing.contact', 'اطلب معاينة أو اتصال')]),
+      D.Inputs.Input({ attrs: { name: 'leadName', placeholder: translate('forms.contactName', 'الاسم الكامل'), class: inputClass() } }),
+      D.Inputs.Input({ attrs: { name: 'leadPhone', placeholder: translate('forms.contactPhone', 'رقم الجوال'), class: inputClass(), type: 'tel' } }),
       D.Inputs.Select({ attrs: { name: 'leadPreferred', class: inputClass() } }, [
-        D.Inputs.Option({ attrs: { value: 'any', selected: true } }, ['أي وقت']),
-        D.Inputs.Option({ attrs: { value: 'morning' } }, ['صباحاً']),
-        D.Inputs.Option({ attrs: { value: 'evening' } }, ['مساءً'])
+        D.Inputs.Option({ attrs: { value: 'any', selected: true } }, [translate('forms.preferredAny', 'أي وقت') || 'أي وقت']),
+        D.Inputs.Option({ attrs: { value: 'morning' } }, [translate('forms.preferredMorning', 'صباحاً') || 'صباحاً']),
+        D.Inputs.Option({ attrs: { value: 'evening' } }, [translate('forms.preferredEvening', 'مساءً') || 'مساءً'])
       ]),
-      D.Inputs.Textarea({ attrs: { name: 'leadMessage', placeholder: 'اذكر احتياجاتك أو موعد التواصل المفضل', class: inputClass(), rows: 3 } }),
-      D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30') } }, ['إرسال الطلب'])
+      D.Inputs.Textarea({ attrs: { name: 'leadMessage', placeholder: translate('forms.message', 'اذكر احتياجاتك أو موعد التواصل المفضل'), class: inputClass(), rows: 3 } }),
+      D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30') } }, [translate('forms.submit', 'إرسال الطلب')])
     ]);
   }
 
@@ -590,7 +860,7 @@
   }
   function BrokerBadge(broker) {
     return D.Containers.Div({ attrs: { class: 'flex items-center gap-2 rounded-2xl border border-white/5 bg-slate-950/50 px-3 py-2 text-xs text-slate-300' } }, [
-      broker.avatar_url ? D.Media.Img({ attrs: { src: broker.avatar_url, alt: broker.full_name, class: 'h-8 w-8 rounded-full object-cover' } }) : null,
+      broker.avatar_url ? D.Media.Img({ attrs: { src: normalizeMediaUrl(broker.avatar_url, MEDIA_FALLBACKS.broker), alt: broker.full_name, class: 'h-8 w-8 rounded-full object-cover' } }) : null,
       D.Containers.Div({}, [
         D.Text.Span({ attrs: { class: 'text-sm text-white' } }, [broker.full_name || 'وسيط معتمد']),
         broker.phone ? D.Text.Span({ attrs: { class: 'text-[11px] text-slate-400' } }, [broker.phone]) : null
@@ -609,7 +879,7 @@
           'data-broker-id': broker.id
         }
       }, [
-        broker.avatar_url ? D.Media.Img({ attrs: { src: broker.avatar_url, alt: broker.full_name, class: 'h-12 w-12 rounded-full object-cover' } }) : null,
+        broker.avatar_url ? D.Media.Img({ attrs: { src: normalizeMediaUrl(broker.avatar_url, MEDIA_FALLBACKS.broker), alt: broker.full_name, class: 'h-12 w-12 rounded-full object-cover' } }) : null,
         D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, [broker.full_name || 'وسيط معتمد']),
         broker.company_name ? D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [broker.company_name]) : null,
         broker.region_id ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, ['منطقة الخدمة: ' + broker.region_id]) : null,
@@ -687,16 +957,16 @@
       inquiries = inquiries.filter(function (item) { return item.status === db.state.dashboard.inquiryStatus; });
     }
     if (!inquiries.length) {
-      return D.Containers.Div({ attrs: { class: 'rounded-3xl border border-white/5 bg-slate-900/30 p-6 text-sm text-slate-400' } }, ['لا توجد طلبات حالياً.']);
+      return D.Containers.Div({ attrs: { class: 'rounded-3xl border border-white/5 bg-slate-900/30 p-6 text-sm text-slate-400' } }, [translate('dashboard.empty', 'لا توجد طلبات حالياً.')]);
     }
     var listingIndex = indexBy(listingModels.map(function (model) { return model.listing; }), 'id');
     var cards = inquiries.map(function (lead) {
       var listing = listingIndex[lead.listing_id];
       return D.Containers.Article({ attrs: { class: tw('space-y-2 rounded-2xl border border-white/5 bg-slate-950/50 p-4') } }, [
-        D.Text.Strong({ attrs: { class: 'text-sm text-white' } }, [lead.contact_name || 'عميل محتمل']),
-        D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [lead.contact_phone || 'بدون هاتف']),
+        D.Text.Strong({ attrs: { class: 'text-sm text-white' } }, [lead.contact_name || translate('lead.potential', 'عميل محتمل')]),
+        D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [lead.contact_phone || translate('lead.noPhone', 'بدون هاتف')]),
         lead.message ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-3' } }, [lead.message]) : null,
-        listing ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, ['الوحدة: ' + (listing.headline || listing.id)]) : null,
+        listing ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, [translate('listing.details', 'الوحدة') + ': ' + (listing.headline || listing.id)]) : null,
         D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-xs text-slate-500' } }, [
           D.Text.Span({}, [formatDate(lead.created_at)]),
           D.Forms.Button({
@@ -707,18 +977,18 @@
               'data-inquiry-id': lead.id,
               'data-next-status': lead.status === 'new' ? 'replied' : 'closed'
             }
-          }, [lead.status === 'new' ? 'تعيين كمردود' : 'إغلاق'])
+          }, [lead.status === 'new' ? translate('dashboard.assign', 'تعيين كمردود') : translate('dashboard.close', 'إغلاق')])
         ])
       ]);
     });
     return D.Containers.Div({ attrs: { class: 'space-y-3' } }, [
       D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-sm text-slate-400' } }, [
-        'ترتيب حسب أحدث الطلبات',
+        translate('labels.orderByNewest', 'ترتيب حسب أحدث الطلبات'),
         D.Inputs.Select({ attrs: { class: inputClass('text-xs'), 'data-m-gkey': 'inquiry-filter', value: db.state.dashboard.inquiryStatus } }, [
-          D.Inputs.Option({ attrs: { value: 'all' } }, ['الكل']),
-          D.Inputs.Option({ attrs: { value: 'new' } }, ['جديد']),
-          D.Inputs.Option({ attrs: { value: 'replied' } }, ['تم الرد']),
-          D.Inputs.Option({ attrs: { value: 'closed' } }, ['مغلق'])
+          D.Inputs.Option({ attrs: { value: 'all' } }, [translate('status.all', 'الكل') || 'الكل']),
+          D.Inputs.Option({ attrs: { value: 'new' } }, [translate('status.new', 'جديد')]),
+          D.Inputs.Option({ attrs: { value: 'replied' } }, [translate('status.replied', 'تم الرد')]),
+          D.Inputs.Option({ attrs: { value: 'closed' } }, [translate('status.closed', 'مغلق')])
         ])
       ]),
       D.Containers.Div({ attrs: { class: 'space-y-3' } }, cards)
@@ -731,10 +1001,10 @@
     }).slice(0, 4);
     if (!notifications.length) return null;
     return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-4 space-y-3') } }, [
-      D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, ['آخر التنبيهات']),
+      D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, [translate('misc.noNotifications', 'آخر التنبيهات')]),
       D.Containers.Div({ attrs: { class: 'space-y-2 text-sm text-slate-300' } }, notifications.map(function (item) {
         return D.Containers.Div({ attrs: { key: item.id, class: 'rounded-2xl border border-white/5 bg-slate-950/40 p-3' } }, [
-          D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [item.title || 'تنبيه']),
+          D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [item.title || translate('notification.title', 'تنبيه')]),
           D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [item.message]),
           D.Text.Span({ attrs: { class: 'text-[10px] text-slate-500' } }, [formatDate(item.created_at)])
         ]);
@@ -743,8 +1013,8 @@
   }
   function ToastBanner(payload) {
     return D.Containers.Div({ attrs: { class: tw('fixed top-4 inset-x-0 mx-auto max-w-md rounded-full border border-white/10 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-lg shadow-black/40 z-40 flex items-center justify-between gap-2') } }, [
-      D.Text.Span({}, [payload.message || 'تم تنفيذ العملية.']),
-      D.Forms.Button({ attrs: { type: 'button', class: 'text-xs text-slate-400', 'data-m-gkey': 'toast-dismiss' } }, ['إغلاق'])
+      D.Text.Span({}, [payload.message || translate('toast.defaultSuccess', 'تم تنفيذ العملية.')]),
+      D.Forms.Button({ attrs: { type: 'button', class: 'text-xs text-slate-400', 'data-m-gkey': 'toast-dismiss' } }, [translate('actions.dismiss', 'إغلاق')])
     ]);
   }
 
@@ -756,11 +1026,11 @@
     var pwa = db.state.pwa;
     if (!pwa) return null;
     return D.Containers.Div({ attrs: { class: tw('fixed bottom-20 inset-x-0 mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/80 p-4 text-sm text-white shadow-2xl shadow-black/50 z-40 space-y-2') } }, [
-      D.Text.Strong({ attrs: { class: 'text-base' } }, ['حوّل المنصة إلى تطبيق']),
-      D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [pwa.message || 'ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.']),
+      D.Text.Strong({ attrs: { class: 'text-base' } }, [translate('pwa.installTitle', 'حوّل المنصة إلى تطبيق')]),
+      D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [pwa.message || translate('pwa.installDesc', 'ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.')]),
       D.Containers.Div({ attrs: { class: 'flex gap-2' } }, [
-        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, ['تثبيت']),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, ['لاحقاً'])
+        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, [translate('actions.install', 'تثبيت')]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'لاحقاً')])
       ])
     ]);
   }
@@ -769,20 +1039,20 @@
     var pwa = db.state.pwa;
     return D.Containers.Div({ attrs: { class: tw('fixed inset-0 z-50 grid place-items-center bg-slate-950/95 backdrop-blur') } }, [
       D.Containers.Div({ attrs: { class: tw('max-w-sm space-y-4 rounded-3xl border border-white/10 bg-slate-900/80 p-6 text-center text-white') } }, [
-        D.Text.H2({ attrs: { class: 'text-xl font-semibold' } }, ['تثبيت التطبيق مطلوب']),
-        D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [pwa && pwa.message ? pwa.message : 'لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.']),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, ['تثبيت الآن']),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, ['تخطي للاختبار'])
+        D.Text.H2({ attrs: { class: 'text-xl font-semibold' } }, [translate('pwa.installRequired', 'تثبيت التطبيق مطلوب')]),
+        D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [pwa && pwa.message ? pwa.message : translate('pwa.installRequiredDesc', 'لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.')]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, [translate('actions.installNow', 'تثبيت الآن')]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'تخطي للاختبار')])
       ])
     ]);
   }
 
   function BottomNav(db) {
     var buttons = [
-      { key: 'nav-home', label: 'الرئيسية', view: 'home' },
-      { key: 'nav-brokers', label: 'الوسطاء', view: 'brokers' },
-      { key: 'nav-dashboard', label: 'الطلبات', view: 'dashboard' },
-      { key: 'nav-listing', label: 'تفاصيل', view: 'listing' }
+      { key: 'nav-home', label: translate('nav.home', 'الرئيسية'), view: 'home' },
+      { key: 'nav-brokers', label: translate('nav.brokers', 'الوسطاء'), view: 'brokers' },
+      { key: 'nav-dashboard', label: translate('nav.dashboard', 'الطلبات'), view: 'dashboard' },
+      { key: 'nav-listing', label: translate('nav.listing', 'تفاصيل'), view: 'listing' }
     ].map(function (item) {
       var active = db.state.activeView === item.view;
       return D.Forms.Button({
@@ -798,7 +1068,7 @@
   }
 
   function LoadingSection() {
-    return D.Containers.Section({ attrs: { class: 'flex min-h-screen items-center justify-center text-slate-400' } }, ['جارِ تحميل بيانات الوسطاء...']);
+    return D.Containers.Section({ attrs: { class: 'flex min-h-screen items-center justify-center text-slate-400' } }, [translate('misc.loading', 'جارِ تحميل بيانات الوسطاء...')]);
   }
   function HeaderSection(settings) {
     if (!settings) {
@@ -806,7 +1076,7 @@
         D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, ['Brocker Mishkah'])
       ]);
     }
-    var logoSrc = settings.brand_logo;
+    var logoSrc = normalizeMediaUrl(settings.brand_logo, MEDIA_FALLBACKS.logo);
     var logo = logoSrc
       ? D.Media.Img({
           attrs: {
@@ -842,11 +1112,12 @@
 
   function HeroSlideCard(slide) {
     if (!slide) return null;
+    var mediaUrl = normalizeMediaUrl(slide.media_url, MEDIA_FALLBACKS.hero);
     var media = null;
     if (slide.media_type === 'video') {
-      media = D.Media.Video({ attrs: { src: slide.media_url, class: 'h-36 w-full rounded-2xl object-cover sm:h-32', autoplay: true, muted: true, loop: true, playsinline: true } });
+      media = D.Media.Video({ attrs: { src: mediaUrl, class: 'h-36 w-full rounded-2xl object-cover sm:h-32', autoplay: true, muted: true, loop: true, playsinline: true } });
     } else if (slide.media_url) {
-      media = D.Media.Img({ attrs: { src: slide.media_url, alt: slide.title || 'slide', class: 'h-36 w-full rounded-2xl object-cover sm:h-32', loading: 'lazy' } });
+      media = D.Media.Img({ attrs: { src: mediaUrl, alt: slide.title || 'slide', class: 'h-36 w-full rounded-2xl object-cover sm:h-32', loading: 'lazy' } });
     }
     return D.Containers.Article({ attrs: { key: slide.id, class: tw('space-y-3 sm:space-y-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-white shadow-md shadow-black/20') } }, [
       media,
@@ -868,31 +1139,31 @@
     });
     var unitTypes = (db.data.unitTypes || []).slice();
     var listingTypeValues = uniqueValues(listingModels.map(function (model) { return model.listing; }), 'listing_type');
-    var regionOptions = [D.Inputs.Option({ attrs: { value: '' } }, ['كل المناطق'])].concat(regions.map(function (region) {
-      return D.Inputs.Option({ attrs: { value: region.id } }, [region.name || region.id]);
+    var regionOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allRegions', 'كل المناطق')])].concat(regions.map(function (region) {
+      return D.Inputs.Option({ attrs: { value: region.id } }, [translate('region.' + region.id, region.name || region.id, currentLang({ env: { lang: db.env.lang } }))]);
     }));
-    var unitTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, ['كل أنواع الوحدات'])].concat(unitTypes.map(function (type) {
-      return D.Inputs.Option({ attrs: { value: type.id } }, [type.name || type.id]);
+    var unitTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allUnitTypes', 'كل أنواع الوحدات')])].concat(unitTypes.map(function (type) {
+      return D.Inputs.Option({ attrs: { value: type.id } }, [translate('unitType.' + type.id, type.name || type.id)]);
     }));
-    var listingTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, ['كل طرق العرض'])].concat(listingTypeValues.map(function (value) {
+    var listingTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allListings', 'كل طرق العرض')])].concat(listingTypeValues.map(function (value) {
       return D.Inputs.Option({ attrs: { value: value } }, [formatListingType(value)]);
     }));
     return D.Forms.Form({ attrs: { class: tw('space-y-4 rounded-3xl border border-white/5 bg-slate-900/60 p-6 text-white'), 'data-m-gkey': 'search-form' } }, [
-      D.Text.H3({ attrs: { class: 'text-lg font-semibold' } }, ['ابحث عن الوحدة المناسبة']),
+      D.Text.H3({ attrs: { class: 'text-lg font-semibold' } }, [translate('search.title', 'ابحث عن الوحدة المناسبة')]),
       D.Containers.Div({ attrs: { class: 'grid gap-4 md:grid-cols-3' } }, [
-        SelectField({ label: 'المنطقة', options: regionOptions, value: filters.regionId || '', filterKey: 'regionId' }),
-        SelectField({ label: 'نوع الوحدة', options: unitTypeOptions, value: filters.unitTypeId || '', filterKey: 'unitTypeId' }),
-        SelectField({ label: 'نوع العرض', options: listingTypeOptions, value: filters.listingType || '', filterKey: 'listingType' })
+        SelectField({ label: translate('search.region', 'المنطقة'), options: regionOptions, value: filters.regionId || '', filterKey: 'regionId' }),
+        SelectField({ label: translate('search.unitType', 'نوع الوحدة'), options: unitTypeOptions, value: filters.unitTypeId || '', filterKey: 'unitTypeId' }),
+        SelectField({ label: translate('search.listingType', 'نوع العرض'), options: listingTypeOptions, value: filters.listingType || '', filterKey: 'listingType' })
       ]),
       D.Containers.Div({ attrs: { class: 'flex justify-end' } }, [
-        D.Forms.Button({ attrs: { type: 'button', class: 'text-sm text-slate-300 underline', 'data-m-gkey': 'search-reset' } }, ['إعادة التصفية'])
+        D.Forms.Button({ attrs: { type: 'button', class: 'text-sm text-slate-300 underline', 'data-m-gkey': 'search-reset' } }, [translate('actions.resetFilters', 'إعادة التصفية')])
       ])
     ]);
   }
 
   function LatestListingsGrid(listingModels) {
     if (!listingModels.length) {
-      return D.Containers.Div({ attrs: { class: 'text-center text-sm text-slate-400' } }, ['لا توجد وحدات متاحة حالياً.']);
+      return D.Containers.Div({ attrs: { class: 'text-center text-sm text-slate-400' } }, [translate('listings.empty', 'لا توجد وحدات متاحة حالياً.')]);
     }
     return D.Containers.Div({ attrs: { class: 'grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3' } }, listingModels.map(function (model) {
       return ListingCard(model);
@@ -903,6 +1174,7 @@
     var listing = model.listing;
     var unit = model.unit || {};
     var cover = model.coverMedia;
+    var coverSrc = normalizeMediaUrl(cover && (cover.media_url || cover.url), MEDIA_FALLBACKS.listing);
     var badges = [
       listing.primary_highlight ? Chip(listing.primary_highlight) : null,
       model.unitType ? Chip(model.unitType.name) : null,
@@ -917,8 +1189,8 @@
       }
     }, [
       cover
-        ? D.Media.Img({ attrs: { src: cover.url, alt: listing.headline || listing.id, class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } })
-        : D.Containers.Div({ attrs: { class: 'h-52 w-full sm:h-48 bg-slate-900/70 border-b border-white/5' } }),
+        ? D.Media.Img({ attrs: { src: coverSrc, alt: listing.headline || listing.id, class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } })
+        : D.Containers.Div({ attrs: { class: 'h-52 w-full sm:h-48 bg-slate-900/70 border-b border-white/5 flex items-center justify-center text-slate-400 text-sm' } }, [translate('listing.gallery', 'لا توجد صورة')]),
       D.Containers.Div({ attrs: { class: 'space-y-3 p-4 sm:p-5' } }, [
         D.Text.Strong({ attrs: { class: 'text-base sm:text-lg' } }, [listing.headline || 'وحدة متاحة']),
         listing.excerpt ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-2 leading-6' } }, [listing.excerpt]) : null,
@@ -961,7 +1233,8 @@
     if (media.media_type === 'video') {
       return D.Media.Video({ attrs: { src: media.url, controls: true, muted: true, class: classes } });
     }
-    return D.Media.Img({ attrs: { src: media.url, alt: media.description || 'media', class: classes } });
+    var fallback = variant === 'layout' ? MEDIA_FALLBACKS.layout : MEDIA_FALLBACKS.listing;
+    return D.Media.Img({ attrs: { src: normalizeMediaUrl(media.url, fallback), alt: media.description || 'media', class: classes } });
   }
   function SelectField(config) {
     var options = Array.isArray(config.options) ? config.options : [];
@@ -1022,10 +1295,11 @@
   function formatListingType(value) {
     if (!value) return '';
     var normalized = String(value).toLowerCase();
-    if (normalized === 'sale') return 'تمليك';
-    if (normalized === 'rent') return 'إيجار';
-    if (normalized === 'lease') return 'إيجار تشغيلي';
-    return value;
+    if (normalized === 'sale') return translate('listing.type.sale', 'تمليك');
+    if (normalized === 'rent') return translate('listing.type.rent', 'إيجار');
+    if (normalized === 'lease') return translate('listing.type.lease', 'إيجار تشغيلي');
+    if (normalized === 'short-stay') return translate('listing.type.short', 'إيجار قصير');
+    return translate('listing.type.' + normalized, value);
   }
 
   function findById(rows, id) {
@@ -1168,6 +1442,8 @@
         var lang = normalizedRows[0].lang;
         nextEnv.lang = lang;
         nextEnv.dir = lang && lang.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr';
+        persistPrefs(nextEnv);
+        syncDocumentEnv(nextEnv);
       }
       var readyTables = Array.isArray(db.state.readyTables) ? db.state.readyTables.slice() : [];
       if (readyTables.indexOf(tableName) === -1) readyTables.push(tableName);
@@ -1364,6 +1640,7 @@
         console.warn('[Brocker PWA] failed to attach MishkahAuto', err);
       }
     }
+    attachDelegatedOrders(app);
     setupPwaHooks(app);
     bootstrapRealtime(app);
     global.BrockerPwaApp = app;
