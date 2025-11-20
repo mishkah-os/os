@@ -90,7 +90,7 @@
         "title": "لوحة تحكم فورية للوسطاء",
         "subtitle": "تابع الطلبات، فعّل الوحدات، واستجب من أي مكان.",
         "media_type": "video",
-        "media_url": "https://videos.mishkah.app/brocker/dashboard-loop.mp4",
+        "media_url": "https://storage.googleapis.com/coverr-main/mp4/Mt_Baker.mp4",
         "cta_label": "شاهد التجربة",
         "cta_action": "video",
         "priority": 2,
@@ -217,7 +217,7 @@
         "id": "media-hayat-tour",
         "project_id": "proj-hayat-villas",
         "media_type": "video",
-        "url": "https://videos.mishkah.app/brocker/projects/hayat-tour.mp4",
+        "url": "https://storage.googleapis.com/coverr-main/mp4/Madeira-Beach.mp4",
         "description": "جولة افتراضية"
       }
     ],
@@ -338,7 +338,7 @@
         "id": "media-nour-1203-1",
         "unit_id": "unit-nour-1203",
         "media_type": "video",
-        "url": "https://videos.mishkah.app/brocker/units/nour1203-tour.mp4",
+        "url": "https://storage.googleapis.com/coverr-main/mp4/Footboys.mp4",
         "description": "جولة افتراضية",
         "priority": 1
       },

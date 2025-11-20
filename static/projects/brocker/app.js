@@ -38,7 +38,6 @@
         return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');
       };
   var token = typeof twcss.token === 'function' ? twcss.token : function () { return ''; };
-  var delegatedAttached = false;
   var params = new URLSearchParams(global.location.search || '');
   var BRANCH_ID = params.get('branch') || params.get('branchId') || 'aqar';
   var MODULE_ID = params.get('module') || params.get('moduleId') || 'brocker';
@@ -1076,7 +1075,7 @@
         D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, ['Brocker Mishkah'])
       ]);
     }
-    var logoSrc = normalizeMediaUrl(settings.brand_logo, MEDIA_FALLBACKS.logo);
+    var logoSrc = settings.brand_logo;
     var logo = logoSrc
       ? D.Media.Img({
           attrs: {
@@ -1115,9 +1114,9 @@
     var mediaUrl = normalizeMediaUrl(slide.media_url, MEDIA_FALLBACKS.hero);
     var media = null;
     if (slide.media_type === 'video') {
-      media = D.Media.Video({ attrs: { src: mediaUrl, class: 'h-36 w-full rounded-2xl object-cover sm:h-32', autoplay: true, muted: true, loop: true, playsinline: true } });
+      media = D.Media.Video({ attrs: { src: slide.media_url, class: 'h-36 w-full rounded-2xl object-cover sm:h-32', autoplay: true, muted: true, loop: true, playsinline: true } });
     } else if (slide.media_url) {
-      media = D.Media.Img({ attrs: { src: mediaUrl, alt: slide.title || 'slide', class: 'h-36 w-full rounded-2xl object-cover sm:h-32', loading: 'lazy' } });
+      media = D.Media.Img({ attrs: { src: slide.media_url, alt: slide.title || 'slide', class: 'h-36 w-full rounded-2xl object-cover sm:h-32', loading: 'lazy' } });
     }
     return D.Containers.Article({ attrs: { key: slide.id, class: tw('space-y-3 sm:space-y-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-white shadow-md shadow-black/20') } }, [
       media,
@@ -1189,8 +1188,8 @@
       }
     }, [
       cover
-        ? D.Media.Img({ attrs: { src: coverSrc, alt: listing.headline || listing.id, class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } })
-        : D.Containers.Div({ attrs: { class: 'h-52 w-full sm:h-48 bg-slate-900/70 border-b border-white/5 flex items-center justify-center text-slate-400 text-sm' } }, [translate('listing.gallery', 'لا توجد صورة')]),
+        ? D.Media.Img({ attrs: { src: cover.url, alt: listing.headline || listing.id, class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } })
+        : D.Containers.Div({ attrs: { class: 'h-52 w-full sm:h-48 bg-slate-900/70 border-b border-white/5' } }),
       D.Containers.Div({ attrs: { class: 'space-y-3 p-4 sm:p-5' } }, [
         D.Text.Strong({ attrs: { class: 'text-base sm:text-lg' } }, [listing.headline || 'وحدة متاحة']),
         listing.excerpt ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-2 leading-6' } }, [listing.excerpt]) : null,
