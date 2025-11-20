@@ -224,11 +224,13 @@
   var realtime = null;
   var appInstance = null;
   var delegatedAttached = false;
+  var domDelegationAttached = false;
+  var orderLookupCache = null;
 
   var MEDIA_FALLBACKS = {
-    logo: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=600&q=70',
-    hero: 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=75',
-    listing: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1400&q=75',
+    logo: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons@latest/icons/filled/building-community.svg',
+    hero: 'https://images.unsplash.com/photo-1582719478239-2f66c2401b1b?auto=format&fit=crop&w=1400&q=80',
+    listing: 'https://images.unsplash.com/photo-1448630360428-65456885c650?auto=format&fit=crop&w=1400&q=80',
     layout: 'https://images.unsplash.com/photo-1600585154340-0ef3c08f05ff?auto=format&fit=crop&w=1200&q=70',
     broker: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=800&q=70'
   };
@@ -333,6 +335,71 @@
       }
     }
     return false;
+  }
+
+  function buildOrderLookup() {
+    if (orderLookupCache) return orderLookupCache;
+    var lookup = {};
+    Object.keys(orders).forEach(function (name) {
+      var def = orders[name] || {};
+      var keys = Array.isArray(def.gkeys) ? def.gkeys : [];
+      keys.forEach(function (gkey) {
+        if (!lookup[gkey]) lookup[gkey] = [];
+        lookup[gkey].push({ name: name, def: def });
+      });
+    });
+    orderLookupCache = lookup;
+    return lookup;
+  }
+
+  function delegateDomOrders(app) {
+    if (domDelegationAttached || !global.document) return false;
+    var lookup = buildOrderLookup();
+    var supported = ['click', 'change', 'submit'];
+    var handler = function (event) {
+      var path = event.composedPath ? event.composedPath() : null;
+      var nodes = Array.isArray(path) && path.length ? path : [];
+      if (!nodes.length && event.target) {
+        var current = event.target;
+        while (current) {
+          nodes.push(current);
+          current = current.parentElement;
+        }
+      }
+      for (var i = 0; i < nodes.length; i++) {
+        var node = nodes[i];
+        if (!node || !node.getAttribute) continue;
+        var gkey = node.getAttribute('data-m-gkey') || node.getAttribute('data-gkey');
+        if (!gkey || !lookup[gkey]) continue;
+        var candidates = lookup[gkey].filter(function (entry) {
+          return !entry.def.on || entry.def.on.indexOf(event.type) !== -1;
+        });
+        if (!candidates.length) continue;
+        var delegatedEvent = event;
+        if (event.currentTarget !== node) {
+          try {
+            delegatedEvent = Object.create(event, {
+              currentTarget: { value: node, enumerable: true }
+            });
+          } catch (err) {
+            delegatedEvent = Object.assign({}, event, { currentTarget: node });
+          }
+        }
+        candidates.forEach(function (entry) {
+          try {
+            entry.def.handler(delegatedEvent, app);
+          } catch (err) {
+            console.warn('[Brocker PWA] delegated order failed for', entry.name, err);
+          }
+        });
+        break;
+      }
+    };
+    supported.forEach(function (type) {
+      bindUiEvent(global.document, type, handler, true);
+    });
+    domDelegationAttached = true;
+    return true;
   }
 
   function setToast(ctx, payload) {
@@ -678,6 +745,42 @@
         var current = (ctx && ctx.database && ctx.database.env && ctx.database.env.lang) || 'ar';
         var next = current === 'ar' ? 'en' : 'ar';
         setEnvLanguage(ctx, next);
+      }
+    },
+    'ui.hero.action': {
+      on: ['click'],
+      gkeys: ['hero-slide'],
+      handler: function (event, ctx) {
+        var target = event.currentTarget;
+        if (!target) return;
+        var action = target.getAttribute('data-cta-action');
+        var listingId = target.getAttribute('data-listing-id');
+        if (action === 'search') {
+          ctx.setState(function (db) {
+            return Object.assign({}, db, { state: Object.assign({}, db.state, { activeView: 'home' }) });
+          });
+          return;
+        }
+        if (action === 'video') {
+          var url = target.getAttribute('data-media-url');
+          if (url && global.open) global.open(url, '_blank', 'noopener');
+          return;
+        }
+        if (action === 'broker-onboard') {
+          ctx.setState(function (db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, { activeView: 'brokers' })
+            });
+          });
+          return;
+        }
+        if (listingId) {
+          ctx.setState(function (db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, { activeView: 'listing', selectedListingId: listingId })
+            });
+          });
+        }
       }
     }
   };
@@ -1088,7 +1191,10 @@
     }).map(function (slide) {
       return HeroSlideCard(slide);
     });
-    return D.Containers.Section({ attrs: { class: tw('rounded-3xl border border-white/5 bg-gradient-to-br from-slate-900/85 to-slate-950/90 p-4 sm:p-6 lg:p-7 space-y-3 sm:space-y-4 shadow-lg shadow-emerald-900/20') } }, [
+    return D.Containers.Section({ attrs: { class: tw(
+      'rounded-3xl border p-4 sm:p-6 lg:p-7 space-y-3 sm:space-y-4 shadow-lg shadow-emerald-900/20 transition-colors',
+      themed({ env: activeEnv() }, 'border-white/5 bg-gradient-to-br from-slate-900/85 to-slate-950/90', 'border-slate-200 bg-white')
+    ) } }, [
       D.Text.H2({ attrs: { class: 'text-lg font-semibold text-white sm:text-xl' } }, [settings && settings.hero_title ? settings.hero_title : 'ابدأ من البحث الذكي عن العقارات']),
       settings && settings.hero_subtitle ? D.Text.P({ attrs: { class: 'text-sm leading-6 text-slate-300 sm:text-base sm:leading-7' } }, [settings.hero_subtitle]) : null,
       cards.length ? D.Containers.Div({ attrs: { class: tw('grid gap-3 sm:gap-4 md:grid-cols-3') } }, cards) : null
@@ -1104,7 +1210,10 @@
     } else if (slide.media_url) {
       media = D.Media.Img({ attrs: { src: slide.media_url, alt: slide.title || 'slide', class: 'h-36 w-full rounded-2xl object-cover sm:h-32', loading: 'lazy' } });
     }
-    return D.Containers.Article({ attrs: { key: slide.id, class: tw('space-y-3 sm:space-y-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-white shadow-md shadow-black/20') } }, [
+    return D.Containers.Article({ attrs: { key: slide.id, class: tw(
+      'space-y-3 sm:space-y-4 rounded-2xl border p-4 text-white shadow-md shadow-black/20 transition-colors',
+      themed({ env: activeEnv() }, 'border-white/10 bg-slate-950/50', 'border-slate-200 bg-white/80 text-slate-900')
+    ), 'data-m-gkey': 'hero-slide', 'data-cta-action': slide.cta_action || '', 'data-media-url': slide.media_url || '' } }, [
       media,
       D.Containers.Div({ attrs: { class: 'space-y-1' } }, [
         D.Text.Strong({ attrs: { class: 'text-sm sm:text-base' } }, [slide.title || 'عرض مميز']),
@@ -1617,6 +1726,7 @@
         console.warn('[Brocker PWA] failed to activate twcss.auto', err);
       }
     }
+    delegateDomOrders(app);
     var delegated = attachDelegatedOrders(app);
     var uiAttached = delegated || attachUiOrders(app);
     if (!uiAttached && !options.skipAutoAttach && global.MishkahAuto && typeof global.MishkahAuto.attach === 'function') {
