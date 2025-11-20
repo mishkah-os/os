@@ -1762,45 +1762,6 @@
         return readyPromise;
       };
 
-      const resolveShiftTableName = ()=> POS_TABLE_HANDLES?.posShift || POS_TABLE_HANDLES?.pos_shift || 'pos_shift';
-
-      const insertShiftRemote = async (record)=>{
-        const store = window.__POS_DB__;
-        if(!store || typeof store.insert !== 'function') return null;
-        const table = resolveShiftTableName();
-        const nowIso = toIsoString(record.openedAt || Date.now());
-        const payload = {
-          ...record,
-          status: record.status || 'open',
-          isClosed: !!record.isClosed,
-          openedAt: nowIso,
-          closedAt: record.closedAt ? toIsoString(record.closedAt) : null,
-          createdAt: toIsoString(record.createdAt || nowIso),
-          updatedAt: toIsoString(record.updatedAt || nowIso),
-          version: Number.isFinite(record.version) ? Math.max(1, Math.trunc(record.version)) : 1
-        };
-        const inserted = await store.insert(table, payload);
-        return inserted || payload;
-      };
-
-      const updateShiftRemote = async (record)=>{
-        const store = window.__POS_DB__;
-        if(!store || typeof store.update !== 'function') return null;
-        if(!record || !record.id) return null;
-        const table = resolveShiftTableName();
-        const currentVersion = Number.isFinite(record.version) ? Math.trunc(record.version) : 1;
-        const nextVersion = currentVersion + 1;
-        const payload = {
-          ...record,
-          version: nextVersion,
-          updatedAt: toIsoString(record.updatedAt || Date.now()),
-          closedAt: record.closedAt ? toIsoString(record.closedAt) : null,
-          openedAt: toIsoString(record.openedAt || record.createdAt || Date.now())
-        };
-        const updated = await store.update(table, payload);
-        return updated || payload;
-      };
-
       function normalizeShiftRecord(record){
         if(!record) return null;
         const base = { ...record };
@@ -2390,6 +2351,45 @@
         supportsTempOrders:false
       };
     }
+
+    const resolveShiftTableName = ()=> POS_TABLE_HANDLES?.posShift || POS_TABLE_HANDLES?.pos_shift || 'pos_shift';
+
+    const insertShiftRemote = async (record)=>{
+      const store = window.__POS_DB__;
+      if(!store || typeof store.insert !== 'function') return null;
+      const table = resolveShiftTableName();
+      const nowIso = toIsoString(record?.openedAt || Date.now());
+      const payload = {
+        ...record,
+        status: record?.status || 'open',
+        isClosed: !!record?.isClosed,
+        openedAt: nowIso,
+        closedAt: record?.closedAt ? toIsoString(record.closedAt) : null,
+        createdAt: toIsoString(record?.createdAt || nowIso),
+        updatedAt: toIsoString(record?.updatedAt || nowIso),
+        version: Number.isFinite(record?.version) ? Math.max(1, Math.trunc(record.version)) : 1
+      };
+      const inserted = await store.insert(table, payload);
+      return inserted || payload;
+    };
+
+    const updateShiftRemote = async (record)=>{
+      const store = window.__POS_DB__;
+      if(!store || typeof store.update !== 'function') return null;
+      if(!record || !record.id) return null;
+      const table = resolveShiftTableName();
+      const currentVersion = Number.isFinite(record.version) ? Math.trunc(record.version) : 1;
+      const nextVersion = currentVersion + 1;
+      const payload = {
+        ...record,
+        version: nextVersion,
+        updatedAt: toIsoString(record.updatedAt || Date.now()),
+        closedAt: record.closedAt ? toIsoString(record.closedAt) : null,
+        openedAt: toIsoString(record.openedAt || record.createdAt || Date.now())
+      };
+      const updated = await store.update(table, payload);
+      return updated || payload;
+    };
 
     function createKDSBridge(url){
       let socket = null;
