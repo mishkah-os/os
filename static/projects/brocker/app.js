@@ -1598,10 +1598,17 @@
         nextEnv = applyLabelMaps(nextEnv, normalizedRows);
       }
       if (tableName === 'app_settings' && normalizedRows[0] && normalizedRows[0].lang) {
-        var lang = normalizedRows[0].lang;
+        // localStorage له الأولوية على app_settings
+        var persistedPrefs = loadPersistedPrefs();
+        var lang = persistedPrefs.lang || normalizedRows[0].lang;
+        var theme = persistedPrefs.theme || nextEnv.theme;
         nextEnv.lang = lang;
-        nextEnv.dir = lang && lang.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr';
-        persistPrefs(nextEnv);
+        nextEnv.dir = persistedPrefs.dir || resolveDir(lang);
+        nextEnv.theme = theme;
+        // لا نُعيد كتابة localStorage إذا كان المستخدم قد اختار لغة
+        if (!persistedPrefs.lang) {
+          persistPrefs(nextEnv);
+        }
         syncDocumentEnv(nextEnv);
       }
       var readyTables = Array.isArray(db.state.readyTables) ? db.state.readyTables.slice() : [];
