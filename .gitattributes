@@ -1,0 +1,10 @@
+# Treat broker media assets as binary
+static/assets/broker/*.png binary
+static/assets/broker/*.jpg binary
+static/assets/broker/*.jpeg binary
+static/assets/broker/*.webp binary
+
+# You can choose: SVG as text OR binary
+static/assets/broker/*.svg text eol=lf
+# أو لو عايزها كـ binary:
+# static/assets/broker/*.svg binary
