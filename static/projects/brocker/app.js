@@ -38,6 +38,13 @@
         return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');
       };
   var token = typeof twcss.token === 'function' ? twcss.token : function () { return ''; };
+  var BROKER_ASSETS = {
+    logo: 'https://images.mishkah.app/brocker/logo-light.svg',
+    heroDiscovery: 'https://images.mishkah.app/brocker/hero-newcairo.jpg',
+    heroDashboardVideo: 'https://videos.mishkah.app/brocker/dashboard-loop.mp4',
+    heroOnboarding: 'https://images.mishkah.app/brocker/hero-otp.jpg',
+    cardFallback: 'https://images.mishkah.app/brocker/hero-newcairo.jpg'
+  };
 
   var params = new URLSearchParams(global.location.search || '');
   var BRANCH_ID = params.get('branch') || params.get('branchId') || 'aqar';
@@ -479,9 +486,36 @@
 
   function HomeView(db, listingModels) {
     var settings = db.data.appSettings;
-    var slides = db.data.heroSlides || [];
+    var slides = (db.data.heroSlides || []).length
+      ? db.data.heroSlides
+      : [
+          {
+            id: 'default-explore',
+            title: 'اكتشف العقارات الموثوقة',
+            subtitle: 'صور عالية الجودة ووحدات مختارة خصيصاً لك.',
+            media_type: 'image',
+            media_url: BROKER_ASSETS.heroDiscovery,
+            cta_label: 'تصفح الآن'
+          },
+          {
+            id: 'default-manage',
+            title: 'لوحة تحكم الوسيط',
+            subtitle: 'تابع البطاقات وعمليات التفعيل من موبايلك.',
+            media_type: 'video',
+            media_url: BROKER_ASSETS.heroDashboardVideo,
+            cta_label: 'شاهد الميزات'
+          },
+          {
+            id: 'default-verify',
+            title: 'تحقق سريع وآمن',
+            subtitle: 'دخول OTP وتسجيل سلس للوسطاء المعتمدين.',
+            media_type: 'image',
+            media_url: BROKER_ASSETS.heroOnboarding,
+            cta_label: 'ابدأ التسجيل'
+          }
+        ];
     var filtered = filterListings(listingModels, db.state.filters).slice(0, 6);
-    return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 space-y-6 max-w-6xl mx-auto') } }, [
+    return D.Containers.Section({ attrs: { class: tw('px-4 sm:px-6 pb-14 pt-6 space-y-6 sm:space-y-7 max-w-6xl mx-auto') } }, [
       HeaderSection(settings),
       HeroSection(settings, slides),
       SearchPanel(db, listingModels),
@@ -806,12 +840,18 @@
         D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, ['Brocker Mishkah'])
       ]);
     }
-    return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center text-white') } }, [
-      settings.brand_logo
-        ? D.Media.Img({ attrs: { src: settings.brand_logo, alt: settings.brand_name || 'Brocker', class: 'mx-auto h-16 w-16 object-contain' } })
-        : null,
-      D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, [settings.brand_name || 'منصة الوسطاء']),
-      settings.tagline ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [settings.tagline]) : null
+    return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center text-white sm:space-y-3') } }, [
+      D.Media.Img({
+        attrs: {
+          src: settings.brand_logo || BROKER_ASSETS.logo,
+          alt: settings.brand_name || 'Brocker',
+          class: 'mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-2xl border border-emerald-400/20 bg-slate-900/60 p-2 object-contain shadow-lg shadow-emerald-500/10'
+        }
+      }),
+      D.Text.H1({ attrs: { class: 'text-2xl font-semibold sm:text-3xl' } }, [settings.brand_name || 'منصة الوسطاء']),
+      settings.tagline
+        ? D.Text.P({ attrs: { class: 'text-sm leading-6 text-slate-300 sm:text-base' } }, [settings.tagline])
+        : null
     ]);
   }
 
@@ -823,10 +863,10 @@
     }).map(function (slide) {
       return HeroSlideCard(slide);
     });
-    return D.Containers.Section({ attrs: { class: tw('rounded-3xl border border-white/5 bg-gradient-to-br from-slate-900/80 to-slate-950/80 p-6 space-y-4') } }, [
-      D.Text.H2({ attrs: { class: 'text-lg font-semibold text-white' } }, [settings && settings.hero_title ? settings.hero_title : 'ابدأ من البحث الذكي عن العقارات']),
-      settings && settings.hero_subtitle ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [settings.hero_subtitle]) : null,
-      cards.length ? D.Containers.Div({ attrs: { class: tw('grid gap-4 md:grid-cols-3') } }, cards) : null
+    return D.Containers.Section({ attrs: { class: tw('rounded-3xl border border-white/5 bg-gradient-to-br from-slate-900/85 to-slate-950/90 p-4 sm:p-6 lg:p-7 space-y-3 sm:space-y-4 shadow-lg shadow-emerald-900/20') } }, [
+      D.Text.H2({ attrs: { class: 'text-lg font-semibold text-white sm:text-xl' } }, [settings && settings.hero_title ? settings.hero_title : 'ابدأ من البحث الذكي عن العقارات']),
+      settings && settings.hero_subtitle ? D.Text.P({ attrs: { class: 'text-sm leading-6 text-slate-300 sm:text-base sm:leading-7' } }, [settings.hero_subtitle]) : null,
+      cards.length ? D.Containers.Div({ attrs: { class: tw('grid gap-3 sm:gap-4 md:grid-cols-3') } }, cards) : null
     ]);
   }
 
@@ -834,15 +874,20 @@
     if (!slide) return null;
     var media = null;
     if (slide.media_type === 'video') {
-      media = D.Media.Video({ attrs: { src: slide.media_url, class: 'h-32 w-full rounded-2xl object-cover', autoplay: true, muted: true, loop: true, playsinline: true } });
+      media = D.Media.Video({ attrs: { src: slide.media_url, class: 'h-36 w-full rounded-2xl object-cover sm:h-32', autoplay: true, muted: true, loop: true, playsinline: true } });
     } else if (slide.media_url) {
-      media = D.Media.Img({ attrs: { src: slide.media_url, alt: slide.title || 'slide', class: 'h-32 w-full rounded-2xl object-cover' } });
+      media = D.Media.Img({ attrs: { src: slide.media_url, alt: slide.title || 'slide', class: 'h-36 w-full rounded-2xl object-cover sm:h-32', loading: 'lazy' } });
     }
-    return D.Containers.Article({ attrs: { key: slide.id, class: tw('space-y-2 rounded-2xl border border-white/10 bg-slate-950/40 p-4 text-white') } }, [
+    return D.Containers.Article({ attrs: { key: slide.id, class: tw('space-y-3 sm:space-y-4 rounded-2xl border border-white/10 bg-slate-950/50 p-4 text-white shadow-md shadow-black/20') } }, [
       media,
-      D.Text.Strong({ attrs: { class: 'text-sm' } }, [slide.title || 'عرض مميز']),
-      slide.subtitle ? D.Text.P({ attrs: { class: 'text-xs text-slate-300' } }, [slide.subtitle]) : null,
-      slide.cta_label ? D.Text.Span({ attrs: { class: 'text-[11px] text-emerald-300' } }, [slide.cta_label]) : null
+      D.Containers.Div({ attrs: { class: 'space-y-1' } }, [
+        D.Text.Strong({ attrs: { class: 'text-sm sm:text-base' } }, [slide.title || 'عرض مميز']),
+        slide.subtitle ? D.Text.P({ attrs: { class: 'text-xs leading-5 text-slate-300 sm:text-sm' } }, [slide.subtitle]) : null
+      ]),
+      slide.cta_label ? D.Text.Span({ attrs: { class: 'inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300' } }, [
+        '•',
+        slide.cta_label
+      ]) : null
     ]);
   }
 
@@ -879,7 +924,7 @@
     if (!listingModels.length) {
       return D.Containers.Div({ attrs: { class: 'text-center text-sm text-slate-400' } }, ['لا توجد وحدات متاحة حالياً.']);
     }
-    return D.Containers.Div({ attrs: { class: 'grid gap-4 md:grid-cols-2 lg:grid-cols-3' } }, listingModels.map(function (model) {
+    return D.Containers.Div({ attrs: { class: 'grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3' } }, listingModels.map(function (model) {
       return ListingCard(model);
     }));
   }
@@ -896,21 +941,21 @@
     ].filter(Boolean);
     return D.Containers.Article({
       attrs: {
-        class: tw('overflow-hidden rounded-3xl border border-white/5 bg-slate-950/60 text-white cursor-pointer transition hover:border-emerald-400/50'),
+        class: tw('overflow-hidden rounded-3xl border border-white/5 bg-slate-950/60 text-white cursor-pointer transition hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-900/30'),
         'data-m-gkey': 'listing-card',
         'data-listing-id': listing.id
       }
     }, [
       cover
-        ? D.Media.Img({ attrs: { src: cover.url, alt: listing.headline || listing.id, class: 'h-48 w-full object-cover' } })
-        : D.Containers.Div({ attrs: { class: 'h-48 w-full bg-slate-900 grid place-items-center text-slate-500' } }, ['بدون صورة']),
-      D.Containers.Div({ attrs: { class: 'space-y-2 p-4' } }, [
-        D.Text.Strong({ attrs: { class: 'text-base' } }, [listing.headline || 'وحدة متاحة']),
-        listing.excerpt ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-2' } }, [listing.excerpt]) : null,
-        badges.length ? D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs text-slate-400' } }, badges) : null,
-        D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm text-slate-300 pt-2 border-t border-white/5' } }, [
+        ? D.Media.Img({ attrs: { src: cover.url, alt: listing.headline || listing.id, class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } })
+        : D.Media.Img({ attrs: { src: BROKER_ASSETS.cardFallback, alt: 'unit placeholder', class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } }),
+      D.Containers.Div({ attrs: { class: 'space-y-3 p-4 sm:p-5' } }, [
+        D.Text.Strong({ attrs: { class: 'text-base sm:text-lg' } }, [listing.headline || 'وحدة متاحة']),
+        listing.excerpt ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-2 leading-6' } }, [listing.excerpt]) : null,
+        badges.length ? D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs text-slate-300' } }, badges) : null,
+        D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm text-slate-200 pt-3 border-t border-white/5' } }, [
           D.Text.Span({}, [unit.area ? unit.area + ' م²' : '']),
-          D.Text.Strong({ attrs: { class: 'text-emerald-400' } }, [formatPrice(listing)])
+          D.Text.Strong({ attrs: { class: 'text-emerald-300 text-base' } }, [formatPrice(listing)])
         ])
       ])
     ]);
