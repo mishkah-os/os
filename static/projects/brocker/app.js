@@ -408,8 +408,15 @@
       var nextEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
       persistPrefs(nextEnv);
       syncDocumentEnv(nextEnv);
-      return Object.assign({}, db, { env: nextEnv });
+      return Object.assign({}, db, {
+        env: nextEnv,
+        state: Object.assign({}, db.state, { loading: true })
+      });
     });
+    // إعادة تحميل البيانات باللغة الجديدة
+    setTimeout(function() {
+      reloadDataWithLanguage(ctx, nextLang);
+    }, 100);
   }
 
   function setEnvTheme(ctx, theme) {
@@ -780,7 +787,7 @@
       ? InstallBanner(db)
       : null;
 
-    return D.Containers.Main({ attrs: { class: tw('relative min-h-screen pb-24 transition-colors', themed(db, 'bg-slate-950 text-slate-100', 'bg-slate-50 text-slate-900'), token('body')) } }, [
+    return D.Containers.Main({ attrs: { class: tw('relative min-h-screen pt-14 pb-20 transition-colors', themed(db, 'bg-slate-950 text-slate-100', 'bg-slate-50 text-slate-900'), token('body')) } }, [
       PreferencesBar(db),
       errorBanner,
       toast,
@@ -793,23 +800,39 @@
 
   function PreferencesBar(db) {
     var lang = currentLang(db);
-    return D.Containers.Div({ attrs: { class: tw('fixed top-3 left-0 right-0 z-30 mx-auto flex w-[92%] max-w-xl items-center justify-between gap-2 rounded-full border px-3 py-2 backdrop-blur transition-colors', themed(db, 'border-white/10 bg-slate-900/80 text-white', 'border-slate-200 bg-white/90 text-slate-700')) } }, [
-      D.Text.Span({ attrs: { class: 'text-xs font-semibold tracking-wide uppercase' } }, ['Brocker PWA']),
-      D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
-        D.Forms.Button({
-          attrs: {
-            type: 'button',
-            class: tw('inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-colors shadow-sm', themed(db, 'bg-slate-800 text-white border border-white/10', 'bg-slate-100 text-slate-800 border border-slate-200')),
-            'data-m-gkey': 'theme-toggle'
-          }
-        }, [themed(db, '🌙', '☀️'), translate('actions.toggleTheme', 'Theme')]),
-        D.Forms.Button({
-          attrs: {
-            type: 'button',
-            class: tw('inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition-colors shadow-sm', themed(db, 'bg-emerald-500 text-white', 'bg-emerald-600 text-white')),
-            'data-m-gkey': 'lang-toggle'
-          }
-        }, [lang === 'ar' ? '🇬🇧 EN' : '🇪🇬 AR'])
+    var themeIcon = themed(db, '🌙', '☀️');
+    var langIcon = lang === 'ar' ? '🇬🇧' : '🇪🇬';
+    var langText = lang === 'ar' ? 'EN' : 'AR';
+    var isLoading = db.state && db.state.loading;
+
+    return D.Containers.Div({ attrs: { class: tw('fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b transition-all duration-300', themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')) } }, [
+      D.Containers.Div({ attrs: { class: 'mx-auto flex max-w-xl items-center justify-between px-4 py-3' } }, [
+        D.Text.Span({ attrs: { class: tw('text-sm font-bold tracking-tight', themed(db, 'text-white', 'text-slate-900')) } }, ['Brocker']),
+        D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
+          isLoading ? D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-xs text-slate-400' } }, [
+            D.Containers.Div({ attrs: { class: 'animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full' } }, []),
+            D.Text.Span({}, [translate('misc.loading', 'جاري التحميل...')])
+          ]) : null,
+          !isLoading ? D.Forms.Button({
+            attrs: {
+              type: 'button',
+              class: tw('flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 active:scale-95', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-100 hover:bg-slate-200 text-slate-800')),
+              'data-m-gkey': 'theme-toggle',
+              title: translate('actions.toggleTheme', 'تبديل الثيم')
+            }
+          }, [themeIcon]) : null,
+          !isLoading ? D.Forms.Button({
+            attrs: {
+              type: 'button',
+              class: tw('flex items-center gap-1.5 px-3 h-9 rounded-full transition-all duration-200 active:scale-95 font-semibold text-xs', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20', 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20')),
+              'data-m-gkey': 'lang-toggle',
+              title: translate('actions.toggleLang', 'تبديل اللغة')
+            }
+          }, [
+            D.Text.Span({ attrs: { class: 'text-base' } }, [langIcon]),
+            D.Text.Span({}, [langText])
+          ]) : null
+        ])
       ])
     ]);
   }
@@ -819,7 +842,7 @@
     var slides = Array.isArray(db.data.heroSlides) ? db.data.heroSlides : [];
     var filtered = filterListings(listingModels, db.state.filters).slice(0, 6);
     var heroSection = slides.length ? HeroSection(settings, slides) : null;
-    return D.Containers.Section({ attrs: { class: tw('px-4 sm:px-6 pb-14 pt-6 space-y-6 sm:space-y-7 max-w-6xl mx-auto') } }, [
+    return D.Containers.Section({ attrs: { class: tw('px-4 pb-6 pt-4 space-y-6 max-w-xl mx-auto') } }, [
       HeaderSection(settings),
       heroSection,
       SearchPanel(db, listingModels),
@@ -1116,23 +1139,41 @@
   }
 
   function BottomNav(db) {
-    var buttons = [
-      { key: 'nav-home', label: translate('nav.home', 'الرئيسية'), view: 'home' },
-      { key: 'nav-brokers', label: translate('nav.brokers', 'الوسطاء'), view: 'brokers' },
-      { key: 'nav-dashboard', label: translate('nav.dashboard', 'الطلبات'), view: 'dashboard' },
-      { key: 'nav-listing', label: translate('nav.listing', 'تفاصيل'), view: 'listing' }
-    ].map(function (item) {
+    var navItems = [
+      { key: 'nav-home', label: translate('nav.home', 'الرئيسية'), view: 'home', icon: '🏠' },
+      { key: 'nav-brokers', label: translate('nav.brokers', 'الوسطاء'), view: 'brokers', icon: '👥' },
+      { key: 'nav-dashboard', label: translate('nav.dashboard', 'الطلبات'), view: 'dashboard', icon: '📋' },
+      { key: 'nav-listing', label: translate('nav.listing', 'تفاصيل'), view: 'listing', icon: '📍' }
+    ];
+
+    var buttons = navItems.map(function (item) {
       var active = db.state.activeView === item.view;
       return D.Forms.Button({
         attrs: {
           type: 'button',
-          class: tw('flex-1 rounded-full py-2 text-xs font-semibold', active ? 'bg-emerald-500 text-white' : 'bg-slate-900/70 text-slate-300'),
+          class: tw(
+            'flex-1 flex flex-col items-center gap-0.5 py-2.5 px-2 rounded-2xl transition-all duration-200 active:scale-95',
+            active
+              ? themed(db, 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30', 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30')
+              : themed(db, 'bg-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50', 'bg-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100')
+          ),
           'data-m-gkey': item.key,
           'data-view': item.view
         }
-      }, [item.label]);
+      }, [
+        D.Text.Span({ attrs: { class: 'text-lg' } }, [item.icon]),
+        D.Text.Span({ attrs: { class: 'text-[10px] font-medium' } }, [item.label])
+      ]);
     });
-    return D.Containers.Nav({ attrs: { class: tw('fixed bottom-4 left-0 right-0 mx-auto flex w-[90%] max-w-xl gap-2 rounded-full border border-white/10 bg-slate-950/80 p-2 backdrop-blur z-30') } }, buttons);
+
+    return D.Containers.Nav({
+      attrs: {
+        class: tw(
+          'fixed bottom-0 left-0 right-0 mx-auto flex max-w-xl gap-1 border-t backdrop-blur-xl p-2 z-30 safe-area-inset-bottom',
+          themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')
+        )
+      }
+    }, buttons);
   }
 
   function LoadingSection() {
@@ -1649,7 +1690,25 @@
     });
   }
 
-  function bootstrapRealtime(app) {
+  function reloadDataWithLanguage(app, lang) {
+    if (!app) return;
+    if (!realtime) return;
+
+    // إعادة تهيئة الاتصال مع اللغة الجديدة
+    try {
+      // إغلاق الاتصال القديم
+      if (realtime && typeof realtime.disconnect === 'function') {
+        realtime.disconnect();
+      }
+    } catch (e) {
+      console.warn('[Brocker PWA] Error disconnecting realtime:', e);
+    }
+
+    // إعادة تهيئة realtime مع اللغة الجديدة
+    bootstrapRealtime(app, lang);
+  }
+
+  function bootstrapRealtime(app, forceLang) {
     if (!app) return;
     if (typeof global.createDBAuto !== 'function') {
       console.error('[Brocker PWA] createDBAuto is not available.');
@@ -1660,6 +1719,9 @@
       });
       return;
     }
+
+    var currentLang = forceLang || (app.database && app.database.env && app.database.env.lang) || 'ar';
+
     fetchModuleSchema(BRANCH_ID, MODULE_ID)
       .then(function (payload) {
         var schema = payload && payload.schema ? payload.schema : null;
@@ -1673,7 +1735,8 @@
           role: 'brocker-pwa',
           historyLimit: 200,
           autoReconnect: true,
-          logger: console
+          logger: console,
+          lang: currentLang
         });
         return realtime.ready().then(function () {
           Object.keys(TABLE_TO_DATA_KEY).forEach(function (tableName) {
