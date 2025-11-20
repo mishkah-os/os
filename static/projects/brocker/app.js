@@ -116,6 +116,36 @@
   var realtime = null;
   var appInstance = null;
 
+  function bindUiEvent(target, type, handler, options) {
+    if (!target || !type || typeof handler !== 'function') return false;
+    if (UI && UI.events && typeof UI.events.on === 'function') {
+      try {
+        UI.events.on(target, type, handler, options);
+        return true;
+      } catch (err) {
+        console.warn('[Brocker PWA] UI.events.on failed, falling back to DOM listener', err);
+      }
+    }
+    if (target.addEventListener) {
+      target.addEventListener(type, handler, options);
+      return true;
+    }
+    return false;
+  }
+
+  function attachUiOrders(app) {
+    if (!app) return false;
+    if (UI && UI.events && typeof UI.events.attachOrders === 'function') {
+      try {
+        UI.events.attachOrders(app, orders);
+        return true;
+      } catch (err) {
+        console.warn('[Brocker PWA] UI.events.attachOrders failed, using MishkahAuto.attach', err);
+      }
+    }
+    return false;
+  }
+
   function setToast(ctx, payload) {
     ctx.setState(function (db) {
       return Object.assign({}, db, {
@@ -1233,11 +1263,9 @@
       }
       updatePwaState(app, { manifestUrl: buildManifestUrl() });
     });
-    if (global.addEventListener) {
-      global.addEventListener('appinstalled', function () {
-        updatePwaState(app, { installed: true, showGate: false });
-      });
-    }
+    bindUiEvent(global, 'appinstalled', function () {
+      updatePwaState(app, { installed: true, showGate: false });
+    });
   }
 
   function bootstrapRealtime(app) {
@@ -1313,7 +1341,8 @@
         console.warn('[Brocker PWA] failed to activate twcss.auto', err);
       }
     }
-    if (!options.skipAutoAttach && global.MishkahAuto && typeof global.MishkahAuto.attach === 'function') {
+    var uiAttached = attachUiOrders(app);
+    if (!uiAttached && !options.skipAutoAttach && global.MishkahAuto && typeof global.MishkahAuto.attach === 'function') {
       try {
         global.MishkahAuto.attach(app);
       } catch (err) {
