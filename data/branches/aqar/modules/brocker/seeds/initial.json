@@ -744,7 +744,24 @@
     "developers_lang": [],
     "projects_lang": [],
     "units_lang": [],
-    "listings_lang": [],
+    "listings_lang": [
+      {
+        "id": "listing-lang-nour-0901-en",
+        "listings_id": "listing-nour-0901-sale",
+        "lang": "en",
+        "headline": "3-Bedroom Apartment with Panoramic Terrace",
+        "excerpt": "165sqm with hotel-style finishing and 2 parking spaces in Al Nada Tower",
+        "primary_highlight": "Ready for Delivery"
+      },
+      {
+        "id": "listing-lang-nour-0902-en",
+        "listings_id": "listing-nour-0902-rent",
+        "lang": "en",
+        "headline": "Furnished 2BR with City View",
+        "excerpt": "120sqm fully furnished with balcony in New Cairo",
+        "primary_highlight": "Available Now"
+      }
+    ],
     "unit_features_lang": [],
     "inquiries_lang": [],
     "inquiry_replies_lang": [],

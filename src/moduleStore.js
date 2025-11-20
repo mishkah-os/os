@@ -252,7 +252,9 @@ export default class ModuleStore {
       // Copy all text fields from lang record (except id, lang, fk)
       for (const key in langRecord) {
         if (key === 'id' || key === 'lang' || key === fkField) continue;
-        translations[key] = langRecord[key];
+        if (langRecord[key] !== null && langRecord[key] !== undefined) {
+          translations[key] = langRecord[key];
+        }
       }
     }
 
