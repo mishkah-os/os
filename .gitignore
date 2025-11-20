@@ -60,7 +60,4 @@ data/branches/*/modules/*/logs/*.json
 data/branches/*/modules/*/live/
 
 
-# Ensure broker media assets are treated as binary to avoid diff/PR tooling errors
-static/assets/broker/*.webp binary
-static/assets/broker/*.png binary
-static/assets/broker/*.svg text eol=lf
+
