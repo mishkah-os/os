@@ -135,6 +135,7 @@ class MishkahRealtimeStore extends EventEmitter {
     this.moduleId = options.moduleId || 'pos';
     this.role = options.role || DEFAULT_ROLE;
     this.historyLimit = Number.isFinite(options.historyLimit) ? options.historyLimit : DEFAULT_HISTORY_LIMIT;
+    this.lang = options.lang || null;
     this.autoReconnect = options.autoReconnect !== false;
     this.logger = options.logger || console;
     this.wsUrl = resolveWsUrl(options);
@@ -389,6 +390,9 @@ class MishkahRealtimeStore extends EventEmitter {
       requestHistory: false,
       requestId: generateId('hello')
     };
+    if (this.lang) {
+      hello.lang = this.lang;
+    }
     this.lastHello = hello;
     this.#queueMessage(hello);
   }

@@ -4857,7 +4857,10 @@ async function handleBranchesApi(req, res, url) {
   }
 
   const store = await ensureModuleStore(branchId, moduleId);
-  const snapshot = store.getSnapshot();
+
+  // Read lang from query string (e.g., ?lang=en)
+  const lang = url.searchParams.get('lang') || null;
+  const snapshot = store.getSnapshot({ lang });
 
   if (segments.length === 5) {
     if (req.method === 'GET') {
@@ -6496,12 +6499,16 @@ async function sendSnapshot(client, meta = {}) {
   if (!client.branchId) return;
   const modules = await ensureBranchModules(client.branchId);
   const snapshot = {};
+  const lang = client.lang || null;
   for (const store of modules) {
-    snapshot[store.moduleId] = store.getSnapshot();
+    snapshot[store.moduleId] = store.getSnapshot({ lang });
   }
   const activeFlags = getActiveFullSyncFlags(client.branchId);
   const flagPayload = activeFlags.map((entry) => serializeFullSyncFlag(entry));
   const metaPayload = { ...meta, serverId: SERVER_ID, branchId: client.branchId };
+  if (lang) {
+    metaPayload.lang = lang;
+  }
   if (flagPayload.length) {
     metaPayload.fullSyncRequired = true;
     metaPayload.fullSyncFlags = flagPayload;
@@ -6522,10 +6529,14 @@ async function handleHello(client, payload) {
   if (typeof payload.userId === 'string' && payload.userId.trim()) {
     client.userUuid = payload.userId.trim();
   }
+  // Store language preference from client
+  if (typeof payload.lang === 'string' && payload.lang.trim()) {
+    client.lang = payload.lang.trim();
+  }
   client.status = 'ready';
   registerClient(client);
   await ensureBranchModules(branchId);
-  sendServerLog(client, 'info', 'Client registered', { branchId, role: client.role });
+  sendServerLog(client, 'info', 'Client registered', { branchId, role: client.role, lang: client.lang });
   await sendSnapshot(client, { reason: 'initial-sync', requestId: payload.requestId });
 }
 

@@ -401,57 +401,26 @@
   }
 
   function setEnvLanguage(ctx, lang) {
-    if (!ctx) {
-      console.warn('[Brocker PWA] setEnvLanguage: no context');
-      return;
-    }
+    if (!ctx) return;
     var nextLang = lang || 'ar';
     var dir = resolveDir(nextLang);
-
-    console.log('[Brocker PWA] setEnvLanguage:', nextLang, 'dir:', dir);
-
-    // حفظ التفضيلات في localStorage
-    var currentEnv = (ctx.database && ctx.database.env) || initialDatabase.env;
-    var nextEnv = Object.assign({}, currentEnv, {
-      lang: nextLang,
-      dir: dir
+    ctx.setState(function (db) {
+      var nextEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
+      persistPrefs(nextEnv);
+      syncDocumentEnv(nextEnv);
+      return Object.assign({}, db, { env: nextEnv });
     });
-    persistPrefs(nextEnv);
-
-    console.log('[Brocker PWA] Preferences saved. Reloading page...');
-
-    // إعادة تحميل الصفحة لتطبيق التغييرات
-    setTimeout(function() {
-      if (global.location) {
-        global.location.reload();
-      }
-    }, 100);
   }
 
   function setEnvTheme(ctx, theme) {
-    if (!ctx) {
-      console.warn('[Brocker PWA] setEnvTheme: no context');
-      return;
-    }
+    if (!ctx) return;
     var nextTheme = theme === 'light' ? 'light' : 'dark';
-
-    console.log('[Brocker PWA] setEnvTheme:', nextTheme);
-
-    // حفظ التفضيلات في localStorage
-    var currentEnv = (ctx.database && ctx.database.env) || initialDatabase.env;
-    var nextEnv = Object.assign({}, currentEnv, {
-      theme: nextTheme
+    ctx.setState(function (db) {
+      var nextEnv = Object.assign({}, db.env, { theme: nextTheme });
+      persistPrefs(nextEnv);
+      syncDocumentEnv(nextEnv);
+      return Object.assign({}, db, { env: nextEnv });
     });
-    persistPrefs(nextEnv);
-
-    console.log('[Brocker PWA] Preferences saved. Reloading page...');
-
-    // إعادة تحميل الصفحة لتطبيق التغييرات
-    setTimeout(function() {
-      if (global.location) {
-        global.location.reload();
-      }
-    }, 100);
   }
 
   var orders = {
