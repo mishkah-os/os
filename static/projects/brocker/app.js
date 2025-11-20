@@ -401,33 +401,65 @@
   }
 
   function setEnvLanguage(ctx, lang) {
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn('[Brocker PWA] setEnvLanguage: no context');
+      return;
+    }
     var nextLang = lang || 'ar';
     var dir = resolveDir(nextLang);
+
+    console.log('[Brocker PWA] setEnvLanguage:', nextLang, 'dir:', dir);
+
+    // تحديث state أولاً مع loading
     ctx.setState(function (db) {
       var nextEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
       persistPrefs(nextEnv);
       syncDocumentEnv(nextEnv);
+      console.log('[Brocker PWA] State updated, new env:', nextEnv);
       return Object.assign({}, db, {
         env: nextEnv,
         state: Object.assign({}, db.state, { loading: true })
       });
     });
-    // إعادة تحميل البيانات باللغة الجديدة
+
+    // إعادة تحميل البيانات باللغة الجديدة بعد delay قصير
     setTimeout(function() {
+      if (!ctx || !ctx.getState) return;
       reloadDataWithLanguage(ctx, nextLang);
-    }, 100);
+    }, 150);
   }
 
   function setEnvTheme(ctx, theme) {
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn('[Brocker PWA] setEnvTheme: no context');
+      return;
+    }
     var nextTheme = theme === 'light' ? 'light' : 'dark';
+
+    console.log('[Brocker PWA] setEnvTheme:', nextTheme);
+
+    // تحديث state مع rebuild إجباري
     ctx.setState(function (db) {
       var nextEnv = Object.assign({}, db.env, { theme: nextTheme });
       persistPrefs(nextEnv);
       syncDocumentEnv(nextEnv);
+      console.log('[Brocker PWA] Theme state updated, new env:', nextEnv);
       return Object.assign({}, db, { env: nextEnv });
     });
+
+    // إجبار إعادة render
+    setTimeout(function() {
+      if (ctx && typeof ctx.rebuild === 'function') {
+        console.log('[Brocker PWA] Calling rebuild()');
+        ctx.rebuild();
+      } else {
+        console.warn('[Brocker PWA] rebuild() not available, trying setState');
+        // محاولة بديلة: setState مرة أخرى لإجبار re-render
+        if (ctx && typeof ctx.setState === 'function') {
+          ctx.setState(function(db) { return db; });
+        }
+      }
+    }, 50);
   }
 
   var orders = {
@@ -720,8 +752,10 @@
       on: ['click'],
       gkeys: ['theme-toggle'],
       handler: function (_event, ctx) {
+        console.log('[Brocker PWA] Theme toggle clicked');
         var current = (ctx && ctx.database && ctx.database.env && ctx.database.env.theme) || 'dark';
         var next = current === 'dark' ? 'light' : 'dark';
+        console.log('[Brocker PWA] Switching theme from', current, 'to', next);
         setEnvTheme(ctx, next);
       }
     },
@@ -729,8 +763,10 @@
       on: ['click'],
       gkeys: ['lang-toggle'],
       handler: function (_event, ctx) {
+        console.log('[Brocker PWA] Lang toggle clicked');
         var current = (ctx && ctx.database && ctx.database.env && ctx.database.env.lang) || 'ar';
         var next = current === 'ar' ? 'en' : 'ar';
+        console.log('[Brocker PWA] Switching lang from', current, 'to', next);
         setEnvLanguage(ctx, next);
       }
     },
@@ -1691,21 +1727,33 @@
   }
 
   function reloadDataWithLanguage(app, lang) {
-    if (!app) return;
-    if (!realtime) return;
+    // استخدام appInstance إذا لم يتم تمرير app
+    var targetApp = app || appInstance;
+
+    if (!targetApp) {
+      console.warn('[Brocker PWA] reloadDataWithLanguage: no app instance available');
+      return;
+    }
+
+    console.log('[Brocker PWA] Reloading data with lang:', lang);
 
     // إعادة تهيئة الاتصال مع اللغة الجديدة
     try {
       // إغلاق الاتصال القديم
       if (realtime && typeof realtime.disconnect === 'function') {
+        console.log('[Brocker PWA] Disconnecting old realtime connection');
         realtime.disconnect();
+        realtime = null;
       }
     } catch (e) {
       console.warn('[Brocker PWA] Error disconnecting realtime:', e);
     }
 
-    // إعادة تهيئة realtime مع اللغة الجديدة
-    bootstrapRealtime(app, lang);
+    // delay قصير قبل إعادة الاتصال
+    setTimeout(function() {
+      console.log('[Brocker PWA] Bootstrapping realtime with lang:', lang);
+      bootstrapRealtime(targetApp, lang);
+    }, 200);
   }
 
   function bootstrapRealtime(app, forceLang) {
