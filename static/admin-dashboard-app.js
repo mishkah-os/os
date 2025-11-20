@@ -6,7 +6,7 @@
  * 3. SQL Execute Tool - SQL query interface with schema tree
  */
 
-(function () {
+(async function () {
   'use strict';
 
   // Get Mishkah utilities
@@ -18,6 +18,7 @@
   const params = new URLSearchParams(window.location.search);
   const DEFAULT_BRANCH = params.get('branch') || params.get('branchId') || 'dar';
   const DEFAULT_MODULE = params.get('module') || params.get('moduleId') || 'pos';
+  const SAVED_LANG = localStorage.getItem('admin-lang') || 'ar';
 
   // =================================================================
   // Global Database (Single Source of Truth)
@@ -25,8 +26,8 @@
   window.database = {
     env: {
       theme: localStorage.getItem('admin-theme') || 'dark',
-      lang: 'ar',
-      dir: 'rtl'
+      lang: SAVED_LANG,
+      dir: SAVED_LANG === 'ar' ? 'rtl' : 'ltr'
     },
     config: {
       branchId: DEFAULT_BRANCH,
@@ -55,6 +56,120 @@
       queryTime: null
     }
   };
+
+  // =================================================================
+  // i18n Helpers
+  // =================================================================
+  const I18N_CONFIG = { fallbackLang: 'ar' };
+  const TRANSLATION_CACHE = new Map();
+  const LOCAL_TRANSLATIONS = {
+    'ui.actions.refresh': { en: '🔄 Refresh', ar: '🔄 تحديث' },
+    'ui.actions.theme.light': { en: '🌞 Light', ar: '🌞 فاتح' },
+    'ui.actions.theme.dark': { en: '🌙 Dark', ar: '🌙 داكن' },
+    'ui.lang.label': { en: 'Language', ar: 'اللغة' },
+    'ui.tabs.json.label': { en: '📊 JSON Viewer', ar: '📊 عارض JSON' },
+    'ui.tabs.json.desc': { en: 'Live data explorer', ar: 'استعراض البيانات الحية' },
+    'ui.tabs.crud.label': { en: '🗂️ CRUD Manager', ar: '🗂️ إدارة الجداول' },
+    'ui.tabs.crud.desc': { en: 'Table management', ar: 'إدارة الجداول' },
+    'ui.tabs.sql.label': { en: '⚡ SQL Execute', ar: '⚡ تنفيذ SQL' },
+    'ui.tabs.sql.desc': { en: 'Query interface', ar: 'واجهة الاستعلام' },
+    'ui.json.title': { en: 'JSON Viewer — Live Data', ar: 'عارض JSON — بيانات مباشرة' },
+    'ui.json.branchPlaceholder': { en: 'Branch ID', ar: 'معرف الفرع' },
+    'ui.json.modulePlaceholder': { en: 'Module ID', ar: 'معرف الوحدة' },
+    'ui.json.load': { en: 'Load Data', ar: 'تحميل البيانات' },
+    'ui.json.lastUpdated': { en: 'Last updated', ar: 'آخر تحديث' },
+    'ui.json.loading': { en: 'Loading data', ar: 'جاري تحميل البيانات' },
+    'ui.json.error': { en: 'Error', ar: 'خطأ' },
+    'ui.json.empty': { en: 'Click "Load Data" to fetch live data', ar: 'اضغط "تحميل البيانات" لجلب البيانات المباشرة' },
+    'ui.crud.title': { en: 'CRUD Manager — Table Management', ar: 'إدارة CRUD — إدارة الجداول' },
+    'ui.crud.select': { en: 'Select Table...', ar: 'اختر الجدول...' },
+    'ui.crud.load': { en: 'Load Table', ar: 'تحميل الجدول' },
+    'ui.crud.loading': { en: 'Loading table data', ar: 'جاري تحميل بيانات الجدول' },
+    'ui.crud.empty': { en: 'Select a table and click "Load Table"', ar: 'اختر جدولاً واضغط "تحميل الجدول"' },
+    'ui.sql.title': { en: 'SQL Execute — Query Interface', ar: 'تنفيذ SQL — واجهة الاستعلام' },
+    'ui.sql.schema': { en: 'Database Schema', ar: 'مخطط قاعدة البيانات' },
+    'ui.sql.execute': { en: '▶️ Execute Query', ar: '▶️ تنفيذ الاستعلام' },
+    'ui.sql.executedIn': { en: 'Executed in', ar: 'تم التنفيذ خلال' },
+    'ui.sql.loading': { en: 'Executing query', ar: 'جاري تنفيذ الاستعلام' },
+    'ui.sql.error': { en: 'Error:', ar: 'خطأ:' },
+    'ui.sql.noRows': { en: 'No rows returned', ar: 'لا توجد صفوف' },
+    'ui.sql.empty': { en: 'Write your SQL query and click "Execute"', ar: 'اكتب استعلام SQL واضغط "تنفيذ"' }
+  };
+
+  function normalizeLangCode(lang) {
+    if (!lang || typeof lang !== 'string') return I18N_CONFIG.fallbackLang;
+    const normalized = lang.trim().toLowerCase();
+    return normalized || I18N_CONFIG.fallbackLang;
+  }
+
+  function flattenTranslations(translations = {}) {
+    const map = new Map();
+    Object.entries(translations).forEach(([table, records]) => {
+      Object.entries(records || {}).forEach(([recordId, fields]) => {
+        Object.entries(fields || {}).forEach(([field, value]) => {
+          if (value === undefined || value === null) return;
+          const key = `${table}.${recordId}.${field}`;
+          map.set(key, value);
+        });
+      });
+    });
+    return map;
+  }
+
+  function buildLocalTranslations(lang) {
+    const map = new Map();
+    Object.entries(LOCAL_TRANSLATIONS).forEach(([key, entry]) => {
+      const value = entry[lang] || entry[I18N_CONFIG.fallbackLang];
+      if (value) map.set(key, value);
+    });
+    return map;
+  }
+
+  async function fetchTranslations(lang) {
+    const branchId = window.database.config.branchId;
+    const moduleId = window.database.config.moduleId;
+    const url = `/api/store/i18n?branch=${encodeURIComponent(branchId)}&module=${encodeURIComponent(moduleId)}&lang=${lang}&fallback=${I18N_CONFIG.fallbackLang}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      return flattenTranslations(payload.translations || {});
+    } catch (error) {
+      console.warn('[i18n] Failed to fetch remote translations:', error);
+      return new Map();
+    }
+  }
+
+  async function primeTranslations(lang) {
+    const normalized = normalizeLangCode(lang);
+    const cached = TRANSLATION_CACHE.get(normalized);
+    if (cached?.status === 'ready') return cached.map;
+    if (cached?.status === 'pending') return cached.promise;
+
+    const promise = (async () => {
+      const remote = await fetchTranslations(normalized);
+      const local = buildLocalTranslations(normalized);
+      const merged = new Map([...remote.entries(), ...local.entries()]);
+      TRANSLATION_CACHE.set(normalized, { status: 'ready', map: merged, fetchedAt: Date.now() });
+      return merged;
+    })();
+
+    TRANSLATION_CACHE.set(normalized, { status: 'pending', promise });
+    return promise;
+  }
+
+  function invalidateTranslations() {
+    TRANSLATION_CACHE.clear();
+  }
+
+  function trans(key, lang = window.database.env.lang) {
+    const normalized = normalizeLangCode(lang);
+    const current = TRANSLATION_CACHE.get(normalized)?.map;
+    const fallback = TRANSLATION_CACHE.get(I18N_CONFIG.fallbackLang)?.map;
+    if (current?.has(key)) return current.get(key);
+    if (fallback?.has(key)) return fallback.get(key);
+    return key;
+  }
 
   // =================================================================
   // Utility Functions
@@ -176,7 +291,8 @@
    */
   function Header(db) {
     const { branchId, moduleId } = db.config;
-    const { theme } = db.env;
+    const { theme, lang } = db.env;
+    const themeLabel = theme === 'dark' ? trans('ui.actions.theme.light', lang) : trans('ui.actions.theme.dark', lang);
 
     return D.Containers.Header({ attrs: { class: 'admin-header' } }, [
       D.Containers.Div({}, [
@@ -191,13 +307,23 @@
             class: 'btn',
             'data-m-gkey': 'toggle-theme'
           }
-        }, [theme === 'dark' ? '🌞 Light' : '🌙 Dark']),
+        }, [themeLabel]),
+        D.Forms.Select({
+          attrs: {
+            'data-m-gkey': 'env-lang-select',
+            value: lang,
+            class: 'btn'
+          }
+        }, [
+          D.Forms.Option({ attrs: { value: 'ar', selected: lang === 'ar' } }, ['العربية']),
+          D.Forms.Option({ attrs: { value: 'en', selected: lang === 'en' } }, ['English'])
+        ]),
         D.Forms.Button({
           attrs: {
             class: 'btn btn-primary',
             'data-m-gkey': 'refresh-data'
           }
-        }, ['🔄 Refresh'])
+        }, [trans('ui.actions.refresh', lang)])
       ])
     ]);
   }
@@ -207,11 +333,12 @@
    */
   function TabsSidebar(db) {
     const { activeTab } = db.state;
+    const { lang } = db.env;
 
     const tabs = [
-      { id: 'json-viewer', label: '📊 JSON Viewer', desc: 'Live data explorer' },
-      { id: 'crud-manager', label: '🗂️ CRUD Manager', desc: 'Table management' },
-      { id: 'sql-execute', label: '⚡ SQL Execute', desc: 'Query interface' }
+      { id: 'json-viewer', label: trans('ui.tabs.json.label', lang), desc: trans('ui.tabs.json.desc', lang) },
+      { id: 'crud-manager', label: trans('ui.tabs.crud.label', lang), desc: trans('ui.tabs.crud.desc', lang) },
+      { id: 'sql-execute', label: trans('ui.tabs.sql.label', lang), desc: trans('ui.tabs.sql.desc', lang) }
     ];
 
     return D.Containers.Aside({ attrs: { class: 'admin-tabs' } }, tabs.map(tab =>
@@ -233,16 +360,17 @@
   function JsonViewerTab(db) {
     const { data, lastUpdated } = db.jsonViewer;
     const { loading, error } = db.state;
+    const { lang } = db.env;
 
     return D.Containers.Div({ attrs: { class: 'admin-panel' } }, [
-      D.Text.H2({}, ['JSON Viewer — Live Data']),
+      D.Text.H2({}, [trans('ui.json.title', lang)]),
 
       // Controls
       D.Containers.Div({ attrs: { class: 'input-group' } }, [
         D.Forms.Input({
           attrs: {
             type: 'text',
-            placeholder: 'Branch ID',
+            placeholder: trans('ui.json.branchPlaceholder', lang),
             value: db.config.branchId,
             'data-m-gkey': 'json-branch-input'
           }
@@ -250,7 +378,7 @@
         D.Forms.Input({
           attrs: {
             type: 'text',
-            placeholder: 'Module ID',
+            placeholder: trans('ui.json.modulePlaceholder', lang),
             value: db.config.moduleId,
             'data-m-gkey': 'json-module-input'
           }
@@ -260,20 +388,20 @@
             class: 'btn btn-primary',
             'data-m-gkey': 'json-load-data'
           }
-        }, ['Load Data'])
+        }, [trans('ui.json.load', lang)])
       ]),
 
       // Status
       lastUpdated ? D.Text.P({ attrs: { style: 'color: var(--admin-muted); margin-bottom: 1rem; font-size: 0.875rem;' } }, [
-        `Last updated: ${new Date(lastUpdated).toLocaleString('ar-EG')}`
+        `${trans('ui.json.lastUpdated', lang)}: ${new Date(lastUpdated).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}`
       ]) : null,
 
       // Content
       loading
-        ? D.Containers.Div({ attrs: { class: 'loading' } }, ['Loading data'])
+        ? D.Containers.Div({ attrs: { class: 'loading' } }, [trans('ui.json.loading', lang)])
         : error
           ? D.Containers.Div({ attrs: { style: 'color: var(--admin-danger); padding: 2rem;' } }, [
-              D.Text.Strong({}, ['Error: ']),
+              D.Text.Strong({}, [`${trans('ui.json.error', lang)}: `]),
               error
             ])
           : data
@@ -288,7 +416,7 @@
                 ])
               ])
             : D.Containers.Div({ attrs: { style: 'text-align: center; padding: 3rem; color: var(--admin-muted);' } }, [
-                'Click "Load Data" to fetch live data'
+                trans('ui.json.empty', lang)
               ])
     ]);
   }
@@ -299,11 +427,12 @@
   function CrudManagerTab(db) {
     const { selectedTable, tableData, schema } = db.crudManager;
     const { loading, error } = db.state;
+    const { lang } = db.env;
 
     const tables = schema?.tables?.map(t => t.name) || [];
 
     return D.Containers.Div({ attrs: { class: 'admin-panel' } }, [
-      D.Text.H2({}, ['CRUD Manager — Table Management']),
+      D.Text.H2({}, [trans('ui.crud.title', lang)]),
 
       // Table selection
       D.Containers.Div({ attrs: { class: 'input-group' } }, [
@@ -312,7 +441,7 @@
             'data-m-gkey': 'crud-table-select'
           }
         }, [
-          D.Forms.Option({ attrs: { value: '' } }, ['Select Table...']),
+          D.Forms.Option({ attrs: { value: '' } }, [trans('ui.crud.select', lang)]),
           ...tables.map(table =>
             D.Forms.Option({
               attrs: {
@@ -327,12 +456,12 @@
             class: 'btn btn-primary',
             'data-m-gkey': 'crud-load-table'
           }
-        }, ['Load Table'])
+        }, [trans('ui.crud.load', lang)])
       ]),
 
       // Table data
       loading
-        ? D.Containers.Div({ attrs: { class: 'loading' } }, ['Loading table data'])
+        ? D.Containers.Div({ attrs: { class: 'loading' } }, [trans('ui.crud.loading', lang)])
         : error
           ? D.Containers.Div({ attrs: { style: 'color: var(--admin-danger); padding: 2rem;' } }, [error])
           : tableData.length > 0
@@ -361,7 +490,7 @@
                 ])
               ])
             : D.Containers.Div({ attrs: { style: 'text-align: center; padding: 3rem; color: var(--admin-muted);' } }, [
-                'Select a table and click "Load Table"'
+                trans('ui.crud.empty', lang)
               ])
     ]);
   }
@@ -372,16 +501,17 @@
   function SqlExecuteTab(db) {
     const { schema, results, error, queryTime } = db.sqlExecute;
     const { loading } = db.state;
+    const { lang } = db.env;
 
     const tables = schema?.tables || [];
 
     return D.Containers.Div({ attrs: { class: 'admin-panel' } }, [
-      D.Text.H2({}, ['SQL Execute — Query Interface']),
+      D.Text.H2({}, [trans('ui.sql.title', lang)]),
 
       D.Containers.Div({ attrs: { class: 'sql-execute-layout' } }, [
         // Sidebar with schema tree
         D.Containers.Div({ attrs: { class: 'sql-sidebar' } }, [
-          D.Text.H3({}, ['Database Schema']),
+          D.Text.H3({}, [trans('ui.sql.schema', lang)]),
           D.Containers.Ul({ attrs: { class: 'sql-tree' } }, tables.map(table =>
             D.Containers.Li({
               attrs: {
@@ -414,20 +544,20 @@
                 class: 'btn btn-primary',
                 'data-m-gkey': 'sql-execute-query'
               }
-            }, ['▶️ Execute Query']),
+            }, [trans('ui.sql.execute', lang)]),
             queryTime ? D.Text.Span({
               attrs: {
                 class: 'status-badge status-success'
               }
-            }, [`Executed in ${queryTime}ms`]) : null
+            }, [`${trans('ui.sql.executedIn', lang)} ${queryTime}ms`]) : null
           ]),
 
           // Results
           loading
-            ? D.Containers.Div({ attrs: { class: 'loading' } }, ['Executing query'])
+            ? D.Containers.Div({ attrs: { class: 'loading' } }, [trans('ui.sql.loading', lang)])
             : error
               ? D.Containers.Div({ attrs: { class: 'sql-results', style: 'color: var(--admin-danger);' } }, [
-                  D.Text.Strong({}, ['Error: ']),
+                  D.Text.Strong({}, [`${trans('ui.sql.error', lang)} `]),
                   error
                 ])
               : results
@@ -458,10 +588,10 @@
                             )
                           )
                         ])
-                      : D.Text.P({}, ['No rows returned'])
+                      : D.Text.P({}, [trans('ui.sql.noRows', lang)])
                   ])
                 : D.Containers.Div({ attrs: { style: 'text-align: center; padding: 3rem; color: var(--admin-muted);' } }, [
-                    'Write your SQL query and click "Execute"'
+                    trans('ui.sql.empty', lang)
                   ])
         ])
       ])
@@ -494,6 +624,22 @@
   // =================================================================
 
   const orders = {
+    'env.changeLang': {
+      on: ['change'],
+      gkeys: ['env-lang-select'],
+      handler: async (e, ctx) => {
+        const selectedLang = normalizeLangCode(e.target.value || I18N_CONFIG.fallbackLang);
+        invalidateTranslations();
+        await primeTranslations(selectedLang);
+        ctx.setState((db) => ({
+          ...db,
+          env: { ...db.env, lang: selectedLang, dir: selectedLang === 'ar' ? 'rtl' : 'ltr' }
+        }));
+        document.documentElement.setAttribute('dir', selectedLang === 'ar' ? 'rtl' : 'ltr');
+        localStorage.setItem('admin-lang', selectedLang);
+      }
+    },
+
     'toggle.theme': {
       on: ['click'],
       gkeys: ['toggle-theme'],
@@ -673,6 +819,9 @@
   // Load initial data
   (async () => {
     try {
+      await primeTranslations(I18N_CONFIG.fallbackLang);
+      await primeTranslations(window.database.env.lang);
+
       // Load database schema for CRUD and SQL tabs
       const schema = await loadDatabaseSchema();
       window.database.crudManager.schema = schema;
@@ -680,6 +829,7 @@
 
       // Set initial theme
       document.documentElement.setAttribute('data-theme', window.database.env.theme);
+      document.documentElement.setAttribute('dir', window.database.env.dir);
 
       // Initialize Mishkah app
       M.app({
