@@ -375,10 +375,19 @@
           return !entry.def.on || entry.def.on.indexOf(event.type) !== -1;
         });
         if (!candidates.length) continue;
-        event.currentTarget = node;
+        var delegatedEvent = event;
+        if (event.currentTarget !== node) {
+          try {
+            delegatedEvent = Object.create(event, {
+              currentTarget: { value: node, enumerable: true }
+            });
+          } catch (err) {
+            delegatedEvent = Object.assign({}, event, { currentTarget: node });
+          }
+        }
         candidates.forEach(function (entry) {
           try {
-            entry.def.handler(event, app);
+            entry.def.handler(delegatedEvent, app);
           } catch (err) {
             console.warn('[Brocker PWA] delegated order failed for', entry.name, err);
           }
