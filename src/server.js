@@ -25,6 +25,7 @@ import { VersionConflictError } from './moduleStore.js';
 import SequenceManager from './sequenceManager.js';
 import { initializeSqlite } from './db/sqlite.js';
 import { createQuery, executeRawQuery, getDatabaseSchema } from './queryBuilder.js';
+import { loadTranslationsPayload } from './backend/i18nLoader.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -6739,6 +6740,38 @@ const httpServer = createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/manage')) {
     const handled = await handleManagementApi(req, res, url);
     if (handled) return;
+  }
+  if (url.pathname === '/api/store/i18n') {
+    if (req.method !== 'GET') {
+      jsonResponse(res, 405, { error: 'method-not-allowed' });
+      return;
+    }
+    const branchId = decodeURIComponent(
+      url.searchParams.get('branch') || url.searchParams.get('branchId') || 'aqar'
+    );
+    const moduleId = decodeURIComponent(
+      url.searchParams.get('module') || url.searchParams.get('moduleId') || 'brocker'
+    );
+    const lang = url.searchParams.get('lang') || url.searchParams.get('locale') || 'ar';
+    const fallbackLang = url.searchParams.get('fallback') || url.searchParams.get('fallbackLang') || 'ar';
+
+    try {
+      const store = await ensureModuleStore(branchId, moduleId);
+      const payload = loadTranslationsPayload(store, { lang, fallbackLang });
+      jsonResponse(res, 200, {
+        branchId,
+        moduleId,
+        generatedAt: nowIso(),
+        ...payload
+      });
+    } catch (error) {
+      logger.error({ err: error, branchId, moduleId }, 'Failed to load i18n payload');
+      jsonResponse(res, 500, {
+        error: 'i18n-load-failed',
+        message: error.message || 'unable-to-load-translations'
+      });
+    }
+    return;
   }
   if (url.pathname === '/api/schema') {
     if (req.method !== 'GET') {
