@@ -223,6 +223,7 @@
 
   var realtime = null;
   var appInstance = null;
+  var delegatedAttached = false;
 
   var MEDIA_FALLBACKS = {
     logo: 'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=600&q=70',
@@ -307,9 +308,11 @@
 
   function attachUiOrders(app) {
     if (!app) return false;
+    if (delegatedAttached) return true;
     if (UI && UI.events && typeof UI.events.attachOrders === 'function') {
       try {
         UI.events.attachOrders(app, orders);
+        delegatedAttached = true;
         return true;
       } catch (err) {
         console.warn('[Brocker PWA] UI.events.attachOrders failed, using MishkahAuto.attach', err);
@@ -319,34 +322,17 @@
   }
 
   function attachDelegatedOrders(app) {
-    if (delegatedAttached || !global.document) return delegatedAttached;
-    var root = global.document.getElementById('app') || global.document.body;
-    if (!root) return false;
-    var events = new Set();
-    Object.keys(orders).forEach(function (key) {
-      var entry = orders[key];
-      if (!entry || !Array.isArray(entry.on)) return;
-      entry.on.forEach(function (type) { events.add(type); });
-    });
-    events.forEach(function (type) {
-      bindUiEvent(root, type, function (event) {
-        var target = event && event.target && event.target.closest ? event.target.closest('[data-m-gkey]') : null;
-        if (!target) return;
-        var gkey = target.getAttribute('data-m-gkey');
-        if (!gkey) return;
-        Object.keys(orders).forEach(function (orderKey) {
-          var entry = orders[orderKey];
-          if (!entry || !Array.isArray(entry.on) || !Array.isArray(entry.gkeys)) return;
-          if (entry.on.indexOf(event.type) === -1) return;
-          if (entry.gkeys.indexOf(gkey) === -1) return;
-          if (typeof entry.handler === 'function') {
-            entry.handler(event, app);
-          }
-        });
-      }, true);
-    });
-    delegatedAttached = true;
-    return true;
+    if (delegatedAttached) return true;
+    if (app && UI && UI.events && typeof UI.events.attachDelegatedOrders === 'function') {
+      try {
+        UI.events.attachDelegatedOrders(app, orders);
+        delegatedAttached = true;
+        return true;
+      } catch (err) {
+        console.warn('[Brocker PWA] UI.events.attachDelegatedOrders failed', err);
+      }
+    }
+    return false;
   }
 
   function setToast(ctx, payload) {
@@ -1631,7 +1617,8 @@
         console.warn('[Brocker PWA] failed to activate twcss.auto', err);
       }
     }
-    var uiAttached = attachUiOrders(app);
+    var delegated = attachDelegatedOrders(app);
+    var uiAttached = delegated || attachUiOrders(app);
     if (!uiAttached && !options.skipAutoAttach && global.MishkahAuto && typeof global.MishkahAuto.attach === 'function') {
       try {
         global.MishkahAuto.attach(app);
