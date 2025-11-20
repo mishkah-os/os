@@ -1,4 +1,5 @@
-# Treat broker media assets as binary to avoid diff/PR tooling errors
+# Treat broker media assets as binary to avoid diff/PR tooling errors.
+# For the two-PR workflow (assets-only + code-only), see static/assets/broker/ASSETS_PR.md.
 static/assets/broker/*.png binary
 static/assets/broker/*.jpg binary
 static/assets/broker/*.jpeg binary
