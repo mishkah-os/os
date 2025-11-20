@@ -268,6 +268,9 @@
     'rose-mist': { emoji: '🌸' }
   };
 
+  const THEME_STORAGE_KEY = 'mishkah:index:theme-preset';
+  const THEME_MODE_STORAGE_KEY = 'mishkah:index:theme-mode';
+
   const DEFAULT_THEME_PRESETS = [
     {
       key: 'modern-dark',
@@ -732,6 +735,34 @@
       : [];
     if (normalized.length) return normalized;
     return DEFAULT_THEME_PRESETS.map(normalizeThemePreset).filter(Boolean);
+  }
+
+  function readStoredThemePreset() {
+    if (typeof localStorage === 'undefined') return '';
+    try {
+      return localStorage.getItem(THEME_STORAGE_KEY) || '';
+    } catch (_err) {
+      return '';
+    }
+  }
+
+  function readStoredThemeMode() {
+    if (typeof localStorage === 'undefined') return '';
+    try {
+      return localStorage.getItem(THEME_MODE_STORAGE_KEY) || '';
+    } catch (_err) {
+      return '';
+    }
+  }
+
+  function persistThemeSelection(presetKey, mode) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      if (presetKey) localStorage.setItem(THEME_STORAGE_KEY, presetKey);
+      if (mode) localStorage.setItem(THEME_MODE_STORAGE_KEY, mode);
+    } catch (_err) {
+      /* ignore storage errors */
+    }
   }
 
   function normalizeLanguageEntry(entry) {
@@ -2213,6 +2244,16 @@
       ? tw`bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[0_18px_38px_-20px_rgba(79,70,229,0.55)]`
       : '';
     const iconCircleDesktopClass = tw`hidden h-11 w-11 items-center justify-center rounded-full border border-[color-mix(in_oklab,var(--border)55%,transparent)] bg-[color-mix(in_oklab,var(--surface-1)88%,transparent)] text-xl transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_24px_48px_-28px_rgba(79,70,229,0.55)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)65%,transparent)] sm:inline-flex`;
+    const themeToggleButton = UI.Button({
+      attrs: {
+        gkey: 'ui:theme:toggle',
+        title: TL('header.theme.toggle'),
+        'aria-label': TL('header.theme.toggle'),
+        class: iconCircleDesktopClass
+      },
+      variant: 'ghost',
+      size: 'sm'
+    }, [db?.env?.theme === 'dark' ? '🌙' : '🌞']);
     const themeLabButtonDesktop = UI.Button({
       attrs: {
         gkey: 'index:themeLab:open',
@@ -2414,7 +2455,7 @@
       ? D.Containers.Div({ attrs: { class: mobileCardClass, 'data-mobile-settings': 'panel' } }, mobileControlsContent)
       : null;
 
-    const headerControls = [langMenu, themeMenu, templateMenu, themeLabButtonDesktop].filter(Boolean);
+    const headerControls = [langMenu, themeMenu, templateMenu, themeToggleButton, themeLabButtonDesktop].filter(Boolean);
 
     const hasMobileControls = mobileControlsContent.length > 0;
     const mobileSettingsToggle = hasMobileControls
@@ -4579,10 +4620,16 @@ const board = D.Containers.Div({ attrs: { class: tw`space-y-3` } }, [
 
   IndexApp.buildConfig = function buildConfig() {
     const themePresets = resolveThemePresets(DEFAULT_THEME_PRESETS);
+    const storedPresetKey = readStoredThemePreset();
+    const storedMode = readStoredThemeMode();
     const defaultPreset = themePresets[0] || null;
+    const activePreset = themePresets.find((preset) => preset.key === storedPresetKey) || defaultPreset;
+    const activeThemeMode = storedMode === 'dark' || storedMode === 'light'
+      ? storedMode
+      : (activePreset && activePreset.mode === 'dark' ? 'dark' : 'light');
     const languageOptions = resolveLanguageOptions(DEFAULT_LANG_OPTIONS);
-    const baseOverrides = defaultPreset ? cloneThemeOverrides(defaultPreset.overrides) : {};
-    const defaultsForMode = getDesignLabDefaults(defaultPreset && defaultPreset.mode);
+    const baseOverrides = activePreset ? cloneThemeOverrides(activePreset.overrides) : {};
+    const defaultsForMode = getDesignLabDefaults(activeThemeMode);
     Object.keys(defaultsForMode).forEach((key) => {
       if (!Object.prototype.hasOwnProperty.call(baseOverrides, key)) {
         baseOverrides[key] = defaultsForMode[key];
@@ -4619,7 +4666,7 @@ const board = D.Containers.Div({ attrs: { class: tw`space-y-3` } }, [
       sequenceGame: { ...INITIAL_SEQUENCE_STATE },
       docs: loadDocs(),
       themePresets,
-      activeThemePreset: defaultPreset ? defaultPreset.key : '',
+      activeThemePreset: activePreset ? activePreset.key : '',
       themeOverrides: baseOverrides,
       themeLab: { enabled: false },
       languages: languageOptions,
@@ -4641,7 +4688,7 @@ const board = D.Containers.Div({ attrs: { class: tw`space-y-3` } }, [
     return {
       template: 'PagesShell',
       title: dict['app.title'].ar,
-      env: { lang: 'ar', dir: 'rtl', theme: defaultPreset && defaultPreset.mode === 'dark' ? 'dark' : 'light' },
+      env: { lang: 'ar', dir: 'rtl', theme: activeThemeMode },
       pages: pagesSorted,
       registry: IndexApp.registry,
       slots: { header: 'HeaderComp', footer: 'FooterComp', themeLab: 'ThemeLabPanel' },
@@ -4683,6 +4730,16 @@ const board = D.Containers.Div({ attrs: { class: tw`space-y-3` } }, [
         }
       }
     };
+
+    persistThemeSelection(database.data.activeThemePreset, database.env.theme);
+
+    if (typeof setTheme === 'function') {
+      try { setTheme(database.env.theme); } catch (_err) { /* noop */ }
+    }
+
+    if (typeof document !== 'undefined' && document.documentElement) {
+      document.documentElement.setAttribute('data-theme', database.env.theme);
+    }
 
     database.data.slots = Object.assign({}, ensureDict(cfg.data && cfg.data.slots), ensureDict(cfg.slots));
     return database;
@@ -5307,6 +5364,61 @@ const board = D.Containers.Div({ attrs: { class: tw`space-y-3` } }, [
           };
         });
         setTheme(nextTheme);
+        persistThemeSelection(selected.key, nextTheme);
+        if (typeof document !== 'undefined' && document.documentElement) {
+          document.documentElement.setAttribute('data-theme', nextTheme);
+        }
+      }
+    },
+    'ui:theme:toggle': {
+      on: ['click'],
+      gkeys: ['ui:theme:toggle'],
+      handler: (_event, context) => {
+        const state = context.getState();
+        const presets = resolveThemePresets(state.data && state.data.themePresets);
+        const currentTheme = state.env && state.env.theme;
+        const targetMode = currentTheme === 'dark' ? 'light' : 'dark';
+        const fallback = presets[0];
+        const selected = presets.find((preset) => preset.mode === targetMode) || fallback;
+        if (!selected) return;
+        const overrides = cloneThemeOverrides(selected.overrides);
+        context.setState((prev) => {
+          const prevUi = ensureDict(prev.ui);
+          const prevShell = ensureDict(prevUi.pagesShell);
+          const prevThemeLab = ensureDict(prevShell.themeLab);
+          const prevMenus = ensureDict(prevShell.headerMenus);
+          return {
+            ...prev,
+            env: {
+              ...prev.env,
+              theme: targetMode
+            },
+            data: {
+              ...(prev.data || {}),
+              themePresets: presets,
+              activeThemePreset: selected.key,
+              themeOverrides: overrides
+            },
+            ui: Object.assign({}, prevUi, {
+              pagesShell: Object.assign({}, prevShell, {
+                headerMenus: Object.assign({}, prevMenus, {
+                  langOpen: false,
+                  themeOpen: false,
+                  templateOpen: false,
+                  mobileSettingsOpen: prevMenus.mobileSettingsOpen
+                }),
+                themeLab: Object.assign({}, prevThemeLab, {
+                  draft: Object.assign({}, overrides)
+                })
+              })
+            })
+          };
+        });
+        setTheme(targetMode);
+        persistThemeSelection(selected.key, targetMode);
+        if (typeof document !== 'undefined' && document.documentElement) {
+          document.documentElement.setAttribute('data-theme', targetMode);
+        }
       }
     },
     'ui:header:menuToggle': {
