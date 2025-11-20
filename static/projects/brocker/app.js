@@ -38,14 +38,6 @@
         return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');
       };
   var token = typeof twcss.token === 'function' ? twcss.token : function () { return ''; };
-  var BROKER_ASSETS = {
-    logo: 'https://images.mishkah.app/brocker/logo-light.svg',
-    heroDiscovery: 'https://images.mishkah.app/brocker/hero-newcairo.jpg',
-    heroDashboardVideo: 'https://videos.mishkah.app/brocker/dashboard-loop.mp4',
-    heroOnboarding: 'https://images.mishkah.app/brocker/hero-otp.jpg',
-    cardFallback: 'https://images.mishkah.app/brocker/hero-newcairo.jpg'
-  };
-
   var params = new URLSearchParams(global.location.search || '');
   var BRANCH_ID = params.get('branch') || params.get('branchId') || 'aqar';
   var MODULE_ID = params.get('module') || params.get('moduleId') || 'brocker';
@@ -486,38 +478,12 @@
 
   function HomeView(db, listingModels) {
     var settings = db.data.appSettings;
-    var slides = (db.data.heroSlides || []).length
-      ? db.data.heroSlides
-      : [
-          {
-            id: 'default-explore',
-            title: 'اكتشف العقارات الموثوقة',
-            subtitle: 'صور عالية الجودة ووحدات مختارة خصيصاً لك.',
-            media_type: 'image',
-            media_url: BROKER_ASSETS.heroDiscovery,
-            cta_label: 'تصفح الآن'
-          },
-          {
-            id: 'default-manage',
-            title: 'لوحة تحكم الوسيط',
-            subtitle: 'تابع البطاقات وعمليات التفعيل من موبايلك.',
-            media_type: 'video',
-            media_url: BROKER_ASSETS.heroDashboardVideo,
-            cta_label: 'شاهد الميزات'
-          },
-          {
-            id: 'default-verify',
-            title: 'تحقق سريع وآمن',
-            subtitle: 'دخول OTP وتسجيل سلس للوسطاء المعتمدين.',
-            media_type: 'image',
-            media_url: BROKER_ASSETS.heroOnboarding,
-            cta_label: 'ابدأ التسجيل'
-          }
-        ];
+    var slides = Array.isArray(db.data.heroSlides) ? db.data.heroSlides : [];
     var filtered = filterListings(listingModels, db.state.filters).slice(0, 6);
+    var heroSection = slides.length ? HeroSection(settings, slides) : null;
     return D.Containers.Section({ attrs: { class: tw('px-4 sm:px-6 pb-14 pt-6 space-y-6 sm:space-y-7 max-w-6xl mx-auto') } }, [
       HeaderSection(settings),
-      HeroSection(settings, slides),
+      heroSection,
       SearchPanel(db, listingModels),
       LatestListingsGrid(filtered)
     ]);
@@ -840,14 +806,18 @@
         D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, ['Brocker Mishkah'])
       ]);
     }
+    var logoSrc = settings.brand_logo;
+    var logo = logoSrc
+      ? D.Media.Img({
+          attrs: {
+            src: logoSrc,
+            alt: settings.brand_name || 'Brocker',
+            class: 'mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-2xl border border-emerald-400/20 bg-slate-900/60 p-2 object-contain shadow-lg shadow-emerald-500/10'
+          }
+        })
+      : null;
     return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center text-white sm:space-y-3') } }, [
-      D.Media.Img({
-        attrs: {
-          src: settings.brand_logo || BROKER_ASSETS.logo,
-          alt: settings.brand_name || 'Brocker',
-          class: 'mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-2xl border border-emerald-400/20 bg-slate-900/60 p-2 object-contain shadow-lg shadow-emerald-500/10'
-        }
-      }),
+      logo,
       D.Text.H1({ attrs: { class: 'text-2xl font-semibold sm:text-3xl' } }, [settings.brand_name || 'منصة الوسطاء']),
       settings.tagline
         ? D.Text.P({ attrs: { class: 'text-sm leading-6 text-slate-300 sm:text-base' } }, [settings.tagline])
@@ -948,7 +918,7 @@
     }, [
       cover
         ? D.Media.Img({ attrs: { src: cover.url, alt: listing.headline || listing.id, class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } })
-        : D.Media.Img({ attrs: { src: BROKER_ASSETS.cardFallback, alt: 'unit placeholder', class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } }),
+        : D.Containers.Div({ attrs: { class: 'h-52 w-full sm:h-48 bg-slate-900/70 border-b border-white/5' } }),
       D.Containers.Div({ attrs: { class: 'space-y-3 p-4 sm:p-5' } }, [
         D.Text.Strong({ attrs: { class: 'text-base sm:text-lg' } }, [listing.headline || 'وحدة متاحة']),
         listing.excerpt ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-2 leading-6' } }, [listing.excerpt]) : null,
