@@ -1,12 +1,12 @@
 import { deepClone } from '../utils.js';
 
-function normalizeLang(lang, fallback = 'ar') {
+export function normalizeLang(lang, fallback = 'ar') {
   if (!lang || typeof lang !== 'string') return fallback;
   const normalized = lang.trim().toLowerCase();
   return normalized || fallback;
 }
 
-function extractReferenceId(record, baseName) {
+export function extractReferenceId(record, baseName) {
   if (!record || typeof record !== 'object') return null;
   const directKey = `${baseName}_id`;
   if (record[directKey]) return record[directKey];
@@ -21,7 +21,7 @@ function extractReferenceId(record, baseName) {
   return record.id || null;
 }
 
-function isIgnoredField(key, baseName) {
+export function isIgnoredField(key, baseName) {
   const normalized = key.toLowerCase();
   return (
     normalized === 'id' ||
@@ -60,6 +60,57 @@ function mergeWithFallback(primary, fallback) {
     merged.set(table, recordMap);
   }
   return merged;
+}
+
+function hasTranslationTable(store, tableName) {
+  if (!store || !Array.isArray(store.tables)) return false;
+  const target = `${tableName}_lang`.toLowerCase();
+  return store.tables.some((name) => typeof name === 'string' && name.toLowerCase() === target);
+}
+
+function buildFallbackFromRecord(record, baseName) {
+  const fallback = {};
+  if (!record || typeof record !== 'object') return fallback;
+  for (const [key, value] of Object.entries(record)) {
+    if (isIgnoredField(key, baseName)) continue;
+    if (value === null || value === undefined) continue;
+    fallback[key] = value;
+  }
+  return fallback;
+}
+
+export function attachTranslationsToRows(store, tableName, rows, { lang = 'ar', fallbackLang = 'ar' } = {}) {
+  if (!Array.isArray(rows) || !store || !tableName) return rows;
+  if (!hasTranslationTable(store, tableName)) return rows;
+
+  const normalizedLang = normalizeLang(lang, fallbackLang);
+  const normalizedFallback = normalizeLang(fallbackLang);
+  const { translations } = loadTranslationsPayload(store, { lang: normalizedLang, fallbackLang: normalizedFallback });
+
+  const tableTranslations = translations?.[tableName] || translations?.[tableName.toLowerCase()] || null;
+  return rows.map((row) => {
+    const refId = extractReferenceId(row, tableName);
+    const translationFields = refId && tableTranslations ? tableTranslations[refId] || tableTranslations[String(refId)] : null;
+    const baseFallback = buildFallbackFromRecord(row, tableName);
+    const fallbackFields = translationFields && Object.keys(translationFields).length
+      ? { ...baseFallback, ...translationFields }
+      : baseFallback;
+
+    if (!fallbackFields || !Object.keys(fallbackFields).length) return row;
+
+    const clone = deepClone(row);
+    const i18nContainer =
+      clone.i18n && typeof clone.i18n === 'object' && !Array.isArray(clone.i18n) ? deepClone(clone.i18n) : {};
+    const langContainer =
+      i18nContainer.lang && typeof i18nContainer.lang === 'object' && !Array.isArray(i18nContainer.lang)
+        ? { ...i18nContainer.lang }
+        : {};
+
+    langContainer[normalizedLang] = { ...fallbackFields };
+    i18nContainer.lang = langContainer;
+    clone.i18n = i18nContainer;
+    return clone;
+  });
 }
 
 export function loadTranslationsPayload(store, { lang = 'ar', fallbackLang = 'ar' } = {}) {
