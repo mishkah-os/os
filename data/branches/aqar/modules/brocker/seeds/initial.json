@@ -2432,6 +2432,174 @@
         "lang": "en",
         "text": "واجهة زجاجية على محور الأعمال.",
         "kind": "content"
+      },
+      {
+        "id": "ui-footer.subscribe-ar",
+        "key": "footer.subscribe",
+        "lang": "ar",
+        "text": "اشترك معنا الآن",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-footer.subscribe-en",
+        "key": "footer.subscribe",
+        "lang": "en",
+        "text": "Subscribe Now",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-footer.rights-ar",
+        "key": "footer.rights",
+        "lang": "ar",
+        "text": "جميع الحقوق محفوظة",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-footer.rights-en",
+        "key": "footer.rights",
+        "lang": "en",
+        "text": "All Rights Reserved",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.title-ar",
+        "key": "subscribe.title",
+        "lang": "ar",
+        "text": "اشترك معنا",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.title-en",
+        "key": "subscribe.title",
+        "lang": "en",
+        "text": "Subscribe",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.name-ar",
+        "key": "subscribe.name",
+        "lang": "ar",
+        "text": "الاسم",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.name-en",
+        "key": "subscribe.name",
+        "lang": "en",
+        "text": "Name",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.phone-ar",
+        "key": "subscribe.phone",
+        "lang": "ar",
+        "text": "رقم الهاتف",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.phone-en",
+        "key": "subscribe.phone",
+        "lang": "en",
+        "text": "Phone Number",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.email-ar",
+        "key": "subscribe.email",
+        "lang": "ar",
+        "text": "البريد الإلكتروني",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.email-en",
+        "key": "subscribe.email",
+        "lang": "en",
+        "text": "Email",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.optional-ar",
+        "key": "subscribe.optional",
+        "lang": "ar",
+        "text": "اختياري",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.optional-en",
+        "key": "subscribe.optional",
+        "lang": "en",
+        "text": "Optional",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.namePlaceholder-ar",
+        "key": "subscribe.namePlaceholder",
+        "lang": "ar",
+        "text": "أدخل اسمك",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.namePlaceholder-en",
+        "key": "subscribe.namePlaceholder",
+        "lang": "en",
+        "text": "Enter your name",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.phonePlaceholder-ar",
+        "key": "subscribe.phonePlaceholder",
+        "lang": "ar",
+        "text": "05xxxxxxxx",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.phonePlaceholder-en",
+        "key": "subscribe.phonePlaceholder",
+        "lang": "en",
+        "text": "05xxxxxxxx",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.emailPlaceholder-ar",
+        "key": "subscribe.emailPlaceholder",
+        "lang": "ar",
+        "text": "example@email.com",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.emailPlaceholder-en",
+        "key": "subscribe.emailPlaceholder",
+        "lang": "en",
+        "text": "example@email.com",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.submit-ar",
+        "key": "subscribe.submit",
+        "lang": "ar",
+        "text": "إرسال الطلب",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.submit-en",
+        "key": "subscribe.submit",
+        "lang": "en",
+        "text": "Submit Request",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.success-ar",
+        "key": "subscribe.success",
+        "lang": "ar",
+        "text": "تم إرسال طلبك بنجاح! سنتواصل معك قريباً.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-subscribe.success-en",
+        "key": "subscribe.success",
+        "lang": "en",
+        "text": "Your request has been submitted successfully! We will contact you soon.",
+        "kind": "ui"
       }
     ]
   }
