@@ -413,9 +413,14 @@
     persistPrefs(nextEnv);
     syncDocumentEnv(nextEnv);
 
-    // تحديث state لتحديث الـ UI فوراً
+    // تحديث state لتحديث الـ UI فوراً (RTL/LTR)
     ctx.setState(function (db) {
-      return Object.assign({}, db, { env: nextEnv });
+      var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
+      // إعادة تطبيق label maps مع اللغة الجديدة
+      if (db.data && Array.isArray(db.data.uiLabels)) {
+        updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
+      }
+      return Object.assign({}, db, { env: updatedEnv });
     });
 
     // إعادة تحميل البيانات بلغة جديدة من Backend
@@ -724,22 +729,36 @@
     'ui.env.theme': {
       on: ['click'],
       gkeys: ['theme-toggle'],
-      handler: function (_event, ctx) {
-        console.log('[Brocker PWA] Theme toggle clicked');
-        var current = (ctx && ctx.database && ctx.database.env && ctx.database.env.theme) || 'dark';
+      handler: function (event, ctx) {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        // قراءة من localStorage مباشرة لتجنب المشاكل
+        var persistedPrefs = loadPersistedPrefs();
+        var current = persistedPrefs.theme || 'dark';
         var next = current === 'dark' ? 'light' : 'dark';
-        console.log('[Brocker PWA] Switching theme from', current, 'to', next);
+
+        console.log('[Brocker PWA] Theme toggle clicked - from', current, 'to', next);
         setEnvTheme(ctx, next);
       }
     },
     'ui.env.lang': {
       on: ['click'],
       gkeys: ['lang-toggle'],
-      handler: function (_event, ctx) {
-        console.log('[Brocker PWA] Lang toggle clicked');
-        var current = (ctx && ctx.database && ctx.database.env && ctx.database.env.lang) || 'ar';
+      handler: function (event, ctx) {
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+
+        // قراءة من localStorage مباشرة لتجنب المشاكل
+        var persistedPrefs = loadPersistedPrefs();
+        var current = persistedPrefs.lang || 'ar';
         var next = current === 'ar' ? 'en' : 'ar';
-        console.log('[Brocker PWA] Switching lang from', current, 'to', next);
+
+        console.log('[Brocker PWA] Lang toggle clicked - from', current, 'to', next);
         setEnvLanguage(ctx, next);
       }
     },
@@ -809,9 +828,8 @@
 
   function PreferencesBar(db) {
     var lang = currentLang(db);
-    var themeIcon = themed(db, '🌙', '☀️');
-    var langIcon = lang === 'ar' ? '🇬🇧' : '🇪🇬';
-    var langText = lang === 'ar' ? 'EN' : 'AR';
+    var themeIcon = themed(db, '☀️', '🌙'); // عكس الأيقونة: لو dark يعرض شمس (تحول ل light)
+    var langText = lang === 'ar' ? 'EN' : 'AR'; // عرض اللغة المستهدفة
     var isLoading = db.state && db.state.loading;
 
     return D.Containers.Div({ attrs: { class: tw('fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b transition-all duration-300', themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')) } }, [
@@ -833,12 +851,11 @@
           !isLoading ? D.Forms.Button({
             attrs: {
               type: 'button',
-              class: tw('flex items-center gap-1.5 px-3 h-9 rounded-full transition-all duration-200 active:scale-95 font-semibold text-xs', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20', 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20')),
+              class: tw('flex items-center justify-center px-4 h-9 rounded-full transition-all duration-200 active:scale-95 font-bold text-sm', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20', 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20')),
               'data-m-gkey': 'lang-toggle',
               title: translate('actions.toggleLang', 'تبديل اللغة')
             }
           }, [
-            D.Text.Span({ attrs: { class: 'text-base' } }, [langIcon]),
             D.Text.Span({}, [langText])
           ]) : null
         ])
