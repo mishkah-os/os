@@ -1170,11 +1170,12 @@
   function AuthModal(db) {
     if (!db.state.auth || !db.state.auth.showAuthModal) return null;
     var auth = db.state.auth;
+    var lang = db.lang || 'ar';
     var mode = auth.authMode || 'login';
     var stage = auth.stage || 'phone';
     var isRegister = mode === 'register';
 
-    return D.Containers.Div({ attrs: { class: 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm' } }, [
+    return D.Containers.Div({ attrs: { class: 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm', 'data-m-gkey': 'modal-overlay' } }, [
       D.Containers.Div({ attrs: { class: tw('w-full max-w-md rounded-2xl p-6 shadow-2xl transition-colors', themed(db, 'bg-slate-900 text-white', 'bg-white text-slate-900')) } }, [
         D.Containers.Div({ attrs: { class: 'flex items-center justify-between mb-6' } }, [
           D.Text.H2({ attrs: { class: 'text-2xl font-bold' } }, [
@@ -1196,14 +1197,14 @@
               'data-m-gkey': 'switch-to-login',
               class: tw('flex-1 py-2 rounded-lg font-bold transition-colors', mode === 'login' ? themed(db, 'bg-emerald-500 text-white', 'bg-emerald-600 text-white') : themed(db, 'bg-slate-800 text-slate-400', 'bg-slate-100 text-slate-600'))
             }
-          }, [translate('auth.login', 'دخول', null, db)]),
+          }, [lang === 'en' ? 'Login' : 'دخول']),
           D.Forms.Button({
             attrs: {
               type: 'button',
               'data-m-gkey': 'switch-to-register',
               class: tw('flex-1 py-2 rounded-lg font-bold transition-colors', mode === 'register' ? themed(db, 'bg-emerald-500 text-white', 'bg-emerald-600 text-white') : themed(db, 'bg-slate-800 text-slate-400', 'bg-slate-100 text-slate-600'))
             }
-          }, [translate('auth.register', 'اشتراك', null, db)])
+          }, [lang === 'en' ? 'Register' : 'اشتراك'])
         ]),
 
         stage === 'phone' ? D.Forms.Form({ attrs: { 'data-m-gkey': 'auth-phone-form', class: 'space-y-4' } }, [
@@ -1220,7 +1221,7 @@
                 'data-m-gkey': 'auth-phone-input'
               }
             }),
-            D.Text.P({ attrs: { class: 'text-xs mt-1 text-slate-400' } }, ['يجب أن يبدأ الرقم بـ: 012, 011, 010, 015'])
+            D.Text.P({ attrs: { class: tw('text-xs mt-1', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['يجب أن يبدأ الرقم بـ: 012, 011, 010, 015'])
           ]),
           D.Forms.Button({
             attrs: {
@@ -1248,7 +1249,7 @@
                 'data-m-gkey': 'auth-otp-input'
               }
             }),
-            D.Text.P({ attrs: { class: 'text-xs mt-1 text-slate-400' } }, ['للتجربة: استخدم 123456'])
+            D.Text.P({ attrs: { class: tw('text-xs mt-1', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['للتجربة: استخدم 123456'])
           ]),
           D.Forms.Button({
             attrs: {
@@ -1307,7 +1308,7 @@
     var theme = db.env && db.env.theme;
     var brandLogo = settings && settings.brand_logo
       ? settings.brand_logo
-      : (theme === 'light' ? '/projects/brocker/images/logo-light.svg' : '/projects/brocker/images/logo.svg');
+      : (theme === 'dark' ? '/projects/brocker/images/logo.svg' : '/projects/brocker/images/logo-light.svg');
     var displayName = lang === 'en' ? 'Makateb Aqarat' : brandName;
 
     return D.Containers.Div({ attrs: { class: tw('fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b transition-all duration-300', themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')) } }, [
@@ -1317,7 +1318,7 @@
           D.Text.Span({ attrs: { class: tw('text-sm font-bold tracking-tight', themed(db, 'text-white', 'text-slate-900')) } }, [displayName])
         ]),
         D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
-          isLoading ? D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-xs text-slate-400' } }, [
+          isLoading ? D.Containers.Div({ attrs: { class: tw('flex items-center gap-2 text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [
             D.Containers.Div({ attrs: { class: 'animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full' } }, []),
             D.Text.Span({}, [translate('misc.loading', 'جاري التحميل...', null, db)])
           ]) : null,
@@ -1354,7 +1355,7 @@
               'data-m-gkey': 'show-auth-modal',
               title: translate('actions.login', 'تسجيل الدخول', null, db)
             }
-          }, [translate('auth.login', 'دخول', null, db)]) : null
+          }, [translate('auth.loginBtn', lang === 'en' ? 'Login' : 'دخول', null, db)]) : null
         ])
       ])
     ]);
@@ -1366,7 +1367,7 @@
     var theme = db.env && db.env.theme;
     var brandLogo = settings && settings.brand_logo
       ? settings.brand_logo
-      : (theme === 'light' ? '/projects/brocker/images/logo-light.svg' : '/projects/brocker/images/logo.svg');
+      : (theme === 'dark' ? '/projects/brocker/images/logo.svg' : '/projects/brocker/images/logo-light.svg');
     var heroTitle = settings && settings.hero_title
       ? localized('app_settings', settings.id || 'default', 'hero_title', settings.hero_title)
       : 'منصة متكاملة للوسطاء';
@@ -1441,7 +1442,7 @@
   function ListingDetailView(db, listingModels) {
     var target = listingModels.find(function (model) { return model.listing.id === db.state.selectedListingId; });
     if (!target) {
-      return D.Containers.Section({ attrs: { class: 'px-4 py-10 text-center text-slate-400' } }, [translate('misc.noBroker', 'لم يتم العثور على الوحدة المختارة.', null, db)]);
+      return D.Containers.Section({ attrs: { class: tw('px-4 py-10 text-center', themed(db, 'text-slate-400', 'text-slate-600')) } }, [translate('misc.noBroker', 'لم يتم العثور على الوحدة المختارة.', null, db)]);
     }
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-4 max-w-5xl mx-auto space-y-6') } }, [
       DetailToolbar(db),
@@ -1462,7 +1463,7 @@
     var brokerListings = selected ? listingModels.filter(function (model) { return model.listing.broker_id === selected.id; }) : [];
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 max-w-6xl mx-auto space-y-6') } }, [
       HeaderSection(db.data.appSettings),
-      selected ? BrokerProfile(db, selected, brokerListings) : BrokerGrid(brokers),
+      selected ? BrokerProfile(db, selected, brokerListings) : BrokerGrid(db, brokers),
       BrokerAuthPanel(db)
     ]);
   }
@@ -1482,8 +1483,8 @@
     var highlights = Array.isArray(model.listing.highlights) ? model.listing.highlights : [];
     return D.Containers.Div({ attrs: { class: tw('space-y-4 rounded-3xl border border-white/5 bg-slate-900/40 p-6') } }, [
       D.Text.H2({ attrs: { class: 'text-xl font-semibold text-white' } }, [localized('listings', model.listing.id, 'headline', model.listing.headline || translate('listing.details', 'تفاصيل الوحدة', null, db))]),
-      unit.description ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [localized('units', unit.id, 'description', unit.description)]) : null,
-      D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-3 text-xs text-slate-400' } }, [
+      unit.description ? D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-300', 'text-slate-700')) } }, [localized('units', unit.id, 'description', unit.description)]) : null,
+      D.Containers.Div({ attrs: { class: tw('flex flex-wrap gap-3 text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [
         unit.area ? Chip(unit.area + ' م²') : null,
         Number.isFinite(unit.bedrooms) ? Chip(unit.bedrooms + ' غرف') : null,
         Number.isFinite(unit.bathrooms) ? Chip(unit.bathrooms + ' حمام') : null,
@@ -1491,14 +1492,14 @@
       ].filter(Boolean)),
       highlights.length ? D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs' } }, highlights.map(function (text) { return Chip(text); })) : null,
       features.length
-        ? D.Containers.Div({ attrs: { class: 'text-sm text-slate-300' } }, [
-            D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [translate('listing.features', 'مميزات الوحدة:', null, db)]),
+        ? D.Containers.Div({ attrs: { class: tw('text-sm', themed(db, 'text-slate-300', 'text-slate-700')) } }, [
+            D.Text.Strong({ attrs: { class: tw(themed(db, 'text-slate-100', 'text-slate-900')) } }, [translate('listing.features', 'مميزات الوحدة:', null, db)]),
             D.Lists.Ul({ attrs: { class: 'mt-2 space-y-1' } }, features.map(function (name) {
-              return D.Lists.Li({ attrs: { class: 'text-slate-300' } }, [name]);
+              return D.Lists.Li({ attrs: { class: tw(themed(db, 'text-slate-300', 'text-slate-700')) } }, [name]);
             }))
           ])
         : null,
-      broker ? BrokerBadge(broker) : null,
+      broker ? BrokerBadge(db, broker) : null,
       D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm pt-2 border-t border-white/5' } }, [
         D.Text.Span({ attrs: { class: 'text-slate-400' } }, [translate('listing.price', 'السعر', null, db) || '']),
         D.Text.Strong({ attrs: { class: 'text-emerald-400 text-lg' } }, [formatPrice(model.listing)])
@@ -1533,23 +1534,23 @@
     if (!notifications.length) return null;
     return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/30 p-4 space-y-2') } }, [
       D.Text.Strong({ attrs: { class: 'text-sm text-slate-200' } }, ['تنبيهات من الوسيط']),
-      D.Containers.Ul({ attrs: { class: 'space-y-1 text-sm text-slate-300' } }, notifications.map(function (item) {
+      D.Containers.Ul({ attrs: { class: tw('space-y-1 text-sm', themed(db, 'text-slate-300', 'text-slate-700')) } }, notifications.map(function (item) {
         return D.Lists.Li({ attrs: { key: item.id } }, [item.message]);
       }))
     ]);
   }
-  function BrokerBadge(broker) {
-    return D.Containers.Div({ attrs: { class: 'flex items-center gap-2 rounded-2xl border border-white/5 bg-slate-950/50 px-3 py-2 text-xs text-slate-300' } }, [
+  function BrokerBadge(db, broker) {
+    return D.Containers.Div({ attrs: { class: tw('flex items-center gap-2 rounded-2xl border border-white/5 bg-slate-950/50 px-3 py-2 text-xs', themed(db, 'text-slate-300', 'text-slate-700')) } }, [
       broker.avatar_url ? D.Media.Img({ attrs: { src: normalizeMediaUrl(broker.avatar_url, MEDIA_FALLBACKS.broker), alt: broker.full_name, class: 'h-8 w-8 rounded-full object-cover' } }) : null,
       D.Containers.Div({}, [
-        D.Text.Span({ attrs: { class: 'text-sm text-white' } }, [broker.full_name || 'وسيط معتمد']),
-        broker.phone ? D.Text.Span({ attrs: { class: 'text-[11px] text-slate-400' } }, [broker.phone]) : null
+        D.Text.Span({ attrs: { class: tw('text-sm', themed(db, 'text-white', 'text-slate-900')) } }, [broker.full_name || 'وسيط معتمد']),
+        broker.phone ? D.Text.Span({ attrs: { class: tw('text-[11px]', themed(db, 'text-slate-400', 'text-slate-600')) } }, [broker.phone]) : null
       ])
     ]);
   }
-  function BrokerGrid(brokers) {
+  function BrokerGrid(db, brokers) {
     if (!brokers.length) {
-      return D.Containers.Div({ attrs: { class: 'text-center text-slate-400 text-sm' } }, ['لا يوجد وسطاء حالياً.']);
+      return D.Containers.Div({ attrs: { class: tw('text-center text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['لا يوجد وسطاء حالياً.']);
     }
     var cards = brokers.map(function (broker) {
       return D.Containers.Article({
@@ -1560,9 +1561,9 @@
         }
       }, [
         broker.avatar_url ? D.Media.Img({ attrs: { src: normalizeMediaUrl(broker.avatar_url, MEDIA_FALLBACKS.broker), alt: broker.full_name, class: 'h-12 w-12 rounded-full object-cover' } }) : null,
-        D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, [broker.full_name || 'وسيط معتمد']),
-        broker.company_name ? D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [broker.company_name]) : null,
-        broker.region_id ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, ['منطقة الخدمة: ' + broker.region_id]) : null,
+        D.Text.H3({ attrs: { class: tw('text-base font-semibold', themed(db, 'text-white', 'text-slate-900')) } }, [broker.full_name || 'وسيط معتمد']),
+        broker.company_name ? D.Text.Span({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [broker.company_name]) : null,
+        broker.region_id ? D.Text.Span({ attrs: { class: tw('text-xs', themed(db, 'text-slate-500', 'text-slate-600')) } }, ['منطقة الخدمة: ' + broker.region_id]) : null,
         broker.rating ? D.Text.Span({ attrs: { class: 'text-xs text-amber-400' } }, ['⭐ ' + broker.rating.toFixed(1)]) : null
       ]);
     });
@@ -1692,7 +1693,7 @@
     ]);
   }
   function ToastBanner(db, payload) {
-    return D.Containers.Div({ attrs: { class: tw('fixed top-4 inset-x-0 mx-auto max-w-md rounded-full border border-white/10 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-lg shadow-black/40 z-40 flex items-center justify-between gap-2') } }, [
+    return D.Containers.Div({ attrs: { class: tw('fixed top-4 inset-x-0 mx-auto max-w-md rounded-full border border-white/10 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-lg shadow-black/40 z-60 flex items-center justify-between gap-2') } }, [
       D.Text.Span({}, [payload.message || translate('toast.defaultSuccess', 'تم تنفيذ العملية.', null, db)]),
       D.Forms.Button({ attrs: { type: 'button', class: 'text-xs text-slate-400', 'data-m-gkey': 'toast-dismiss' } }, [translate('actions.dismiss', 'إغلاق', null, db)])
     ]);
