@@ -404,12 +404,20 @@
     if (!ctx) return;
     var nextLang = lang || 'ar';
     var dir = resolveDir(nextLang);
+
+    // حفظ التفضيلات أولاً
+    var nextEnv = Object.assign({}, ctx.database.env, { lang: nextLang, dir: dir });
+    persistPrefs(nextEnv);
+    syncDocumentEnv(nextEnv);
+
+    // تحديث state لتحديث الـ UI فوراً
     ctx.setState(function (db) {
-      var nextEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
-      persistPrefs(nextEnv);
-      syncDocumentEnv(nextEnv);
       return Object.assign({}, db, { env: nextEnv });
     });
+
+    // إعادة تحميل البيانات بلغة جديدة من Backend
+    console.log('[Brocker PWA] Reloading data with new language:', nextLang);
+    reloadDataWithLanguage(ctx, nextLang);
   }
 
   function setEnvTheme(ctx, theme) {
@@ -1705,6 +1713,16 @@
 
     console.log('[Brocker PWA] Reloading data with lang:', lang);
 
+    // إظهار loading indicator
+    targetApp.setState(function (db) {
+      return Object.assign({}, db, {
+        state: Object.assign({}, db.state, {
+          loading: true,
+          readyTables: [] // مسح الجداول الجاهزة لإعادة التحميل
+        })
+      });
+    });
+
     // إعادة تهيئة الاتصال مع اللغة الجديدة
     try {
       // إغلاق الاتصال القديم
@@ -1721,7 +1739,7 @@
     setTimeout(function() {
       console.log('[Brocker PWA] Bootstrapping realtime with lang:', lang);
       bootstrapRealtime(targetApp, lang);
-    }, 200);
+    }, 300);
   }
 
   function bootstrapRealtime(app, forceLang) {
