@@ -120,6 +120,15 @@
       readyTables: [],
       toast: null,
       showSubscribeModal: false,
+      auth: {
+        isAuthenticated: false,
+        user: null,
+        showAuthModal: false,
+        authMode: 'login',
+        phone: '',
+        otp: '',
+        stage: 'phone'
+      },
       dashboard: {
         inquiryStatus: 'all'
       },
@@ -978,13 +987,16 @@
     var isLoading = db.state && db.state.loading;
     var settings = db.data && db.data.appSettings;
     var brandName = settings && settings.brand_name ? settings.brand_name : 'مكاتب عقارات';
-    var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+    var theme = db.env && db.env.theme;
+    var brandLogo = settings && settings.brand_logo
+      ? settings.brand_logo
+      : (theme === 'light' ? '/projects/brocker/images/logo-light.svg' : '/projects/brocker/images/logo.svg');
     var displayName = lang === 'en' ? 'Makateb Aqarat' : brandName;
 
     return D.Containers.Div({ attrs: { class: tw('fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b transition-all duration-300', themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')) } }, [
       D.Containers.Div({ attrs: { class: 'mx-auto flex max-w-xl items-center justify-between px-4 py-3' } }, [
         D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
-          D.Media.Img({ attrs: { src: brandLogo, alt: displayName, class: 'h-6 w-6 object-contain' } }),
+          D.Media.Img({ attrs: { src: brandLogo, alt: displayName, class: 'h-12 w-12 object-contain' } }),
           D.Text.Span({ attrs: { class: tw('text-sm font-bold tracking-tight', themed(db, 'text-white', 'text-slate-900')) } }, [displayName])
         ]),
         D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
@@ -1009,7 +1021,23 @@
             }
           }, [
             D.Text.Span({}, [langText])
-          ]) : null
+          ]) : null,
+          !isLoading && db.state && db.state.auth && db.state.auth.isAuthenticated ? D.Forms.Button({
+            attrs: {
+              type: 'button',
+              class: tw('flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 active:scale-95', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-100 hover:bg-slate-200 text-slate-800')),
+              'data-m-gkey': 'navigate-dashboard',
+              title: translate('actions.dashboard', 'لوحة التحكم', null, db)
+            }
+          }, ['📊']) : null,
+          !isLoading && (!db.state || !db.state.auth || !db.state.auth.isAuthenticated) ? D.Forms.Button({
+            attrs: {
+              type: 'button',
+              class: tw('flex items-center justify-center px-4 h-9 rounded-full transition-all duration-200 active:scale-95 font-bold text-sm', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-200 hover:bg-slate-300 text-slate-900')),
+              'data-m-gkey': 'show-auth-modal',
+              title: translate('actions.login', 'تسجيل الدخول', null, db)
+            }
+          }, [translate('auth.login', 'دخول', null, db)]) : null
         ])
       ])
     ]);
@@ -1018,7 +1046,10 @@
   function FooterSection(db) {
     var settings = db.data && db.data.appSettings;
     var brandName = settings && settings.brand_name ? settings.brand_name : 'عقار برو';
-    var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+    var theme = db.env && db.env.theme;
+    var brandLogo = settings && settings.brand_logo
+      ? settings.brand_logo
+      : (theme === 'light' ? '/projects/brocker/images/logo-light.svg' : '/projects/brocker/images/logo.svg');
     var heroTitle = settings && settings.hero_title
       ? localized('app_settings', settings.id || 'default', 'hero_title', settings.hero_title)
       : 'منصة متكاملة للوسطاء';
