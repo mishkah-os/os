@@ -837,10 +837,16 @@
     var themeIcon = themed(db, '☀️', '🌙'); // عكس الأيقونة: لو dark يعرض شمس (تحول ل light)
     var langText = lang === 'ar' ? 'EN' : 'AR'; // عرض اللغة المستهدفة
     var isLoading = db.state && db.state.loading;
+    var settings = db.data && db.data.appSettings;
+    var brandName = settings && settings.brand_name ? settings.brand_name : 'عقار برو';
+    var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '🏢';
 
     return D.Containers.Div({ attrs: { class: tw('fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b transition-all duration-300', themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')) } }, [
       D.Containers.Div({ attrs: { class: 'mx-auto flex max-w-xl items-center justify-between px-4 py-3' } }, [
-        D.Text.Span({ attrs: { class: tw('text-sm font-bold tracking-tight', themed(db, 'text-white', 'text-slate-900')) } }, ['Brocker']),
+        D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
+          D.Text.Span({ attrs: { class: 'text-lg' } }, [brandLogo]),
+          D.Text.Span({ attrs: { class: tw('text-sm font-bold tracking-tight', themed(db, 'text-white', 'text-slate-900')) } }, [brandName])
+        ]),
         D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
           isLoading ? D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-xs text-slate-400' } }, [
             D.Containers.Div({ attrs: { class: 'animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full' } }, []),
@@ -869,6 +875,82 @@
     ]);
   }
 
+  function FooterSection(settings) {
+    var brandName = settings && settings.brand_name ? settings.brand_name : 'عقار برو';
+    var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '🏢';
+    var heroTitle = settings && settings.hero_title
+      ? localized('app_settings', settings.id || 'default', 'hero_title', settings.hero_title)
+      : 'منصة متكاملة للوسطاء';
+    var heroSubtitle = settings && settings.hero_subtitle
+      ? localized('app_settings', settings.id || 'default', 'hero_subtitle', settings.hero_subtitle)
+      : 'ابحث، أدر، وتابع طلبات عملائك بسهولة.';
+    var whatsapp = settings && settings.support_whatsapp ? settings.support_whatsapp : '';
+    var phone = settings && settings.support_phone ? settings.support_phone : '';
+
+    return D.Containers.Footer({ attrs: { class: tw(
+      'mt-12 rounded-3xl border p-6 space-y-6 shadow-lg transition-colors',
+      themed({ env: activeEnv() }, 'border-white/5 bg-gradient-to-br from-slate-900/85 to-slate-950/90 text-white', 'border-slate-200 bg-white text-slate-900')
+    ) } }, [
+      // شعار واسم المنصة
+      D.Containers.Div({ attrs: { class: 'flex items-center gap-3' } }, [
+        D.Text.Span({ attrs: { class: 'text-4xl' } }, [brandLogo]),
+        D.Containers.Div({}, [
+          D.Text.H3({ attrs: { class: 'text-xl font-bold' } }, [brandName]),
+          D.Text.P({ attrs: { class: tw('text-sm', themed({ env: activeEnv() }, 'text-slate-300', 'text-slate-600')) } }, [heroTitle])
+        ])
+      ]),
+
+      // الوصف
+      D.Text.P({ attrs: { class: tw('text-sm leading-relaxed', themed({ env: activeEnv() }, 'text-slate-300', 'text-slate-600')) } }, [heroSubtitle]),
+
+      // فيديو ترويجي
+      D.Containers.Div({ attrs: { class: 'rounded-2xl overflow-hidden aspect-video' } }, [
+        D.Media.Iframe({
+          attrs: {
+            src: 'https://www.youtube.com/embed/H1sAFdA-YI4',
+            class: 'w-full h-full',
+            frameborder: '0',
+            allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
+            allowfullscreen: true,
+            title: 'عرض تعريفي'
+          }
+        })
+      ]),
+
+      // أيقونات التواصل
+      D.Containers.Div({ attrs: { class: 'space-y-3' } }, [
+        D.Text.P({ attrs: { class: tw('text-sm font-semibold', themed({ env: activeEnv() }, 'text-slate-200', 'text-slate-700')) } }, [translate('footer.contact', 'تواصل معنا')]),
+        D.Containers.Div({ attrs: { class: 'flex items-center gap-3 flex-wrap' } }, [
+          whatsapp ? D.Text.A({
+            attrs: {
+              href: 'https://wa.me/' + whatsapp.replace(/\D/g, ''),
+              target: '_blank',
+              rel: 'noopener noreferrer',
+              class: tw('flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all', themed({ env: activeEnv() }, 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30', 'bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30'))
+            }
+          }, [
+            D.Text.Span({ attrs: { class: 'text-xl' } }, ['📱']),
+            D.Text.Span({}, ['واتساب'])
+          ]) : null,
+          phone ? D.Text.A({
+            attrs: {
+              href: 'tel:' + phone,
+              class: tw('flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all', themed({ env: activeEnv() }, 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30', 'bg-blue-500/20 text-blue-700 hover:bg-blue-500/30'))
+            }
+          }, [
+            D.Text.Span({ attrs: { class: 'text-xl' } }, ['📞']),
+            D.Text.Span({}, ['اتصل بنا'])
+          ]) : null
+        ])
+      ]),
+
+      // حقوق النشر
+      D.Containers.Div({ attrs: { class: tw('pt-4 border-t text-center text-xs', themed({ env: activeEnv() }, 'border-white/10 text-slate-400', 'border-slate-200 text-slate-500')) } }, [
+        D.Text.P({}, ['© 2025 ' + brandName + ' • ' + translate('footer.rights', 'جميع الحقوق محفوظة')])
+      ])
+    ]);
+  }
+
   function HomeView(db, listingModels) {
     var settings = db.data.appSettings;
     var slides = Array.isArray(db.data.heroSlides) ? db.data.heroSlides : [];
@@ -878,7 +960,8 @@
       HeaderSection(settings),
       heroSection,
       SearchPanel(db, listingModels),
-      LatestListingsGrid(filtered)
+      LatestListingsGrid(filtered),
+      FooterSection(settings)
     ]);
   }
   function ListingDetailView(db, listingModels) {
@@ -1239,6 +1322,7 @@
   }
 
   function HeroSection(settings, slides) {
+    // إزالة المقدمة - نبدأ مباشرة بالـ slides
     var cards = (slides || []).slice().sort(function (a, b) {
       var ap = Number.isFinite(a && a.priority) ? a.priority : Number.MAX_SAFE_INTEGER;
       var bp = Number.isFinite(b && b.priority) ? b.priority : Number.MAX_SAFE_INTEGER;
@@ -1246,19 +1330,15 @@
     }).map(function (slide) {
       return HeroSlideCard(slide);
     });
-    var heroTitle = settings && settings.hero_title
-      ? localized('app_settings', settings.id || 'default', 'hero_title', settings.hero_title)
-      : null;
-    var heroSubtitle = settings && settings.hero_subtitle
-      ? localized('app_settings', settings.id || 'default', 'hero_subtitle', settings.hero_subtitle)
-      : null;
+
+    // لو مافيش slides، نعرض null (مافيش hero section)
+    if (!cards.length) return null;
+
     return D.Containers.Section({ attrs: { class: tw(
       'rounded-3xl border p-4 sm:p-6 lg:p-7 space-y-3 sm:space-y-4 shadow-lg shadow-emerald-900/20 transition-colors',
       themed({ env: activeEnv() }, 'border-white/5 bg-gradient-to-br from-slate-900/85 to-slate-950/90', 'border-slate-200 bg-white')
     ) } }, [
-      D.Text.H2({ attrs: { class: 'text-lg font-semibold text-white sm:text-xl' } }, [heroTitle || 'ابدأ من البحث الذكي عن العقارات']),
-      heroSubtitle ? D.Text.P({ attrs: { class: 'text-sm leading-6 text-slate-300 sm:text-base sm:leading-7' } }, [heroSubtitle]) : null,
-      cards.length ? D.Containers.Div({ attrs: { class: tw('grid gap-3 sm:gap-4 md:grid-cols-3') } }, cards) : null
+      D.Containers.Div({ attrs: { class: tw('grid gap-3 sm:gap-4 md:grid-cols-3') } }, cards)
     ]);
   }
 
