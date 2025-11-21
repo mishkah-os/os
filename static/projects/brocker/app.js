@@ -544,6 +544,21 @@
       handler: function (event, ctx) {
         if (event && typeof event.preventDefault === 'function') event.preventDefault();
         var currentDb = ctx.getState();
+
+        if (!currentDb.state.auth || !currentDb.state.auth.isAuthenticated) {
+          setToast(ctx, { kind: 'error', message: translate('toast.loginRequired', 'يجب تسجيل الدخول أولاً لإرسال استفسار.', null, currentDb) });
+          ctx.setState(function(db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, {
+                auth: Object.assign({}, db.state.auth, {
+                  showAuthModal: true
+                })
+              })
+            });
+          });
+          return;
+        }
+
         if (!realtime || !event || !event.target || typeof FormData === 'undefined') {
           setToast(ctx, { kind: 'error', message: translate('toast.connection', 'الاتصال غير متاح الآن.', null, currentDb) });
           return;
@@ -555,6 +570,11 @@
         var phone = (fd.get('leadPhone') || '').trim();
         var message = (fd.get('leadMessage') || '').trim();
         var preferred = (fd.get('leadPreferred') || 'any').trim() || 'any';
+
+        var user = currentDb.state.auth.user;
+        name = name || user.full_name || 'مستخدم';
+        phone = phone || user.phone || '';
+
         if (!listingId || !name || !phone || !message) {
           setToast(ctx, { kind: 'error', message: translate('toast.requiredFields', 'يرجى استكمال الحقول.', null, currentDb) });
           return;
@@ -565,13 +585,14 @@
           listing_id: listingId,
           unit_id: listing ? listing.unit_id : null,
           project_id: listing ? listing.project_id || null : null,
+          user_id: user ? user.id : null,
           message: message,
           status: 'new',
           contact_name: name,
           contact_phone: phone,
           contact_channel: 'phone',
           preferred_contact_time: preferred,
-          notes: 'Lead submitted from Mishkah brocker PWA',
+          notes: 'Lead submitted from Mishkah brocker PWA by ' + (user ? user.email : 'guest'),
           lang: (snapshot && snapshot.env && snapshot.env.lang) || 'ar',
           created_at: new Date().toISOString()
         };
