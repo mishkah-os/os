@@ -1043,7 +1043,7 @@
   }
 
   /**
-   * Bootstrap application
+   * Bootstrap application - Wait for Mishkah to be ready
    */
   function bootstrap() {
     console.log('[SBN PWA] Initializing Mostamal Hawa...');
@@ -1052,19 +1052,40 @@
     applyTheme(initialDatabase.env.theme);
     applyLang(initialDatabase.env.lang, initialDatabase.env.dir);
 
-    // Set body function
-    M.app.setBody(renderBody);
+    // Helper function to wait for Mishkah to be ready
+    var readyHelper = global.MishkahAuto && typeof global.MishkahAuto.ready === 'function'
+      ? global.MishkahAuto.ready.bind(global.MishkahAuto)
+      : function (cb) {
+          return Promise.resolve().then(function () {
+            if (typeof cb === 'function') cb(M);
+          });
+        };
 
-    // Create app
-    app = M.app.createApp(initialDatabase, orders);
+    // Wait for Mishkah to be ready, then initialize app
+    readyHelper(function (readyM) {
+      if (!readyM || !readyM.app || typeof readyM.app.createApp !== 'function') {
+        console.error('[SBN PWA] Mishkah app API not ready');
+        throw new Error('[SBN PWA] mishkah-core-not-ready');
+      }
 
-    // Mount to DOM
-    app.mount('#app');
+      console.log('[SBN PWA] Mishkah is ready, creating app...');
 
-    console.log('[SBN PWA] App mounted successfully');
+      // Set body function
+      readyM.app.setBody(renderBody);
 
-    // Initialize realtime connection
-    initRealtime();
+      // Create app
+      app = readyM.app.createApp(initialDatabase, orders);
+
+      // Mount to DOM
+      app.mount('#app');
+
+      console.log('[SBN PWA] App mounted successfully');
+
+      // Initialize realtime connection
+      initRealtime();
+    }).catch(function (err) {
+      console.error('[SBN PWA] Failed to initialize app:', err);
+    });
   }
 
   // ================== START APP ==================
