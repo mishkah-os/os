@@ -185,11 +185,25 @@
     return (source && source.lang) || 'ar';
   }
 
-  function translate(key, fallback, lang) {
-    var env = activeEnv();
+  function translate(key, fallback, lang, db) {
+    // إذا تم تمرير db، استخدمه، وإلا استخدم activeEnv()
+    var env = (db && db.env) ? db.env : activeEnv();
     var locale = lang || (env && env.lang) || 'ar';
     var map = (env && env.i18n) || BASE_I18N;
     var entry = map[key];
+
+    // Debug: log للمفاتيح المهمة
+    if (key === 'nav.home' || key === 'footer.subscribe') {
+      console.log('[translate]', {
+        key: key,
+        locale: locale,
+        hasEntry: !!entry,
+        entryValue: entry ? entry[locale] : null,
+        mapKeysCount: Object.keys(map).length,
+        fromDb: !!(db && db.env)
+      });
+    }
+
     if (entry && entry[locale]) return entry[locale];
     if (entry && entry.ar) return entry.ar;
     return typeof fallback === 'string' ? fallback : key;
