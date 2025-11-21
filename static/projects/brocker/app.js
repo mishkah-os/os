@@ -534,8 +534,9 @@
       gkeys: ['inquiry-form'],
       handler: function (event, ctx) {
         if (event && typeof event.preventDefault === 'function') event.preventDefault();
+        var currentDb = ctx.getState();
         if (!realtime || !event || !event.target || typeof FormData === 'undefined') {
-          setToast(ctx, { kind: 'error', message: translate('toast.connection', 'الاتصال غير متاح الآن.') });
+          setToast(ctx, { kind: 'error', message: translate('toast.connection', 'الاتصال غير متاح الآن.', null, currentDb) });
           return;
         }
         var form = event.target;
@@ -546,7 +547,7 @@
         var message = (fd.get('leadMessage') || '').trim();
         var preferred = (fd.get('leadPreferred') || 'any').trim() || 'any';
         if (!listingId || !name || !phone || !message) {
-          setToast(ctx, { kind: 'error', message: translate('toast.requiredFields', 'يرجى استكمال الحقول.') });
+          setToast(ctx, { kind: 'error', message: translate('toast.requiredFields', 'يرجى استكمال الحقول.', null, currentDb) });
           return;
         }
         var snapshot = ctx.database;
@@ -568,11 +569,11 @@
         realtime.insert('inquiries', record, { reason: 'pwa-lead' })
           .then(function () {
             try { form.reset(); } catch (_err) {}
-            setToast(ctx, { kind: 'success', message: translate('toast.sent', 'تم إرسال طلبك بنجاح.') });
+            setToast(ctx, { kind: 'success', message: translate('toast.sent', 'تم إرسال طلبك بنجاح.', null, currentDb) });
           })
           .catch(function (error) {
             console.error('[Brocker PWA] inquiry submit failed', error);
-            setToast(ctx, { kind: 'error', message: translate('toast.failed', 'تعذر إرسال الطلب.') });
+            setToast(ctx, { kind: 'error', message: translate('toast.failed', 'تعذر إرسال الطلب.', null, currentDb) });
           });
       }
     },
@@ -595,6 +596,7 @@
       gkeys: ['inquiry-status'],
       handler: function (event, ctx) {
         if (!realtime) return;
+        var currentDb = ctx.getState();
         var target = event.currentTarget;
         if (!target) return;
         var id = target.getAttribute('data-inquiry-id');
@@ -605,11 +607,11 @@
         var updated = Object.assign({}, inquiry, { status: nextStatus });
         realtime.update('inquiries', updated, { reason: 'pwa-dashboard' })
           .then(function () {
-            setToast(ctx, { kind: 'success', message: translate('toast.updated', 'تم تحديث الطلب.') });
+            setToast(ctx, { kind: 'success', message: translate('toast.updated', 'تم تحديث الطلب.', null, currentDb) });
           })
           .catch(function (error) {
             console.error('[Brocker PWA] update inquiry failed', error);
-            setToast(ctx, { kind: 'error', message: translate('toast.notUpdated', 'لم يتم تحديث الطلب.') });
+            setToast(ctx, { kind: 'error', message: translate('toast.notUpdated', 'لم يتم تحديث الطلب.', null, currentDb) });
           });
       }
     },
@@ -618,6 +620,7 @@
       gkeys: ['listing-status'],
       handler: function (event, ctx) {
         if (!realtime) return;
+        var currentDb = ctx.getState();
         var target = event.currentTarget;
         if (!target) return;
         var id = target.getAttribute('data-listing-id');
@@ -628,11 +631,11 @@
         var updated = Object.assign({}, listing, { listing_status: nextStatus });
         realtime.update('listings', updated, { reason: 'pwa-dashboard' })
           .then(function () {
-            setToast(ctx, { kind: 'success', message: translate('toast.listingUpdated', 'تم تعديل حالة الإعلان.') });
+            setToast(ctx, { kind: 'success', message: translate('toast.listingUpdated', 'تم تعديل حالة الإعلان.', null, currentDb) });
           })
           .catch(function (error) {
             console.error('[Brocker PWA] update listing failed', error);
-            setToast(ctx, { kind: 'error', message: translate('toast.listingNotUpdated', 'تعذر تعديل الإعلان.') });
+            setToast(ctx, { kind: 'error', message: translate('toast.listingNotUpdated', 'تعذر تعديل الإعلان.', null, currentDb) });
           });
       }
     },
@@ -670,12 +673,13 @@
       gkeys: ['broker-auth'],
       handler: function (event, ctx) {
         if (event && typeof event.preventDefault === 'function') event.preventDefault();
+        var currentDb = ctx.getState();
         if (!event || !event.target || typeof FormData === 'undefined') return;
         var fd = new FormData(event.target);
         var phone = (fd.get('brokerPhone') || '').trim();
         var region = (fd.get('brokerRegion') || '').trim();
         if (!phone) {
-          setToast(ctx, { kind: 'error', message: translate('toast.brokerPhone', 'أدخل رقم الهاتف.') });
+          setToast(ctx, { kind: 'error', message: translate('toast.brokerPhone', 'أدخل رقم الهاتف.', null, currentDb) });
           return;
         }
         ctx.setState(function (db) {
@@ -701,15 +705,16 @@
       on: ['click'],
       gkeys: ['pwa-install'],
       handler: function (_event, ctx) {
+        var currentDb = ctx.getState();
         var helper = global.MishkahAuto && global.MishkahAuto.pwa;
         if (!helper) {
-          setToast(ctx, { kind: 'error', message: translate('toast.installError', 'التثبيت غير مدعوم.') });
+          setToast(ctx, { kind: 'error', message: translate('toast.installError', 'التثبيت غير مدعوم.', null, currentDb) });
           return;
         }
         helper.promptInstall()
           .catch(function (error) {
             console.warn('[Brocker PWA] install prompt failed', error);
-            setToast(ctx, { kind: 'error', message: translate('toast.installOpenError', 'تعذر فتح نافذة التثبيت.') });
+            setToast(ctx, { kind: 'error', message: translate('toast.installOpenError', 'تعذر فتح نافذة التثبيت.', null, currentDb) });
           });
       }
     },
@@ -942,13 +947,13 @@
     var listingModels = buildListingModels(db);
     var view = db.state.activeView;
     var content;
-    if (db.state.loading) content = LoadingSection();
+    if (db.state.loading) content = LoadingSection(db);
     else if (view === 'listing' && db.state.selectedListingId) content = ListingDetailView(db, listingModels);
     else if (view === 'brokers') content = BrokersView(db, listingModels);
     else if (view === 'dashboard') content = DashboardView(db, listingModels);
     else content = HomeView(db, listingModels);
 
-    var toast = db.state.toast ? ToastBanner(db.state.toast) : null;
+    var toast = db.state.toast ? ToastBanner(db, db.state.toast) : null;
     var errorBanner = db.state.error ? ErrorBanner(db.state.error) : null;
     var installBanner = (!db.state.loading && db.state.pwa && !db.state.pwa.showGate && !db.state.pwa.installed)
       ? InstallBanner(db)
@@ -985,14 +990,14 @@
         D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
           isLoading ? D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-xs text-slate-400' } }, [
             D.Containers.Div({ attrs: { class: 'animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full' } }, []),
-            D.Text.Span({}, [translate('misc.loading', 'جاري التحميل...')])
+            D.Text.Span({}, [translate('misc.loading', 'جاري التحميل...', null, db)])
           ]) : null,
           !isLoading ? D.Forms.Button({
             attrs: {
               type: 'button',
               class: tw('flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 active:scale-95', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-100 hover:bg-slate-200 text-slate-800')),
               'data-m-gkey': 'theme-toggle',
-              title: translate('actions.toggleTheme', 'تبديل الثيم')
+              title: translate('actions.toggleTheme', 'تبديل الثيم', null, db)
             }
           }, [themeIcon]) : null,
           !isLoading ? D.Forms.Button({
@@ -1000,7 +1005,7 @@
               type: 'button',
               class: tw('flex items-center justify-center px-4 h-9 rounded-full transition-all duration-200 active:scale-95 font-bold text-sm', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20', 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20')),
               'data-m-gkey': 'lang-toggle',
-              title: translate('actions.toggleLang', 'تبديل اللغة')
+              title: translate('actions.toggleLang', 'تبديل اللغة', null, db)
             }
           }, [
             D.Text.Span({}, [langText])
@@ -1081,20 +1086,20 @@
     // بداية مباشرة بالبحث - بدون أي sections قبلها
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-6 pt-4 space-y-6 max-w-xl mx-auto') } }, [
       SearchPanel(db, listingModels),
-      LatestListingsGrid(filtered),
+      LatestListingsGrid(db, filtered),
       FooterSection(db)
     ]);
   }
   function ListingDetailView(db, listingModels) {
     var target = listingModels.find(function (model) { return model.listing.id === db.state.selectedListingId; });
     if (!target) {
-      return D.Containers.Section({ attrs: { class: 'px-4 py-10 text-center text-slate-400' } }, [translate('misc.noBroker', 'لم يتم العثور على الوحدة المختارة.')]);
+      return D.Containers.Section({ attrs: { class: 'px-4 py-10 text-center text-slate-400' } }, [translate('misc.noBroker', 'لم يتم العثور على الوحدة المختارة.', null, db)]);
     }
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-4 max-w-5xl mx-auto space-y-6') } }, [
-      DetailToolbar(),
+      DetailToolbar(db),
       DetailGallery(target),
-      DetailSummary(target),
-      InquiryForm(target),
+      DetailSummary(db, target),
+      InquiryForm(db, target),
       RelatedHighlights(db, target)
     ]);
   }
@@ -1109,7 +1114,7 @@
     var brokerListings = selected ? listingModels.filter(function (model) { return model.listing.broker_id === selected.id; }) : [];
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 max-w-6xl mx-auto space-y-6') } }, [
       HeaderSection(db.data.appSettings),
-      selected ? BrokerProfile(selected, brokerListings) : BrokerGrid(brokers),
+      selected ? BrokerProfile(db, selected, brokerListings) : BrokerGrid(brokers),
       BrokerAuthPanel(db)
     ]);
   }
@@ -1122,13 +1127,13 @@
       NotificationFeed(db)
     ]);
   }
-  function DetailSummary(model) {
+  function DetailSummary(db, model) {
     var unit = model.unit || {};
     var broker = model.broker;
     var features = model.features || [];
     var highlights = Array.isArray(model.listing.highlights) ? model.listing.highlights : [];
     return D.Containers.Div({ attrs: { class: tw('space-y-4 rounded-3xl border border-white/5 bg-slate-900/40 p-6') } }, [
-      D.Text.H2({ attrs: { class: 'text-xl font-semibold text-white' } }, [localized('listings', model.listing.id, 'headline', model.listing.headline || translate('listing.details', 'تفاصيل الوحدة'))]),
+      D.Text.H2({ attrs: { class: 'text-xl font-semibold text-white' } }, [localized('listings', model.listing.id, 'headline', model.listing.headline || translate('listing.details', 'تفاصيل الوحدة', null, db))]),
       unit.description ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [localized('units', unit.id, 'description', unit.description)]) : null,
       D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-3 text-xs text-slate-400' } }, [
         unit.area ? Chip(unit.area + ' م²') : null,
@@ -1139,7 +1144,7 @@
       highlights.length ? D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs' } }, highlights.map(function (text) { return Chip(text); })) : null,
       features.length
         ? D.Containers.Div({ attrs: { class: 'text-sm text-slate-300' } }, [
-            D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [translate('listing.features', 'مميزات الوحدة:')]),
+            D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [translate('listing.features', 'مميزات الوحدة:', null, db)]),
             D.Lists.Ul({ attrs: { class: 'mt-2 space-y-1' } }, features.map(function (name) {
               return D.Lists.Li({ attrs: { class: 'text-slate-300' } }, [name]);
             }))
@@ -1147,12 +1152,12 @@
         : null,
       broker ? BrokerBadge(broker) : null,
       D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm pt-2 border-t border-white/5' } }, [
-        D.Text.Span({ attrs: { class: 'text-slate-400' } }, [translate('listing.price', 'السعر') || '']),
+        D.Text.Span({ attrs: { class: 'text-slate-400' } }, [translate('listing.price', 'السعر', null, db) || '']),
         D.Text.Strong({ attrs: { class: 'text-emerald-400 text-lg' } }, [formatPrice(model.listing)])
       ])
     ]);
   }
-  function InquiryForm(model) {
+  function InquiryForm(db, model) {
     return D.Forms.Form({
       attrs: {
         class: tw('space-y-3 rounded-3xl border border-white/5 bg-slate-900/40 p-6'),
@@ -1160,16 +1165,16 @@
         'data-listing-id': model.listing.id
       }
     }, [
-      D.Text.H3({ attrs: { class: 'text-lg font-semibold text-white' } }, [translate('listing.contact', 'اطلب معاينة أو اتصال')]),
-      D.Inputs.Input({ attrs: { name: 'leadName', placeholder: translate('forms.contactName', 'الاسم الكامل'), class: inputClass() } }),
-      D.Inputs.Input({ attrs: { name: 'leadPhone', placeholder: translate('forms.contactPhone', 'رقم الجوال'), class: inputClass(), type: 'tel' } }),
+      D.Text.H3({ attrs: { class: 'text-lg font-semibold text-white' } }, [translate('listing.contact', 'اطلب معاينة أو اتصال', null, db)]),
+      D.Inputs.Input({ attrs: { name: 'leadName', placeholder: translate('forms.contactName', 'الاسم الكامل', null, db), class: inputClass() } }),
+      D.Inputs.Input({ attrs: { name: 'leadPhone', placeholder: translate('forms.contactPhone', 'رقم الجوال', null, db), class: inputClass(), type: 'tel' } }),
       D.Inputs.Select({ attrs: { name: 'leadPreferred', class: inputClass() } }, [
-        D.Inputs.Option({ attrs: { value: 'any', selected: true } }, [translate('forms.preferredAny', 'أي وقت') || 'أي وقت']),
-        D.Inputs.Option({ attrs: { value: 'morning' } }, [translate('forms.preferredMorning', 'صباحاً') || 'صباحاً']),
-        D.Inputs.Option({ attrs: { value: 'evening' } }, [translate('forms.preferredEvening', 'مساءً') || 'مساءً'])
+        D.Inputs.Option({ attrs: { value: 'any', selected: true } }, [translate('forms.preferredAny', 'أي وقت', null, db) || 'أي وقت']),
+        D.Inputs.Option({ attrs: { value: 'morning' } }, [translate('forms.preferredMorning', 'صباحاً', null, db) || 'صباحاً']),
+        D.Inputs.Option({ attrs: { value: 'evening' } }, [translate('forms.preferredEvening', 'مساءً', null, db) || 'مساءً'])
       ]),
-      D.Inputs.Textarea({ attrs: { name: 'leadMessage', placeholder: translate('forms.message', 'اذكر احتياجاتك أو موعد التواصل المفضل'), class: inputClass(), rows: 3 } }),
-      D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30') } }, [translate('forms.submit', 'إرسال الطلب')])
+      D.Inputs.Textarea({ attrs: { name: 'leadMessage', placeholder: translate('forms.message', 'اذكر احتياجاتك أو موعد التواصل المفضل', null, db), class: inputClass(), rows: 3 } }),
+      D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30') } }, [translate('forms.submit', 'إرسال الطلب', null, db)])
     ]);
   }
 
@@ -1216,7 +1221,7 @@
     return D.Containers.Div({ attrs: { class: 'grid gap-4 md:grid-cols-2 lg:grid-cols-3' } }, cards);
   }
 
-  function BrokerProfile(broker, listingModels) {
+  function BrokerProfile(db, broker, listingModels) {
     var stats = D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs text-slate-400' } }, [
       broker.region_id ? Chip('منطقة: ' + broker.region_id) : null,
       broker.rating ? Chip('تقييم ' + broker.rating.toFixed(1)) : null,
@@ -1236,7 +1241,7 @@
       listingModels.length
         ? D.Containers.Div({ attrs: { class: 'space-y-2' } }, [
             D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, ['وحدات الوسيط']),
-            LatestListingsGrid(listingModels)
+            LatestListingsGrid(db, listingModels)
           ])
         : D.Text.P({ attrs: { class: 'text-sm text-slate-400' } }, ['لا توجد وحدات مرتبطة بهذا الوسيط حالياً.'])
     ]);
@@ -1284,16 +1289,16 @@
       inquiries = inquiries.filter(function (item) { return item.status === db.state.dashboard.inquiryStatus; });
     }
     if (!inquiries.length) {
-      return D.Containers.Div({ attrs: { class: 'rounded-3xl border border-white/5 bg-slate-900/30 p-6 text-sm text-slate-400' } }, [translate('dashboard.empty', 'لا توجد طلبات حالياً.')]);
+      return D.Containers.Div({ attrs: { class: 'rounded-3xl border border-white/5 bg-slate-900/30 p-6 text-sm text-slate-400' } }, [translate('dashboard.empty', 'لا توجد طلبات حالياً.', null, db)]);
     }
     var listingIndex = indexBy(listingModels.map(function (model) { return model.listing; }), 'id');
     var cards = inquiries.map(function (lead) {
       var listing = listingIndex[lead.listing_id];
       return D.Containers.Article({ attrs: { class: tw('space-y-2 rounded-2xl border border-white/5 bg-slate-950/50 p-4') } }, [
-        D.Text.Strong({ attrs: { class: 'text-sm text-white' } }, [lead.contact_name || translate('lead.potential', 'عميل محتمل')]),
-        D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [lead.contact_phone || translate('lead.noPhone', 'بدون هاتف')]),
+        D.Text.Strong({ attrs: { class: 'text-sm text-white' } }, [lead.contact_name || translate('lead.potential', 'عميل محتمل', null, db)]),
+        D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [lead.contact_phone || translate('lead.noPhone', 'بدون هاتف', null, db)]),
         lead.message ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-3' } }, [lead.message]) : null,
-        listing ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, [translate('listing.details', 'الوحدة') + ': ' + (listing.headline || listing.id)]) : null,
+        listing ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, [translate('listing.details', 'الوحدة', null, db) + ': ' + (listing.headline || listing.id)]) : null,
         D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-xs text-slate-500' } }, [
           D.Text.Span({}, [formatDate(lead.created_at)]),
           D.Forms.Button({
@@ -1304,18 +1309,18 @@
               'data-inquiry-id': lead.id,
               'data-next-status': lead.status === 'new' ? 'replied' : 'closed'
             }
-          }, [lead.status === 'new' ? translate('dashboard.assign', 'تعيين كمردود') : translate('dashboard.close', 'إغلاق')])
+          }, [lead.status === 'new' ? translate('dashboard.assign', 'تعيين كمردود', null, db) : translate('dashboard.close', 'إغلاق', null, db)])
         ])
       ]);
     });
     return D.Containers.Div({ attrs: { class: 'space-y-3' } }, [
       D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-sm text-slate-400' } }, [
-        translate('labels.orderByNewest', 'ترتيب حسب أحدث الطلبات'),
+        translate('labels.orderByNewest', 'ترتيب حسب أحدث الطلبات', null, db),
         D.Inputs.Select({ attrs: { class: inputClass('text-xs'), 'data-m-gkey': 'inquiry-filter', value: db.state.dashboard.inquiryStatus } }, [
-          D.Inputs.Option({ attrs: { value: 'all' } }, [translate('status.all', 'الكل') || 'الكل']),
-          D.Inputs.Option({ attrs: { value: 'new' } }, [translate('status.new', 'جديد')]),
-          D.Inputs.Option({ attrs: { value: 'replied' } }, [translate('status.replied', 'تم الرد')]),
-          D.Inputs.Option({ attrs: { value: 'closed' } }, [translate('status.closed', 'مغلق')])
+          D.Inputs.Option({ attrs: { value: 'all' } }, [translate('status.all', 'الكل', null, db) || 'الكل']),
+          D.Inputs.Option({ attrs: { value: 'new' } }, [translate('status.new', 'جديد', null, db)]),
+          D.Inputs.Option({ attrs: { value: 'replied' } }, [translate('status.replied', 'تم الرد', null, db)]),
+          D.Inputs.Option({ attrs: { value: 'closed' } }, [translate('status.closed', 'مغلق', null, db)])
         ])
       ]),
       D.Containers.Div({ attrs: { class: 'space-y-3' } }, cards)
@@ -1328,20 +1333,20 @@
     }).slice(0, 4);
     if (!notifications.length) return null;
     return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-4 space-y-3') } }, [
-      D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, [translate('misc.noNotifications', 'آخر التنبيهات')]),
+      D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, [translate('misc.noNotifications', 'آخر التنبيهات', null, db)]),
       D.Containers.Div({ attrs: { class: 'space-y-2 text-sm text-slate-300' } }, notifications.map(function (item) {
         return D.Containers.Div({ attrs: { key: item.id, class: 'rounded-2xl border border-white/5 bg-slate-950/40 p-3' } }, [
-          D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [item.title || translate('notification.title', 'تنبيه')]),
+          D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [item.title || translate('notification.title', 'تنبيه', null, db)]),
           D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [item.message]),
           D.Text.Span({ attrs: { class: 'text-[10px] text-slate-500' } }, [formatDate(item.created_at)])
         ]);
       }))
     ]);
   }
-  function ToastBanner(payload) {
+  function ToastBanner(db, payload) {
     return D.Containers.Div({ attrs: { class: tw('fixed top-4 inset-x-0 mx-auto max-w-md rounded-full border border-white/10 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-lg shadow-black/40 z-40 flex items-center justify-between gap-2') } }, [
-      D.Text.Span({}, [payload.message || translate('toast.defaultSuccess', 'تم تنفيذ العملية.')]),
-      D.Forms.Button({ attrs: { type: 'button', class: 'text-xs text-slate-400', 'data-m-gkey': 'toast-dismiss' } }, [translate('actions.dismiss', 'إغلاق')])
+      D.Text.Span({}, [payload.message || translate('toast.defaultSuccess', 'تم تنفيذ العملية.', null, db)]),
+      D.Forms.Button({ attrs: { type: 'button', class: 'text-xs text-slate-400', 'data-m-gkey': 'toast-dismiss' } }, [translate('actions.dismiss', 'إغلاق', null, db)])
     ]);
   }
 
@@ -1353,11 +1358,11 @@
     var pwa = db.state.pwa;
     if (!pwa) return null;
     return D.Containers.Div({ attrs: { class: tw('fixed bottom-20 inset-x-0 mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/80 p-4 text-sm text-white shadow-2xl shadow-black/50 z-40 space-y-2') } }, [
-      D.Text.Strong({ attrs: { class: 'text-base' } }, [translate('pwa.installTitle', 'حوّل المنصة إلى تطبيق')]),
-      D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [pwa.message || translate('pwa.installDesc', 'ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.')]),
+      D.Text.Strong({ attrs: { class: 'text-base' } }, [translate('pwa.installTitle', 'حوّل المنصة إلى تطبيق', null, db)]),
+      D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [pwa.message || translate('pwa.installDesc', 'ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.', null, db)]),
       D.Containers.Div({ attrs: { class: 'flex gap-2' } }, [
-        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, [translate('actions.install', 'تثبيت')]),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'لاحقاً')])
+        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, [translate('actions.install', 'تثبيت', null, db)]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'لاحقاً', null, db)])
       ])
     ]);
   }
@@ -1366,10 +1371,10 @@
     var pwa = db.state.pwa;
     return D.Containers.Div({ attrs: { class: tw('fixed inset-0 z-50 grid place-items-center bg-slate-950/95 backdrop-blur') } }, [
       D.Containers.Div({ attrs: { class: tw('max-w-sm space-y-4 rounded-3xl border border-white/10 bg-slate-900/80 p-6 text-center text-white') } }, [
-        D.Text.H2({ attrs: { class: 'text-xl font-semibold' } }, [translate('pwa.installRequired', 'تثبيت التطبيق مطلوب')]),
-        D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [pwa && pwa.message ? pwa.message : translate('pwa.installRequiredDesc', 'لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.')]),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, [translate('actions.installNow', 'تثبيت الآن')]),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'تخطي للاختبار')])
+        D.Text.H2({ attrs: { class: 'text-xl font-semibold' } }, [translate('pwa.installRequired', 'تثبيت التطبيق مطلوب', null, db)]),
+        D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [pwa && pwa.message ? pwa.message : translate('pwa.installRequiredDesc', 'لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.', null, db)]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, [translate('actions.installNow', 'تثبيت الآن', null, db)]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'تخطي للاختبار', null, db)])
       ])
     ]);
   }
@@ -1412,8 +1417,8 @@
     }, buttons);
   }
 
-  function LoadingSection() {
-    return D.Containers.Section({ attrs: { class: 'flex min-h-screen items-center justify-center text-slate-400' } }, [translate('misc.loading', 'جارِ تحميل بيانات الوسطاء...')]);
+  function LoadingSection(db) {
+    return D.Containers.Section({ attrs: { class: 'flex min-h-screen items-center justify-center text-slate-400' } }, [translate('misc.loading', 'جارِ تحميل بيانات الوسطاء...', null, db)]);
   }
   function HeaderSection(settings) {
     if (!settings) {
@@ -1499,31 +1504,31 @@
     });
     var unitTypes = (db.data.unitTypes || []).slice();
     var listingTypeValues = uniqueValues(listingModels.map(function (model) { return model.listing; }), 'listing_type');
-    var regionOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allRegions', 'كل المناطق')])].concat(regions.map(function (region) {
+    var regionOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allRegions', 'كل المناطق', null, db)])].concat(regions.map(function (region) {
       return D.Inputs.Option({ attrs: { value: region.id } }, [localized('regions', region.id, 'name', region.name || region.id, currentLang({ env: { lang: db.env.lang } }))]);
     }));
-    var unitTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allUnitTypes', 'كل أنواع الوحدات')])].concat(unitTypes.map(function (type) {
+    var unitTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allUnitTypes', 'كل أنواع الوحدات', null, db)])].concat(unitTypes.map(function (type) {
       return D.Inputs.Option({ attrs: { value: type.id } }, [localized('unit_types', type.id, 'name', type.name || type.id)]);
     }));
-    var listingTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allListings', 'كل طرق العرض')])].concat(listingTypeValues.map(function (value) {
-      return D.Inputs.Option({ attrs: { value: value } }, [formatListingType(value)]);
+    var listingTypeOptions = [D.Inputs.Option({ attrs: { value: '' } }, [translate('search.allListings', 'كل طرق العرض', null, db)])].concat(listingTypeValues.map(function (value) {
+      return D.Inputs.Option({ attrs: { value: value } }, [formatListingType(db, value)]);
     }));
     return D.Forms.Form({ attrs: { class: tw('space-y-4 rounded-3xl border border-white/5 bg-slate-900/60 p-6 text-white'), 'data-m-gkey': 'search-form' } }, [
-      D.Text.H3({ attrs: { class: 'text-lg font-semibold' } }, [translate('search.title', 'ابحث عن الوحدة المناسبة')]),
+      D.Text.H3({ attrs: { class: 'text-lg font-semibold' } }, [translate('search.title', 'ابحث عن الوحدة المناسبة', null, db)]),
       D.Containers.Div({ attrs: { class: 'grid gap-4 md:grid-cols-3' } }, [
-        SelectField({ label: translate('search.region', 'المنطقة'), options: regionOptions, value: filters.regionId || '', filterKey: 'regionId' }),
-        SelectField({ label: translate('search.unitType', 'نوع الوحدة'), options: unitTypeOptions, value: filters.unitTypeId || '', filterKey: 'unitTypeId' }),
-        SelectField({ label: translate('search.listingType', 'نوع العرض'), options: listingTypeOptions, value: filters.listingType || '', filterKey: 'listingType' })
+        SelectField({ label: translate('search.region', 'المنطقة', null, db), options: regionOptions, value: filters.regionId || '', filterKey: 'regionId' }),
+        SelectField({ label: translate('search.unitType', 'نوع الوحدة', null, db), options: unitTypeOptions, value: filters.unitTypeId || '', filterKey: 'unitTypeId' }),
+        SelectField({ label: translate('search.listingType', 'نوع العرض', null, db), options: listingTypeOptions, value: filters.listingType || '', filterKey: 'listingType' })
       ]),
       D.Containers.Div({ attrs: { class: 'flex justify-end' } }, [
-        D.Forms.Button({ attrs: { type: 'button', class: 'text-sm text-slate-300 underline', 'data-m-gkey': 'search-reset' } }, [translate('actions.resetFilters', 'إعادة التصفية')])
+        D.Forms.Button({ attrs: { type: 'button', class: 'text-sm text-slate-300 underline', 'data-m-gkey': 'search-reset' } }, [translate('actions.resetFilters', 'إعادة التصفية', null, db)])
       ])
     ]);
   }
 
-  function LatestListingsGrid(listingModels) {
+  function LatestListingsGrid(db, listingModels) {
     if (!listingModels.length) {
-      return D.Containers.Div({ attrs: { class: 'text-center text-sm text-slate-400' } }, [translate('listings.empty', 'لا توجد وحدات متاحة حالياً.')]);
+      return D.Containers.Div({ attrs: { class: 'text-center text-sm text-slate-400' } }, [translate('listings.empty', 'لا توجد وحدات متاحة حالياً.', null, db)]);
     }
     return D.Containers.Div({ attrs: { class: 'grid gap-3 sm:gap-4 sm:grid-cols-2' } }, listingModels.map(function (model) {
       return ListingCard(model);
@@ -1563,9 +1568,9 @@
     ]);
   }
 
-  function DetailToolbar() {
+  function DetailToolbar(db) {
     return D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm text-slate-300' } }, [
-      D.Forms.Button({ attrs: { type: 'button', class: 'text-slate-300', 'data-m-gkey': 'listing-back' } }, [translate('listing.back', '← العودة للنتائج')]),
+      D.Forms.Button({ attrs: { type: 'button', class: 'text-slate-300', 'data-m-gkey': 'listing-back' } }, [translate('listing.back', '← العودة للنتائج', null, db)]),
       D.Text.Span({}, [translateContent('listing.detail.subtitle', 'استكشف التفاصيل الكاملة للوحدة')])
     ]);
   }
@@ -1652,14 +1657,14 @@
     }
   }
 
-  function formatListingType(value) {
+  function formatListingType(db, value) {
     if (!value) return '';
     var normalized = String(value).toLowerCase();
-    if (normalized === 'sale') return translate('listing.type.sale', 'تمليك');
-    if (normalized === 'rent') return translate('listing.type.rent', 'إيجار');
-    if (normalized === 'lease') return translate('listing.type.lease', 'إيجار تشغيلي');
-    if (normalized === 'short-stay') return translate('listing.type.short', 'إيجار قصير');
-    return translate('listing.type.' + normalized, value);
+    if (normalized === 'sale') return translate('listing.type.sale', 'تمليك', null, db);
+    if (normalized === 'rent') return translate('listing.type.rent', 'إيجار', null, db);
+    if (normalized === 'lease') return translate('listing.type.lease', 'إيجار تشغيلي', null, db);
+    if (normalized === 'short-stay') return translate('listing.type.short', 'إيجار قصير', null, db);
+    return translate('listing.type.' + normalized, value, null, db);
   }
 
   function findById(rows, id) {
