@@ -189,20 +189,6 @@
     var locale = lang || (env && env.lang) || 'ar';
     var map = (env && env.i18n) || BASE_I18N;
     var entry = map[key];
-
-    // Debug شامل
-    if (key === 'nav.home') {
-      console.log('[translate DEBUG]', {
-        key: key,
-        locale: locale,
-        envLang: env && env.lang,
-        hasEntry: !!entry,
-        entryKeys: entry ? Object.keys(entry) : [],
-        entryEn: entry && entry.en,
-        mapKeysCount: Object.keys(map).length
-      });
-    }
-
     if (entry && entry[locale]) return entry[locale];
     if (entry && entry.ar) return entry.ar;
     return typeof fallback === 'string' ? fallback : key;
