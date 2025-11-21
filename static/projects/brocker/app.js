@@ -544,6 +544,21 @@
       handler: function (event, ctx) {
         if (event && typeof event.preventDefault === 'function') event.preventDefault();
         var currentDb = ctx.getState();
+
+        if (!currentDb.state.auth || !currentDb.state.auth.isAuthenticated) {
+          setToast(ctx, { kind: 'error', message: translate('toast.loginRequired', 'يجب تسجيل الدخول أولاً لإرسال استفسار.', null, currentDb) });
+          ctx.setState(function(db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, {
+                auth: Object.assign({}, db.state.auth, {
+                  showAuthModal: true
+                })
+              })
+            });
+          });
+          return;
+        }
+
         if (!realtime || !event || !event.target || typeof FormData === 'undefined') {
           setToast(ctx, { kind: 'error', message: translate('toast.connection', 'الاتصال غير متاح الآن.', null, currentDb) });
           return;
@@ -555,6 +570,11 @@
         var phone = (fd.get('leadPhone') || '').trim();
         var message = (fd.get('leadMessage') || '').trim();
         var preferred = (fd.get('leadPreferred') || 'any').trim() || 'any';
+
+        var user = currentDb.state.auth.user;
+        name = name || user.full_name || 'مستخدم';
+        phone = phone || user.phone || '';
+
         if (!listingId || !name || !phone || !message) {
           setToast(ctx, { kind: 'error', message: translate('toast.requiredFields', 'يرجى استكمال الحقول.', null, currentDb) });
           return;
@@ -565,13 +585,14 @@
           listing_id: listingId,
           unit_id: listing ? listing.unit_id : null,
           project_id: listing ? listing.project_id || null : null,
+          user_id: user ? user.id : null,
           message: message,
           status: 'new',
           contact_name: name,
           contact_phone: phone,
           contact_channel: 'phone',
           preferred_contact_time: preferred,
-          notes: 'Lead submitted from Mishkah brocker PWA',
+          notes: 'Lead submitted from Mishkah brocker PWA by ' + (user ? user.email : 'guest'),
           lang: (snapshot && snapshot.env && snapshot.env.lang) || 'ar',
           created_at: new Date().toISOString()
         };
@@ -878,6 +899,190 @@
           });
         }
       }
+    },
+    'ui.auth.show': {
+      on: ['click'],
+      gkeys: ['show-auth-modal'],
+      handler: function (_event, ctx) {
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: Object.assign({}, db.state.auth, {
+                showAuthModal: true,
+                stage: 'phone',
+                phone: '',
+                otp: ''
+              })
+            })
+          });
+        });
+      }
+    },
+    'ui.auth.close': {
+      on: ['click'],
+      gkeys: ['close-auth-modal'],
+      handler: function (_event, ctx) {
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: Object.assign({}, db.state.auth, {
+                showAuthModal: false
+              })
+            })
+          });
+        });
+      }
+    },
+    'ui.auth.switchMode': {
+      on: ['click'],
+      gkeys: ['switch-to-login', 'switch-to-register'],
+      handler: function (event, ctx) {
+        var target = event.currentTarget;
+        if (!target) return;
+        var gkey = target.getAttribute('data-m-gkey');
+        var mode = gkey === 'switch-to-login' ? 'login' : 'register';
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: Object.assign({}, db.state.auth, {
+                authMode: mode,
+                stage: 'phone',
+                phone: '',
+                otp: ''
+              })
+            })
+          });
+        });
+      }
+    },
+    'ui.auth.phoneInput': {
+      on: ['input'],
+      gkeys: ['auth-phone-input'],
+      handler: function (event, ctx) {
+        var value = event.target ? event.target.value : '';
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: Object.assign({}, db.state.auth, {
+                phone: value
+              })
+            })
+          });
+        });
+      }
+    },
+    'ui.auth.phoneSubmit': {
+      on: ['submit'],
+      gkeys: ['auth-phone-form'],
+      handler: function (event, ctx) {
+        if (event) event.preventDefault();
+        var currentDb = ctx.getState();
+        var phone = currentDb.state.auth.phone || '';
+
+        if (!validateEgyptianPhone(phone)) {
+          setToast(ctx, { kind: 'error', message: translate('auth.invalidPhone', 'رقم الموبايل غير صحيح. يجب أن يبدأ بـ 012/011/010/015', null, currentDb) });
+          return;
+        }
+
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: Object.assign({}, db.state.auth, {
+                stage: 'otp'
+              })
+            })
+          });
+        });
+        setToast(ctx, { kind: 'success', message: translate('auth.otpSent', 'تم إرسال رمز التحقق إلى ' + phone, null, currentDb) });
+      }
+    },
+    'ui.auth.otpInput': {
+      on: ['input'],
+      gkeys: ['auth-otp-input'],
+      handler: function (event, ctx) {
+        var value = event.target ? event.target.value : '';
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: Object.assign({}, db.state.auth, {
+                otp: value
+              })
+            })
+          });
+        });
+      }
+    },
+    'ui.auth.otpSubmit': {
+      on: ['submit'],
+      gkeys: ['auth-otp-form'],
+      handler: function (event, ctx) {
+        if (event) event.preventDefault();
+        var currentDb = ctx.getState();
+        var otp = currentDb.state.auth.otp || '';
+
+        if (otp !== '123456') {
+          setToast(ctx, { kind: 'error', message: translate('auth.invalidOtp', 'رمز التحقق غير صحيح', null, currentDb) });
+          return;
+        }
+
+        var users = currentDb.data.users || [];
+        var phone = currentDb.state.auth.phone || '';
+        var user = users.find(function(u) {
+          return u.phone === phone || u.phone === '+2' + phone.replace(/\D/g, '');
+        });
+
+        if (!user) {
+          user = {
+            id: 'user-test',
+            full_name: 'مستخدم تجريبي',
+            email: 'user@test.com',
+            phone: phone,
+            role: 'customer'
+          };
+        }
+
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: Object.assign({}, db.state.auth, {
+                isAuthenticated: true,
+                user: user,
+                showAuthModal: false
+              })
+            })
+          });
+        });
+        setToast(ctx, { kind: 'success', message: translate('auth.success', 'تم تسجيل الدخول بنجاح', null, currentDb) });
+      }
+    },
+    'ui.auth.backToPhone': {
+      on: ['click'],
+      gkeys: ['auth-back-to-phone'],
+      handler: function (_event, ctx) {
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: Object.assign({}, db.state.auth, {
+                stage: 'phone',
+                otp: ''
+              })
+            })
+          });
+        });
+      }
+    },
+    'ui.auth.navigate': {
+      on: ['click'],
+      gkeys: ['navigate-dashboard'],
+      handler: function (_event, ctx) {
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              activeView: 'dashboard'
+            })
+          });
+        });
+      }
     }
   };
   function SubscribeModal(db) {
@@ -952,6 +1157,117 @@
     ]);
   }
 
+  function validateEgyptianPhone(phone) {
+    if (!phone) return false;
+    var cleaned = phone.replace(/\D/g, '');
+    if (cleaned.startsWith('20')) cleaned = cleaned.substring(2);
+    if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+    if (cleaned.length !== 10) return false;
+    var prefix = cleaned.substring(0, 2);
+    return prefix === '10' || prefix === '11' || prefix === '12' || prefix === '15';
+  }
+
+  function AuthModal(db) {
+    if (!db.state.auth || !db.state.auth.showAuthModal) return null;
+    var auth = db.state.auth;
+    var mode = auth.authMode || 'login';
+    var stage = auth.stage || 'phone';
+    var isRegister = mode === 'register';
+
+    return D.Containers.Div({ attrs: { class: 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm' } }, [
+      D.Containers.Div({ attrs: { class: tw('w-full max-w-md rounded-2xl p-6 shadow-2xl transition-colors', themed(db, 'bg-slate-900 text-white', 'bg-white text-slate-900')) } }, [
+        D.Containers.Div({ attrs: { class: 'flex items-center justify-between mb-6' } }, [
+          D.Text.H2({ attrs: { class: 'text-2xl font-bold' } }, [
+            isRegister ? translate('auth.register', 'إنشاء حساب', null, db) : translate('auth.login', 'تسجيل الدخول', null, db)
+          ]),
+          D.Forms.Button({
+            attrs: {
+              type: 'button',
+              'data-m-gkey': 'close-auth-modal',
+              class: tw('w-8 h-8 flex items-center justify-center rounded-full transition-colors', themed(db, 'hover:bg-slate-800', 'hover:bg-slate-100'))
+            }
+          }, ['✕'])
+        ]),
+
+        D.Containers.Div({ attrs: { class: 'flex gap-2 mb-6' } }, [
+          D.Forms.Button({
+            attrs: {
+              type: 'button',
+              'data-m-gkey': 'switch-to-login',
+              class: tw('flex-1 py-2 rounded-lg font-bold transition-colors', mode === 'login' ? themed(db, 'bg-emerald-500 text-white', 'bg-emerald-600 text-white') : themed(db, 'bg-slate-800 text-slate-400', 'bg-slate-100 text-slate-600'))
+            }
+          }, [translate('auth.login', 'دخول', null, db)]),
+          D.Forms.Button({
+            attrs: {
+              type: 'button',
+              'data-m-gkey': 'switch-to-register',
+              class: tw('flex-1 py-2 rounded-lg font-bold transition-colors', mode === 'register' ? themed(db, 'bg-emerald-500 text-white', 'bg-emerald-600 text-white') : themed(db, 'bg-slate-800 text-slate-400', 'bg-slate-100 text-slate-600'))
+            }
+          }, [translate('auth.register', 'اشتراك', null, db)])
+        ]),
+
+        stage === 'phone' ? D.Forms.Form({ attrs: { 'data-m-gkey': 'auth-phone-form', class: 'space-y-4' } }, [
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.phone', 'رقم الموبايل', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'tel',
+                name: 'phone',
+                value: auth.phone || '+2',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: '+201234567890',
+                'data-m-gkey': 'auth-phone-input'
+              }
+            }),
+            D.Text.P({ attrs: { class: 'text-xs mt-1 text-slate-400' } }, ['يجب أن يبدأ الرقم بـ: 012, 011, 010, 015'])
+          ]),
+          D.Forms.Button({
+            attrs: {
+              type: 'submit',
+              class: tw('w-full py-3 rounded-lg font-bold transition-all hover:scale-[1.02]', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white', 'bg-emerald-600 hover:bg-emerald-700 text-white'))
+            }
+          }, [translate('auth.continue', 'متابعة', null, db)])
+        ]) : null,
+
+        stage === 'otp' ? D.Forms.Form({ attrs: { 'data-m-gkey': 'auth-otp-form', class: 'space-y-4' } }, [
+          D.Text.P({ attrs: { class: 'text-sm text-center mb-4' } }, [
+            translate('auth.otpSent', 'تم إرسال رمز التحقق إلى ', null, db) + (auth.phone || '')
+          ]),
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.otp', 'رمز التحقق', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                name: 'otp',
+                value: auth.otp || '',
+                required: true,
+                maxlength: '6',
+                class: tw('w-full px-4 py-3 rounded-lg border text-center text-2xl tracking-widest transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: '123456',
+                'data-m-gkey': 'auth-otp-input'
+              }
+            }),
+            D.Text.P({ attrs: { class: 'text-xs mt-1 text-slate-400' } }, ['للتجربة: استخدم 123456'])
+          ]),
+          D.Forms.Button({
+            attrs: {
+              type: 'submit',
+              class: tw('w-full py-3 rounded-lg font-bold transition-all hover:scale-[1.02]', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white', 'bg-emerald-600 hover:bg-emerald-700 text-white'))
+            }
+          }, [translate('auth.verify', 'تحقق', null, db)]),
+          D.Forms.Button({
+            attrs: {
+              type: 'button',
+              'data-m-gkey': 'auth-back-to-phone',
+              class: tw('w-full py-2 text-sm', themed(db, 'text-slate-400 hover:text-white', 'text-slate-600 hover:text-slate-900'))
+            }
+          }, ['← ' + translate('auth.changePhone', 'تغيير الرقم', null, db)])
+        ]) : null
+      ])
+    ]);
+  }
+
   function AppView(db) {
     var listingModels = buildListingModels(db);
     var view = db.state.activeView;
@@ -976,7 +1292,8 @@
       BottomNav(db),
       installBanner,
       db.state.pwa && db.state.pwa.showGate ? InstallGate(db) : null,
-      SubscribeModal(db)
+      SubscribeModal(db),
+      db.state.auth && db.state.auth.showAuthModal ? AuthModal(db) : null
     ]);
   }
 
