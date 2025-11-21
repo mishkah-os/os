@@ -9,15 +9,15 @@ const CACHE_DYNAMIC = 'sbn-dynamic-v1';
 
 // Files to cache on install
 const STATIC_CACHE_FILES = [
-  '/static/projects/sbn/',
-  '/static/projects/sbn/index.html',
-  '/static/projects/sbn/app.js',
-  '/static/projects/sbn/manifest.json',
-  '/static/lib/mishkah.core.js',
-  '/static/lib/mishkah.store.js',
-  '/static/lib/mishkah.div.js',
-  '/static/lib/mishkah-utils.js',
-  '/static/lib/mishkah-css.css'
+  '/projects/sbn/',
+  '/projects/sbn/index.html',
+  '/projects/sbn/app.js',
+  '/projects/sbn/manifest.json',
+  '/lib/mishkah.core.js',
+  '/lib/mishkah.store.js',
+  '/lib/mishkah.div.js',
+  '/lib/mishkah-utils.js',
+  '/lib/mishkah-css.css'
 ];
 
 // Install event - cache static files
@@ -133,7 +133,7 @@ self.addEventListener('fetch', (event) => {
             console.error('[SW] Fetch error:', err);
 
             // Return offline page if available
-            return caches.match('/static/projects/sbn/index.html');
+            return caches.match('/projects/sbn/index.html');
           });
       })
   );
@@ -183,8 +183,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'مستعمل حوا';
   const options = {
     body: data.body || 'لديك إشعار جديد',
-    icon: '/static/projects/sbn/icons/icon-192x192.png',
-    badge: '/static/projects/sbn/icons/badge-72x72.png',
+    icon: '/projects/sbn/icons/icon-192x192.png',
+    badge: '/projects/sbn/icons/badge-72x72.png',
     vibrate: [200, 100, 200],
     data: data,
     actions: [
@@ -212,7 +212,7 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'open') {
     event.waitUntil(
-      clients.openWindow('/static/projects/sbn/')
+      clients.openWindow('/projects/sbn/')
     );
   }
 });
