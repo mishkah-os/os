@@ -190,9 +190,9 @@
     var map = (env && env.i18n) || BASE_I18N;
     var entry = map[key];
 
-    // Debug logging
-    if (key === 'nav.home' && console && console.log) {
-      console.log('[translate] key=', key, 'locale=', locale, 'entry=', entry, 'map keys=', Object.keys(map).length);
+    // Debug: log كل مرة للتأكد من وجود الترجمة
+    if (console && console.log && entry && locale === 'en' && !entry[locale]) {
+      console.warn('[translate] Missing EN translation for:', key, 'entry:', entry);
     }
 
     if (entry && entry[locale]) return entry[locale];
@@ -834,18 +834,19 @@
 
   function PreferencesBar(db) {
     var lang = currentLang(db);
-    var themeIcon = themed(db, '☀️', '🌙'); // عكس الأيقونة: لو dark يعرض شمس (تحول ل light)
-    var langText = lang === 'ar' ? 'EN' : 'AR'; // عرض اللغة المستهدفة
+    var themeIcon = themed(db, '☀️', '🌙');
+    var langText = lang === 'ar' ? 'EN' : 'AR';
     var isLoading = db.state && db.state.loading;
     var settings = db.data && db.data.appSettings;
-    var brandName = settings && settings.brand_name ? settings.brand_name : 'عقار برو';
-    var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '🏢';
+    var brandName = settings && settings.brand_name ? settings.brand_name : 'مكاتب عقارات';
+    var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+    var displayName = lang === 'en' ? 'Makateb Aqarat' : brandName;
 
     return D.Containers.Div({ attrs: { class: tw('fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b transition-all duration-300', themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')) } }, [
       D.Containers.Div({ attrs: { class: 'mx-auto flex max-w-xl items-center justify-between px-4 py-3' } }, [
         D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
-          D.Text.Span({ attrs: { class: 'text-lg' } }, [brandLogo]),
-          D.Text.Span({ attrs: { class: tw('text-sm font-bold tracking-tight', themed(db, 'text-white', 'text-slate-900')) } }, [brandName])
+          D.Media.Img({ attrs: { src: brandLogo, alt: displayName, class: 'h-6 w-6 object-contain' } }),
+          D.Text.Span({ attrs: { class: tw('text-sm font-bold tracking-tight', themed(db, 'text-white', 'text-slate-900')) } }, [displayName])
         ]),
         D.Containers.Div({ attrs: { class: 'flex items-center gap-2' } }, [
           isLoading ? D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-xs text-slate-400' } }, [
@@ -917,6 +918,21 @@
         })
       ]),
 
+      // زر اشترك معنا
+      D.Containers.Div({ attrs: { class: 'flex justify-center' } }, [
+        whatsapp ? D.Text.A({
+          attrs: {
+            href: 'https://wa.me/' + whatsapp.replace(/\D/g, '') + '?text=' + encodeURIComponent('أريد الاشتراك كمكتب عقارات'),
+            target: '_blank',
+            rel: 'noopener noreferrer',
+            class: tw('flex items-center gap-3 px-6 py-3 rounded-full text-base font-bold transition-all shadow-lg', themed({ env: activeEnv() }, 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30', 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/30'))
+          }
+        }, [
+          D.Text.Span({ attrs: { class: 'text-2xl' } }, ['✨']),
+          D.Text.Span({}, [translate('footer.subscribe', 'اشترك معنا الآن')])
+        ]) : null
+      ]),
+
       // أيقونات التواصل
       D.Containers.Div({ attrs: { class: 'space-y-3' } }, [
         D.Text.P({ attrs: { class: tw('text-sm font-semibold', themed({ env: activeEnv() }, 'text-slate-200', 'text-slate-700')) } }, [translate('footer.contact', 'تواصل معنا')]),
@@ -957,7 +973,6 @@
     var filtered = filterListings(listingModels, db.state.filters).slice(0, 6);
     var heroSection = slides.length ? HeroSection(settings, slides) : null;
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-6 pt-4 space-y-6 max-w-xl mx-auto') } }, [
-      HeaderSection(settings),
       heroSection,
       SearchPanel(db, listingModels),
       LatestListingsGrid(filtered),

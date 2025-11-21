@@ -66,11 +66,11 @@
       {
         "id": "brocker-app-config",
         "lang": "ar",
-        "brand_name": "عقار برو",
+        "brand_name": "مكاتب عقارات",
         "tagline": "منصة ذكية لإدارة مكاتب العقارات",
         "hero_title": "منصة متكاملة للوسطاء",
         "hero_subtitle": "ابحث، أدر، وتابع طلبات عملائك بسهولة.",
-        "brand_logo": "🏢",
+        "brand_logo": "/projects/brocker/images/logo.svg",
         "support_phone": "+201222334455",
         "support_whatsapp": "+201222334455",
         "theme_color": "#0f172a",
