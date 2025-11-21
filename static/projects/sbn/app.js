@@ -16,10 +16,38 @@
   }
 
   var D = M.DSL;
-  if (!D) {
-    console.error('[SBN PWA] Mishkah DSL is required.');
-    return;
+  // Support for unified mishkah.js with auto-loading
+  function ensureDslBinding(source) {
+    if (source && source.DSL) {
+      D = source.DSL;
+      return;
+    }
+    if (global.Mishkah && global.Mishkah.DSL) {
+      D = global.Mishkah.DSL;
+    }
   }
+  if (!D) {
+    ensureDslBinding(global.Mishkah);
+    if (!D && global.MishkahAuto && typeof global.MishkahAuto.ready === 'function') {
+      try {
+        global.MishkahAuto.ready(function (readyM) {
+          ensureDslBinding(readyM);
+        });
+      } catch (err) {
+        console.warn('[SBN PWA] unable to sync Mishkah DSL binding', err);
+      }
+    }
+  }
+
+  // TailwindCSS utilities
+  var UI = M.UI || {};
+  var twcss = (M.utils && M.utils.twcss) || {};
+  var tw = typeof twcss.tw === 'function'
+    ? twcss.tw
+    : function () {
+        return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');
+      };
+  var token = typeof twcss.token === 'function' ? twcss.token : function () { return ''; };
 
   // ================== CONFIGURATION ==================
   var BRANCH_ID = 'sbn';
@@ -111,15 +139,23 @@
    * Apply theme to document
    */
   function applyTheme(theme) {
-    global.document.documentElement.setAttribute('data-theme', theme || 'light');
+    var resolvedTheme = theme || 'light';
+    global.document.documentElement.setAttribute('data-theme', resolvedTheme);
+    // Update meta theme-color for mobile browsers
+    var metaTheme = global.document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.content = resolvedTheme === 'dark' ? '#0f172a' : '#6366f1';
+    }
   }
 
   /**
    * Apply language to document
    */
   function applyLang(lang, dir) {
-    global.document.documentElement.setAttribute('lang', lang || 'ar');
-    global.document.documentElement.setAttribute('dir', dir || 'rtl');
+    var resolvedLang = lang || 'ar';
+    var resolvedDir = dir || (resolvedLang === 'ar' ? 'rtl' : 'ltr');
+    global.document.documentElement.setAttribute('lang', resolvedLang);
+    global.document.documentElement.setAttribute('dir', resolvedDir);
   }
 
   // ================== INITIAL STATE ==================
