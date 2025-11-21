@@ -1022,7 +1022,8 @@
     ]);
   }
 
-  function FooterSection(settings) {
+  function FooterSection(db) {
+    var settings = db.data && db.data.appSettings;
     var brandName = settings && settings.brand_name ? settings.brand_name : 'عقار برو';
     var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '/projects/brocker/images/logo.svg';
     var heroTitle = settings && settings.hero_title
@@ -1036,19 +1037,19 @@
 
     return D.Containers.Footer({ attrs: { class: tw(
       'mt-12 rounded-3xl border p-6 space-y-6 shadow-lg transition-colors',
-      themed({ env: activeEnv() }, 'border-white/5 bg-gradient-to-br from-slate-900/85 to-slate-950/90 text-white', 'border-slate-200 bg-white text-slate-900')
+      themed(db, 'border-white/5 bg-gradient-to-br from-slate-900/85 to-slate-950/90 text-white', 'border-slate-200 bg-white text-slate-900')
     ) } }, [
       // شعار واسم المنصة
       D.Containers.Div({ attrs: { class: 'flex items-center gap-3' } }, [
         D.Media.Img({ attrs: { src: brandLogo, alt: brandName, class: 'h-12 w-12 object-contain' } }),
         D.Containers.Div({}, [
           D.Text.H3({ attrs: { class: 'text-xl font-bold' } }, [brandName]),
-          D.Text.P({ attrs: { class: tw('text-sm', themed({ env: activeEnv() }, 'text-slate-300', 'text-slate-600')) } }, [heroTitle])
+          D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-300', 'text-slate-600')) } }, [heroTitle])
         ])
       ]),
 
       // الوصف
-      D.Text.P({ attrs: { class: tw('text-sm leading-relaxed', themed({ env: activeEnv() }, 'text-slate-300', 'text-slate-600')) } }, [heroSubtitle]),
+      D.Text.P({ attrs: { class: tw('text-sm leading-relaxed', themed(db, 'text-slate-300', 'text-slate-600')) } }, [heroSubtitle]),
 
       // فيديو ترويجي
       D.Containers.Div({ attrs: { class: 'rounded-2xl overflow-hidden aspect-video' } }, [
@@ -1070,17 +1071,17 @@
           attrs: {
             type: 'button',
             'data-m-gkey': 'subscribe-cta',
-            class: tw('flex items-center gap-3 px-8 py-4 rounded-full text-lg font-bold transition-all shadow-lg hover:scale-105', themed({ env: activeEnv() }, 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30', 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/30'))
+            class: tw('flex items-center gap-3 px-8 py-4 rounded-full text-lg font-bold transition-all shadow-lg hover:scale-105', themed(db, 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30', 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/30'))
           }
         }, [
           D.Text.Span({ attrs: { class: 'text-2xl' } }, ['✨']),
-          D.Text.Span({}, [translate('footer.subscribe', 'اشترك معنا الآن')])
+          D.Text.Span({}, [translate('footer.subscribe', 'اشترك معنا الآن', null, db)])
         ])
       ]),
 
       // حقوق النشر
-      D.Containers.Div({ attrs: { class: tw('pt-4 border-t text-center text-xs', themed({ env: activeEnv() }, 'border-white/10 text-slate-400', 'border-slate-200 text-slate-500')) } }, [
-        D.Text.P({}, ['© 2025 ' + brandName + ' • ' + translate('footer.rights', 'جميع الحقوق محفوظة')])
+      D.Containers.Div({ attrs: { class: tw('pt-4 border-t text-center text-xs', themed(db, 'border-white/10 text-slate-400', 'border-slate-200 text-slate-500')) } }, [
+        D.Text.P({}, ['© 2025 ' + brandName + ' • ' + translate('footer.rights', 'جميع الحقوق محفوظة', null, db)])
       ])
     ]);
   }
@@ -1093,7 +1094,7 @@
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-6 pt-4 space-y-6 max-w-xl mx-auto') } }, [
       SearchPanel(db, listingModels),
       LatestListingsGrid(filtered),
-      FooterSection(settings)
+      FooterSection(db)
     ]);
   }
   function ListingDetailView(db, listingModels) {
@@ -1536,7 +1537,7 @@
     if (!listingModels.length) {
       return D.Containers.Div({ attrs: { class: 'text-center text-sm text-slate-400' } }, [translate('listings.empty', 'لا توجد وحدات متاحة حالياً.')]);
     }
-    return D.Containers.Div({ attrs: { class: 'grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3' } }, listingModels.map(function (model) {
+    return D.Containers.Div({ attrs: { class: 'grid gap-3 sm:gap-4 sm:grid-cols-2' } }, listingModels.map(function (model) {
       return ListingCard(model);
     }));
   }
