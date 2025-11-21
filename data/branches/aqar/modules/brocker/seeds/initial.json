@@ -754,12 +754,28 @@
         "primary_highlight": "Ready for Delivery"
       },
       {
-        "id": "listing-lang-nour-0902-en",
-        "listings_id": "listing-nour-0902-rent",
+        "id": "listing-lang-nour-1203-en",
+        "listings_id": "listing-nour-1203-rent",
         "lang": "en",
-        "headline": "Furnished 2BR with City View",
-        "excerpt": "120sqm fully furnished with balcony in New Cairo",
-        "primary_highlight": "Available Now"
+        "headline": "Fully Furnished Apartment",
+        "excerpt": "Modern furnished apartment in prime location",
+        "primary_highlight": "Move-in Ready"
+      },
+      {
+        "id": "listing-lang-hayat-villa05-en",
+        "listings_id": "listing-hayat-villa05",
+        "lang": "en",
+        "headline": "Standalone Villa with 120sqm Garden",
+        "excerpt": "Spacious villa with private garden in gated community",
+        "primary_highlight": "Exclusive Location"
+      },
+      {
+        "id": "listing-lang-capital-retail-a3-en",
+        "listings_id": "listing-capital-retail-a3",
+        "lang": "en",
+        "headline": "Commercial Shop with 9m Frontage",
+        "excerpt": "Prime commercial space in high-traffic area",
+        "primary_highlight": "High ROI"
       }
     ],
     "unit_features_lang": [],
