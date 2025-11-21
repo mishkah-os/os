@@ -36,15 +36,41 @@
         "is_primary_market": false
       }
     ],
+    "regions_lang": [
+      {
+        "id": "region-lang-new-cairo-en",
+        "regions_id": "region-new-cairo",
+        "lang": "en",
+        "name": "New Cairo",
+        "city": "New Cairo",
+        "country": "Egypt"
+      },
+      {
+        "id": "region-lang-zayed-en",
+        "regions_id": "region-zayed",
+        "lang": "en",
+        "name": "Sheikh Zayed",
+        "city": "Giza",
+        "country": "Egypt"
+      },
+      {
+        "id": "region-lang-capital-en",
+        "regions_id": "region-capital",
+        "lang": "en",
+        "name": "New Administrative Capital",
+        "city": "Cairo",
+        "country": "Egypt"
+      }
+    ],
     "app_settings": [
       {
         "id": "brocker-app-config",
         "lang": "ar",
-        "brand_name": "Brocker Mishkah",
+        "brand_name": "عقار برو",
         "tagline": "منصة ذكية لإدارة مكاتب العقارات",
         "hero_title": "منصة متكاملة للوسطاء",
-        "hero_subtitle": "ابحث، أدر، وتابع طلبات عملائك عبر تجربة PWA مصممة للموبايل.",
-        "brand_logo": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons@latest/icons/filled/building-community.svg",
+        "hero_subtitle": "ابحث، أدر، وتابع طلبات عملائك بسهولة.",
+        "brand_logo": "🏢",
         "support_phone": "+201222334455",
         "support_whatsapp": "+201222334455",
         "theme_color": "#0f172a",

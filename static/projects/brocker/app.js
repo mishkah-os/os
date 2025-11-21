@@ -189,6 +189,12 @@
     var locale = lang || (env && env.lang) || 'ar';
     var map = (env && env.i18n) || BASE_I18N;
     var entry = map[key];
+
+    // Debug logging
+    if (key === 'nav.home' && console && console.log) {
+      console.log('[translate] key=', key, 'locale=', locale, 'entry=', entry, 'map keys=', Object.keys(map).length);
+    }
+
     if (entry && entry[locale]) return entry[locale];
     if (entry && entry.ar) return entry.ar;
     return typeof fallback === 'string' ? fallback : key;
