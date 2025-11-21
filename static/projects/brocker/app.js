@@ -831,12 +831,13 @@
         console.log('[Subscribe] Form submitted:', { name, phone, email });
 
         // إغلاق النموذج وعرض رسالة نجاح
+        var currentDb = ctx.getState();
         ctx.setState(function(db) {
           return Object.assign({}, db, {
             state: Object.assign({}, db.state, {
               showSubscribeModal: false,
               toast: {
-                message: translate('subscribe.success', 'تم إرسال طلبك بنجاح! سنتواصل معك قريباً.'),
+                message: translate('subscribe.success', 'تم إرسال طلبك بنجاح! سنتواصل معك قريباً.', null, currentDb),
                 type: 'success'
               }
             })
@@ -897,7 +898,7 @@
       D.Containers.Div({ attrs: { class: tw('w-full max-w-md rounded-2xl p-6 shadow-2xl transition-colors', themed(db, 'bg-slate-900 text-white', 'bg-white text-slate-900')) } }, [
         // العنوان وزر الإغلاق
         D.Containers.Div({ attrs: { class: 'flex items-center justify-between mb-6' } }, [
-          D.Text.H2({ attrs: { class: 'text-2xl font-bold' } }, [translate('subscribe.title', 'اشترك معنا')]),
+          D.Text.H2({ attrs: { class: 'text-2xl font-bold' } }, [translate('subscribe.title', 'اشترك معنا', null, db)]),
           D.Forms.Button({
             attrs: {
               type: 'button',
@@ -911,41 +912,41 @@
         D.Forms.Form({ attrs: { 'data-m-gkey': 'subscribe-form', class: 'space-y-4' } }, [
           // الاسم
           D.Containers.Div({}, [
-            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.name', 'الاسم')]),
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.name', 'الاسم', null, db)]),
             D.Inputs.Input({
               attrs: {
                 type: 'text',
                 name: 'name',
                 required: true,
                 class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
-                placeholder: translate('subscribe.namePlaceholder', 'أدخل اسمك')
+                placeholder: translate('subscribe.namePlaceholder', 'أدخل اسمك', null, db)
               }
             })
           ]),
 
           // الهاتف
           D.Containers.Div({}, [
-            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.phone', 'رقم الهاتف')]),
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.phone', 'رقم الهاتف', null, db)]),
             D.Inputs.Input({
               attrs: {
                 type: 'tel',
                 name: 'phone',
                 required: true,
                 class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
-                placeholder: translate('subscribe.phonePlaceholder', '05xxxxxxxx')
+                placeholder: translate('subscribe.phonePlaceholder', '05xxxxxxxx', null, db)
               }
             })
           ]),
 
           // البريد الإلكتروني (اختياري)
           D.Containers.Div({}, [
-            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.email', 'البريد الإلكتروني') + ' (' + translate('subscribe.optional', 'اختياري') + ')']),
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.email', 'البريد الإلكتروني', null, db) + ' (' + translate('subscribe.optional', 'اختياري', null, db) + ')']),
             D.Inputs.Input({
               attrs: {
                 type: 'email',
                 name: 'email',
                 class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
-                placeholder: translate('subscribe.emailPlaceholder', 'example@email.com')
+                placeholder: translate('subscribe.emailPlaceholder', 'example@email.com', null, db)
               }
             })
           ]),
@@ -956,7 +957,7 @@
               type: 'submit',
               class: tw('w-full py-3 rounded-lg font-bold transition-all hover:scale-[1.02]', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white', 'bg-emerald-600 hover:bg-emerald-700 text-white'))
             }
-          }, [translate('subscribe.submit', 'إرسال الطلب')])
+          }, [translate('subscribe.submit', 'إرسال الطلب', null, db)])
         ])
       ])
     ]);
@@ -1400,10 +1401,10 @@
 
   function BottomNav(db) {
     var navItems = [
-      { key: 'nav-home', label: translate('nav.home', 'الرئيسية'), view: 'home', icon: '🏠' },
-      { key: 'nav-brokers', label: translate('nav.brokers', 'الوسطاء'), view: 'brokers', icon: '👥' },
-      { key: 'nav-dashboard', label: translate('nav.dashboard', 'الطلبات'), view: 'dashboard', icon: '📋' },
-      { key: 'nav-listing', label: translate('nav.listing', 'تفاصيل'), view: 'listing', icon: '📍' }
+      { key: 'nav-home', label: translate('nav.home', 'الرئيسية', null, db), view: 'home', icon: '🏠' },
+      { key: 'nav-brokers', label: translate('nav.brokers', 'الوسطاء', null, db), view: 'brokers', icon: '👥' },
+      { key: 'nav-dashboard', label: translate('nav.dashboard', 'الطلبات', null, db), view: 'dashboard', icon: '📋' },
+      { key: 'nav-listing', label: translate('nav.listing', 'تفاصيل', null, db), view: 'listing', icon: '📍' }
     ];
 
     var buttons = navItems.map(function (item) {
