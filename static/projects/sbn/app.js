@@ -993,7 +993,7 @@
           historyLimit: 200,
           autoReconnect: true,
           logger: console,
-          lang: app.database.env.lang
+          lang: (app && app.database && app.database.env) ? app.database.env.lang : initialDatabase.env.lang
         });
 
         return realtime.ready().then(function() {
