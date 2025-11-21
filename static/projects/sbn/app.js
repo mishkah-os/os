@@ -7,133 +7,211 @@
 (function() {
   'use strict';
 
+  // ================== MISHKAH SETUP ==================
+  var global = window;
+  var M = global.Mishkah;
+  if (!M) {
+    console.error('[SBN PWA] Mishkah core is required.');
+    return;
+  }
+
+  var D = M.DSL;
+  if (!D) {
+    console.error('[SBN PWA] Mishkah DSL is required.');
+    return;
+  }
+
   // ================== CONFIGURATION ==================
   var BRANCH_ID = 'sbn';
   var MODULE_ID = 'mostamal';
+  var PREF_STORAGE_KEY = 'sbn:prefs:v1';
 
-  // Store instance
-  var store = null;
+  var BASE_I18N = {};
+  var realtime = null;
 
-  // ================== TRANSLATION HELPER ==================
-  /**
-   * Build i18n dictionary from sbn_ui_labels table
-   * Returns object like: { 'app.name': { ar: 'مستعمل حوا', en: 'Mostamal Hawa' } }
-   */
-  function buildI18nDict(labelRows) {
-    var dict = {};
-    if (!labelRows || !Array.isArray(labelRows)) return dict;
-
-    labelRows.forEach(function(row) {
-      if (!row || !row.label_key || !row.lang || !row.text) return;
-
-      if (!dict[row.label_key]) {
-        dict[row.label_key] = {};
-      }
-      dict[row.label_key][row.lang] = row.text;
-    });
-
-    return dict;
-  }
-
-  // ================== DATA LOADING ==================
-  var appData = {
-    uiLabels: [],
-    products: [],
-    services: [],
-    articles: [],
-    categories: [],
-    users: [],
-    loaded: false,
-    error: null
+  // ================== TABLE MAPPINGS ==================
+  var TABLE_TO_DATA_KEY = {
+    'sbn_ui_labels': 'uiLabels',
+    'sbn_products': 'products',
+    'sbn_services': 'services',
+    'sbn_wiki_articles': 'articles',
+    'sbn_categories': 'categories',
+    'sbn_users': 'users'
   };
 
+  // ================== HELPERS ==================
+
   /**
-   * Load all application data from backend
+   * Build i18n dictionary from sbn_ui_labels table
    */
-  async function loadAppData() {
+  function buildTranslationMaps(rows) {
+    var ui = {};
+    (rows || []).forEach(function (row) {
+      if (!row || !row.label_key || !row.lang || !row.text) return;
+      if (!ui[row.label_key]) ui[row.label_key] = {};
+      ui[row.label_key][row.lang] = row.text;
+    });
+    return { ui: ui };
+  }
+
+  /**
+   * Get current env from app database
+   */
+  function activeEnv() {
+    return app && app.database && app.database.env ? app.database.env : null;
+  }
+
+  /**
+   * Translate helper function
+   */
+  function translate(key, fallback, lang) {
+    var env = activeEnv();
+    var locale = lang || (env && env.lang) || 'ar';
+    var map = (env && env.i18n) || BASE_I18N;
+    var entry = map[key];
+    if (entry && entry[locale]) return entry[locale];
+    if (entry && entry.ar) return entry.ar;
+    return typeof fallback === 'string' ? fallback : key;
+  }
+
+  /**
+   * Shorthand for translate
+   */
+  function t(key, fallback) {
+    return translate(key, fallback);
+  }
+
+  /**
+   * Load persisted preferences
+   */
+  function loadPersistedPrefs() {
     try {
-      console.log('Loading application data...');
-
-      // Load UI labels first (critical for i18n)
-      var labelsResult = await store.query('sbn_ui_labels', {});
-      appData.uiLabels = labelsResult.rows || [];
-      console.log('Loaded UI labels:', appData.uiLabels.length);
-
-      // Load categories (needed for filtering)
-      var categoriesResult = await store.query('sbn_categories', {});
-      appData.categories = categoriesResult.rows || [];
-      console.log('Loaded categories:', appData.categories.length);
-
-      // Load products
-      var productsResult = await store.query('sbn_products', {});
-      appData.products = productsResult.rows || [];
-      console.log('Loaded products:', appData.products.length);
-
-      // Load services
-      var servicesResult = await store.query('sbn_services', {});
-      appData.services = servicesResult.rows || [];
-      console.log('Loaded services:', appData.services.length);
-
-      // Load wiki articles
-      var articlesResult = await store.query('sbn_wiki_articles', {});
-      appData.articles = articlesResult.rows || [];
-      console.log('Loaded articles:', appData.articles.length);
-
-      // Load users (for profile display)
-      var usersResult = await store.query('sbn_users', {});
-      appData.users = usersResult.rows || [];
-      console.log('Loaded users:', appData.users.length);
-
-      appData.loaded = true;
-      appData.error = null;
-
-      return true;
-    } catch (err) {
-      console.error('Error loading app data:', err);
-      appData.error = err.message || 'Failed to load data';
-      appData.loaded = false;
-      return false;
+      var raw = global.localStorage ? global.localStorage.getItem(PREF_STORAGE_KEY) : null;
+      if (!raw) return {};
+      return JSON.parse(raw) || {};
+    } catch (_err) {
+      return {};
     }
+  }
+
+  /**
+   * Persist preferences
+   */
+  function persistPrefs(env) {
+    if (!global.localStorage) return;
+    try {
+      var payload = { theme: env.theme, lang: env.lang, dir: env.dir };
+      global.localStorage.setItem(PREF_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  /**
+   * Apply theme to document
+   */
+  function applyTheme(theme) {
+    global.document.documentElement.setAttribute('data-theme', theme || 'light');
+  }
+
+  /**
+   * Apply language to document
+   */
+  function applyLang(lang, dir) {
+    global.document.documentElement.setAttribute('lang', lang || 'ar');
+    global.document.documentElement.setAttribute('dir', dir || 'rtl');
+  }
+
+  // ================== INITIAL STATE ==================
+  var persisted = loadPersistedPrefs();
+
+  var initialDatabase = {
+    env: {
+      theme: persisted.theme || 'light',
+      lang: persisted.lang || 'ar',
+      dir: persisted.dir || (persisted.lang === 'ar' ? 'rtl' : 'ltr'),
+      i18n: BASE_I18N
+    },
+    meta: {
+      branchId: BRANCH_ID,
+      moduleId: MODULE_ID
+    },
+    state: {
+      loading: true,
+      error: null,
+      currentSection: 'home',
+      filters: {
+        search: '',
+        category: '',
+        condition: ''
+      }
+    },
+    data: {
+      uiLabels: [],
+      products: [],
+      services: [],
+      articles: [],
+      categories: [],
+      users: []
+    }
+  };
+
+  // ================== DATA HELPERS ==================
+
+  /**
+   * Commit table data to app state
+   */
+  function commitTable(app, tableName, rows) {
+    var dataKey = TABLE_TO_DATA_KEY[tableName];
+    if (!dataKey) return;
+
+    app.setState(function (db) {
+      var newData = {};
+      newData[dataKey] = Array.isArray(rows) ? rows : [];
+
+      // Special handling for UI labels
+      if (tableName === 'sbn_ui_labels') {
+        var maps = buildTranslationMaps(rows);
+        return {
+          env: Object.assign({}, db.env, { i18n: maps.ui }),
+          meta: db.meta,
+          state: db.state,
+          data: Object.assign({}, db.data, newData)
+        };
+      }
+
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, newData)
+      };
+    });
   }
 
   // ================== VIEW HELPERS ==================
 
   /**
-   * Get current active section from database
-   */
-  function getActiveSection(db) {
-    return db.currentSection || 'home';
-  }
-
-  /**
-   * Get filtered products based on current filters
+   * Get filtered products
    */
   function getFilteredProducts(db) {
-    var products = appData.products || [];
-    var filters = db.filters || {};
+    var products = db.data.products || [];
+    var filters = db.state.filters || {};
 
     return products.filter(function(product) {
-      // Category filter
       if (filters.category && product.category_id !== filters.category) {
         return false;
       }
-
-      // Condition filter (new/used)
       if (filters.condition && product.condition !== filters.condition) {
         return false;
       }
-
-      // Search text filter
       if (filters.search) {
         var searchLower = filters.search.toLowerCase();
-        var nameMatch = product.name && product.name.toLowerCase().includes(searchLower);
-        var descMatch = product.description && product.description.toLowerCase().includes(searchLower);
+        var nameMatch = product.name && product.name.toLowerCase().indexOf(searchLower) !== -1;
+        var descMatch = product.description && product.description.toLowerCase().indexOf(searchLower) !== -1;
         if (!nameMatch && !descMatch) return false;
       }
-
-      // Status filter (active only by default)
       if (product.status !== 'active') return false;
-
       return true;
     });
   }
@@ -142,8 +220,8 @@
    * Get filtered services
    */
   function getFilteredServices(db) {
-    var services = appData.services || [];
-    var filters = db.filters || {};
+    var services = db.data.services || [];
+    var filters = db.state.filters || {};
 
     return services.filter(function(service) {
       if (filters.category && service.category_id !== filters.category) {
@@ -151,8 +229,8 @@
       }
       if (filters.search) {
         var searchLower = filters.search.toLowerCase();
-        var nameMatch = service.title && service.title.toLowerCase().includes(searchLower);
-        var descMatch = service.description && service.description.toLowerCase().includes(searchLower);
+        var nameMatch = service.title && service.title.toLowerCase().indexOf(searchLower) !== -1;
+        var descMatch = service.description && service.description.toLowerCase().indexOf(searchLower) !== -1;
         if (!nameMatch && !descMatch) return false;
       }
       if (service.status !== 'active') return false;
@@ -161,10 +239,10 @@
   }
 
   /**
-   * Get wiki articles tree (top-level only for now)
+   * Get wiki articles (top-level)
    */
   function getWikiArticles(db) {
-    var articles = appData.articles || [];
+    var articles = db.data.articles || [];
     return articles.filter(function(article) {
       return !article.parent_id && article.status === 'published';
     });
@@ -175,11 +253,11 @@
   /**
    * Render loading screen
    */
-  function renderLoading(db, D) {
+  function renderLoading(db) {
     return D.Containers.Div({ attrs: { class: 'loading-screen' } }, [
       D.Containers.Div({ attrs: { class: 'loading-spinner' } }, []),
       D.Text.P({ attrs: { class: 'loading-text' } }, [
-        Mishkah.t(db, 'loading.app')
+        t('loading.app', 'جاري التحميل...')
       ])
     ]);
   }
@@ -187,38 +265,38 @@
   /**
    * Render error screen
    */
-  function renderError(db, D) {
+  function renderError(db) {
     return D.Containers.Div({ attrs: { class: 'error-screen' } }, [
-      D.Text.H2({}, [Mishkah.t(db, 'error.title')]),
-      D.Text.P({}, [db.errorMessage || Mishkah.t(db, 'error.generic')]),
+      D.Text.H2({}, [t('error.title', 'حدث خطأ')]),
+      D.Text.P({}, [db.state.error || t('error.generic', 'حدث خطأ أثناء تحميل البيانات')]),
       D.Forms.Button(
         { attrs: { 'data-m-gkey': 'retry', class: 'btn-primary' } },
-        [Mishkah.t(db, 'btn.retry')]
+        [t('btn.retry', 'إعادة المحاولة')]
       )
     ]);
   }
 
   /**
-   * Render top header with theme/language controls
+   * Render top header
    */
-  function renderHeader(db, D) {
+  function renderHeader(db) {
     return D.Containers.Header({ attrs: { class: 'app-header' } }, [
       D.Containers.Div({ attrs: { class: 'header-content' } }, [
         // App title
         D.Text.H1({ attrs: { class: 'app-title' } }, [
-          Mishkah.t(db, 'app.name')
+          t('app.name', 'مستعمل حوا')
         ]),
 
-        // Controls container
+        // Controls
         D.Containers.Div({ attrs: { class: 'header-controls' } }, [
           // Theme toggle
           D.Forms.Button(
             { attrs: {
               'data-m-gkey': 'toggle-theme',
               class: 'icon-btn',
-              title: Mishkah.t(db, 'settings.theme.toggle')
+              title: t('settings.theme.toggle', 'تبديل الوضع')
             } },
-            [db.theme === 'dark' ? '☀️' : '🌙']
+            [db.env.theme === 'dark' ? '☀️' : '🌙']
           ),
 
           // Language toggle
@@ -226,9 +304,9 @@
             { attrs: {
               'data-m-gkey': 'toggle-lang',
               class: 'icon-btn',
-              title: Mishkah.t(db, 'settings.language.toggle')
+              title: t('settings.language.toggle', 'تبديل اللغة')
             } },
-            [db.lang === 'ar' ? 'EN' : 'ع']
+            [db.env.lang === 'ar' ? 'EN' : 'ع']
           )
         ])
       ])
@@ -236,60 +314,9 @@
   }
 
   /**
-   * Render home section
-   */
-  function renderHome(db, D) {
-    return D.Containers.Div({ attrs: { class: 'section section-home' } }, [
-      // Welcome banner
-      D.Containers.Div({ attrs: { class: 'welcome-banner' } }, [
-        D.Text.H2({}, [Mishkah.t(db, 'home.welcome')]),
-        D.Text.P({}, [Mishkah.t(db, 'home.subtitle')])
-      ]),
-
-      // Quick stats
-      D.Containers.Div({ attrs: { class: 'stats-grid' } }, [
-        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-          D.Text.Span({ attrs: { class: 'stat-number' } }, [
-            String(appData.products.length)
-          ]),
-          D.Text.Span({ attrs: { class: 'stat-label' } }, [
-            Mishkah.t(db, 'home.stats.products')
-          ])
-        ]),
-        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-          D.Text.Span({ attrs: { class: 'stat-number' } }, [
-            String(appData.services.length)
-          ]),
-          D.Text.Span({ attrs: { class: 'stat-label' } }, [
-            Mishkah.t(db, 'home.stats.services')
-          ])
-        ]),
-        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-          D.Text.Span({ attrs: { class: 'stat-number' } }, [
-            String(appData.articles.length)
-          ]),
-          D.Text.Span({ attrs: { class: 'stat-label' } }, [
-            Mishkah.t(db, 'home.stats.articles')
-          ])
-        ])
-      ]),
-
-      // Recent items preview
-      D.Containers.Div({ attrs: { class: 'recent-section' } }, [
-        D.Text.H3({}, [Mishkah.t(db, 'home.recent.title')]),
-        D.Containers.Div({ attrs: { class: 'cards-grid' } },
-          appData.products.slice(0, 4).map(function(product) {
-            return renderProductCard(db, D, product);
-          })
-        )
-      ])
-    ]);
-  }
-
-  /**
    * Render product card
    */
-  function renderProductCard(db, D, product) {
+  function renderProductCard(db, product) {
     return D.Containers.Div({
       attrs: {
         class: 'product-card',
@@ -297,7 +324,6 @@
         'data-m-key': 'product-' + product.product_id
       }
     }, [
-      // Image
       D.Media.Img({
         attrs: {
           src: product.main_image_url || '/projects/sbn/placeholder.jpg',
@@ -305,24 +331,20 @@
           class: 'product-image'
         }
       }, []),
-
-      // Content
       D.Containers.Div({ attrs: { class: 'product-content' } }, [
         D.Text.H4({ attrs: { class: 'product-name' } }, [product.name]),
         D.Text.P({ attrs: { class: 'product-price' } }, [
-          String(product.price) + ' ' + Mishkah.t(db, 'currency.sar')
+          String(product.price) + ' ' + t('currency.sar', 'ريال')
         ]),
         D.Containers.Div({ attrs: { class: 'product-meta' } }, [
           D.Text.Span({ attrs: { class: 'product-condition' } }, [
-            Mishkah.t(db, 'product.condition.' + product.condition)
+            t('product.condition.' + product.condition, product.condition)
           ]),
           D.Text.Span({ attrs: { class: 'product-location' } }, [
             product.city || ''
           ])
         ])
       ]),
-
-      // Actions
       D.Containers.Div({ attrs: { class: 'product-actions' } }, [
         D.Forms.Button(
           { attrs: {
@@ -330,7 +352,50 @@
             'data-product-id': product.product_id,
             class: 'btn-secondary'
           } },
-          [Mishkah.t(db, 'btn.view')]
+          [t('btn.view', 'عرض')]
+        )
+      ])
+    ]);
+  }
+
+  /**
+   * Render home section
+   */
+  function renderHome(db) {
+    var products = db.data.products || [];
+    var services = db.data.services || [];
+    var articles = db.data.articles || [];
+
+    return D.Containers.Div({ attrs: { class: 'section section-home' } }, [
+      // Welcome banner
+      D.Containers.Div({ attrs: { class: 'welcome-banner' } }, [
+        D.Text.H2({}, [t('home.welcome', 'مرحباً بك في مستعمل حوا')]),
+        D.Text.P({}, [t('home.subtitle', 'منصتك للتجارة والخدمات والمعرفة')])
+      ]),
+
+      // Quick stats
+      D.Containers.Div({ attrs: { class: 'stats-grid' } }, [
+        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
+          D.Text.Span({ attrs: { class: 'stat-number' } }, [String(products.length)]),
+          D.Text.Span({ attrs: { class: 'stat-label' } }, [t('home.stats.products', 'منتج')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
+          D.Text.Span({ attrs: { class: 'stat-number' } }, [String(services.length)]),
+          D.Text.Span({ attrs: { class: 'stat-label' } }, [t('home.stats.services', 'خدمة')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
+          D.Text.Span({ attrs: { class: 'stat-number' } }, [String(articles.length)]),
+          D.Text.Span({ attrs: { class: 'stat-label' } }, [t('home.stats.articles', 'مقال')])
+        ])
+      ]),
+
+      // Recent items
+      D.Containers.Div({ attrs: { class: 'recent-section' } }, [
+        D.Text.H3({}, [t('home.recent.title', 'آخر المنتجات')]),
+        D.Containers.Div({ attrs: { class: 'cards-grid' } },
+          products.slice(0, 4).map(function(product) {
+            return renderProductCard(db, product);
+          })
         )
       ])
     ]);
@@ -339,66 +404,60 @@
   /**
    * Render marketplace section
    */
-  function renderMarketplace(db, D) {
+  function renderMarketplace(db) {
     var products = getFilteredProducts(db);
-    var categories = appData.categories.filter(function(cat) {
+    var categories = (db.data.categories || []).filter(function(cat) {
       return cat.type === 'product';
     });
 
     return D.Containers.Div({ attrs: { class: 'section section-marketplace' } }, [
-      // Search and filters
+      // Filters
       D.Containers.Div({ attrs: { class: 'filters-bar' } }, [
         D.Inputs.Input({
           attrs: {
             type: 'text',
-            placeholder: Mishkah.t(db, 'placeholder.search'),
+            placeholder: t('placeholder.search', 'بحث...'),
             'data-m-gkey': 'search-input',
             class: 'search-input',
-            value: db.filters?.search || ''
+            value: db.state.filters.search || ''
           }
         }, []),
-
         D.Inputs.Select({
           attrs: {
             'data-m-gkey': 'category-filter',
             class: 'filter-select'
           }
         }, [
-          D.Inputs.Option({ attrs: { value: '' } }, [
-            Mishkah.t(db, 'filter.all.categories')
-          ])
+          D.Inputs.Option({ attrs: { value: '' } }, [t('filter.all.categories', 'كل الفئات')])
         ].concat(
           categories.map(function(cat) {
             return D.Inputs.Option({
               attrs: {
                 value: cat.category_id,
-                selected: db.filters?.category === cat.category_id
+                selected: db.state.filters.category === cat.category_id
               }
             }, [cat.name]);
           })
         )),
-
         D.Inputs.Select({
           attrs: {
             'data-m-gkey': 'condition-filter',
             class: 'filter-select'
           }
         }, [
-          D.Inputs.Option({ attrs: { value: '' } }, [
-            Mishkah.t(db, 'filter.all.conditions')
-          ]),
+          D.Inputs.Option({ attrs: { value: '' } }, [t('filter.all.conditions', 'كل الحالات')]),
           D.Inputs.Option({
             attrs: {
               value: 'new',
-              selected: db.filters?.condition === 'new'
+              selected: db.state.filters.condition === 'new'
             }
-          }, [Mishkah.t(db, 'product.condition.new')]),
+          }, [t('product.condition.new', 'جديد')]),
           D.Inputs.Option({
             attrs: {
               value: 'used',
-              selected: db.filters?.condition === 'used'
+              selected: db.state.filters.condition === 'used'
             }
-          }, [Mishkah.t(db, 'product.condition.used')])
+          }, [t('product.condition.used', 'مستعمل')])
         ])
       ]),
 
@@ -406,10 +465,10 @@
       D.Containers.Div({ attrs: { class: 'products-grid' } },
         products.length > 0
           ? products.map(function(product) {
-              return renderProductCard(db, D, product);
+              return renderProductCard(db, product);
             })
           : [D.Text.P({ attrs: { class: 'empty-message' } }, [
-              Mishkah.t(db, 'marketplace.empty')
+              t('marketplace.empty', 'لا توجد منتجات')
             ])]
       )
     ]);
@@ -418,7 +477,7 @@
   /**
    * Render service card
    */
-  function renderServiceCard(db, D, service) {
+  function renderServiceCard(db, service) {
     return D.Containers.Div({
       attrs: {
         class: 'service-card',
@@ -428,17 +487,12 @@
     }, [
       D.Containers.Div({ attrs: { class: 'service-content' } }, [
         D.Text.H4({ attrs: { class: 'service-title' } }, [service.title]),
-        D.Text.P({ attrs: { class: 'service-description' } }, [
-          service.description || ''
-        ]),
+        D.Text.P({ attrs: { class: 'service-description' } }, [service.description || '']),
         D.Containers.Div({ attrs: { class: 'service-meta' } }, [
           D.Text.Span({ attrs: { class: 'service-price' } }, [
-            String(service.price_from) + ' - ' + String(service.price_to) + ' ' +
-            Mishkah.t(db, 'currency.sar')
+            String(service.price_from) + ' - ' + String(service.price_to) + ' ' + t('currency.sar', 'ريال')
           ]),
-          D.Text.Span({ attrs: { class: 'service-location' } }, [
-            service.city || ''
-          ])
+          D.Text.Span({ attrs: { class: 'service-location' } }, [service.city || ''])
         ])
       ]),
       D.Containers.Div({ attrs: { class: 'service-actions' } }, [
@@ -448,7 +502,7 @@
             'data-service-id': service.service_id,
             class: 'btn-secondary'
           } },
-          [Mishkah.t(db, 'btn.view')]
+          [t('btn.view', 'عرض')]
         )
       ])
     ]);
@@ -457,63 +511,58 @@
   /**
    * Render services section
    */
-  function renderServices(db, D) {
+  function renderServices(db) {
     var services = getFilteredServices(db);
-    var categories = appData.categories.filter(function(cat) {
+    var categories = (db.data.categories || []).filter(function(cat) {
       return cat.type === 'service';
     });
 
     return D.Containers.Div({ attrs: { class: 'section section-services' } }, [
-      // Filters
       D.Containers.Div({ attrs: { class: 'filters-bar' } }, [
         D.Inputs.Input({
           attrs: {
             type: 'text',
-            placeholder: Mishkah.t(db, 'placeholder.search'),
+            placeholder: t('placeholder.search', 'بحث...'),
             'data-m-gkey': 'search-input',
             class: 'search-input',
-            value: db.filters?.search || ''
+            value: db.state.filters.search || ''
           }
         }, []),
-
         D.Inputs.Select({
           attrs: {
             'data-m-gkey': 'category-filter',
             class: 'filter-select'
           }
         }, [
-          D.Inputs.Option({ attrs: { value: '' } }, [
-            Mishkah.t(db, 'filter.all.categories')
-          ])
+          D.Inputs.Option({ attrs: { value: '' } }, [t('filter.all.categories', 'كل الفئات')])
         ].concat(
           categories.map(function(cat) {
             return D.Inputs.Option({
               attrs: {
                 value: cat.category_id,
-                selected: db.filters?.category === cat.category_id
+                selected: db.state.filters.category === cat.category_id
               }
             }, [cat.name]);
           })
         ))
       ]),
 
-      // Services list
       D.Containers.Div({ attrs: { class: 'services-list' } },
         services.length > 0
           ? services.map(function(service) {
-              return renderServiceCard(db, D, service);
+              return renderServiceCard(db, service);
             })
           : [D.Text.P({ attrs: { class: 'empty-message' } }, [
-              Mishkah.t(db, 'services.empty')
+              t('services.empty', 'لا توجد خدمات')
             ])]
       )
     ]);
   }
 
   /**
-   * Render wiki article item
+   * Render article item
    */
-  function renderArticleItem(db, D, article) {
+  function renderArticleItem(db, article) {
     return D.Containers.Div({
       attrs: {
         class: 'article-item',
@@ -523,12 +572,10 @@
     }, [
       D.Containers.Div({ attrs: { class: 'article-content' } }, [
         D.Text.H4({ attrs: { class: 'article-title' } }, [article.title]),
-        D.Text.P({ attrs: { class: 'article-summary' } }, [
-          article.summary || ''
-        ]),
+        D.Text.P({ attrs: { class: 'article-summary' } }, [article.summary || '']),
         D.Containers.Div({ attrs: { class: 'article-meta' } }, [
           D.Text.Span({ attrs: { class: 'article-views' } }, [
-            String(article.view_count || 0) + ' ' + Mishkah.t(db, 'wiki.views')
+            String(article.view_count || 0) + ' ' + t('wiki.views', 'مشاهدة')
           ])
         ])
       ]),
@@ -538,43 +585,39 @@
           'data-article-id': article.article_id,
           class: 'btn-link'
         } },
-        [Mishkah.t(db, 'btn.read')]
+        [t('btn.read', 'قراءة')]
       )
     ]);
   }
 
   /**
-   * Render knowledge (wiki) section
+   * Render knowledge section
    */
-  function renderKnowledge(db, D) {
+  function renderKnowledge(db) {
     var articles = getWikiArticles(db);
 
     return D.Containers.Div({ attrs: { class: 'section section-knowledge' } }, [
-      D.Text.H2({}, [Mishkah.t(db, 'knowledge.title')]),
+      D.Text.H2({}, [t('knowledge.title', 'المعرفة')]),
       D.Text.P({ attrs: { class: 'section-subtitle' } }, [
-        Mishkah.t(db, 'knowledge.subtitle')
+        t('knowledge.subtitle', 'مقالات تشاركية')
       ]),
-
-      // Search
       D.Containers.Div({ attrs: { class: 'search-bar' } }, [
         D.Inputs.Input({
           attrs: {
             type: 'text',
-            placeholder: Mishkah.t(db, 'placeholder.search.articles'),
+            placeholder: t('placeholder.search.articles', 'بحث في المقالات...'),
             'data-m-gkey': 'search-input',
             class: 'search-input'
           }
         }, [])
       ]),
-
-      // Articles list
       D.Containers.Div({ attrs: { class: 'articles-list' } },
         articles.length > 0
           ? articles.map(function(article) {
-              return renderArticleItem(db, D, article);
+              return renderArticleItem(db, article);
             })
           : [D.Text.P({ attrs: { class: 'empty-message' } }, [
-              Mishkah.t(db, 'knowledge.empty')
+              t('knowledge.empty', 'لا توجد مقالات')
             ])]
       )
     ]);
@@ -583,11 +626,10 @@
   /**
    * Render bottom navigation
    */
-  function renderBottomNav(db, D) {
-    var currentSection = getActiveSection(db);
+  function renderBottomNav(db) {
+    var currentSection = db.state.currentSection;
 
     return D.Containers.Nav({ attrs: { class: 'bottom-nav' } }, [
-      // Home
       D.Forms.Button({
         attrs: {
           'data-m-gkey': 'nav-home',
@@ -595,12 +637,8 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [
-          Mishkah.t(db, 'nav.home')
-        ])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.home', 'الرئيسية')])
       ]),
-
-      // Marketplace
       D.Forms.Button({
         attrs: {
           'data-m-gkey': 'nav-marketplace',
@@ -608,12 +646,8 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛒']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [
-          Mishkah.t(db, 'nav.marketplace')
-        ])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.marketplace', 'المتجر')])
       ]),
-
-      // Services
       D.Forms.Button({
         attrs: {
           'data-m-gkey': 'nav-services',
@@ -621,12 +655,8 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🔧']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [
-          Mishkah.t(db, 'nav.services')
-        ])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.services', 'الخدمات')])
       ]),
-
-      // Knowledge
       D.Forms.Button({
         attrs: {
           'data-m-gkey': 'nav-knowledge',
@@ -634,12 +664,8 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['📚']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [
-          Mishkah.t(db, 'nav.knowledge')
-        ])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.knowledge', 'المعرفة')])
       ]),
-
-      // Profile
       D.Forms.Button({
         attrs: {
           'data-m-gkey': 'nav-profile',
@@ -647,68 +673,67 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [
-          Mishkah.t(db, 'nav.profile')
-        ])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile', 'الملف')])
       ])
     ]);
   }
 
   /**
-   * Main body function - render entire app
+   * Main body function
    */
-  function renderBody(db, D) {
-    // Show loading state
-    if (!db.dataLoaded) {
-      return renderLoading(db, D);
+  function renderBody(db) {
+    if (db.state.loading) {
+      return renderLoading(db);
     }
 
-    // Show error state
-    if (db.dataError) {
-      return renderError(db, D);
+    if (db.state.error) {
+      return renderError(db);
     }
 
-    var currentSection = getActiveSection(db);
+    var currentSection = db.state.currentSection;
     var sectionView;
 
     switch (currentSection) {
       case 'marketplace':
-        sectionView = renderMarketplace(db, D);
+        sectionView = renderMarketplace(db);
         break;
       case 'services':
-        sectionView = renderServices(db, D);
+        sectionView = renderServices(db);
         break;
       case 'knowledge':
-        sectionView = renderKnowledge(db, D);
+        sectionView = renderKnowledge(db);
         break;
       case 'profile':
         sectionView = D.Containers.Div({ attrs: { class: 'section' } }, [
-          D.Text.H2({}, [Mishkah.t(db, 'nav.profile')])
+          D.Text.H2({}, [t('nav.profile', 'الملف الشخصي')])
         ]);
         break;
       case 'home':
       default:
-        sectionView = renderHome(db, D);
+        sectionView = renderHome(db);
     }
 
     return D.Containers.Div({ attrs: { class: 'app-container' } }, [
-      renderHeader(db, D),
-      D.Containers.Main({ attrs: { class: 'app-main' } }, [
-        sectionView
-      ]),
-      renderBottomNav(db, D)
+      renderHeader(db),
+      D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
+      renderBottomNav(db)
     ]);
   }
 
   // ================== EVENT HANDLERS (ORDERS) ==================
-
   var orders = {
-    // Navigation handlers
     'nav.home': {
       on: ['click'],
       gkeys: ['nav-home'],
       handler: function(event, ctx) {
-        ctx.setState({ currentSection: 'home' });
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'home' }),
+            data: db.data
+          };
+        });
       }
     },
 
@@ -716,7 +741,14 @@
       on: ['click'],
       gkeys: ['nav-marketplace'],
       handler: function(event, ctx) {
-        ctx.setState({ currentSection: 'marketplace' });
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            data: db.data
+          };
+        });
       }
     },
 
@@ -724,7 +756,14 @@
       on: ['click'],
       gkeys: ['nav-services'],
       handler: function(event, ctx) {
-        ctx.setState({ currentSection: 'services' });
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            data: db.data
+          };
+        });
       }
     },
 
@@ -732,7 +771,14 @@
       on: ['click'],
       gkeys: ['nav-knowledge'],
       handler: function(event, ctx) {
-        ctx.setState({ currentSection: 'knowledge' });
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'knowledge' }),
+            data: db.data
+          };
+        });
       }
     },
 
@@ -740,258 +786,256 @@
       on: ['click'],
       gkeys: ['nav-profile'],
       handler: function(event, ctx) {
-        ctx.setState({ currentSection: 'profile' });
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'profile' }),
+            data: db.data
+          };
+        });
       }
     },
 
-    // Theme toggle
     'toggle.theme': {
       on: ['click'],
       gkeys: ['toggle-theme'],
       handler: function(event, ctx) {
-        var state = ctx.getState();
-        var newTheme = state.theme === 'light' ? 'dark' : 'light';
-
-        // Update state
-        ctx.setState({ theme: newTheme });
-
-        // Update DOM
-        document.documentElement.setAttribute('data-theme', newTheme);
-
-        // Store preference
-        try {
-          localStorage.setItem('sbn-theme', newTheme);
-        } catch (e) {
-          console.warn('Could not save theme preference');
-        }
+        ctx.setState(function(db) {
+          var newTheme = db.env.theme === 'light' ? 'dark' : 'light';
+          var newEnv = Object.assign({}, db.env, { theme: newTheme });
+          applyTheme(newTheme);
+          persistPrefs(newEnv);
+          return {
+            env: newEnv,
+            meta: db.meta,
+            state: db.state,
+            data: db.data
+          };
+        });
       }
     },
 
-    // Language toggle
     'toggle.lang': {
       on: ['click'],
       gkeys: ['toggle-lang'],
       handler: function(event, ctx) {
-        var state = ctx.getState();
-        var newLang = state.lang === 'ar' ? 'en' : 'ar';
-        var newDir = newLang === 'ar' ? 'rtl' : 'ltr';
-
-        // Update state
-        ctx.setState({ lang: newLang, dir: newDir });
-
-        // Update DOM
-        document.documentElement.setAttribute('lang', newLang);
-        document.documentElement.setAttribute('dir', newDir);
-
-        // Store preference
-        try {
-          localStorage.setItem('sbn-lang', newLang);
-        } catch (e) {
-          console.warn('Could not save language preference');
-        }
+        ctx.setState(function(db) {
+          var newLang = db.env.lang === 'ar' ? 'en' : 'ar';
+          var newDir = newLang === 'ar' ? 'rtl' : 'ltr';
+          var newEnv = Object.assign({}, db.env, { lang: newLang, dir: newDir });
+          applyLang(newLang, newDir);
+          persistPrefs(newEnv);
+          return {
+            env: newEnv,
+            meta: db.meta,
+            state: db.state,
+            data: db.data
+          };
+        });
       }
     },
 
-    // Search input
     'search.input': {
       on: ['input'],
       gkeys: ['search-input'],
       handler: function(event, ctx) {
         var searchValue = event.target.value;
-        ctx.setState(function(state) {
+        ctx.setState(function(db) {
           return {
-            filters: Object.assign({}, state.filters || {}, {
-              search: searchValue
-            })
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: Object.assign({}, db.state.filters, { search: searchValue })
+            }),
+            data: db.data
           };
         });
       }
     },
 
-    // Category filter
     'filter.category': {
       on: ['change'],
       gkeys: ['category-filter'],
       handler: function(event, ctx) {
         var categoryValue = event.target.value;
-        ctx.setState(function(state) {
+        ctx.setState(function(db) {
           return {
-            filters: Object.assign({}, state.filters || {}, {
-              category: categoryValue
-            })
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: Object.assign({}, db.state.filters, { category: categoryValue })
+            }),
+            data: db.data
           };
         });
       }
     },
 
-    // Condition filter
     'filter.condition': {
       on: ['change'],
       gkeys: ['condition-filter'],
       handler: function(event, ctx) {
         var conditionValue = event.target.value;
-        ctx.setState(function(state) {
+        ctx.setState(function(db) {
           return {
-            filters: Object.assign({}, state.filters || {}, {
-              condition: conditionValue
-            })
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: Object.assign({}, db.state.filters, { condition: conditionValue })
+            }),
+            data: db.data
           };
         });
       }
     },
 
-    // View product
-    'view.product': {
-      on: ['click'],
-      gkeys: ['view-product'],
-      handler: function(event, ctx) {
-        var productId = event.target.getAttribute('data-product-id');
-        console.log('View product:', productId);
-        // TODO: Implement product detail view
-        alert('Product detail view - ID: ' + productId);
-      }
-    },
-
-    // View service
-    'view.service': {
-      on: ['click'],
-      gkeys: ['view-service'],
-      handler: function(event, ctx) {
-        var serviceId = event.target.getAttribute('data-service-id');
-        console.log('View service:', serviceId);
-        // TODO: Implement service detail view
-        alert('Service detail view - ID: ' + serviceId);
-      }
-    },
-
-    // View article
-    'view.article': {
-      on: ['click'],
-      gkeys: ['view-article'],
-      handler: function(event, ctx) {
-        var articleId = event.target.getAttribute('data-article-id');
-        console.log('View article:', articleId);
-        // TODO: Implement article detail view
-        alert('Article detail view - ID: ' + articleId);
-      }
-    },
-
-    // Retry loading data
     'retry.load': {
       on: ['click'],
       gkeys: ['retry'],
       handler: function(event, ctx) {
-        ctx.setState({ dataLoaded: false, dataError: null });
-        initApp();
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { loading: true, error: null }),
+            data: db.data
+          };
+        });
+        initRealtime();
       }
     }
   };
 
   // ================== INITIALIZATION ==================
+  var app = null;
 
   /**
-   * Initialize the application
+   * Initialize realtime connection
    */
-  async function initApp() {
-    console.log('Initializing Mostamal Hawa PWA...');
+  function initRealtime() {
+    if (typeof global.createDBAuto !== 'function') {
+      console.warn('[SBN PWA] createDBAuto not available, using mock data mode');
+      // Mark as loaded with empty data
+      if (app) {
+        app.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { loading: false, error: null }),
+            data: db.data
+          };
+        });
+      }
+      return;
+    }
 
-    try {
-      // Create store instance
-      if (!store) {
-        store = Mishkah.Store.createStore({
+    // Fetch schema first
+    var schemaUrl = '/api/schema/' + BRANCH_ID + '/' + MODULE_ID;
+
+    fetch(schemaUrl, { cache: 'no-store' })
+      .then(function(response) {
+        if (!response.ok) throw new Error('schema-fetch-failed');
+        return response.json();
+      })
+      .then(function(payload) {
+        var schema = payload && payload.schema ? payload.schema : null;
+        if (!schema) throw new Error('schema-invalid');
+
+        var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY);
+
+        realtime = global.createDBAuto(schema, tablesToWatch, {
           branchId: BRANCH_ID,
           moduleId: MODULE_ID,
-          wsUrl: 'ws://' + window.location.host
+          role: 'sbn-pwa',
+          historyLimit: 200,
+          autoReconnect: true,
+          logger: console,
+          lang: app.database.env.lang
         });
 
-        // Connect to backend
-        await store.connect();
-        console.log('Connected to backend store');
-      }
+        return realtime.ready().then(function() {
+          // Watch all tables
+          tablesToWatch.forEach(function(tableName) {
+            realtime.watch(tableName, function(rows) {
+              commitTable(app, tableName, Array.isArray(rows) ? rows : []);
+            });
+          });
 
-      // Load all data
-      var loadSuccess = await loadAppData();
+          // Watch connection status
+          realtime.status(function(status) {
+            if (status === 'error') {
+              app.setState(function(db) {
+                return {
+                  env: db.env,
+                  meta: db.meta,
+                  state: Object.assign({}, db.state, {
+                    error: t('error.connection', 'انقطع الاتصال بقاعدة البيانات')
+                  }),
+                  data: db.data
+                };
+              });
+            } else if (status === 'ready') {
+              app.setState(function(db) {
+                return {
+                  env: db.env,
+                  meta: db.meta,
+                  state: Object.assign({}, db.state, { loading: false, error: null }),
+                  data: db.data
+                };
+              });
+            }
+          });
+        });
+      })
+      .catch(function(error) {
+        console.error('[SBN PWA] failed to bootstrap realtime', error);
+        if (app) {
+          app.setState(function(db) {
+            return {
+              env: db.env,
+              meta: db.meta,
+              state: Object.assign({}, db.state, {
+                loading: false,
+                error: t('error.init', 'فشل الاتصال بالخادم')
+              }),
+              data: db.data
+            };
+          });
+        }
+      });
+  }
 
-      if (!loadSuccess) {
-        throw new Error(appData.error || 'Failed to load data');
-      }
+  /**
+   * Bootstrap application
+   */
+  function bootstrap() {
+    console.log('[SBN PWA] Initializing Mostamal Hawa...');
 
-      // Build i18n dictionary from loaded labels
-      var i18nDict = buildI18nDict(appData.uiLabels);
-      console.log('Built i18n dictionary with', Object.keys(i18nDict).length, 'keys');
+    // Apply initial theme and lang
+    applyTheme(initialDatabase.env.theme);
+    applyLang(initialDatabase.env.lang, initialDatabase.env.dir);
 
-      // Get saved preferences
-      var savedTheme = 'light';
-      var savedLang = 'ar';
-      try {
-        savedTheme = localStorage.getItem('sbn-theme') || 'light';
-        savedLang = localStorage.getItem('sbn-lang') || 'ar';
-      } catch (e) {
-        console.warn('Could not read preferences from localStorage');
-      }
+    // Set body function
+    M.app.setBody(renderBody);
 
-      // Apply theme and language to DOM
-      document.documentElement.setAttribute('data-theme', savedTheme);
-      document.documentElement.setAttribute('lang', savedLang);
-      document.documentElement.setAttribute('dir', savedLang === 'ar' ? 'rtl' : 'ltr');
+    // Create app
+    app = M.app.createApp(initialDatabase, orders);
 
-      // Set body function
-      Mishkah.app.setBody(renderBody);
+    // Mount to DOM
+    app.mount('#app');
 
-      // Create and mount app
-      var app = Mishkah.app.createApp(
-        // Initial state
-        {
-          dataLoaded: true,
-          dataError: null,
-          currentSection: 'home',
-          theme: savedTheme,
-          lang: savedLang,
-          dir: savedLang === 'ar' ? 'rtl' : 'ltr',
-          i18n: i18nDict,
-          filters: {
-            search: '',
-            category: '',
-            condition: ''
-          }
-        },
-        // Orders (event handlers)
-        orders
-      );
+    console.log('[SBN PWA] App mounted successfully');
 
-      // Mount to DOM
-      app.mount('#app');
-
-      console.log('Mostamal Hawa PWA initialized successfully!');
-
-    } catch (err) {
-      console.error('Failed to initialize app:', err);
-
-      // Show error state
-      Mishkah.app.setBody(renderBody);
-      var app = Mishkah.app.createApp(
-        {
-          dataLoaded: false,
-          dataError: true,
-          errorMessage: err.message,
-          theme: 'light',
-          lang: 'ar',
-          dir: 'rtl',
-          i18n: {}
-        },
-        orders
-      );
-      app.mount('#app');
-    }
+    // Initialize realtime connection
+    initRealtime();
   }
 
   // ================== START APP ==================
-
-  // Wait for DOM to be ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
+  if (global.document.readyState === 'loading') {
+    global.document.addEventListener('DOMContentLoaded', bootstrap);
   } else {
-    initApp();
+    bootstrap();
   }
 
 })();
