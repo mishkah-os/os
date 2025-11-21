@@ -120,6 +120,7 @@
       readyTables: [],
       toast: null,
       showSubscribeModal: false,
+      showProfileMenu: false,
       auth: {
         isAuthenticated: false,
         user: null,
@@ -424,14 +425,34 @@
     persistPrefs(nextEnv);
     syncDocumentEnv(nextEnv);
 
-    // تحديث state لتحديث الـ UI فوراً (RTL/LTR)
+    // ✨ الحل: مسح البيانات القديمة فوراً + إظهار loading لمنع عرض البيانات باللغة الخاطئة
     ctx.setState(function (db) {
       var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
       // إعادة تطبيق label maps مع اللغة الجديدة
       if (db.data && Array.isArray(db.data.uiLabels)) {
         updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
       }
-      return Object.assign({}, db, { env: updatedEnv });
+
+      // ✨ مسح البيانات التي تعتمد على اللغة فوراً + إظهار loading
+      return Object.assign({}, db, {
+        env: updatedEnv,
+        data: Object.assign({}, db.data, {
+          // مسح البيانات الديناميكية التي تعتمد على اللغة
+          units: [],
+          listings: [],
+          brokers: [],
+          regions: [],
+          unitTypes: [],
+          unitFeatures: [],
+          unitMedia: [],
+          unitLayouts: [],
+          featureValues: []
+        }),
+        state: Object.assign({}, db.state, {
+          loading: true,
+          readyTables: []
+        })
+      });
     });
 
     // إعادة تحميل البيانات بلغة جديدة من Backend
@@ -1078,10 +1099,67 @@
         ctx.setState(function(db) {
           return Object.assign({}, db, {
             state: Object.assign({}, db.state, {
-              activeView: 'dashboard'
+              activeView: 'dashboard',
+              showProfileMenu: false
             })
           });
         });
+      }
+    },
+    'ui.profile.toggle': {
+      on: ['click'],
+      gkeys: ['toggle-profile-menu'],
+      handler: function (_event, ctx) {
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              showProfileMenu: !db.state.showProfileMenu
+            })
+          });
+        });
+      }
+    },
+    'ui.inbox.navigate': {
+      on: ['click'],
+      gkeys: ['navigate-inbox'],
+      handler: function (_event, ctx) {
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              activeView: 'inbox',
+              showProfileMenu: false
+            })
+          });
+        });
+      }
+    },
+    'ui.auth.logout': {
+      on: ['click'],
+      gkeys: ['logout'],
+      handler: function (_event, ctx) {
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              auth: {
+                isAuthenticated: false,
+                user: null,
+                showAuthModal: false,
+                authMode: 'login',
+                phone: '',
+                otp: '',
+                stage: 'phone'
+              },
+              showProfileMenu: false,
+              activeView: 'home'
+            })
+          });
+        });
+        // مسح البيانات من localStorage
+        try {
+          global.localStorage && global.localStorage.removeItem('brocker-auth');
+        } catch (e) {
+          console.warn('[Brocker PWA] Failed to clear auth from localStorage', e);
+        }
       }
     }
   };
@@ -1277,6 +1355,7 @@
     else if (view === 'listing' && db.state.selectedListingId) content = ListingDetailView(db, listingModels);
     else if (view === 'brokers') content = BrokersView(db, listingModels);
     else if (view === 'dashboard') content = DashboardView(db, listingModels);
+    else if (view === 'inbox') content = InboxView(db, listingModels);
     else content = HomeView(db, listingModels);
 
     var toast = db.state.toast ? ToastBanner(db, db.state.toast) : null;
@@ -1340,22 +1419,52 @@
           }, [
             D.Text.Span({}, [langText])
           ]) : null,
-          !isLoading && db.state && db.state.auth && db.state.auth.isAuthenticated ? D.Forms.Button({
-            attrs: {
-              type: 'button',
-              class: tw('flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 active:scale-95', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-100 hover:bg-slate-200 text-slate-800')),
-              'data-m-gkey': 'navigate-dashboard',
-              title: translate('actions.dashboard', 'لوحة التحكم', null, db)
-            }
-          }, ['📊']) : null,
+          // قائمة الملف الشخصي للمستخدمين المسجلين
+          !isLoading && db.state && db.state.auth && db.state.auth.isAuthenticated ? D.Containers.Div({ attrs: { class: 'relative', 'data-profile-menu': 'container' } }, [
+            D.Forms.Button({
+              attrs: {
+                type: 'button',
+                class: tw('flex items-center gap-2 px-3 h-9 rounded-full transition-all duration-200 active:scale-95', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-100 hover:bg-slate-200 text-slate-800')),
+                'data-m-gkey': 'toggle-profile-menu',
+                title: db.state.auth.user ? db.state.auth.user.full_name : translate('actions.profile', 'الملف الشخصي', null, db)
+              }
+            }, [
+              D.Text.Span({ attrs: { class: 'text-sm font-medium' } }, [db.state.auth.user && db.state.auth.user.full_name ? db.state.auth.user.full_name.split(' ')[0] : translate('actions.profile', 'حسابي', null, db)]),
+              D.Text.Span({}, ['▼'])
+            ]),
+            // القائمة المنسدلة
+            db.state.showProfileMenu ? D.Containers.Div({ attrs: { class: tw('absolute top-full mt-2 w-48 rounded-xl shadow-2xl border overflow-hidden z-50', dir === 'rtl' ? 'left-0' : 'right-0', themed(db, 'bg-slate-900 border-slate-700', 'bg-white border-slate-200')) } }, [
+              D.Forms.Button({
+                attrs: {
+                  type: 'button',
+                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-white', 'hover:bg-slate-50 text-slate-900')),
+                  'data-m-gkey': 'navigate-dashboard'
+                }
+              }, [D.Text.Span({}, ['📊']), D.Text.Span({}, [translate('actions.dashboard', 'لوحة التحكم', null, db)])]),
+              D.Forms.Button({
+                attrs: {
+                  type: 'button',
+                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-white', 'hover:bg-slate-50 text-slate-900')),
+                  'data-m-gkey': 'navigate-inbox'
+                }
+              }, [D.Text.Span({}, ['✉️']), D.Text.Span({}, [translate('actions.inbox', 'الرسائل', null, db)])]),
+              D.Forms.Button({
+                attrs: {
+                  type: 'button',
+                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-rose-400', 'hover:bg-rose-50 text-rose-600')),
+                  'data-m-gkey': 'logout'
+                }
+              }, [D.Text.Span({}, ['🚪']), D.Text.Span({}, [translate('actions.logout', 'تسجيل الخروج', null, db)])])
+            ]) : null
+          ]) : null,
           !isLoading && (!db.state || !db.state.auth || !db.state.auth.isAuthenticated) ? D.Forms.Button({
             attrs: {
               type: 'button',
               class: tw('flex items-center justify-center px-4 h-9 rounded-full transition-all duration-200 active:scale-95 font-bold text-sm', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-200 hover:bg-slate-300 text-slate-900')),
               'data-m-gkey': 'show-auth-modal',
-              title: translate('actions.login', 'تسجيل الدخول', null, db)
+              title: translate('auth.login', 'تسجيل الدخول', null, db)
             }
-          }, [translate('auth.loginBtn', lang === 'en' ? 'Login' : 'دخول', null, db)]) : null
+          }, [translate('auth.loginBtn', 'دخول', null, db)]) : null
         ])
       ])
     ]);
@@ -1462,7 +1571,7 @@
     var selected = db.state.selectedBrokerId ? brokers.find(function (entry) { return entry.id === db.state.selectedBrokerId; }) : null;
     var brokerListings = selected ? listingModels.filter(function (model) { return model.listing.broker_id === selected.id; }) : [];
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 max-w-6xl mx-auto space-y-6') } }, [
-      HeaderSection(db.data.appSettings),
+      HeaderSection(db),
       selected ? BrokerProfile(db, selected, brokerListings) : BrokerGrid(db, brokers),
       BrokerAuthPanel(db)
     ]);
@@ -1470,12 +1579,72 @@
 
   function DashboardView(db, listingModels) {
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 max-w-6xl mx-auto space-y-6') } }, [
-      HeaderSection(db.data.appSettings),
+      HeaderSection(db),
       DashboardStats(db, listingModels),
       InquiryBoard(db, listingModels),
       NotificationFeed(db)
     ]);
   }
+
+  function InboxView(db, listingModels) {
+    var inquiries = (db.data && db.data.inquiries) || [];
+    var user = db.state.auth && db.state.auth.user;
+
+    // فلترة الاستفسارات الخاصة بالمستخدم الحالي فقط
+    var userInquiries = user ? inquiries.filter(function(inq) {
+      return inq.user_id === user.id;
+    }) : [];
+
+    // ترتيب حسب التاريخ (الأحدث أولاً)
+    var sorted = userInquiries.slice().sort(function(a, b) {
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+
+    return D.Containers.Section({ attrs: { class: tw('px-4 pb-16 pt-6 max-w-4xl mx-auto space-y-6') } }, [
+      HeaderSection(db),
+      D.Containers.Div({ attrs: { class: tw('rounded-3xl border p-6 space-y-4', themed(db, 'border-white/5 bg-slate-900/40', 'border-slate-200 bg-white')) } }, [
+        D.Text.H2({ attrs: { class: tw('text-2xl font-bold', themed(db, 'text-white', 'text-slate-900')) } }, [translate('inbox.title', 'رسائلي', null, db)]),
+        D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, [
+          translate('inbox.subtitle', 'تتبع حالة الطلبات والاستفسارات التي أرسلتها', null, db)
+        ]),
+
+        sorted.length === 0 ? D.Containers.Div({ attrs: { class: tw('text-center py-12', themed(db, 'text-slate-400', 'text-slate-600')) } }, [
+          D.Text.P({}, [translate('inbox.empty', 'لم ترسل أي استفسارات بعد', null, db)])
+        ]) : D.Containers.Div({ attrs: { class: 'space-y-3' } }, sorted.map(function(inquiry) {
+          var listing = (db.data && db.data.listings) ? db.data.listings.find(function(l) { return l.id === inquiry.listing_id; }) : null;
+          var status = inquiry.status || 'new';
+          var statusLabel = status === 'new' ? translate('inquiry.status.new', 'جديد', null, db)
+            : status === 'contacted' ? translate('inquiry.status.contacted', 'تم التواصل', null, db)
+            : status === 'closed' ? translate('inquiry.status.closed', 'مغلق', null, db)
+            : status;
+
+          var statusColor = status === 'new' ? themed(db, 'bg-emerald-500/20 text-emerald-400', 'bg-emerald-100 text-emerald-700')
+            : status === 'contacted' ? themed(db, 'bg-blue-500/20 text-blue-400', 'bg-blue-100 text-blue-700')
+            : themed(db, 'bg-slate-500/20 text-slate-400', 'bg-slate-100 text-slate-700');
+
+          return D.Containers.Div({ attrs: { key: inquiry.id, class: tw('rounded-2xl border p-4 space-y-3', themed(db, 'border-white/10 bg-slate-800/40', 'border-slate-200 bg-slate-50')) } }, [
+            D.Containers.Div({ attrs: { class: 'flex items-start justify-between gap-3' } }, [
+              D.Containers.Div({ attrs: { class: 'flex-1' } }, [
+                listing ? D.Text.H3({ attrs: { class: tw('font-semibold text-sm mb-1', themed(db, 'text-white', 'text-slate-900')) } }, [
+                  listing.headline || translate('inbox.listing', 'عقار', null, db)
+                ]) : null,
+                D.Text.P({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [
+                  formatDate(inquiry.created_at)
+                ])
+              ]),
+              D.Text.Span({ attrs: { class: tw('px-3 py-1 rounded-full text-xs font-medium', statusColor) } }, [statusLabel])
+            ]),
+            D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-300', 'text-slate-700')) } }, [inquiry.message]),
+            inquiry.notes ? D.Text.P({ attrs: { class: tw('text-xs p-3 rounded-lg', themed(db, 'bg-slate-900/60 text-slate-400', 'bg-white text-slate-600')) } }, [
+              D.Text.Strong({}, [translate('inbox.response', 'رد المكتب:', null, db) + ' ']),
+              inquiry.notes
+            ]) : null
+          ]);
+        }))
+      ])
+    ]);
+  }
+
   function DetailSummary(db, model) {
     var unit = model.unit || {};
     var broker = model.broker;
@@ -1693,9 +1862,9 @@
     ]);
   }
   function ToastBanner(db, payload) {
-    return D.Containers.Div({ attrs: { class: tw('fixed top-4 inset-x-0 mx-auto max-w-md rounded-full border border-white/10 bg-slate-900/80 px-4 py-2 text-sm text-white shadow-lg shadow-black/40 z-60 flex items-center justify-between gap-2') } }, [
+    return D.Containers.Div({ attrs: { class: tw('fixed top-4 inset-x-0 mx-auto max-w-md rounded-full border px-4 py-2 text-sm shadow-lg z-[100] flex items-center justify-between gap-2', themed(db, 'border-white/10 bg-slate-900/80 text-white shadow-black/40', 'border-emerald-200 bg-white text-slate-900 shadow-emerald-500/20')) } }, [
       D.Text.Span({}, [payload.message || translate('toast.defaultSuccess', 'تم تنفيذ العملية.', null, db)]),
-      D.Forms.Button({ attrs: { type: 'button', class: 'text-xs text-slate-400', 'data-m-gkey': 'toast-dismiss' } }, [translate('actions.dismiss', 'إغلاق', null, db)])
+      D.Forms.Button({ attrs: { type: 'button', class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')), 'data-m-gkey': 'toast-dismiss' } }, [translate('actions.dismiss', 'إغلاق', null, db)])
     ]);
   }
 
@@ -1769,9 +1938,10 @@
   function LoadingSection(db) {
     return D.Containers.Section({ attrs: { class: 'flex min-h-screen items-center justify-center text-slate-400' } }, [translate('misc.loading', 'جارِ تحميل بيانات الوسطاء...', null, db)]);
   }
-  function HeaderSection(settings) {
+  function HeaderSection(db) {
+    var settings = db && db.data ? db.data.appSettings : null;
     if (!settings) {
-      return D.Containers.Header({ attrs: { class: tw('space-y-1 text-center text-white') } }, [
+      return D.Containers.Header({ attrs: { class: tw('space-y-1 text-center', themed(db, 'text-white', 'text-slate-900')) } }, [
         D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, ['Brocker Mishkah'])
       ]);
     }
@@ -1783,15 +1953,15 @@
           attrs: {
             src: logoSrc,
             alt: brandName || 'Brocker',
-            class: 'mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-2xl border border-emerald-400/20 bg-slate-900/60 p-2 object-contain shadow-lg shadow-emerald-500/10'
+            class: tw('mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-2xl border p-2 object-contain shadow-lg', themed(db, 'border-emerald-400/20 bg-slate-900/60 shadow-emerald-500/10', 'border-emerald-400/30 bg-white/80 shadow-emerald-500/20'))
           }
         })
       : null;
-    return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center text-white sm:space-y-3') } }, [
+    return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center sm:space-y-3', themed(db, 'text-white', 'text-slate-900')) } }, [
       logo,
       D.Text.H1({ attrs: { class: 'text-2xl font-semibold sm:text-3xl' } }, [brandName || 'منصة الوسطاء']),
       brandTagline
-        ? D.Text.P({ attrs: { class: 'text-sm leading-6 text-slate-300 sm:text-base' } }, [brandTagline])
+        ? D.Text.P({ attrs: { class: tw('text-sm leading-6 sm:text-base', themed(db, 'text-slate-300', 'text-slate-600')) } }, [brandTagline])
         : null
     ]);
   }
