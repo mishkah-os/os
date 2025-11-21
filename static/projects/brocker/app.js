@@ -119,6 +119,7 @@
       selectedBrokerId: null,
       readyTables: [],
       toast: null,
+      showSubscribeModal: false,
       dashboard: {
         inquiryStatus: 'all'
       },
@@ -184,11 +185,25 @@
     return (source && source.lang) || 'ar';
   }
 
-  function translate(key, fallback, lang) {
-    var env = activeEnv();
+  function translate(key, fallback, lang, db) {
+    // إذا تم تمرير db، استخدمه، وإلا استخدم activeEnv()
+    var env = (db && db.env) ? db.env : activeEnv();
     var locale = lang || (env && env.lang) || 'ar';
     var map = (env && env.i18n) || BASE_I18N;
     var entry = map[key];
+
+    // Debug: log للمفاتيح المهمة
+    if (key === 'nav.home' || key === 'footer.subscribe') {
+      console.log('[translate]', {
+        key: key,
+        locale: locale,
+        hasEntry: !!entry,
+        entryValue: entry ? entry[locale] : null,
+        mapKeysCount: Object.keys(map).length,
+        fromDb: !!(db && db.env)
+      });
+    }
+
     if (entry && entry[locale]) return entry[locale];
     if (entry && entry.ar) return entry.ar;
     return typeof fallback === 'string' ? fallback : key;
@@ -767,9 +782,63 @@
       gkeys: ['subscribe-cta'],
       handler: function (event, ctx) {
         if (event) event.preventDefault();
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              showSubscribeModal: true
+            })
+          });
+        });
+      }
+    },
+    'ui.subscribe.close': {
+      on: ['click'],
+      gkeys: ['close-subscribe-modal'],
+      handler: function (event, ctx) {
+        if (event) event.preventDefault();
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              showSubscribeModal: false
+            })
+          });
+        });
+      }
+    },
+    'ui.subscribe.submit': {
+      on: ['submit'],
+      gkeys: ['subscribe-form'],
+      handler: function (event, ctx) {
+        if (event) event.preventDefault();
+        var form = event.target;
+        var formData = new FormData(form);
+        var name = formData.get('name');
+        var phone = formData.get('phone');
+        var email = formData.get('email');
 
-        // عرض alert مؤقت - سنستبدله بـ modal لاحقاً
-        alert(translate('subscribe.message', 'شكراً لاهتمامك! سنتواصل معك قريباً.'));
+        console.log('[Subscribe] Form submitted:', { name, phone, email });
+
+        // إغلاق النموذج وعرض رسالة نجاح
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              showSubscribeModal: false,
+              toast: {
+                message: translate('subscribe.success', 'تم إرسال طلبك بنجاح! سنتواصل معك قريباً.'),
+                type: 'success'
+              }
+            })
+          });
+        });
+
+        // إخفاء Toast بعد 3 ثوان
+        setTimeout(function() {
+          ctx.setState(function(db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, { toast: null })
+            });
+          });
+        }, 3000);
       }
     },
     'ui.hero.action': {
@@ -809,6 +878,78 @@
       }
     }
   };
+  function SubscribeModal(db) {
+    if (!db.state.showSubscribeModal) return null;
+
+    return D.Containers.Div({ attrs: { class: 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm' } }, [
+      D.Containers.Div({ attrs: { class: tw('w-full max-w-md rounded-2xl p-6 shadow-2xl transition-colors', themed(db, 'bg-slate-900 text-white', 'bg-white text-slate-900')) } }, [
+        // العنوان وزر الإغلاق
+        D.Containers.Div({ attrs: { class: 'flex items-center justify-between mb-6' } }, [
+          D.Text.H2({ attrs: { class: 'text-2xl font-bold' } }, [translate('subscribe.title', 'اشترك معنا')]),
+          D.Forms.Button({
+            attrs: {
+              type: 'button',
+              'data-m-gkey': 'close-subscribe-modal',
+              class: tw('w-8 h-8 flex items-center justify-center rounded-full transition-colors', themed(db, 'hover:bg-slate-800', 'hover:bg-slate-100'))
+            }
+          }, ['✕'])
+        ]),
+
+        // النموذج
+        D.Forms.Form({ attrs: { 'data-m-gkey': 'subscribe-form', class: 'space-y-4' } }, [
+          // الاسم
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.name', 'الاسم')]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                name: 'name',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('subscribe.namePlaceholder', 'أدخل اسمك')
+              }
+            })
+          ]),
+
+          // الهاتف
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.phone', 'رقم الهاتف')]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'tel',
+                name: 'phone',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('subscribe.phonePlaceholder', '05xxxxxxxx')
+              }
+            })
+          ]),
+
+          // البريد الإلكتروني (اختياري)
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('subscribe.email', 'البريد الإلكتروني') + ' (' + translate('subscribe.optional', 'اختياري') + ')']),
+            D.Inputs.Input({
+              attrs: {
+                type: 'email',
+                name: 'email',
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('subscribe.emailPlaceholder', 'example@email.com')
+              }
+            })
+          ]),
+
+          // زر الإرسال
+          D.Forms.Button({
+            attrs: {
+              type: 'submit',
+              class: tw('w-full py-3 rounded-lg font-bold transition-all hover:scale-[1.02]', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white', 'bg-emerald-600 hover:bg-emerald-700 text-white'))
+            }
+          }, [translate('subscribe.submit', 'إرسال الطلب')])
+        ])
+      ])
+    ]);
+  }
+
   function AppView(db) {
     var listingModels = buildListingModels(db);
     var view = db.state.activeView;
@@ -832,7 +973,8 @@
       content,
       BottomNav(db),
       installBanner,
-      db.state.pwa && db.state.pwa.showGate ? InstallGate(db) : null
+      db.state.pwa && db.state.pwa.showGate ? InstallGate(db) : null,
+      SubscribeModal(db)
     ]);
   }
 
@@ -882,7 +1024,7 @@
 
   function FooterSection(settings) {
     var brandName = settings && settings.brand_name ? settings.brand_name : 'عقار برو';
-    var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '🏢';
+    var brandLogo = settings && settings.brand_logo ? settings.brand_logo : '/projects/brocker/images/logo.svg';
     var heroTitle = settings && settings.hero_title
       ? localized('app_settings', settings.id || 'default', 'hero_title', settings.hero_title)
       : 'منصة متكاملة للوسطاء';
@@ -898,7 +1040,7 @@
     ) } }, [
       // شعار واسم المنصة
       D.Containers.Div({ attrs: { class: 'flex items-center gap-3' } }, [
-        D.Text.Span({ attrs: { class: 'text-4xl' } }, [brandLogo]),
+        D.Media.Img({ attrs: { src: brandLogo, alt: brandName, class: 'h-12 w-12 object-contain' } }),
         D.Containers.Div({}, [
           D.Text.H3({ attrs: { class: 'text-xl font-bold' } }, [brandName]),
           D.Text.P({ attrs: { class: tw('text-sm', themed({ env: activeEnv() }, 'text-slate-300', 'text-slate-600')) } }, [heroTitle])
