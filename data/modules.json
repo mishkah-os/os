@@ -119,9 +119,11 @@
         "unit_features_lang",
         "inquiries_lang",
         "inquiry_replies_lang",
+        "regions_lang",
         "app_settings",
         "hero_slides",
-        "regions"
+        "regions",
+        "ui_labels"
       ],
       "description": "Real estate broker-first dataset powering the Mishkah PWA experience."
     }

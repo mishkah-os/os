@@ -189,12 +189,6 @@
     var locale = lang || (env && env.lang) || 'ar';
     var map = (env && env.i18n) || BASE_I18N;
     var entry = map[key];
-
-    // Debug: log كل مرة للتأكد من وجود الترجمة
-    if (console && console.log && entry && locale === 'en' && !entry[locale]) {
-      console.warn('[translate] Missing EN translation for:', key, 'entry:', entry);
-    }
-
     if (entry && entry[locale]) return entry[locale];
     if (entry && entry.ar) return entry.ar;
     return typeof fallback === 'string' ? fallback : key;
@@ -768,6 +762,16 @@
         setEnvLanguage(ctx, next);
       }
     },
+    'ui.subscribe.cta': {
+      on: ['click'],
+      gkeys: ['subscribe-cta'],
+      handler: function (event, ctx) {
+        if (event) event.preventDefault();
+
+        // عرض alert مؤقت - سنستبدله بـ modal لاحقاً
+        alert(translate('subscribe.message', 'شكراً لاهتمامك! سنتواصل معك قريباً.'));
+      }
+    },
     'ui.hero.action': {
       on: ['click'],
       gkeys: ['hero-slide'],
@@ -918,45 +922,17 @@
         })
       ]),
 
-      // زر اشترك معنا
+      // زر اشترك معنا - يفتح نموذج الاشتراك
       D.Containers.Div({ attrs: { class: 'flex justify-center' } }, [
-        whatsapp ? D.Text.A({
+        D.Forms.Button({
           attrs: {
-            href: 'https://wa.me/' + whatsapp.replace(/\D/g, '') + '?text=' + encodeURIComponent('أريد الاشتراك كمكتب عقارات'),
-            target: '_blank',
-            rel: 'noopener noreferrer',
-            class: tw('flex items-center gap-3 px-6 py-3 rounded-full text-base font-bold transition-all shadow-lg', themed({ env: activeEnv() }, 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30', 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/30'))
+            type: 'button',
+            'data-m-gkey': 'subscribe-cta',
+            class: tw('flex items-center gap-3 px-8 py-4 rounded-full text-lg font-bold transition-all shadow-lg hover:scale-105', themed({ env: activeEnv() }, 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/30', 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-600/30'))
           }
         }, [
           D.Text.Span({ attrs: { class: 'text-2xl' } }, ['✨']),
           D.Text.Span({}, [translate('footer.subscribe', 'اشترك معنا الآن')])
-        ]) : null
-      ]),
-
-      // أيقونات التواصل
-      D.Containers.Div({ attrs: { class: 'space-y-3' } }, [
-        D.Text.P({ attrs: { class: tw('text-sm font-semibold', themed({ env: activeEnv() }, 'text-slate-200', 'text-slate-700')) } }, [translate('footer.contact', 'تواصل معنا')]),
-        D.Containers.Div({ attrs: { class: 'flex items-center gap-3 flex-wrap' } }, [
-          whatsapp ? D.Text.A({
-            attrs: {
-              href: 'https://wa.me/' + whatsapp.replace(/\D/g, ''),
-              target: '_blank',
-              rel: 'noopener noreferrer',
-              class: tw('flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all', themed({ env: activeEnv() }, 'bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30', 'bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/30'))
-            }
-          }, [
-            D.Text.Span({ attrs: { class: 'text-xl' } }, ['📱']),
-            D.Text.Span({}, ['واتساب'])
-          ]) : null,
-          phone ? D.Text.A({
-            attrs: {
-              href: 'tel:' + phone,
-              class: tw('flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all', themed({ env: activeEnv() }, 'bg-blue-500/20 text-blue-300 hover:bg-blue-500/30', 'bg-blue-500/20 text-blue-700 hover:bg-blue-500/30'))
-            }
-          }, [
-            D.Text.Span({ attrs: { class: 'text-xl' } }, ['📞']),
-            D.Text.Span({}, ['اتصل بنا'])
-          ]) : null
         ])
       ]),
 
@@ -969,11 +945,10 @@
 
   function HomeView(db, listingModels) {
     var settings = db.data.appSettings;
-    var slides = Array.isArray(db.data.heroSlides) ? db.data.heroSlides : [];
     var filtered = filterListings(listingModels, db.state.filters).slice(0, 6);
-    var heroSection = slides.length ? HeroSection(settings, slides) : null;
+
+    // بداية مباشرة بالبحث - بدون أي sections قبلها
     return D.Containers.Section({ attrs: { class: tw('px-4 pb-6 pt-4 space-y-6 max-w-xl mx-auto') } }, [
-      heroSection,
       SearchPanel(db, listingModels),
       LatestListingsGrid(filtered),
       FooterSection(settings)

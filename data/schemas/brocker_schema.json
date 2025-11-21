@@ -3595,6 +3595,203 @@
           }
         ],
         "indexes": []
+      },
+      {
+        "name": "regions_lang",
+        "label": "regions (ترجمات)",
+        "comment": "Translations for regions",
+        "sqlName": "regions_lang",
+        "layout": {
+          "x": 1100,
+          "y": 0
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "id",
+            "type": "uuid",
+            "nullable": false,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": ""
+          },
+          {
+            "name": "regions_id",
+            "columnName": "regions_id",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "",
+            "notes": "",
+            "references": {
+              "table": "regions",
+              "column": "id",
+              "onDelete": "CASCADE",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "name",
+            "columnName": "name",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Display name",
+            "notes": ""
+          },
+          {
+            "name": "city",
+            "columnName": "city",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "City name",
+            "notes": ""
+          },
+          {
+            "name": "country",
+            "columnName": "country",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Country code/name",
+            "notes": ""
+          },
+          {
+            "name": "lang",
+            "columnName": "lang",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 2,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "رمز اللغة",
+            "notes": ""
+          },
+          {
+            "name": "created_date",
+            "columnName": "created_date",
+            "type": "datetime",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "تاريخ الإنشاء",
+            "notes": ""
+          },
+          {
+            "name": "modified_date",
+            "columnName": "modified_date",
+            "type": "datetime",
+            "nullable": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "آخر تعديل",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "regions_lang_unique",
+            "columns": [
+              "regions_id",
+              "lang"
+            ],
+            "unique": true
+          }
+        ]
+      },
+      {
+        "name": "ui_labels",
+        "label": "ui_labels",
+        "comment": "UI translation labels",
+        "sqlName": "ui_labels",
+        "layout": {
+          "x": 1200,
+          "y": 300
+        },
+        "classCode": "",
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "id",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": true,
+            "unique": false,
+            "index": false,
+            "comment": "Primary key",
+            "notes": ""
+          },
+          {
+            "name": "key",
+            "columnName": "key",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Translation key (e.g. nav.home)",
+            "notes": ""
+          },
+          {
+            "name": "lang",
+            "columnName": "lang",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 2,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Language code (ar, en)",
+            "notes": ""
+          },
+          {
+            "name": "text",
+            "columnName": "text",
+            "type": "text",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Translated text",
+            "notes": ""
+          },
+          {
+            "name": "kind",
+            "columnName": "kind",
+            "type": "string",
+            "nullable": false,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "ui or content",
+            "notes": ""
+          }
+        ],
+        "indexes": [
+          {
+            "name": "ui_labels_key_lang_unique",
+            "columns": [
+              "key",
+              "lang"
+            ],
+            "unique": true
+          }
+        ]
       }
     ]
   },
@@ -3702,6 +3899,14 @@
     "inquiry_replies_lang": {
       "x": 359,
       "y": 1855
+    },
+    "regions_lang": {
+      "x": 1100,
+      "y": 0
+    },
+    "ui_labels": {
+      "x": 1200,
+      "y": 300
     }
   },
   "canvas": {
