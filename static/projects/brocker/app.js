@@ -425,13 +425,29 @@
     syncDocumentEnv(nextEnv);
 
     // تحديث state لتحديث الـ UI فوراً (RTL/LTR)
+    // ✨ الحل: نمسح البيانات القديمة ونعرض loading فوراً في نفس الـ setState
     ctx.setState(function (db) {
       var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
       // إعادة تطبيق label maps مع اللغة الجديدة
       if (db.data && Array.isArray(db.data.uiLabels)) {
         updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
       }
-      return Object.assign({}, db, { env: updatedEnv });
+
+      // ✨ مسح البيانات القديمة فوراً + إظهار loading لمنع عرض البيانات باللغة الخاطئة
+      return Object.assign({}, db, {
+        env: updatedEnv,
+        data: Object.assign({}, db.data, {
+          // مسح البيانات التي تعتمد على اللغة
+          units: [],
+          listings: [],
+          brokers: [],
+          regions: []
+        }),
+        state: Object.assign({}, db.state, {
+          loading: true,
+          readyTables: []
+        })
+      });
     });
 
     // إعادة تحميل البيانات بلغة جديدة من Backend
