@@ -120,6 +120,15 @@
       readyTables: [],
       toast: null,
       showSubscribeModal: false,
+      auth: {
+        isAuthenticated: false,
+        user: null,
+        showAuthModal: false,
+        authMode: 'login',
+        phone: '',
+        otp: '',
+        stage: 'phone'
+      },
       dashboard: {
         inquiryStatus: 'all'
       },
@@ -1012,7 +1021,23 @@
             }
           }, [
             D.Text.Span({}, [langText])
-          ]) : null
+          ]) : null,
+          !isLoading && db.state && db.state.auth && db.state.auth.isAuthenticated ? D.Forms.Button({
+            attrs: {
+              type: 'button',
+              class: tw('flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 active:scale-95', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-100 hover:bg-slate-200 text-slate-800')),
+              'data-m-gkey': 'navigate-dashboard',
+              title: translate('actions.dashboard', 'لوحة التحكم', null, db)
+            }
+          }, ['📊']) : null,
+          !isLoading && (!db.state || !db.state.auth || !db.state.auth.isAuthenticated) ? D.Forms.Button({
+            attrs: {
+              type: 'button',
+              class: tw('flex items-center justify-center px-4 h-9 rounded-full transition-all duration-200 active:scale-95 font-bold text-sm', themed(db, 'bg-slate-800 hover:bg-slate-700 text-white', 'bg-slate-200 hover:bg-slate-300 text-slate-900')),
+              'data-m-gkey': 'show-auth-modal',
+              title: translate('actions.login', 'تسجيل الدخول', null, db)
+            }
+          }, [translate('auth.login', 'دخول', null, db)]) : null
         ])
       ])
     ]);
