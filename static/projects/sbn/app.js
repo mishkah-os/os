@@ -966,8 +966,9 @@
       return;
     }
 
-    // Fetch schema first
-    var schemaUrl = '/api/schema/' + BRANCH_ID + '/' + MODULE_ID;
+    // Fetch schema first (using query parameters, not path)
+    var schemaUrl = '/api/schema?branch=' + encodeURIComponent(BRANCH_ID) +
+                    '&module=' + encodeURIComponent(MODULE_ID);
 
     fetch(schemaUrl, { cache: 'no-store' })
       .then(function(response) {
@@ -975,8 +976,13 @@
         return response.json();
       })
       .then(function(payload) {
-        var schema = payload && payload.schema ? payload.schema : null;
-        if (!schema) throw new Error('schema-invalid');
+        // Extract schema from payload.modules[moduleId].schema
+        var moduleData = payload && payload.modules && payload.modules[MODULE_ID];
+        var schema = moduleData && moduleData.schema ? moduleData.schema : null;
+        if (!schema) {
+          console.error('[SBN PWA] Schema not found in response:', payload);
+          throw new Error('schema-invalid');
+        }
 
         var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY);
 
