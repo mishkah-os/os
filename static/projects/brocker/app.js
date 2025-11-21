@@ -405,8 +405,11 @@
     var nextLang = lang || 'ar';
     var dir = resolveDir(nextLang);
 
+    // قراءة الـ env الحالي بطريقة آمنة
+    var currentEnv = (ctx.database && ctx.database.env) || { lang: 'ar', theme: 'dark', dir: 'rtl' };
+    var nextEnv = Object.assign({}, currentEnv, { lang: nextLang, dir: dir });
+
     // حفظ التفضيلات أولاً
-    var nextEnv = Object.assign({}, ctx.database.env, { lang: nextLang, dir: dir });
     persistPrefs(nextEnv);
     syncDocumentEnv(nextEnv);
 
@@ -424,7 +427,8 @@
     if (!ctx) return;
     var nextTheme = theme === 'light' ? 'light' : 'dark';
     ctx.setState(function (db) {
-      var nextEnv = Object.assign({}, db.env, { theme: nextTheme });
+      var currentEnv = db.env || { lang: 'ar', theme: 'dark', dir: 'rtl' };
+      var nextEnv = Object.assign({}, currentEnv, { theme: nextTheme });
       persistPrefs(nextEnv);
       syncDocumentEnv(nextEnv);
       return Object.assign({}, db, { env: nextEnv });
