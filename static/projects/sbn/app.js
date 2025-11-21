@@ -215,7 +215,7 @@
           D.Forms.Button(
             { attrs: {
               'data-m-gkey': 'toggle-theme',
-              class: 'btn-icon',
+              class: 'icon-btn',
               title: Mishkah.t(db, 'settings.theme.toggle')
             } },
             [db.theme === 'dark' ? '☀️' : '🌙']
@@ -225,7 +225,7 @@
           D.Forms.Button(
             { attrs: {
               'data-m-gkey': 'toggle-lang',
-              class: 'btn-icon',
+              class: 'icon-btn',
               title: Mishkah.t(db, 'settings.language.toggle')
             } },
             [db.lang === 'ar' ? 'EN' : 'ع']
@@ -300,7 +300,7 @@
       // Image
       D.Media.Img({
         attrs: {
-          src: product.main_image_url || '/static/projects/sbn/placeholder.jpg',
+          src: product.main_image_url || '/projects/sbn/placeholder.jpg',
           alt: product.name,
           class: 'product-image'
         }

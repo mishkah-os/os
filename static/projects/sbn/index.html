@@ -18,7 +18,7 @@
   <title>مستعمل حوا - Mostamal Hawa</title>
 
   <!-- Mishkah CSS -->
-  <link rel="stylesheet" href="/static/lib/mishkah-css.css">
+  <link rel="stylesheet" href="/lib/mishkah-css.css">
 
   <style>
     :root {
@@ -131,7 +131,7 @@
       margin: 0 auto;
     }
 
-    .logo {
+    .app-title {
       font-size: 20px;
       font-weight: 700;
       color: var(--color-primary);
@@ -140,7 +140,7 @@
       gap: 8px;
     }
 
-    .header-actions {
+    .header-controls {
       display: flex;
       align-items: center;
       gap: 12px;
@@ -371,6 +371,20 @@
       gap: 12px;
     }
 
+    .cards-grid,
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .services-list,
+    .articles-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
     .product-card {
       background: var(--bg-secondary);
       border-radius: 12px;
@@ -463,15 +477,289 @@
       opacity: 1;
       transition: all 0.3s;
     }
+
+    /* App Layout */
+    .app-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .app-main {
+      flex: 1;
+      max-width: 640px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 16px;
+      padding-bottom: 80px;
+    }
+
+    /* Sections */
+    .section {
+      padding: 16px 0;
+    }
+
+    .section-subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+
+    /* Welcome Banner */
+    .welcome-banner {
+      background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+      border-radius: 16px;
+      padding: 24px;
+      color: white;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .welcome-banner h2 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .welcome-banner p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-number {
+      display: block;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--color-primary);
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Recent Section */
+    .recent-section {
+      margin-bottom: 24px;
+    }
+
+    .recent-section h3 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+
+    /* Filters Bar */
+    .filters-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .filters-bar::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .filters-bar::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    .filter-select {
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 14px;
+      min-width: 120px;
+    }
+
+    .filter-select:focus {
+      outline: none;
+      border-color: var(--color-primary);
+    }
+
+    /* Service Card */
+    .service-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+
+    .service-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: var(--color-primary);
+    }
+
+    .service-content {
+      margin-bottom: 12px;
+    }
+
+    .service-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    .service-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+
+    .service-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .service-price {
+      color: var(--color-primary);
+      font-weight: 600;
+    }
+
+    .service-location {
+      color: var(--text-tertiary);
+    }
+
+    .service-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* Article Item */
+    .article-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s;
+    }
+
+    .article-item:hover {
+      box-shadow: var(--shadow-md);
+      border-color: var(--color-primary);
+    }
+
+    .article-content {
+      flex: 1;
+    }
+
+    .article-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text-primary);
+    }
+
+    .article-summary {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .article-meta {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .article-views {
+      color: var(--text-tertiary);
+    }
+
+    /* Empty Message */
+    .empty-message {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* Loading/Error States */
+    .loading-text {
+      margin-top: 16px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    .error-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 50vh;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .error-screen h2 {
+      color: var(--color-danger);
+      margin-bottom: 12px;
+    }
+
+    .error-screen p {
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    /* Button Styles */
+    .btn-link {
+      background: transparent;
+      border: none;
+      color: var(--color-primary);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      padding: 8px 16px;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-link:hover {
+      background: rgba(99, 102, 241, 0.1);
+    }
   </style>
 </head>
 <body>
   <div id="app"></div>
 
   <!-- Mishkah Core Libraries -->
-  <script src="/static/lib/mishkah.core.js"></script>
-  <script src="/static/lib/mishkah-utils.js"></script>
-  <script src="/static/lib/mishkah.store.js"></script>
+  <script src="/lib/mishkah.core.js"></script>
+  <script src="/lib/mishkah-utils.js"></script>
+  <script src="/lib/mishkah.store.js"></script>
 
   <!-- App -->
   <script src="./app.js"></script>
