@@ -60,15 +60,21 @@
   var BASE_I18N = {};
 
   function buildTranslationMaps(rows) {
+    console.log('[buildTranslationMaps] Processing', rows ? rows.length : 0, 'rows');
     var ui = {};
     var content = {};
+    var langCounts = { ar: 0, en: 0 };
     (rows || []).forEach(function (row) {
       if (!row || !row.key) return;
       var lang = row.lang || 'ar';
       var target = row.kind === 'content' ? content : ui;
       if (!target[row.key]) target[row.key] = {};
       target[row.key][lang] = row.text || row.value || row.label || '';
+      if (lang === 'ar') langCounts.ar++;
+      else if (lang === 'en') langCounts.en++;
     });
+    console.log('[buildTranslationMaps] Language counts:', langCounts);
+    console.log('[buildTranslationMaps] UI keys:', Object.keys(ui).length, ', Content keys:', Object.keys(content).length);
     return { ui: ui, content: content };
   }
 
@@ -224,7 +230,13 @@
   }
 
   function applyLabelMaps(env, labels) {
+    console.log('[applyLabelMaps] Called with', labels ? labels.length : 0, 'labels');
     var maps = buildTranslationMaps(labels);
+    console.log('[applyLabelMaps] Built maps - ui keys:', Object.keys(maps.ui).length, ', content keys:', Object.keys(maps.content).length);
+    console.log('[applyLabelMaps] Sample ui map:', {
+      'nav.home': maps.ui['nav.home'],
+      'footer.subscribe': maps.ui['footer.subscribe']
+    });
     return Object.assign({}, env, { i18n: maps.ui, contentI18n: maps.content });
   }
 
