@@ -937,13 +937,20 @@
   function bootstrapRealtime(app, lang) {
     lang = lang || 'ar';
 
-    var conn = window.createDBAuto({
+    // Build objects config from REQUIRED_TABLES
+    var objects = {};
+    REQUIRED_TABLES.forEach(function (tableName) {
+      objects[tableName] = { table: tableName };
+    });
+
+    var conn = window.createDB({
       branchId: BRANCH_ID,
       moduleId: MODULE_ID,
       lang: lang, // ✅ Pass language to backend for Auto-Flattening
       role: 'client',
       autoReconnect: true,
-      logger: console
+      logger: console,
+      objects: objects
     });
 
     // Store connection globally
