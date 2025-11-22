@@ -3979,6 +3979,19 @@
         "lang": "en",
         "text": "Optional",
         "kind": "ui"
+      },{
+        "id": "ui-footer.defaultHeroTitle-en",
+        "key": "footer.defaultHeroTitle",
+        "lang": "en",
+        "text": "Integrated Platform for Brokers",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-footer.defaultHeroSubtitle-en",
+        "key": "footer.defaultHeroSubtitle",
+        "lang": "en",
+        "text": "Search, manage, and track your client requests easily.",
+        "kind": "ui"
       }
     ]
   }
