@@ -2867,6 +2867,7 @@ var brandLogo = theme === 'dark'
     }
     var brandName = localized('app_settings', settings.id || 'default', 'brand_name', settings.brand_name);
     var brandTagline = localized('app_settings', settings.id || 'default', 'tagline', settings.tagline);
+    var theme = db.env && db.env.theme;
 
     var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
 var brandLogo = theme === 'dark' 
