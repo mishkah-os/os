@@ -4068,6 +4068,26 @@
         "lang": "en",
         "text": "No media available.",
         "kind": "ui"
+      },{
+        "id": "content-app_settings.brocker-app-config.brand_name-en",
+        "key": "app_settings.brocker-app-config.brand_name",
+        "lang": "en",
+        "text": "Makateb Aqarat",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.hero_title-en",
+        "key": "app_settings.brocker-app-config.hero_title",
+        "lang": "en",
+        "text": "Integrated Platform for Brokers",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.hero_subtitle-en",
+        "key": "app_settings.brocker-app-config.hero_subtitle",
+        "lang": "en",
+        "text": "Search, manage, and track your client requests easily.",
+        "kind": "content"
       }
     ]
   }
