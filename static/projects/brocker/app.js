@@ -447,54 +447,55 @@
     });
   }
 
-  function setEnvLanguage(ctx, lang) {
-    if (!ctx) return;
-    var nextLang = lang || 'ar';
-    var dir = resolveDir(nextLang);
+function setEnvLanguage(ctx, lang) {
+  if (!ctx) return;
+  var nextLang = lang || 'ar';
+  var dir = resolveDir(nextLang);
 
-    // قراءة الـ env الحالي بطريقة آمنة
+  ctx.setState(function (db) {
+    return Object.assign({}, db, {
+      state: Object.assign({}, db.state, {
+        loading: true,
+        readyTables: [],
+        error: null
+      }),
+      data: Object.assign({}, db.data, {
+        listings: [],
+        units: [],
+        projects: [],
+        regions: [],
+        heroSlides: [],
+        unitTypes: [],
+        brokers: [],
+        unitFeatures: [],
+        unitMedia: [],
+        unitLayouts: [],
+        featureValues: []
+      })
+    });
+  });
+
+  setTimeout(function() {
     var currentEnv = (ctx.database && ctx.database.env) || { lang: 'ar', theme: 'dark', dir: 'rtl' };
     var nextEnv = Object.assign({}, currentEnv, { lang: nextLang, dir: dir });
 
-    // حفظ التفضيلات أولاً
     persistPrefs(nextEnv);
     syncDocumentEnv(nextEnv);
 
-    // تحديث state لتحديث الـ UI فوراً (RTL/LTR)
-    // ✨ الحل: نمسح البيانات القديمة ونعرض loading فوراً في نفس الـ setState
     ctx.setState(function (db) {
       var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
-      // إعادة تطبيق label maps مع اللغة الجديدة
+      
       if (db.data && Array.isArray(db.data.uiLabels)) {
         updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
       }
 
-      // ✨ مسح البيانات التي تعتمد على اللغة فوراً + إظهار loading
-      return Object.assign({}, db, {
-        env: updatedEnv,
-        data: Object.assign({}, db.data, {
-          // مسح البيانات الديناميكية التي تعتمد على اللغة
-          units: [],
-          listings: [],
-          brokers: [],
-          regions: [],
-          unitTypes: [],
-          unitFeatures: [],
-          unitMedia: [],
-          unitLayouts: [],
-          featureValues: []
-        }),
-        state: Object.assign({}, db.state, {
-          loading: true,
-          readyTables: []
-        })
-      });
+      return Object.assign({}, db, { env: updatedEnv });
     });
 
-    // إعادة تحميل البيانات بلغة جديدة من Backend
     console.log('[Brocker PWA] Reloading data with new language:', nextLang);
     reloadDataWithLanguage(ctx, nextLang);
-  }
+  }, 50);
+}
 
   function setEnvTheme(ctx, theme) {
     if (!ctx) return;
