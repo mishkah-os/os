@@ -452,21 +452,13 @@ function setEnvLanguage(ctx, lang) {
   var nextLang = lang || 'ar';
   var dir = resolveDir(nextLang);
 
-  var currentEnv = (ctx.database && ctx.database.env) || { lang: 'ar', theme: 'dark', dir: 'rtl' };
-  var nextEnv = Object.assign({}, currentEnv, { lang: nextLang, dir: dir });
-
-  persistPrefs(nextEnv);
-  syncDocumentEnv(nextEnv);
-
   ctx.setState(function (db) {
-    var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
-    
-    if (db.data && Array.isArray(db.data.uiLabels)) {
-      updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
-    }
-
     return Object.assign({}, db, {
-      env: updatedEnv,
+      state: Object.assign({}, db.state, {
+        loading: true,
+        readyTables: [],
+        error: null
+      }),
       data: Object.assign({}, db.data, {
         listings: [],
         units: [],
@@ -479,16 +471,30 @@ function setEnvLanguage(ctx, lang) {
         unitMedia: [],
         unitLayouts: [],
         featureValues: []
-      }),
-      state: Object.assign({}, db.state, {
-        loading: true,
-        readyTables: [],
-        error: null
       })
     });
   });
 
-  reloadDataWithLanguage(ctx, nextLang);
+  setTimeout(function() {
+    var currentEnv = (ctx.database && ctx.database.env) || { lang: 'ar', theme: 'dark', dir: 'rtl' };
+    var nextEnv = Object.assign({}, currentEnv, { lang: nextLang, dir: dir });
+
+    persistPrefs(nextEnv);
+    syncDocumentEnv(nextEnv);
+
+    ctx.setState(function (db) {
+      var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
+      
+      if (db.data && Array.isArray(db.data.uiLabels)) {
+        updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
+      }
+
+      return Object.assign({}, db, { env: updatedEnv });
+    });
+
+    console.log('[Brocker PWA] Reloading data with new language:', nextLang);
+    reloadDataWithLanguage(ctx, nextLang);
+  }, 50);
 }
 
   function setEnvTheme(ctx, theme) {
