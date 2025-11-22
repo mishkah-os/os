@@ -1725,6 +1725,53 @@
         "lang": "en",
         "text": "120sqm hotel-furnished for daily/weekly rental",
         "created_at": "2024-11-20T10:00:00Z"
+      },{
+        "id": "listing-nour-1501-sale-en",
+        "listings_id": "listing-nour-1501-sale",
+        "lang": "en",
+        "headline": "2 Bedroom Apartment with Nile View",
+        "excerpt": "120sqm super lux finishing with direct view",
+        "primary_highlight": "Direct Nile View"
+      },
+      {
+        "id": "listing-hayat-villa08-sale-en",
+        "listings_id": "listing-hayat-villa08-sale",
+        "lang": "en",
+        "headline": "Luxury Villa with Private Pool",
+        "excerpt": "450sqm with 200sqm garden and private pool",
+        "primary_highlight": "Private Pool"
+      },
+      {
+        "id": "listing-nour-0805-rent-en",
+        "listings_id": "listing-nour-0805-rent",
+        "lang": "en",
+        "headline": "Furnished Studio for Rent",
+        "excerpt": "85sqm fully furnished with spacious balcony",
+        "primary_highlight": "Fully Furnished"
+      },
+      {
+        "id": "listing-capital-office-rent-en",
+        "listings_id": "listing-capital-office-rent",
+        "lang": "en",
+        "headline": "Commercial Office in Business Tower",
+        "excerpt": "180sqm with great view and full services",
+        "primary_highlight": "Modern Business Tower"
+      },
+      {
+        "id": "listing-nour-2003-lease-en",
+        "listings_id": "listing-nour-2003-lease",
+        "lang": "en",
+        "headline": "Penthouse with Private Roof",
+        "excerpt": "210sqm + 100sqm roof with jacuzzi and panoramic view",
+        "primary_highlight": "Private Roof"
+      },
+      {
+        "id": "listing-nour-1501-short-en",
+        "listings_id": "listing-nour-1501-short",
+        "lang": "en",
+        "headline": "Daily Rental Furnished Apartment",
+        "excerpt": "120sqm hotel-furnished for daily/weekly rental",
+        "primary_highlight": "Daily Rental"
       }
     ],
     "unit_features_lang": [],
@@ -3523,7 +3570,48 @@
         "lang": "en",
         "text": "Your request has been submitted successfully! We will contact you soon.",
         "kind": "ui"
-      }
+      },{
+  "id": "ui-auth.login-ar",
+  "key": "auth.login",
+  "lang": "ar",
+  "text": "تسجيل الدخول",
+  "kind": "ui"
+},
+{
+  "id": "ui-auth.login-en",
+  "key": "auth.login",
+  "lang": "en",
+  "text": "Login",
+  "kind": "ui"
+},
+{
+  "id": "ui-auth.loginBtn-ar",
+  "key": "auth.loginBtn",
+  "lang": "ar",
+  "text": "دخول",
+  "kind": "ui"
+},
+{
+  "id": "ui-auth.loginBtn-en",
+  "key": "auth.loginBtn",
+  "lang": "en",
+  "text": "Sign In",
+  "kind": "ui"
+},
+{
+  "id": "ui-auth.register-ar",
+  "key": "auth.register",
+  "lang": "ar",
+  "text": "إنشاء حساب",
+  "kind": "ui"
+},
+{
+  "id": "ui-auth.register-en",
+  "key": "auth.register",
+  "lang": "en",
+  "text": "Register",
+  "kind": "ui"
+}
     ]
   }
 }
