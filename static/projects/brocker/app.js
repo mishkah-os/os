@@ -94,11 +94,23 @@
 
   var persisted = loadPersistedPrefs();
 
+  // ✅ تطبيق syncDocumentEnv مبكراً قبل mount لتجنب flash
+  var initialLang = persisted.lang || 'ar';
+  var initialDir = persisted.dir || (initialLang === 'ar' ? 'rtl' : 'ltr');
+  var initialTheme = persisted.theme || 'dark';
+
+  // تطبيق على document مباشرة قبل mount
+  if (global.document && global.document.documentElement) {
+    global.document.documentElement.setAttribute('lang', initialLang);
+    global.document.documentElement.setAttribute('dir', initialDir);
+    global.document.documentElement.setAttribute('data-theme', initialTheme);
+  }
+
   var initialDatabase = {
     env: {
-      theme: persisted.theme || 'dark',
-      lang: persisted.lang || 'ar',
-      dir: persisted.dir || (persisted.lang === 'ar' ? 'rtl' : 'ltr'),
+      theme: initialTheme,
+      lang: initialLang,
+      dir: initialDir,
       i18n: BASE_I18N,
       contentI18n: {}
     },
@@ -1786,14 +1798,14 @@
     var activeListings = (db.data.listings || []).filter(function (listing) { return listing.listing_status === 'active'; }).length;
     var newLeads = inquiries.filter(function (inquiry) { return inquiry.status === 'new'; }).length;
     var cards = [
-      { label: 'إجمالي الطلبات', value: inquiries.length },
-      { label: 'طلبات جديدة', value: newLeads },
-      { label: 'عروض نشطة', value: activeListings },
-      { label: 'كل العروض', value: totalListings }
+      { label: translate('dashboard.totalInquiries', 'إجمالي الطلبات', null, db), value: inquiries.length },
+      { label: translate('dashboard.newLeads', 'طلبات جديدة', null, db), value: newLeads },
+      { label: translate('dashboard.activeListings', 'عروض نشطة', null, db), value: activeListings },
+      { label: translate('dashboard.allListings', 'كل العروض', null, db), value: totalListings }
     ].map(function (card) {
-      return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-4 text-center space-y-1') } }, [
-        D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [card.label]),
-        D.Text.Strong({ attrs: { class: 'text-2xl text-white' } }, [String(card.value)])
+      return D.Containers.Div({ attrs: { class: tw('rounded-3xl border p-4 text-center space-y-1', themed(db, 'border-white/5 bg-slate-900/40', 'border-slate-200 bg-white')) } }, [
+        D.Text.Span({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [card.label]),
+        D.Text.Strong({ attrs: { class: tw('text-2xl', themed(db, 'text-white', 'text-slate-900')) } }, [String(card.value)])
       ]);
     });
     return D.Containers.Div({ attrs: { class: 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4' } }, cards);
@@ -1807,22 +1819,22 @@
       inquiries = inquiries.filter(function (item) { return item.status === db.state.dashboard.inquiryStatus; });
     }
     if (!inquiries.length) {
-      return D.Containers.Div({ attrs: { class: 'rounded-3xl border border-white/5 bg-slate-900/30 p-6 text-sm text-slate-400' } }, [translate('dashboard.empty', 'لا توجد طلبات حالياً.', null, db)]);
+      return D.Containers.Div({ attrs: { class: tw('rounded-3xl border p-6 text-sm', themed(db, 'border-white/5 bg-slate-900/30 text-slate-400', 'border-slate-200 bg-slate-50 text-slate-600')) } }, [translate('dashboard.empty', 'لا توجد طلبات حالياً.', null, db)]);
     }
     var listingIndex = indexBy(listingModels.map(function (model) { return model.listing; }), 'id');
     var cards = inquiries.map(function (lead) {
       var listing = listingIndex[lead.listing_id];
-      return D.Containers.Article({ attrs: { class: tw('space-y-2 rounded-2xl border border-white/5 bg-slate-950/50 p-4') } }, [
-        D.Text.Strong({ attrs: { class: 'text-sm text-white' } }, [lead.contact_name || translate('lead.potential', 'عميل محتمل', null, db)]),
-        D.Text.Span({ attrs: { class: 'text-xs text-slate-400' } }, [lead.contact_phone || translate('lead.noPhone', 'بدون هاتف', null, db)]),
-        lead.message ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-3' } }, [lead.message]) : null,
-        listing ? D.Text.Span({ attrs: { class: 'text-xs text-slate-500' } }, [translate('listing.details', 'الوحدة', null, db) + ': ' + (listing.headline || listing.id)]) : null,
-        D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-xs text-slate-500' } }, [
+      return D.Containers.Article({ attrs: { class: tw('space-y-2 rounded-2xl border p-4', themed(db, 'border-white/5 bg-slate-950/50', 'border-slate-200 bg-white')) } }, [
+        D.Text.Strong({ attrs: { class: tw('text-sm', themed(db, 'text-white', 'text-slate-900')) } }, [lead.contact_name || translate('lead.potential', 'عميل محتمل', null, db)]),
+        D.Text.Span({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [lead.contact_phone || translate('lead.noPhone', 'بدون هاتف', null, db)]),
+        lead.message ? D.Text.P({ attrs: { class: tw('text-sm line-clamp-3', themed(db, 'text-slate-300', 'text-slate-700')) } }, [lead.message]) : null,
+        listing ? D.Text.Span({ attrs: { class: tw('text-xs', themed(db, 'text-slate-500', 'text-slate-500')) } }, [translate('listing.details', 'الوحدة', null, db) + ': ' + (listing.headline || listing.id)]) : null,
+        D.Containers.Div({ attrs: { class: tw('flex items-center justify-between text-xs', themed(db, 'text-slate-500', 'text-slate-500')) } }, [
           D.Text.Span({}, [formatDate(lead.created_at)]),
           D.Forms.Button({
             attrs: {
               type: 'button',
-              class: tw('rounded-full border px-3 py-1 text-xs', lead.status === 'new' ? 'border-emerald-400 text-emerald-300' : 'border-slate-600 text-slate-400'),
+              class: tw('rounded-full border px-3 py-1 text-xs', lead.status === 'new' ? themed(db, 'border-emerald-400 text-emerald-300', 'border-emerald-500 text-emerald-600') : themed(db, 'border-slate-600 text-slate-400', 'border-slate-400 text-slate-600')),
               'data-m-gkey': 'inquiry-status',
               'data-inquiry-id': lead.id,
               'data-next-status': lead.status === 'new' ? 'replied' : 'closed'
@@ -1832,7 +1844,7 @@
       ]);
     });
     return D.Containers.Div({ attrs: { class: 'space-y-3' } }, [
-      D.Containers.Div({ attrs: { class: 'flex items-center gap-2 text-sm text-slate-400' } }, [
+      D.Containers.Div({ attrs: { class: tw('flex items-center gap-2 text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, [
         translate('labels.orderByNewest', 'ترتيب حسب أحدث الطلبات', null, db),
         D.Inputs.Select({ attrs: { class: inputClass('text-xs'), 'data-m-gkey': 'inquiry-filter', value: db.state.dashboard.inquiryStatus } }, [
           D.Inputs.Option({ attrs: { value: 'all' } }, [translate('status.all', 'الكل', null, db) || 'الكل']),
