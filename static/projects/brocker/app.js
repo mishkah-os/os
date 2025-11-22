@@ -2004,11 +2004,11 @@
       D.Containers.Div({ attrs: { class: 'space-y-1' } }, [
         D.Text.Strong({ attrs: { class: 'text-sm sm:text-base' } }, [localized('hero_slides', slide.id, 'title', slide.title || 'عرض مميز')]),
         slide.subtitle
-          ? D.Text.P({ attrs: { class: 'text-xs leading-5 text-slate-300 sm:text-sm' } }, [localized('hero_slides', slide.id, 'subtitle', slide.subtitle)])
+          ? D.Text.P({ attrs: { class: tw('text-xs leading-5 sm:text-sm', themed({ env: activeEnv() }, 'text-slate-300', 'text-slate-600')) } }, [localized('hero_slides', slide.id, 'subtitle', slide.subtitle)])
           : null
       ]),
       slide.cta_label
-        ? D.Text.Span({ attrs: { class: 'inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300' } }, [
+        ? D.Text.Span({ attrs: { class: tw('inline-flex items-center gap-1 text-[11px] font-semibold', themed({ env: activeEnv() }, 'text-emerald-300', 'text-emerald-600')) } }, [
             '•',
             localized('hero_slides', slide.id, 'cta_label', slide.cta_label)
           ])
@@ -2047,14 +2047,14 @@
 
   function LatestListingsGrid(db, listingModels) {
     if (!listingModels.length) {
-      return D.Containers.Div({ attrs: { class: 'text-center text-sm text-slate-400' } }, [translate('listings.empty', 'لا توجد وحدات متاحة حالياً.', null, db)]);
+      return D.Containers.Div({ attrs: { class: tw('text-center text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, [translate('listings.empty', 'لا توجد وحدات متاحة حالياً.', null, db)]);
     }
     return D.Containers.Div({ attrs: { class: 'grid gap-3 sm:gap-4 sm:grid-cols-2' } }, listingModels.map(function (model) {
-      return ListingCard(model);
+      return ListingCard(db, model);
     }));
   }
 
-  function ListingCard(model) {
+  function ListingCard(db, model) {
     var listing = model.listing;
     var unit = model.unit || {};
     var cover = model.coverMedia;
@@ -2063,33 +2063,33 @@
       listing.primary_highlight ? Chip(localized('listings', listing.id, 'primary_highlight', listing.primary_highlight)) : null,
       model.unitType ? Chip(localized('unit_types', model.unitType.id, 'name', model.unitType.name)) : null,
       model.region ? Chip(localized('regions', model.region.id, 'name', model.region.name)) : null,
-      listing.listing_type ? Chip(formatListingType(listing.listing_type)) : null
+      listing.listing_type ? Chip(formatListingType(db, listing.listing_type)) : null
     ].filter(Boolean);
     return D.Containers.Article({
       attrs: {
-        class: tw('overflow-hidden rounded-3xl border border-white/5 bg-slate-950/60 text-white cursor-pointer transition hover:border-emerald-400/50 hover:shadow-lg hover:shadow-emerald-900/30'),
+        class: tw('overflow-hidden rounded-3xl border cursor-pointer transition hover:border-emerald-400/50 hover:shadow-lg', themed(db, 'border-white/5 bg-slate-950/60 text-white hover:shadow-emerald-900/30', 'border-slate-200 bg-white text-slate-900 hover:shadow-emerald-600/20')),
         'data-m-gkey': 'listing-card',
         'data-listing-id': listing.id
       }
     }, [
       cover
         ? D.Media.Img({ attrs: { src: cover.url, alt: listing.headline || listing.id, class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } })
-        : D.Containers.Div({ attrs: { class: 'h-52 w-full sm:h-48 bg-slate-900/70 border-b border-white/5' } }),
+        : D.Containers.Div({ attrs: { class: tw('h-52 w-full sm:h-48 border-b', themed(db, 'bg-slate-900/70 border-white/5', 'bg-slate-100 border-slate-200')) } }),
       D.Containers.Div({ attrs: { class: 'space-y-3 p-4 sm:p-5' } }, [
         D.Text.Strong({ attrs: { class: 'text-base sm:text-lg' } }, [localized('listings', listing.id, 'headline', listing.headline || 'وحدة متاحة')]),
-        listing.excerpt ? D.Text.P({ attrs: { class: 'text-sm text-slate-300 line-clamp-2 leading-6' } }, [localized('listings', listing.id, 'excerpt', listing.excerpt)]) : null,
-        badges.length ? D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs text-slate-300' } }, badges) : null,
-        D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm text-slate-200 pt-3 border-t border-white/5' } }, [
+        listing.excerpt ? D.Text.P({ attrs: { class: tw('text-sm line-clamp-2 leading-6', themed(db, 'text-slate-300', 'text-slate-600')) } }, [localized('listings', listing.id, 'excerpt', listing.excerpt)]) : null,
+        badges.length ? D.Containers.Div({ attrs: { class: tw('flex flex-wrap gap-2 text-xs', themed(db, 'text-slate-300', 'text-slate-600')) } }, badges) : null,
+        D.Containers.Div({ attrs: { class: tw('flex items-center justify-between text-sm pt-3 border-t', themed(db, 'text-slate-200 border-white/5', 'text-slate-700 border-slate-200')) } }, [
           D.Text.Span({}, [unit.area ? unit.area + ' م²' : '']),
-          D.Text.Strong({ attrs: { class: 'text-emerald-300 text-base' } }, [formatPrice(listing)])
+          D.Text.Strong({ attrs: { class: tw('text-base', themed(db, 'text-emerald-300', 'text-emerald-600')) } }, [formatPrice(listing)])
         ])
       ])
     ]);
   }
 
   function DetailToolbar(db) {
-    return D.Containers.Div({ attrs: { class: 'flex items-center justify-between text-sm text-slate-300' } }, [
-      D.Forms.Button({ attrs: { type: 'button', class: 'text-slate-300', 'data-m-gkey': 'listing-back' } }, [translate('listing.back', '← العودة للنتائج', null, db)]),
+    return D.Containers.Div({ attrs: { class: tw('flex items-center justify-between text-sm', themed(db, 'text-slate-300', 'text-slate-600')) } }, [
+      D.Forms.Button({ attrs: { type: 'button', class: tw('', themed(db, 'text-slate-300', 'text-slate-600')), 'data-m-gkey': 'listing-back' } }, [translate('listing.back', '← العودة للنتائج', null, db)]),
       D.Text.Span({}, [translateContent('listing.detail.subtitle', 'استكشف التفاصيل الكاملة للوحدة')])
     ]);
   }
