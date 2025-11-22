@@ -4363,13 +4363,29 @@ async function handleSyncApi(req, res, url) {
 
   if (req.method === 'GET') {
     const state = await ensureSyncState(branchId, moduleId);
+    const lang = url.searchParams.get('lang') || 'ar';
+    const fallbackLang = url.searchParams.get('fallback') || 'ar';
+    const snapshot = deepClone(state.moduleSnapshot);
+    const store = await ensureModuleStore(branchId, moduleId);
+
+    for (const tableName of Object.keys(snapshot.tables || {})) {
+      if (tableName.endsWith('_lang')) continue;
+      const rows = snapshot.tables[tableName];
+      if (Array.isArray(rows) && rows.length > 0) {
+        snapshot.tables[tableName] = attachTranslationsToRows(store, tableName, rows, {
+          lang,
+          fallbackLang
+        });
+      }
+    }
+
     jsonResponse(res, 200, {
       branchId,
       moduleId,
       version: state.version,
       updatedAt: state.updatedAt,
       serverId: SERVER_ID,
-      snapshot: deepClone(state.moduleSnapshot)
+      snapshot
     });
     return true;
   }
@@ -4872,23 +4888,9 @@ async function handleBranchesApi(req, res, url) {
 
   const store = await ensureModuleStore(branchId, moduleId);
 
-  // Read translation options from query string
-  // Examples:
-  //   ?lang=ar           - Request Arabic (with fallback)
-  //   ?lang=en           - Request English (with fallback to Arabic if not found)
-  //   ?lang=ar&strict=1  - Request Arabic only (no fallback)
-  //   ?defaultLang=en    - Change default fallback language to English
+  // Read lang from query string (e.g., ?lang=en)
   const lang = url.searchParams.get('lang') || null;
-  const defaultLang = url.searchParams.get('defaultLang') || 'ar';
-  const strictMode = url.searchParams.get('strict') === '1' || url.searchParams.get('strictMode') === 'true';
-  const includeMetadata = url.searchParams.get('meta') !== '0';
-
-  const snapshot = store.getSnapshot({
-    lang,
-    defaultLang,
-    strictMode,
-    includeMetadata
-  });
+  const snapshot = store.getSnapshot({ lang });
 
   if (segments.length === 5) {
     if (req.method === 'GET') {
