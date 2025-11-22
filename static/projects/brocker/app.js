@@ -995,21 +995,13 @@
       gkeys: ['switch-to-login', 'switch-to-register'],
       handler: function (event, ctx) {
         if (event) event.preventDefault();
-        
-        // 1. تحسين التقاط العنصر لضمان الحصول على الزر حتى لو ضغطت على النص بداخله
         var target = event.currentTarget || (event.target.closest && event.target.closest('[data-m-gkey]'));
         if (!target) return;
-
         var gkey = target.getAttribute('data-m-gkey');
-        
-        // 2. تحديد الوضع بدقة (بدون افتراضات)
         var mode = null;
         if (gkey === 'switch-to-login') mode = 'login';
         else if (gkey === 'switch-to-register') mode = 'register';
-
-        // إذا لم يتم التعرف على الوضع، لا تقم بأي تغيير
         if (!mode) return;
-
         ctx.setState(function(db) {
           return Object.assign({}, db, {
             state: Object.assign({}, db.state, {
@@ -2364,12 +2356,15 @@ var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/proje
 var brandLogo = theme === 'dark' 
   ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
   : baseLogo;
+   // تعديل: استخدام translate للنصوص الافتراضية بدلاً من النص العربي المباشر
     var heroTitle = settings && settings.hero_title
       ? localized('app_settings', settings.id || 'default', 'hero_title', settings.hero_title)
-      : 'منصة متكاملة للوسطاء';
+      : translate('footer.defaultHeroTitle', 'منصة متكاملة للوسطاء', null, db);
+
     var heroSubtitle = settings && settings.hero_subtitle
       ? localized('app_settings', settings.id || 'default', 'hero_subtitle', settings.hero_subtitle)
-      : 'ابحث، أدر، وتابع طلبات عملائك بسهولة.';
+      : translate('footer.defaultHeroSubtitle', 'ابحث، أدر، وتابع طلبات عملائك بسهولة.', null, db);
+
     var whatsapp = settings && settings.support_whatsapp ? settings.support_whatsapp : '';
     var phone = settings && settings.support_phone ? settings.support_phone : '';
 
@@ -2632,14 +2627,15 @@ var brandLogo = theme === 'dark'
     return D.Containers.Div({ attrs: { class: tw('flex items-center gap-2 rounded-2xl border px-3 py-2', themed(db, 'border-white/5 bg-slate-800/40', 'border-slate-200 bg-slate-50')) } }, [
       broker.avatar_url ? D.Media.Img({ attrs: { src: normalizeMediaUrl(broker.avatar_url, MEDIA_FALLBACKS.broker), alt: broker.full_name, class: 'h-8 w-8 rounded-full object-cover' } }) : null,
       D.Containers.Div({ attrs: { class: 'flex flex-col' } }, [
-        D.Text.Span({ attrs: { class: tw('text-sm font-medium', themed(db, 'text-white', 'text-slate-900')) } }, [broker.full_name || 'وسيط معتمد']),
+        D.Text.Span({ attrs: { class: tw('text-sm font-medium', themed(db, 'text-white', 'text-slate-900')) } }, [broker.full_name || translate('broker.certified', 'وسيط معتمد', null, db)]),
         broker.phone ? D.Text.Span({ attrs: { class: tw('text-xs font-medium', themed(db, 'text-emerald-400', 'text-emerald-600')) } }, ['📞 ' + broker.phone]) : null
       ])
     ]);
   }
+  
   function BrokerGrid(db, brokers) {
     if (!brokers.length) {
-      return D.Containers.Div({ attrs: { class: tw('text-center text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['لا يوجد وسطاء حالياً.']);
+      return D.Containers.Div({ attrs: { class: tw('text-center text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, [translate('broker.empty', 'لا يوجد وسطاء حالياً.', null, db)]);
     }
     var cards = brokers.map(function (broker) {
       return D.Containers.Article({
@@ -2650,7 +2646,7 @@ var brandLogo = theme === 'dark'
         }
       }, [
         broker.avatar_url ? D.Media.Img({ attrs: { src: normalizeMediaUrl(broker.avatar_url, MEDIA_FALLBACKS.broker), alt: broker.full_name, class: 'h-12 w-12 rounded-full object-cover' } }) : null,
-        D.Text.H3({ attrs: { class: tw('text-base font-semibold', themed(db, 'text-white', 'text-slate-900')) } }, [broker.full_name || 'وسيط معتمد']),
+        D.Text.H3({ attrs: { class: tw('text-base font-semibold', themed(db, 'text-white', 'text-slate-900')) } }, [broker.full_name || translate('broker.certified', 'وسيط معتمد', null, db)]),
         broker.company_name ? D.Text.Span({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [broker.company_name]) : null,
         broker.region_id ? D.Text.Span({ attrs: { class: tw('text-xs', themed(db, 'text-slate-500', 'text-slate-600')) } }, ['منطقة الخدمة: ' + broker.region_id]) : null,
         broker.rating ? D.Text.Span({ attrs: { class: 'text-xs text-amber-400' } }, ['⭐ ' + broker.rating.toFixed(1)]) : null
@@ -2668,7 +2664,7 @@ var brandLogo = theme === 'dark'
     return D.Containers.Div({ attrs: { class: 'space-y-4' } }, [
       D.Forms.Button({ attrs: { type: 'button', class: 'text-sm text-emerald-400', 'data-m-gkey': 'broker-back' } }, ['← جميع الوسطاء']),
       D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-6 space-y-3') } }, [
-        D.Text.H2({ attrs: { class: 'text-lg font-semibold text-white' } }, [broker.full_name || 'وسيط معتمد']),
+        D.Text.H2({ attrs: { class: 'text-lg font-semibold text-white' } }, [broker.full_name || translate('broker.certified', 'وسيط معتمد', null, db)]),
         broker.bio ? D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [broker.bio]) : null,
         stats,
         D.Containers.Div({ attrs: { class: 'flex flex-wrap gap-2 text-xs text-slate-400' } }, [
@@ -2678,24 +2674,24 @@ var brandLogo = theme === 'dark'
       ]),
       listingModels.length
         ? D.Containers.Div({ attrs: { class: 'space-y-2' } }, [
-            D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, ['وحدات الوسيط']),
+            D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, [translate('broker.unitsTitle', 'وحدات الوسيط', null, db)]),
             LatestListingsGrid(db, listingModels)
           ])
-        : D.Text.P({ attrs: { class: 'text-sm text-slate-400' } }, ['لا توجد وحدات مرتبطة بهذا الوسيط حالياً.'])
+        : D.Text.P({ attrs: { class: 'text-sm text-slate-400' } }, [translate('broker.noUnits', 'لا توجد وحدات مرتبطة بهذا الوسيط حالياً.', null, db)])
     ]);
   }
   function BrokerAuthPanel(db) {
     return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-dashed p-6 space-y-3', themed(db, 'border-white/10 bg-slate-900/30', 'border-slate-300 bg-slate-50')) } }, [
-      D.Text.H3({ attrs: { class: tw('text-base font-semibold', themed(db, 'text-white', 'text-slate-900')) } }, ['انضم كوسيط معتمد']),
-      D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['سجل بياناتك وسيتم إرسال رمز التحقق عبر واتساب.']),
+      D.Text.H3({ attrs: { class: tw('text-base font-semibold', themed(db, 'text-white', 'text-slate-900')) } }, [translate('broker.joinTitle', 'انضم كوسيط معتمد', null, db)]),
+      D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, [translate('broker.joinDesc', 'سجل بياناتك وسيتم إرسال رمز التحقق عبر واتساب.', null, db)]),
       D.Forms.Form({ attrs: { class: 'space-y-2', 'data-m-gkey': 'broker-auth' } }, [
         D.Inputs.Input({ attrs: { name: 'brokerName', placeholder: 'الاسم التجاري', class: inputClass() } }),
         D.Inputs.Input({ attrs: { name: 'brokerPhone', placeholder: 'رقم الجوال', class: inputClass(), type: 'tel', required: true } }),
         D.Inputs.Input({ attrs: { name: 'brokerRegion', placeholder: 'منطقة الخدمة الرئيسية', class: inputClass() } }),
-        D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full py-2 text-sm font-semibold text-white shadow-lg', themed(db, 'bg-emerald-500 shadow-emerald-500/30', 'bg-emerald-600 shadow-emerald-600/30')) } }, ['طلب رمز OTP'])
+        D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full py-2 text-sm font-semibold text-white shadow-lg', themed(db, 'bg-emerald-500 shadow-emerald-500/30', 'bg-emerald-600 shadow-emerald-600/30')) } }, [translate('broker.requestOtp', 'طلب رمز OTP', null, db)])
       ]),
       db.state.brokerAuth && db.state.brokerAuth.phone
-        ? D.Text.Small({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['تم إرسال آخر رمز إلى: ' + db.state.brokerAuth.phone])
+        ? D.Text.Small({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [translate('broker.otpSent', 'تم إرسال آخر رمز إلى:', null, db) + ' ' + db.state.brokerAuth.phone])
         : null
     ]);
   }
@@ -2885,9 +2881,11 @@ var brandLogo = theme === 'dark'
       : null;
     return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center sm:space-y-3', themed(db, 'text-white', 'text-slate-900')) } }, [
       logo,
-      D.Text.H1({ attrs: { class: 'text-2xl font-semibold sm:text-3xl' } }, [brandName || 'منصة الوسطاء']),
-      brandTagline
-        ? D.Text.P({ attrs: { class: tw('text-sm leading-6 sm:text-base', themed(db, 'text-slate-300', 'text-slate-600')) } }, [brandTagline])
+    D.Text.H1({ attrs: { class: 'text-2xl font-semibold sm:text-3xl' } }, [
+      brandName || translate('header.defaultTitle', 'منصة الوسطاء', null, db)
+    ]),
+    brandTagline
+        ? D.Text.P({ attrs: { class: tw('text-sm leading-6 sm:text-base', themed(db, 'text-slate-300', 'text-slate-600')) } }, [brandTagline || translate('header.defaultTagline', 'ابحث، أدر، وتابع طلبات عملائك بسهولة.', null, db)])
         : null
     ]);
   }
@@ -3002,7 +3000,7 @@ var brandLogo = theme === 'dark'
         ? D.Media.Img({ attrs: { src: cover.url, alt: listing.headline || listing.id, class: 'h-52 w-full object-cover sm:h-48', loading: 'lazy' } })
         : D.Containers.Div({ attrs: { class: tw('h-52 w-full sm:h-48 border-b', themed(db, 'bg-slate-900/70 border-white/5', 'bg-slate-100 border-slate-200')) } }),
       D.Containers.Div({ attrs: { class: 'space-y-3 p-4 sm:p-5' } }, [
-        D.Text.Strong({ attrs: { class: 'text-base sm:text-lg' } }, [localized('listings', listing.id, 'headline', listing.headline || 'وحدة متاحة')]),
+        D.Text.Strong({ attrs: { class: 'text-base sm:text-lg' } }, [localized('listings', listing.id, 'headline', listing.headline || translate('listing.defaultHeadline', 'وحدة متاحة', null, db))]),
         listing.excerpt ? D.Text.P({ attrs: { class: tw('text-sm line-clamp-2 leading-6', themed(db, 'text-slate-300', 'text-slate-600')) } }, [localized('listings', listing.id, 'excerpt', listing.excerpt)]) : null,
         badges.length ? D.Containers.Div({ attrs: { class: tw('flex flex-wrap gap-2 text-xs', themed(db, 'text-slate-300', 'text-slate-600')) } }, badges) : null,
         D.Containers.Div({ attrs: { class: tw('flex items-center justify-between text-sm pt-3 border-t', themed(db, 'text-slate-200 border-white/5', 'text-slate-700 border-slate-200')) } }, [
@@ -3027,7 +3025,7 @@ var brandLogo = theme === 'dark'
       return ap - bp;
     });
     if (!mediaItems.length) {
-      return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-dashed border-white/10 bg-slate-950/40 p-10 text-center text-slate-500') } }, ['لا توجد وسائط للوحدة.']);
+      return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-dashed border-white/10 bg-slate-950/40 p-10 text-center text-slate-500') } }, [translate('gallery.empty', 'لا توجد وسائط للوحدة.', null, db)]);
     }
     var hero = mediaItems[0];
     var gallery = mediaItems.slice(1, 4);
