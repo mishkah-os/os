@@ -3750,6 +3750,235 @@
         "lang": "en",
         "text": "Active Listings",
         "kind": "ui"
+      },{
+        "id": "content-app_settings.brocker-app-config.brand_name-en",
+        "key": "app_settings.brocker-app-config.brand_name",
+        "lang": "en",
+        "text": "Makateb Aqarat",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.tagline-en",
+        "key": "app_settings.brocker-app-config.tagline",
+        "lang": "en",
+        "text": "Smart Platform for Real Estate Offices",
+        "kind": "content"
+      },
+      {
+        "id": "ui-dashboard.requireAuth-en",
+        "key": "dashboard.requireAuth",
+        "lang": "en",
+        "text": "Login Required",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.requireAuthDesc-en",
+        "key": "dashboard.requireAuthDesc",
+        "lang": "en",
+        "text": "Please log in to access your dashboard and manage requests.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.detail.subtitle-en",
+        "key": "listing.detail.subtitle",
+        "lang": "en",
+        "text": "Explore Full Unit Details",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.allListings-en",
+        "key": "dashboard.allListings",
+        "lang": "en",
+        "text": "All Listings",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.profile-en",
+        "key": "actions.profile",
+        "lang": "en",
+        "text": "User",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.dashboard-en",
+        "key": "actions.dashboard",
+        "lang": "en",
+        "text": "Dashboard",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.inbox-en",
+        "key": "actions.inbox",
+        "lang": "en",
+        "text": "Inbox",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.logout-en",
+        "key": "actions.logout",
+        "lang": "en",
+        "text": "Logout",
+        "kind": "ui"
+      },{
+        "id": "ui-auth.fullNamePlaceholder-en",
+        "key": "auth.fullNamePlaceholder",
+        "lang": "en",
+        "text": "Enter your full name",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.passwordHint-en",
+        "key": "auth.passwordHint",
+        "lang": "en",
+        "text": "At least 6 characters",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.emailPlaceholder-en",
+        "key": "auth.emailPlaceholder",
+        "lang": "en",
+        "text": "name@example.com",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.passwordPlaceholder-en",
+        "key": "auth.passwordPlaceholder",
+        "lang": "en",
+        "text": "••••••",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.phoneOrEmailPlaceholder-en",
+        "key": "auth.phoneOrEmailPlaceholder",
+        "lang": "en",
+        "text": "+201xxxxxxxxx or email",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.detail.subtitle-en",
+        "key": "listing.detail.subtitle",
+        "lang": "en",
+        "text": "Explore Full Unit Details",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.requireAuth-en",
+        "key": "dashboard.requireAuth",
+        "lang": "en",
+        "text": "Login Required",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.requireAuthDesc-en",
+        "key": "dashboard.requireAuthDesc",
+        "lang": "en",
+        "text": "Please log in to access your dashboard and manage requests.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.allListings-en",
+        "key": "dashboard.allListings",
+        "lang": "en",
+        "text": "All Listings",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.profile-en",
+        "key": "actions.profile",
+        "lang": "en",
+        "text": "User",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.dashboard-en",
+        "key": "actions.dashboard",
+        "lang": "en",
+        "text": "Dashboard",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.inbox-en",
+        "key": "actions.inbox",
+        "lang": "en",
+        "text": "Inbox",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-actions.logout-en",
+        "key": "actions.logout",
+        "lang": "en",
+        "text": "Logout",
+        "kind": "ui"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.brand_name-en",
+        "key": "app_settings.brocker-app-config.brand_name",
+        "lang": "en",
+        "text": "Makateb Aqarat",
+        "kind": "content"
+      },
+      {
+        "id": "content-app_settings.brocker-app-config.tagline-en",
+        "key": "app_settings.brocker-app-config.tagline",
+        "lang": "en",
+        "text": "Smart Platform for Real Estate Offices",
+        "kind": "content"
+      },
+       {
+        "id": "ui-listing.selectRegion-en",
+        "key": "listing.selectRegion",
+        "lang": "en",
+        "text": "Select Region",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.officeNamePlaceholder-en",
+        "key": "broker.officeNamePlaceholder",
+        "lang": "en",
+        "text": "e.g. Premium Estate",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.officeAddressPlaceholder-en",
+        "key": "broker.officeAddressPlaceholder",
+        "lang": "en",
+        "text": "Street, District, City",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.licenseNumber-en",
+        "key": "broker.licenseNumber",
+        "lang": "en",
+        "text": "License Number",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.licenseNumberPlaceholder-en",
+        "key": "broker.licenseNumberPlaceholder",
+        "lang": "en",
+        "text": "Broker License No.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.description-en",
+        "key": "broker.description",
+        "lang": "en",
+        "text": "Description",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.descriptionPlaceholder-en",
+        "key": "broker.descriptionPlaceholder",
+        "lang": "en",
+        "text": "About your office and services...",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-common.optional-en",
+        "key": "common.optional",
+        "lang": "en",
+        "text": "Optional",
+        "kind": "ui"
       }
     ]
   }
