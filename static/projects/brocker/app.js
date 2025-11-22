@@ -527,10 +527,8 @@ function setEnvLanguage(ctx, lang) {
 
     ctx.setState(function (db) {
       var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
-      
-      if (db.data && Array.isArray(db.data.uiLabels)) {
-        updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
-      }
+
+      // ✅ Removed: applyLabelMaps (using static UI_LABELS now)
 
       return Object.assign({}, db, { env: updatedEnv });
     });
