@@ -38,16 +38,21 @@
         min-height: 100vh;
       }
     </style>
-    <script
-      src="../../lib/mishkah.js"
-      data-auto="true"
-      data-css="tailwind"
-      data-pwa-storage="brocker:pwa:installed"
-      data-stores="true"
-    ></script>
+    <!-- Mishkah Core Libraries -->
+    <script src="../../lib/mishkah.core.js"></script>
+    <script src="../../lib/mishkah-htmlx.js"></script>
+    <script src="../../lib/mishkah-ui.js"></script>
+    <script src="../../lib/mishkah-utils.js"></script>
+    <script src="../../lib/mishkah.store.js"></script>
+    <script src="../../lib/mishkah.simple-store.js"></script>
+
+    <!-- TailwindCSS -->
+    <link rel="stylesheet" href="../../lib/mishkah-css.css" />
+    <script src="../../vendor/tailwind-3.4.5.js"></script>
   </head>
   <body>
     <div id="app"></div>
+    <!-- App loads after all libraries -->
     <script src="./app.js"></script>
   </body>
 </html>
