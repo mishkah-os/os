@@ -1002,13 +1002,8 @@
           return Object.assign({}, db, {
             state: Object.assign({}, db.state, {
               auth: Object.assign({}, db.state.auth, {
-                authMode: mode,
-                full_name: '',
-                phone: '',
-                email: '',
-                password: '',
-                phone_or_email: '',
-                login_password: ''
+                authMode: mode
+                // Do not clear form fields when switching modes
               })
             })
           });
@@ -1274,12 +1269,8 @@
                 user: null,
                 showAuthModal: false,
                 authMode: 'login',
-                full_name: '',
-                phone: '',
-                email: '',
-                password: '',
-                phone_or_email: '',
-                login_password: ''
+                // Form fields are preserved when switching modes
+                // They will be cleared only on successful login/registration or manual close
               },
               showProfileMenu: false,
               activeView: 'home'
