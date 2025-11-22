@@ -3612,17 +3612,18 @@ const branchClients = new Map();
 const moduleSchemaCache = new Map(); // key => `${branchId}::${moduleId}`
 const moduleSeedCache = new Map();
 
+
 function getModuleConfig(moduleId) {
   const def = modulesConfig.modules?.[moduleId];
   if (!def) {
     throw new Error(`Module "${moduleId}" not defined in modules.json`);
   }
-  if (!Array.isArray(def.tables) || !def.tables.length) {
-    throw new Error(`Module "${moduleId}" has no tables defined`);
+  // التعديل: السماح بأن تكون الجداول غير معرفة في الكونفج (سنملؤها من السكيما لاحقاً)
+  if (!Array.isArray(def.tables)) {
+    def.tables = [];
   }
   return def;
 }
-
 async function ensureModuleSchema(branchId, moduleId) {
   const cacheKey = `${branchId}::${moduleId}`;
   const cached = moduleSchemaCache.get(cacheKey);
@@ -3630,23 +3631,17 @@ async function ensureModuleSchema(branchId, moduleId) {
   const loadSchema = async (filePath, source, mtimeMs) => {
     await schemaEngine.loadFromFile(filePath);
     const moduleDefinition = getModuleConfig(moduleId);
+
     for (const tableName of moduleDefinition.tables || []) {
       try {
         schemaEngine.getTable(tableName);
       } catch (error) {
-        if (error?.message?.includes('Unknown table')) {
-          throw new Error(
-            `Schema for module "${moduleId}" is missing required table "${tableName}" for branch "${branchId}"`
-          );
-        }
-        throw error;
+        logger.warn({ branchId, moduleId, table: tableName }, 'Table defined in config but missing in schema (treating as schemaless/memory table)');
       }
     }
     moduleSchemaCache.set(cacheKey, { source, mtimeMs, validated: true });
   };
 
-  // ALWAYS use central schema, skip branch-specific schema
-  // This ensures consistent schema across all branches
   const fallbackPath = getModuleSchemaFallbackPath(moduleId);
   const fallbackDescriptor = await describeFile(fallbackPath);
   if (fallbackDescriptor.exists) {
@@ -3750,12 +3745,29 @@ async function ensureModuleStore(branchId, moduleId) {
   if (moduleStores.has(key)) {
     return moduleStores.get(key);
   }
+
   await ensureBranchModuleLayout(branchId, moduleId);
   await ensureModuleSchema(branchId, moduleId);
-  const moduleSeed = await ensureModuleSeed(branchId, moduleId);
+
+  const { schema } = await loadModuleSchemaSnapshot(branchId, moduleId);
+  const schemaTables = (schema && Array.isArray(schema.tables))
+    ? schema.tables.map(t => t.name)
+    : [];
+
   const moduleDefinition = getModuleConfig(moduleId);
+  const manualTables = moduleDefinition.tables || [];
+
+  const combinedTables = new Set([
+    ...manualTables,
+    ...schemaTables
+  ]);
+
+  moduleDefinition.tables = Array.from(combinedTables);
+
+  const moduleSeed = await ensureModuleSeed(branchId, moduleId);
   const filePath = getModuleFilePath(branchId, moduleId);
   const existing = await readJsonSafe(filePath, null);
+
   let seed = {};
   if (existing && typeof existing === 'object') {
     seed = {
@@ -3764,9 +3776,11 @@ async function ensureModuleStore(branchId, moduleId) {
       tables: existing.tables || {}
     };
   }
+
   const store = new HybridStore(schemaEngine, branchId, moduleId, moduleDefinition, seed, moduleSeed, {
     cacheTtlMs: HYBRID_CACHE_TTL_MS
   });
+
   moduleStores.set(key, store);
   if (!existing) {
     await persistModuleStore(store);
