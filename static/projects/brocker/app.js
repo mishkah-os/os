@@ -133,6 +133,8 @@
       toast: null,
       showSubscribeModal: false,
       showProfileMenu: false,
+      showBrokerRegModal: false,
+      showListingCreateModal: false,
       auth: {
         isAuthenticated: false,
         user: null,
@@ -150,9 +152,25 @@
       dashboard: {
         inquiryStatus: 'all'
       },
-      brokerAuth: {
-        phone: '',
-        stage: 'otp'
+      brokerReg: {
+        office_name: '',
+        office_phone: '',
+        office_email: '',
+        office_address: '',
+        license_number: '',
+        description: ''
+      },
+      listingCreate: {
+        title: '',
+        description: '',
+        price: '',
+        location: '',
+        bedrooms: '',
+        bathrooms: '',
+        area: '',
+        property_type: 'apartment',
+        listing_type: 'sale',
+        region_id: ''
       },
       pwa: {
         storageKey: (global.MishkahAuto && global.MishkahAuto.pwa && global.MishkahAuto.pwa.storageKey) || 'mishkah:pwa:installed',
@@ -1274,6 +1292,340 @@
           console.warn('[Brocker PWA] Failed to clear auth from localStorage', e);
         }
       }
+    },
+    'ui.broker.toggleModal': {
+      on: ['click'],
+      gkeys: ['show-broker-modal', 'close-broker-modal'],
+      handler: function (event, ctx) {
+        var target = event.currentTarget;
+        if (!target) return;
+        var gkey = target.getAttribute('data-m-gkey');
+        var show = gkey === 'show-broker-modal';
+
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              showBrokerRegModal: show
+            })
+          });
+        });
+      }
+    },
+    'ui.broker.input': {
+      on: ['input'],
+      gkeys: ['broker-office-name-input', 'broker-office-phone-input', 'broker-office-email-input', 'broker-office-address-input', 'broker-license-input', 'broker-description-input'],
+      handler: function (event, ctx) {
+        var target = event.target;
+        if (!target) return;
+        var value = target.value || '';
+        var gkey = target.getAttribute('data-m-gkey');
+
+        var fieldMap = {
+          'broker-office-name-input': 'office_name',
+          'broker-office-phone-input': 'office_phone',
+          'broker-office-email-input': 'office_email',
+          'broker-office-address-input': 'office_address',
+          'broker-license-input': 'license_number',
+          'broker-description-input': 'description'
+        };
+
+        var field = fieldMap[gkey];
+        if (!field) return;
+
+        ctx.setState(function(db) {
+          var update = {};
+          update[field] = value;
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              brokerReg: Object.assign({}, db.state.brokerReg, update)
+            })
+          });
+        });
+      }
+    },
+    'ui.broker.submit': {
+      on: ['submit'],
+      gkeys: ['broker-reg-form'],
+      handler: function (event, ctx) {
+        if (event) event.preventDefault();
+        var currentDb = ctx.getState();
+        var brokerReg = currentDb.state.brokerReg;
+        var user = currentDb.state.auth && currentDb.state.auth.user;
+
+        if (!user) {
+          setToast(ctx, { kind: 'error', message: translate('broker.needAuth', 'يجب تسجيل الدخول أولاً', null, currentDb) });
+          return;
+        }
+
+        // Validation
+        if (!brokerReg.office_name || brokerReg.office_name.trim().length < 2) {
+          setToast(ctx, { kind: 'error', message: translate('broker.invalidOfficeName', 'اسم المكتب يجب أن يكون حرفين على الأقل', null, currentDb) });
+          return;
+        }
+
+        if (!validateEgyptianPhone(brokerReg.office_phone)) {
+          setToast(ctx, { kind: 'error', message: translate('broker.invalidPhone', 'رقم الهاتف غير صحيح', null, currentDb) });
+          return;
+        }
+
+        if (!brokerReg.office_email || !brokerReg.office_email.includes('@')) {
+          setToast(ctx, { kind: 'error', message: translate('broker.invalidEmail', 'البريد الإلكتروني غير صحيح', null, currentDb) });
+          return;
+        }
+
+        // Create broker record
+        var newBroker = {
+          id: 'broker-' + Date.now(),
+          user_id: user.id,
+          office_name: brokerReg.office_name.trim(),
+          office_phone: brokerReg.office_phone,
+          office_email: brokerReg.office_email.trim().toLowerCase(),
+          office_address: brokerReg.office_address.trim(),
+          license_number: brokerReg.license_number ? brokerReg.license_number.trim() : '',
+          description: brokerReg.description ? brokerReg.description.trim() : '',
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // Insert to backend
+        if (realtime && typeof realtime.insert === 'function') {
+          realtime.insert('brokers', newBroker, { reason: 'broker-registration' })
+            .then(function(result) {
+              console.log('[Brocker PWA] Broker registered:', result);
+
+              // Update user role to broker
+              if (realtime.update && user) {
+                realtime.update('users', Object.assign({}, user, { role: 'broker' }), { reason: 'role-update' })
+                  .catch(function(err) {
+                    console.warn('[Brocker PWA] Failed to update user role:', err);
+                  });
+              }
+
+              ctx.setState(function(db) {
+                return Object.assign({}, db, {
+                  state: Object.assign({}, db.state, {
+                    showBrokerRegModal: false,
+                    showListingCreateModal: true, // Open listing modal after broker registration
+                    auth: Object.assign({}, db.state.auth, {
+                      user: Object.assign({}, user, { role: 'broker' })
+                    }),
+                    brokerReg: {
+                      office_name: '',
+                      office_phone: '',
+                      office_email: '',
+                      office_address: '',
+                      license_number: '',
+                      description: ''
+                    }
+                  })
+                });
+              });
+              setToast(ctx, { kind: 'success', message: translate('broker.registerSuccess', 'تم تسجيل المكتب بنجاح', null, currentDb) });
+            })
+            .catch(function(err) {
+              console.error('[Brocker PWA] Broker registration failed:', err);
+              setToast(ctx, { kind: 'error', message: translate('broker.registerError', 'فشل تسجيل المكتب، حاول مرة أخرى', null, currentDb) });
+            });
+        } else {
+          // Fallback
+          ctx.setState(function(db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, {
+                showBrokerRegModal: false,
+                showListingCreateModal: true
+              })
+            });
+          });
+          setToast(ctx, { kind: 'success', message: translate('broker.registerSuccess', 'تم تسجيل المكتب بنجاح', null, currentDb) });
+        }
+      }
+    },
+    'ui.listing.toggleModal': {
+      on: ['click'],
+      gkeys: ['show-listing-modal', 'close-listing-modal'],
+      handler: function (event, ctx) {
+        var target = event.currentTarget;
+        if (!target) return;
+        var gkey = target.getAttribute('data-m-gkey');
+        var show = gkey === 'show-listing-modal';
+        var currentDb = ctx.getState();
+        var user = currentDb.state.auth && currentDb.state.auth.user;
+
+        // Check if user needs to register as broker first
+        if (show && user && user.role !== 'broker') {
+          ctx.setState(function(db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, {
+                showBrokerRegModal: true
+              })
+            });
+          });
+          setToast(ctx, { kind: 'info', message: translate('listing.needBrokerReg', 'يجب تسجيل مكتبك العقاري أولاً', null, currentDb) });
+          return;
+        }
+
+        ctx.setState(function(db) {
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              showListingCreateModal: show
+            })
+          });
+        });
+      }
+    },
+    'ui.listing.input': {
+      on: ['input', 'change'],
+      gkeys: ['listing-title-input', 'listing-property-type-input', 'listing-listing-type-input', 'listing-price-input', 'listing-region-input', 'listing-location-input', 'listing-bedrooms-input', 'listing-bathrooms-input', 'listing-area-input', 'listing-description-input'],
+      handler: function (event, ctx) {
+        var target = event.target;
+        if (!target) return;
+        var value = target.value || '';
+        var gkey = target.getAttribute('data-m-gkey');
+
+        var fieldMap = {
+          'listing-title-input': 'title',
+          'listing-property-type-input': 'property_type',
+          'listing-listing-type-input': 'listing_type',
+          'listing-price-input': 'price',
+          'listing-region-input': 'region_id',
+          'listing-location-input': 'location',
+          'listing-bedrooms-input': 'bedrooms',
+          'listing-bathrooms-input': 'bathrooms',
+          'listing-area-input': 'area',
+          'listing-description-input': 'description'
+        };
+
+        var field = fieldMap[gkey];
+        if (!field) return;
+
+        ctx.setState(function(db) {
+          var update = {};
+          update[field] = value;
+          return Object.assign({}, db, {
+            state: Object.assign({}, db.state, {
+              listingCreate: Object.assign({}, db.state.listingCreate, update)
+            })
+          });
+        });
+      }
+    },
+    'ui.listing.submit': {
+      on: ['submit'],
+      gkeys: ['listing-create-form'],
+      handler: function (event, ctx) {
+        if (event) event.preventDefault();
+        var currentDb = ctx.getState();
+        var listingCreate = currentDb.state.listingCreate;
+        var user = currentDb.state.auth && currentDb.state.auth.user;
+        var brokers = currentDb.data.brokers || [];
+        var broker = brokers.find(function(b) { return b.user_id === user.id; });
+
+        if (!user) {
+          setToast(ctx, { kind: 'error', message: translate('listing.needAuth', 'يجب تسجيل الدخول أولاً', null, currentDb) });
+          return;
+        }
+
+        if (!broker) {
+          setToast(ctx, { kind: 'error', message: translate('listing.needBroker', 'يجب تسجيل مكتب عقاري أولاً', null, currentDb) });
+          return;
+        }
+
+        // Validation
+        if (!listingCreate.title || listingCreate.title.trim().length < 5) {
+          setToast(ctx, { kind: 'error', message: translate('listing.invalidTitle', 'العنوان يجب أن يكون 5 أحرف على الأقل', null, currentDb) });
+          return;
+        }
+
+        if (!listingCreate.description || listingCreate.description.trim().length < 10) {
+          setToast(ctx, { kind: 'error', message: translate('listing.invalidDescription', 'الوصف يجب أن يكون 10 أحرف على الأقل', null, currentDb) });
+          return;
+        }
+
+        if (!listingCreate.price || parseFloat(listingCreate.price) <= 0) {
+          setToast(ctx, { kind: 'error', message: translate('listing.invalidPrice', 'السعر غير صحيح', null, currentDb) });
+          return;
+        }
+
+        if (!listingCreate.region_id) {
+          setToast(ctx, { kind: 'error', message: translate('listing.invalidRegion', 'اختر المنطقة', null, currentDb) });
+          return;
+        }
+
+        // Create listing and unit records
+        var listingId = 'listing-' + Date.now();
+        var unitId = 'unit-' + Date.now();
+
+        var newListing = {
+          id: listingId,
+          broker_id: broker.id,
+          title: listingCreate.title.trim(),
+          description: listingCreate.description.trim(),
+          price: parseFloat(listingCreate.price),
+          location: listingCreate.location.trim(),
+          region_id: listingCreate.region_id,
+          property_type: listingCreate.property_type,
+          listing_type: listingCreate.listing_type,
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        var newUnit = {
+          id: unitId,
+          listing_id: listingId,
+          bedrooms: listingCreate.bedrooms ? parseInt(listingCreate.bedrooms) : 0,
+          bathrooms: listingCreate.bathrooms ? parseInt(listingCreate.bathrooms) : 0,
+          area: listingCreate.area ? parseFloat(listingCreate.area) : 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // Insert to backend
+        if (realtime && typeof realtime.insert === 'function') {
+          Promise.all([
+            realtime.insert('listings', newListing, { reason: 'listing-creation' }),
+            realtime.insert('units', newUnit, { reason: 'unit-creation' })
+          ])
+            .then(function(results) {
+              console.log('[Brocker PWA] Listing created:', results);
+              ctx.setState(function(db) {
+                return Object.assign({}, db, {
+                  state: Object.assign({}, db.state, {
+                    showListingCreateModal: false,
+                    listingCreate: {
+                      title: '',
+                      description: '',
+                      price: '',
+                      location: '',
+                      bedrooms: '',
+                      bathrooms: '',
+                      area: '',
+                      property_type: 'apartment',
+                      listing_type: 'sale',
+                      region_id: ''
+                    }
+                  })
+                });
+              });
+              setToast(ctx, { kind: 'success', message: translate('listing.createSuccess', 'تم إضافة الوحدة بنجاح', null, currentDb) });
+            })
+            .catch(function(err) {
+              console.error('[Brocker PWA] Listing creation failed:', err);
+              setToast(ctx, { kind: 'error', message: translate('listing.createError', 'فشل إضافة الوحدة، حاول مرة أخرى', null, currentDb) });
+            });
+        } else {
+          // Fallback
+          ctx.setState(function(db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, {
+                showListingCreateModal: false
+              })
+            });
+          });
+          setToast(ctx, { kind: 'success', message: translate('listing.createSuccess', 'تم إضافة الوحدة بنجاح', null, currentDb) });
+        }
+      }
     }
   };
   function SubscribeModal(db) {
@@ -1528,6 +1880,346 @@
     ]);
   }
 
+  function BrokerRegistrationModal(db) {
+    if (!db.state.showBrokerRegModal) return null;
+    var brokerReg = db.state.brokerReg;
+    var user = db.state.auth && db.state.auth.user;
+
+    return D.Containers.Div({ attrs: { class: 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm', 'data-m-gkey': 'broker-modal-overlay' } }, [
+      D.Containers.Div({ attrs: { class: tw('w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl transition-colors', themed(db, 'bg-slate-900 text-white', 'bg-white text-slate-900')) } }, [
+        // Header
+        D.Containers.Div({ attrs: { class: 'flex items-center justify-between mb-6' } }, [
+          D.Text.H2({ attrs: { class: 'text-2xl font-bold' } }, [translate('broker.registerTitle', 'تسجيل مكتب عقاري', null, db)]),
+          D.Forms.Button({
+            attrs: {
+              type: 'button',
+              'data-m-gkey': 'close-broker-modal',
+              class: tw('w-8 h-8 flex items-center justify-center rounded-full transition-colors', themed(db, 'hover:bg-slate-800', 'hover:bg-slate-100'))
+            }
+          }, ['✕'])
+        ]),
+
+        // Description
+        D.Text.P({ attrs: { class: tw('text-sm mb-6', themed(db, 'text-slate-300', 'text-slate-600')) } }, [
+          translate('broker.registerDesc', 'سجل مكتبك العقاري لتتمكن من إضافة وإدارة الوحدات العقارية', null, db)
+        ]),
+
+        // Form
+        D.Forms.Form({ attrs: { 'data-m-gkey': 'broker-reg-form', class: 'space-y-4' } }, [
+          // Office Name
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('broker.officeName', 'اسم المكتب', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                name: 'office_name',
+                value: brokerReg.office_name || '',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('broker.officeNamePlaceholder', 'مكتب العقارات المميز', null, db),
+                'data-m-gkey': 'broker-office-name-input'
+              }
+            })
+          ]),
+
+          // Row: Phone + Email
+          D.Containers.Div({ attrs: { class: 'grid grid-cols-1 md:grid-cols-2 gap-4' } }, [
+            // Office Phone
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('broker.officePhone', 'رقم المكتب', null, db)]),
+              D.Inputs.Input({
+                attrs: {
+                  type: 'tel',
+                  name: 'office_phone',
+                  value: brokerReg.office_phone || '',
+                  required: true,
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  placeholder: '+201234567890',
+                  'data-m-gkey': 'broker-office-phone-input'
+                }
+              })
+            ]),
+            // Office Email
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('broker.officeEmail', 'البريد الإلكتروني', null, db)]),
+              D.Inputs.Input({
+                attrs: {
+                  type: 'email',
+                  name: 'office_email',
+                  value: brokerReg.office_email || '',
+                  required: true,
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  placeholder: 'office@example.com',
+                  'data-m-gkey': 'broker-office-email-input'
+                }
+              })
+            ])
+          ]),
+
+          // Office Address
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('broker.officeAddress', 'عنوان المكتب', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                name: 'office_address',
+                value: brokerReg.office_address || '',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('broker.officeAddressPlaceholder', 'شارع، حي، مدينة', null, db),
+                'data-m-gkey': 'broker-office-address-input'
+              }
+            })
+          ]),
+
+          // License Number
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [
+              translate('broker.licenseNumber', 'رقم الترخيص', null, db),
+              D.Text.Span({ attrs: { class: 'text-xs opacity-70' } }, [' (' + translate('common.optional', 'اختياري', null, db) + ')'])
+            ]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                name: 'license_number',
+                value: brokerReg.license_number || '',
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('broker.licenseNumberPlaceholder', 'رقم الترخيص', null, db),
+                'data-m-gkey': 'broker-license-input'
+              }
+            })
+          ]),
+
+          // Description
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('broker.description', 'وصف المكتب', null, db)]),
+            D.Inputs.Textarea({
+              attrs: {
+                name: 'description',
+                value: brokerReg.description || '',
+                rows: '4',
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('broker.descriptionPlaceholder', 'نبذة عن المكتب وخدماته...', null, db),
+                'data-m-gkey': 'broker-description-input'
+              }
+            })
+          ]),
+
+          // Submit Button
+          D.Forms.Button({
+            attrs: {
+              type: 'submit',
+              class: tw('w-full py-3 rounded-lg font-bold transition-all hover:scale-[1.02]', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white', 'bg-emerald-600 hover:bg-emerald-700 text-white'))
+            }
+          }, [translate('broker.registerBtn', 'تسجيل المكتب', null, db)])
+        ])
+      ])
+    ]);
+  }
+
+  function ListingCreateModal(db) {
+    if (!db.state.showListingCreateModal) return null;
+    var listingCreate = db.state.listingCreate;
+    var regions = (db.data && db.data.regions) || [];
+    var user = db.state.auth && db.state.auth.user;
+
+    return D.Containers.Div({ attrs: { class: 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm', 'data-m-gkey': 'listing-modal-overlay' } }, [
+      D.Containers.Div({ attrs: { class: tw('w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-2xl transition-colors', themed(db, 'bg-slate-900 text-white', 'bg-white text-slate-900')) } }, [
+        // Header
+        D.Containers.Div({ attrs: { class: 'flex items-center justify-between mb-6' } }, [
+          D.Text.H2({ attrs: { class: 'text-2xl font-bold' } }, [translate('listing.createTitle', 'إضافة وحدة عقارية', null, db)]),
+          D.Forms.Button({
+            attrs: {
+              type: 'button',
+              'data-m-gkey': 'close-listing-modal',
+              class: tw('w-8 h-8 flex items-center justify-center rounded-full transition-colors', themed(db, 'hover:bg-slate-800', 'hover:bg-slate-100'))
+            }
+          }, ['✕'])
+        ]),
+
+        // Form
+        D.Forms.Form({ attrs: { 'data-m-gkey': 'listing-create-form', class: 'space-y-4' } }, [
+          // Title
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.title', 'عنوان الوحدة', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                name: 'title',
+                value: listingCreate.title || '',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('listing.titlePlaceholder', 'شقة للبيع في...', null, db),
+                'data-m-gkey': 'listing-title-input'
+              }
+            })
+          ]),
+
+          // Property Type + Listing Type
+          D.Containers.Div({ attrs: { class: 'grid grid-cols-1 md:grid-cols-2 gap-4' } }, [
+            // Property Type
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.propertyType', 'نوع العقار', null, db)]),
+              D.Inputs.Select({
+                attrs: {
+                  name: 'property_type',
+                  required: true,
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  'data-m-gkey': 'listing-property-type-input'
+                }
+              }, [
+                D.Inputs.Option({ attrs: { value: 'apartment' } }, [translate('listing.apartment', 'شقة', null, db)]),
+                D.Inputs.Option({ attrs: { value: 'villa' } }, [translate('listing.villa', 'فيلا', null, db)]),
+                D.Inputs.Option({ attrs: { value: 'office' } }, [translate('listing.office', 'مكتب', null, db)]),
+                D.Inputs.Option({ attrs: { value: 'land' } }, [translate('listing.land', 'أرض', null, db)])
+              ])
+            ]),
+            // Listing Type
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.listingType', 'نوع الإعلان', null, db)]),
+              D.Inputs.Select({
+                attrs: {
+                  name: 'listing_type',
+                  required: true,
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  'data-m-gkey': 'listing-listing-type-input'
+                }
+              }, [
+                D.Inputs.Option({ attrs: { value: 'sale' } }, [translate('listing.sale', 'للبيع', null, db)]),
+                D.Inputs.Option({ attrs: { value: 'rent' } }, [translate('listing.rent', 'للإيجار', null, db)])
+              ])
+            ])
+          ]),
+
+          // Price + Region
+          D.Containers.Div({ attrs: { class: 'grid grid-cols-1 md:grid-cols-2 gap-4' } }, [
+            // Price
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.price', 'السعر', null, db)]),
+              D.Inputs.Input({
+                attrs: {
+                  type: 'number',
+                  name: 'price',
+                  value: listingCreate.price || '',
+                  required: true,
+                  min: '0',
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  placeholder: '0',
+                  'data-m-gkey': 'listing-price-input'
+                }
+              })
+            ]),
+            // Region
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.region', 'المنطقة', null, db)]),
+              D.Inputs.Select({
+                attrs: {
+                  name: 'region_id',
+                  required: true,
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  'data-m-gkey': 'listing-region-input'
+                }
+              }, [
+                D.Inputs.Option({ attrs: { value: '' } }, [translate('listing.selectRegion', 'اختر المنطقة', null, db)])
+              ].concat(regions.map(function(region) {
+                return D.Inputs.Option({ attrs: { value: region.id } }, [localized(region, 'name', null, db)]);
+              })))
+            ])
+          ]),
+
+          // Location
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.location', 'الموقع', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                name: 'location',
+                value: listingCreate.location || '',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('listing.locationPlaceholder', 'شارع، حي، مدينة', null, db),
+                'data-m-gkey': 'listing-location-input'
+              }
+            })
+          ]),
+
+          // Bedrooms + Bathrooms + Area
+          D.Containers.Div({ attrs: { class: 'grid grid-cols-3 gap-4' } }, [
+            // Bedrooms
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.bedrooms', 'غرف', null, db)]),
+              D.Inputs.Input({
+                attrs: {
+                  type: 'number',
+                  name: 'bedrooms',
+                  value: listingCreate.bedrooms || '',
+                  min: '0',
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  placeholder: '0',
+                  'data-m-gkey': 'listing-bedrooms-input'
+                }
+              })
+            ]),
+            // Bathrooms
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.bathrooms', 'حمامات', null, db)]),
+              D.Inputs.Input({
+                attrs: {
+                  type: 'number',
+                  name: 'bathrooms',
+                  value: listingCreate.bathrooms || '',
+                  min: '0',
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  placeholder: '0',
+                  'data-m-gkey': 'listing-bathrooms-input'
+                }
+              })
+            ]),
+            // Area
+            D.Containers.Div({}, [
+              D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.area', 'المساحة (م²)', null, db)]),
+              D.Inputs.Input({
+                attrs: {
+                  type: 'number',
+                  name: 'area',
+                  value: listingCreate.area || '',
+                  min: '0',
+                  class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                  placeholder: '0',
+                  'data-m-gkey': 'listing-area-input'
+                }
+              })
+            ])
+          ]),
+
+          // Description
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('listing.description', 'الوصف', null, db)]),
+            D.Inputs.Textarea({
+              attrs: {
+                name: 'description',
+                value: listingCreate.description || '',
+                rows: '4',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('listing.descriptionPlaceholder', 'وصف تفصيلي للوحدة...', null, db),
+                'data-m-gkey': 'listing-description-input'
+              }
+            })
+          ]),
+
+          // Submit Button
+          D.Forms.Button({
+            attrs: {
+              type: 'submit',
+              class: tw('w-full py-3 rounded-lg font-bold transition-all hover:scale-[1.02]', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white', 'bg-emerald-600 hover:bg-emerald-700 text-white'))
+            }
+          }, [translate('listing.createBtn', 'إضافة الوحدة', null, db)])
+        ])
+      ])
+    ]);
+  }
+
   function AppView(db) {
     var listingModels = buildListingModels(db);
     var view = db.state.activeView;
@@ -1554,7 +2246,9 @@
       installBanner,
       db.state.pwa && db.state.pwa.showGate ? InstallGate(db) : null,
       SubscribeModal(db),
-      db.state.auth && db.state.auth.showAuthModal ? AuthModal(db) : null
+      db.state.auth && db.state.auth.showAuthModal ? AuthModal(db) : null,
+      db.state.showBrokerRegModal ? BrokerRegistrationModal(db) : null,
+      db.state.showListingCreateModal ? ListingCreateModal(db) : null
     ]);
   }
 
