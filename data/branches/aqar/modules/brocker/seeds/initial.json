@@ -3992,6 +3992,82 @@
         "lang": "en",
         "text": "Search, manage, and track your client requests easily.",
         "kind": "ui"
+      },{
+        "id": "ui-header.defaultTitle-en",
+        "key": "header.defaultTitle",
+        "lang": "en",
+        "text": "Broker Platform",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.empty-en",
+        "key": "broker.empty",
+        "lang": "en",
+        "text": "No brokers found.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.certified-en",
+        "key": "broker.certified",
+        "lang": "en",
+        "text": "Certified Broker",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.unitsTitle-en",
+        "key": "broker.unitsTitle",
+        "lang": "en",
+        "text": "Broker Units",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.noUnits-en",
+        "key": "broker.noUnits",
+        "lang": "en",
+        "text": "No units listed for this broker.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.joinTitle-en",
+        "key": "broker.joinTitle",
+        "lang": "en",
+        "text": "Join as Certified Broker",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.joinDesc-en",
+        "key": "broker.joinDesc",
+        "lang": "en",
+        "text": "Register your details to receive WhatsApp verification code.",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.requestOtp-en",
+        "key": "broker.requestOtp",
+        "lang": "en",
+        "text": "Request OTP",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.otpSent-en",
+        "key": "broker.otpSent",
+        "lang": "en",
+        "text": "Last code sent to:",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-listing.defaultHeadline-en",
+        "key": "listing.defaultHeadline",
+        "lang": "en",
+        "text": "Available Unit",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-gallery.empty-en",
+        "key": "gallery.empty",
+        "lang": "en",
+        "text": "No media available.",
+        "kind": "ui"
       }
     ]
   }
