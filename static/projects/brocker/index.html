@@ -38,17 +38,23 @@
         min-height: 100vh;
       }
     </style>
-    <!-- Mishkah Core Libraries -->
+    <!-- Required Dependencies -->
+    <script src="../../vendor/acorn.min.js"></script>
+    <script src="../../vendor/acorn-walk.min.js"></script>
+
+    <!-- Mishkah Core Libraries (correct order) -->
     <script src="../../lib/mishkah.core.js"></script>
+    <script src="../../lib/mishkah-utils.js"></script>
     <script src="../../lib/mishkah-htmlx.js"></script>
     <script src="../../lib/mishkah-ui.js"></script>
-    <script src="../../lib/mishkah-utils.js"></script>
     <script src="../../lib/mishkah.store.js"></script>
     <script src="../../lib/mishkah.simple-store.js"></script>
 
-    <!-- TailwindCSS -->
+    <!-- CSS -->
     <link rel="stylesheet" href="../../lib/mishkah-css.css" />
-    <script src="../../vendor/tailwind-3.4.5.js"></script>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
     <div id="app"></div>
