@@ -293,6 +293,7 @@
           lang: newLang,
           dir: newLang === 'ar' ? 'rtl' : 'ltr'
         },
+        data: prev.data, // ✅ Preserve data
         state: {
           ...prev.state,
           loading: true
@@ -318,9 +319,15 @@
       conn.disconnect();
     }
 
-    // Clear ready tables
+    // Clear ready tables and update language
     app.setState(function (prev) {
       return {
+        env: {
+          ...prev.env,
+          lang: lang,
+          dir: lang === 'ar' ? 'rtl' : 'ltr'
+        },
+        data: prev.data, // ✅ Preserve data during language switch
         state: {
           ...prev.state,
           readyTables: [],
@@ -365,6 +372,7 @@
       });
 
       return {
+        env: prev.env, // ✅ Preserve env (lang, theme, dir)
         data: nextData,
         state: {
           ...prev.state,
@@ -792,7 +800,9 @@
               theme: newTheme,
               lang: prev.env.lang,
               dir: prev.env.dir
-            }
+            },
+            data: prev.data, // ✅ Preserve data
+            state: prev.state // ✅ Preserve state
           };
         });
       }
@@ -817,6 +827,8 @@
       handler: function (event, ctx) {
         ctx.setState(function (prev) {
           return {
+            env: prev.env, // ✅ Preserve env
+            data: prev.data, // ✅ Preserve data
             state: {
               ...prev.state,
               showProfileMenu: !prev.state.showProfileMenu
@@ -833,6 +845,8 @@
       handler: function (event, ctx) {
         ctx.setState(function (prev) {
           return {
+            env: prev.env, // ✅ Preserve env
+            data: prev.data, // ✅ Preserve data
             state: {
               ...prev.state,
               auth: {
@@ -862,6 +876,8 @@
           newFilters[name] = value || null;
 
           return {
+            env: prev.env, // ✅ Preserve env
+            data: prev.data, // ✅ Preserve data
             state: {
               ...prev.state,
               filters: newFilters
@@ -879,6 +895,8 @@
         event.preventDefault();
         ctx.setState(function (prev) {
           return {
+            env: prev.env, // ✅ Preserve env
+            data: prev.data, // ✅ Preserve data
             state: {
               ...prev.state,
               filters: {}
@@ -901,6 +919,8 @@
 
         ctx.setState(function (prev) {
           return {
+            env: prev.env, // ✅ Preserve env
+            data: prev.data, // ✅ Preserve data
             state: {
               ...prev.state,
               activeView: 'listing',
@@ -918,6 +938,8 @@
       handler: function (event, ctx) {
         ctx.setState(function (prev) {
           return {
+            env: prev.env, // ✅ Preserve env
+            data: prev.data, // ✅ Preserve data
             state: {
               ...prev.state,
               activeView: 'home',
@@ -968,6 +990,8 @@
       console.error('Failed to connect:', err);
       app.setState(function (prev) {
         return {
+          env: prev.env, // ✅ Preserve env
+          data: prev.data, // ✅ Preserve data
           state: {
             ...prev.state,
             loading: false,
