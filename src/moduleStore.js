@@ -224,8 +224,8 @@ export default class ModuleStore {
    * @param {string} lang - Language code (e.g., 'en', 'ar')
    * @returns {Array} Decorated records
    */
-  decorateWithTranslations(records, tableName, lang) {
-    if (!lang || !Array.isArray(records) || !records.length) {
+  decorateWithTranslations(records, tableName, lang, options = {}) {
+    if (!Array.isArray(records) || !records.length) {
       return records;
     }
 
@@ -237,47 +237,102 @@ export default class ModuleStore {
       return records;
     }
 
-    // Build translation lookup: {recordId: {field: translatedValue}}
-    const translationsMap = new Map();
+    const defaultLang = options.defaultLang || 'ar';
+    const strictMode = options.strictMode || false;
+
+    // Build translation lookup: {recordId: {lang: {field: value}}}
+    const translationsByRecord = new Map();
+
     for (const langRecord of langTable) {
       const fkField = `${tableName}_id`;
       const recordId = langRecord[fkField];
-      if (!recordId || langRecord.lang !== lang) continue;
+      const recordLang = langRecord.lang;
 
-      if (!translationsMap.has(recordId)) {
-        translationsMap.set(recordId, {});
+      if (!recordId || !recordLang) continue;
+
+      if (!translationsByRecord.has(recordId)) {
+        translationsByRecord.set(recordId, new Map());
       }
 
-      const translations = translationsMap.get(recordId);
-      // Copy all text fields from lang record (except id, lang, fk)
+      const langMap = translationsByRecord.get(recordId);
+      const translations = {};
+
+      // Copy all text fields from lang record (except id, lang, fk, timestamps)
       for (const key in langRecord) {
         if (key === 'id' || key === 'lang' || key === fkField) continue;
+        if (key === 'created_date' || key === 'modified_date') continue;
+        if (key === 'created_at' || key === 'updated_at') continue;
         if (langRecord[key] !== null && langRecord[key] !== undefined) {
           translations[key] = langRecord[key];
         }
       }
+
+      langMap.set(recordLang, translations);
     }
 
-    // Merge translations into records
+    // Merge translations into records with fallback logic
     return records.map(record => {
-      const translations = translationsMap.get(record.id);
-      if (!translations) return record;
+      const langMap = translationsByRecord.get(record.id);
 
-      return Object.assign({}, record, translations);
+      if (!langMap || langMap.size === 0) {
+        return record; // No translations at all
+      }
+
+      let translations = null;
+      let usedLang = null;
+
+      // Strategy 1: Try requested lang
+      if (lang && langMap.has(lang)) {
+        translations = langMap.get(lang);
+        usedLang = lang;
+      }
+      // Strategy 2: Fallback to default lang (usually 'ar')
+      else if (!strictMode && langMap.has(defaultLang)) {
+        translations = langMap.get(defaultLang);
+        usedLang = defaultLang;
+      }
+      // Strategy 3: Use first available translation
+      else if (!strictMode && langMap.size > 0) {
+        const firstEntry = langMap.entries().next().value;
+        usedLang = firstEntry[0];
+        translations = firstEntry[1];
+      }
+
+      if (!translations) {
+        return record; // No suitable translation found
+      }
+
+      // Merge and add metadata about which lang was used
+      const result = Object.assign({}, record, translations);
+
+      // Add metadata (non-enumerable to avoid polluting JSON)
+      if (options.includeMetadata !== false) {
+        result._lang_used = usedLang;
+        result._lang_requested = lang || null;
+        result._lang_fallback = usedLang !== lang;
+      }
+
+      return result;
     });
   }
 
   getSnapshot(options = {}) {
     const lang = options.lang || null;
+    const defaultLang = options.defaultLang || 'ar';
+    const strictMode = options.strictMode || false;
+    const includeMetadata = options.includeMetadata !== false;
+
     const tables = deepClone(this.data);
 
-    // Apply translations if lang is specified
-    if (lang) {
-      for (const tableName in tables) {
-        const records = tables[tableName];
-        if (Array.isArray(records)) {
-          tables[tableName] = this.decorateWithTranslations(records, tableName, lang);
-        }
+    // Always apply translations (even if lang is null, fallback logic will handle it)
+    for (const tableName in tables) {
+      const records = tables[tableName];
+      if (Array.isArray(records) && !tableName.endsWith('_lang')) {
+        tables[tableName] = this.decorateWithTranslations(records, tableName, lang, {
+          defaultLang,
+          strictMode,
+          includeMetadata
+        });
       }
     }
 
@@ -286,7 +341,8 @@ export default class ModuleStore {
       branchId: this.branchId,
       version: this.version,
       tables,
-      meta: deepClone(this.meta)
+      meta: deepClone(this.meta),
+      _lang: lang || defaultLang // Add metadata about which language was requested
     };
   }
 
