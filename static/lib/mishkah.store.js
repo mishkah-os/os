@@ -183,6 +183,20 @@ class MishkahRealtimeStore extends EventEmitter {
       }
     }
 
+    // ⚠️ CRITICAL: Clear cache if language changed
+    if (this.dbAdapter && this.lang && this.state.meta?.[this.moduleId]?._lang) {
+      const cachedLang = this.state.meta[this.moduleId]._lang;
+      if (cachedLang !== this.lang) {
+        this.logger.info?.('[Mishkah][Store] Language changed, clearing cache', { from: cachedLang, to: this.lang });
+        try {
+          await this.dbAdapter.clear();
+          this.state = { branchId: this.branchId, modules: {}, meta: {} };
+        } catch (e) {
+          this.logger.warn?.('[Mishkah][Store] Failed to clear cache', e);
+        }
+      }
+    }
+
     this.ws = new WebSocket(this.wsUrl);
     this.ws.addEventListener('open', () => this.#handleOpen());
     this.ws.addEventListener('message', (event) => {
