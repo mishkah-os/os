@@ -2266,9 +2266,14 @@
     var settings = db.data && db.data.appSettings;
     var brandName = settings && settings.brand_name ? settings.brand_name : 'مكاتب عقارات';
     var theme = db.env && db.env.theme;
-    var brandLogo = settings && settings.brand_logo
-      ? settings.brand_logo
-      : (theme === 'dark' ? '/projects/brocker/images/logo.svg' : '/projects/brocker/images/logo-light.svg');
+
+
+      // الحل المقترح: نأخذ اللوجو الأساسي، وإذا كان الوضع فاتح نضيف -light للاسم
+var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+// إذا كان الوضع light، نقوم بتغيير اسم الملف (مثلاً logo.svg يصبح logo-light.svg)
+var brandLogo = theme === 'light' 
+  ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
+  : baseLogo;
     var displayName = lang === 'en' ? 'Makateb Aqarat' : brandName;
 
     return D.Containers.Div({ attrs: { class: tw('fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b transition-all duration-300', themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')) } }, [
@@ -2353,8 +2358,10 @@
 
   function FooterSection(db) {
     var settings = db.data && db.data.appSettings;
-    var brandName = settings && settings.brand_name ? settings.brand_name : 'عقار برو';
-    var theme = db.env && db.env.theme;
+var brandName = settings && settings.brand_name 
+  ? localized('app_settings', settings.id || 'default', 'brand_name', settings.brand_name) // استخدام localized
+  : 'مكاتب عقارات';   
+   var theme = db.env && db.env.theme;
     var brandLogo = settings && settings.brand_logo
       ? settings.brand_logo
       : (theme === 'dark' ? '/projects/brocker/images/logo.svg' : '/projects/brocker/images/logo-light.svg');
