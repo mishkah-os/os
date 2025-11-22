@@ -170,7 +170,11 @@ function createContext(store, config) {
     initialFetchInProgress = true;
 
     try {
-      const apiUrl =  window.basedomain + `/api/branches/${encodeURIComponent(config.branchId)}/modules/${encodeURIComponent(config.moduleId)}`;
+      // ✅ Include lang parameter for Auto-Flattening translation support
+      let apiUrl =  window.basedomain + `/api/branches/${encodeURIComponent(config.branchId)}/modules/${encodeURIComponent(config.moduleId)}`;
+      if (config.lang) {
+        apiUrl += `?lang=${encodeURIComponent(config.lang)}`;
+      }
       const response = await fetch(apiUrl, { cache: 'no-store' });
 
       if (!response.ok) {
