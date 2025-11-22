@@ -2250,21 +2250,31 @@
     ]);
   }
 
-  function PreferencesBar(db) {
+function PreferencesBar(db) {
     var lang = currentLang(db);
     var themeIcon = themed(db, '☀️', '🌙');
     var langText = lang === 'ar' ? 'EN' : 'AR';
     var isLoading = db.state && db.state.loading;
     var settings = db.data && db.data.appSettings;
-    var brandName = settings && settings.brand_name ? settings.brand_name : 'مكاتب عقارات';
+    
+    // 1. تحديد معرف الإعدادات الصحيح
+    var settingsId = (settings && settings.id) ? settings.id : 'brocker-app-config';
+
+    // 2. تصحيح جلب اسم البراند باستخدام localized (للبحث في الترجمات أولاً)
+    var brandName = settings && settings.brand_name 
+      ? localized('app_settings', settingsId, 'brand_name', settings.brand_name) 
+      : (lang === 'en' ? 'Makateb Aqarat' : 'مكاتب عقارات');
+      
     var theme = db.env && db.env.theme;
 
+    // 3. تصحيح منطق الشعار (Dark/Light)
+    var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+    var brandLogo = theme === 'dark' 
+      ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
+      : baseLogo;
 
-var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
-var brandLogo = theme === 'dark' 
-  ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
-  : baseLogo;
-    var displayName = lang === 'en' ? 'Makateb Aqarat' : brandName;
+    // استخدام الاسم المترجم للعرض
+    var displayName = brandName; 
 
     return D.Containers.Div({ attrs: { class: tw('fixed top-0 left-0 right-0 z-40 backdrop-blur-xl border-b transition-all duration-300', themed(db, 'bg-slate-950/90 border-white/5', 'bg-white/90 border-slate-200')) } }, [
       D.Containers.Div({ attrs: { class: 'mx-auto flex max-w-xl items-center justify-between px-4 py-3' } }, [
@@ -2295,7 +2305,7 @@ var brandLogo = theme === 'dark'
           }, [
             D.Text.Span({}, [langText])
           ]) : null,
-          // قائمة الملف الشخصي للمستخدمين المسجلين
+          // ... (باقي كود القائمة الشخصية كما هو)
           !isLoading && db.state && db.state.auth && db.state.auth.isAuthenticated ? D.Containers.Div({ attrs: { class: 'relative', 'data-profile-menu': 'container' } }, [
             D.Forms.Button({
               attrs: {
@@ -2309,25 +2319,25 @@ var brandLogo = theme === 'dark'
               D.Text.Span({}, ['▼'])
             ]),
             // القائمة المنسدلة
-            db.state.showProfileMenu ? D.Containers.Div({ attrs: { class: tw('absolute top-full mt-2 w-48 rounded-xl shadow-2xl border overflow-hidden z-50', dir === 'rtl' ? 'left-0' : 'right-0', themed(db, 'bg-slate-900 border-slate-700', 'bg-white border-slate-200')) } }, [
+            db.state.showProfileMenu ? D.Containers.Div({ attrs: { class: tw('absolute top-full mt-2 w-48 rounded-xl shadow-2xl border overflow-hidden z-50', db.env.dir === 'rtl' ? 'left-0' : 'right-0', themed(db, 'bg-slate-900 border-slate-700', 'bg-white border-slate-200')) } }, [
               D.Forms.Button({
                 attrs: {
                   type: 'button',
-                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-white', 'hover:bg-slate-50 text-slate-900')),
+                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', db.env.dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-white', 'hover:bg-slate-50 text-slate-900')),
                   'data-m-gkey': 'navigate-dashboard'
                 }
               }, [D.Text.Span({}, ['📊']), D.Text.Span({}, [translate('actions.dashboard', 'لوحة التحكم', null, db)])]),
               D.Forms.Button({
                 attrs: {
                   type: 'button',
-                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-white', 'hover:bg-slate-50 text-slate-900')),
+                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', db.env.dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-white', 'hover:bg-slate-50 text-slate-900')),
                   'data-m-gkey': 'navigate-inbox'
                 }
               }, [D.Text.Span({}, ['✉️']), D.Text.Span({}, [translate('actions.inbox', 'الرسائل', null, db)])]),
               D.Forms.Button({
                 attrs: {
                   type: 'button',
-                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-rose-400', 'hover:bg-rose-50 text-rose-600')),
+                  class: tw('w-full px-4 py-3 text-sm text-right flex items-center gap-3 transition-colors', db.env.dir === 'rtl' ? 'text-right' : 'text-left', themed(db, 'hover:bg-slate-800 text-rose-400', 'hover:bg-rose-50 text-rose-600')),
                   'data-m-gkey': 'logout'
                 }
               }, [D.Text.Span({}, ['🚪']), D.Text.Span({}, [translate('actions.logout', 'تسجيل الخروج', null, db)])])
@@ -2856,7 +2866,6 @@ function FooterSection(db) {
   }
 function HeaderSection(db) {
     var settings = db && db.data ? db.data.appSettings : null;
-    // استخدام المعرف الصحيح لضمان جلب الترجمة
     var settingsId = (settings && settings.id) ? settings.id : 'brocker-app-config';
 
     if (!settings) {
@@ -2867,11 +2876,11 @@ function HeaderSection(db) {
       ]);
     }
 
-    // جلب الاسم والوصف مع دعم الترجمة بشكل صحيح
-    var brandName = localized('app_settings', settingsId, 'brand_name', settings.brand_name);
-    var brandTagline = localized('app_settings', settingsId, 'tagline', settings.tagline);
+    // التصحيح: استخدام localized مباشرة مع تمرير النص العربي كقيمة احتياطية فقط
+    // هذا يضمن البحث في جدول الترجمة أولاً
+    var brandName = localized('app_settings', settingsId, 'brand_name', settings.brand_name || 'مكاتب عقارات');
+    var brandTagline = localized('app_settings', settingsId, 'tagline', settings.tagline || 'منصة ذكية لإدارة مكاتب العقارات');
     
-    // إصلاح الشعار ليدعم الوضع الليلي/النهاري
     var theme = db.env && db.env.theme;
     var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
     var brandLogo = theme === 'dark' 
@@ -2892,18 +2901,15 @@ function HeaderSection(db) {
     return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center sm:space-y-3', themed(db, 'text-white', 'text-slate-900')) } }, [
       logo,
       D.Text.H1({ attrs: { class: 'text-2xl font-semibold sm:text-3xl' } }, [
-        // استخدام النص المترجم، أو fallback إنجليزي صريح
-        brandName || translate('header.defaultTitle', 'Makateb Aqarat', null, db)
+        brandName
       ]),
       brandTagline
         ? D.Text.P({ attrs: { class: tw('text-sm leading-6 sm:text-base', themed(db, 'text-slate-300', 'text-slate-600')) } }, [
-            // استخدام النص المترجم، أو fallback إنجليزي صريح
-            brandTagline || translate('header.defaultTagline', 'Smart Platform for Real Estate Offices', null, db)
+            brandTagline
           ])
         : null
     ]);
   }
-
   function HeroSection(settings, slides) {
     // إزالة المقدمة - نبدأ مباشرة بالـ slides
     var cards = (slides || []).slice().sort(function (a, b) {
