@@ -42,6 +42,7 @@
   var BRANCH_ID = params.get('branch') || params.get('branchId') || 'aqar';
   var MODULE_ID = params.get('module') || params.get('moduleId') || 'brocker';
 
+  // ✅ Simplified: Removed ui_labels (now using static UI_LABELS object)
   var REQUIRED_TABLES = new Set([
     'app_settings',
     'hero_slides',
@@ -51,26 +52,70 @@
     'brokers',
     'units',
     'unit_media',
-    'inquiries',
-    'ui_labels'
+    'inquiries'
   ]);
 
   var PREF_STORAGE_KEY = 'brocker:prefs:v2';
 
-  var BASE_I18N = {};
-
-  function buildTranslationMaps(rows) {
-    var ui = {};
-    var content = {};
-    (rows || []).forEach(function (row) {
-      if (!row || !row.key) return;
-      var lang = row.lang || 'ar';
-      var target = row.kind === 'content' ? content : ui;
-      if (!target[row.key]) target[row.key] = {};
-      target[row.key][lang] = row.text || row.value || row.label || '';
-    });
-    return { ui: ui, content: content };
-  }
+  // ✅ Static UI Labels (replaces dynamic ui_labels table)
+  // Backend now handles all data translation via Auto-Flattening
+  // These are only for static UI elements (buttons, labels, etc.)
+  var UI_LABELS = {
+    ar: {
+      'loading': 'جاري التحميل...',
+      'error': 'خطأ',
+      'submit': 'إرسال',
+      'cancel': 'إلغاء',
+      'search': 'بحث',
+      'filter': 'تصفية',
+      'clear': 'مسح',
+      'save': 'حفظ',
+      'delete': 'حذف',
+      'edit': 'تعديل',
+      'view': 'عرض',
+      'close': 'إغلاق',
+      'home': 'الرئيسية',
+      'listings': 'العقارات',
+      'brokers': 'الوسطاء',
+      'profile': 'الملف الشخصي',
+      'settings': 'الإعدادات',
+      'logout': 'تسجيل خروج',
+      'all_types': 'كل الأنواع',
+      'all_regions': 'كل المناطق',
+      'for_sale': 'للبيع',
+      'for_rent': 'للإيجار',
+      'no_results': 'لا توجد نتائج',
+      'connection_error': 'خطأ في الاتصال',
+      'retry': 'إعادة المحاولة'
+    },
+    en: {
+      'loading': 'Loading...',
+      'error': 'Error',
+      'submit': 'Submit',
+      'cancel': 'Cancel',
+      'search': 'Search',
+      'filter': 'Filter',
+      'clear': 'Clear',
+      'save': 'Save',
+      'delete': 'Delete',
+      'edit': 'Edit',
+      'view': 'View',
+      'close': 'Close',
+      'home': 'Home',
+      'listings': 'Listings',
+      'brokers': 'Brokers',
+      'profile': 'Profile',
+      'settings': 'Settings',
+      'logout': 'Logout',
+      'all_types': 'All Types',
+      'all_regions': 'All Regions',
+      'for_sale': 'For Sale',
+      'for_rent': 'For Rent',
+      'no_results': 'No results',
+      'connection_error': 'Connection error',
+      'retry': 'Retry'
+    }
+  };
 
   function loadPersistedPrefs() {
     try {
@@ -107,12 +152,11 @@
   }
 
   var initialDatabase = {
+    // ✅ Simplified env: removed i18n and contentI18n (data comes translated from Backend)
     env: {
       theme: initialTheme,
       lang: initialLang,
-      dir: initialDir,
-      i18n: BASE_I18N,
-      contentI18n: {}
+      dir: initialDir
     },
     meta: {
       branchId: BRANCH_ID,
@@ -230,38 +274,37 @@
     return (source && source.lang) || 'ar';
   }
 
+  // ✅ Simplified: translate() now only for static UI labels
+  // Data translation is handled by Backend Auto-Flattening
   function translate(key, fallback, lang, db) {
-    // إذا تم تمرير db، استخدمه، وإلا استخدم activeEnv()
     var env = (db && db.env) ? db.env : activeEnv();
     var locale = lang || (env && env.lang) || 'ar';
-    var map = (env && env.i18n) || BASE_I18N;
-    var entry = map[key];
-    if (entry && entry[locale]) return entry[locale];
-    if (entry && entry.ar) return entry.ar;
+    var label = UI_LABELS[locale] && UI_LABELS[locale][key];
+    if (label) return label;
+    // Fallback to 'ar' if not found in requested language
+    if (locale !== 'ar' && UI_LABELS.ar && UI_LABELS.ar[key]) {
+      return UI_LABELS.ar[key];
+    }
     return typeof fallback === 'string' ? fallback : key;
   }
 
+  // ✅ Simplified: Content translation now handled by Backend Auto-Flattening
+  // These functions kept for backward compatibility but now just return fallback
+  // Data comes pre-translated from Backend based on lang parameter
+
   function contentKey(entity, id, field) {
+    // Kept for compatibility, but not used for translation anymore
     return [entity, id, field].filter(Boolean).join('.');
   }
 
   function translateContent(key, fallback, lang) {
-    var env = activeEnv();
-    var locale = lang || (env && env.lang) || 'ar';
-    var map = (env && env.contentI18n) || {};
-    var entry = map[key];
-    if (entry && entry[locale]) return entry[locale];
-    if (entry && entry.ar) return entry.ar;
+    // Backend Auto-Flattening handles this - just return fallback
     return typeof fallback === 'string' ? fallback : key;
   }
 
-  function applyLabelMaps(env, labels) {
-    var maps = buildTranslationMaps(labels);
-    return Object.assign({}, env, { i18n: maps.ui, contentI18n: maps.content });
-  }
-
   function localized(entity, id, field, fallback, lang) {
-    return translateContent(contentKey(entity, id, field), fallback, lang);
+    // Backend Auto-Flattening handles this - just return fallback
+    return typeof fallback === 'string' ? fallback : '';
   }
 
   function resolveDir(lang) {
@@ -3236,6 +3279,7 @@ function HeaderSection(db) {
     return '';
   }
 
+  // ✅ Simplified: Removed ui_labels mapping
   var TABLE_TO_DATA_KEY = {
     app_settings: 'appSettings',
     hero_slides: 'heroSlides',
@@ -3249,8 +3293,7 @@ function HeaderSection(db) {
     feature_values: 'featureValues',
     unit_features: 'unitFeatures',
     inquiries: 'inquiries',
-    notifications: 'notifications',
-    ui_labels: 'uiLabels'
+    notifications: 'notifications'
   };
 
   function commitTable(app, tableName, rows) {
@@ -3268,9 +3311,7 @@ function HeaderSection(db) {
       var data = Object.assign({}, db.data);
       var nextEnv = Object.assign({}, db.env);
       data[dataKey] = tableName === 'app_settings' ? (normalizedRows[0] || null) : normalizedRows.slice();
-      if (tableName === 'ui_labels') {
-        nextEnv = applyLabelMaps(nextEnv, normalizedRows);
-      }
+      // ✅ Removed: ui_labels handling (now using static UI_LABELS)
       if (tableName === 'app_settings' && normalizedRows[0] && normalizedRows[0].lang) {
         // localStorage له الأولوية على app_settings
         var persistedPrefs = loadPersistedPrefs();
