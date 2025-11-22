@@ -2,9 +2,9 @@
   'use strict';
 
   var G = window;
-  var M = G.Mishkah;
-  var D = M.DSL;
-  var T = M.utils.twcss.tw;
+  
+  // تعريف المتغيرات العامة - سنملؤها لاحقاً عند الجاهزية
+  var M, D, T;
 
   var P = new URLSearchParams(G.location.search);
   var BRANCH = P.get('branch') || P.get('branchId') || 'aqar';
@@ -21,13 +21,6 @@
     dir: prefs.dir || (prefs.lang === 'en' ? 'ltr' : 'rtl'),
     i18n: {}
   };
-
-  if (G.document) {
-    var root = G.document.documentElement;
-    root.setAttribute('lang', env.lang);
-    root.setAttribute('dir', env.dir);
-    root.setAttribute('data-theme', env.theme);
-  }
 
   var dbInit = {
     env: env,
@@ -64,12 +57,6 @@
     try {
       return new Intl.NumberFormat(db.env.lang === 'ar' ? 'ar-EG' : 'en-US', { style: 'currency', currency: cur || 'EGP', maximumFractionDigits: 0 }).format(val);
     } catch (e) { return val + ' ' + cur; }
-  }
-
-  function date(val, db) {
-    try {
-      return new Intl.DateTimeFormat(db.env.lang === 'ar' ? 'ar-EG' : 'en-US', { dateStyle: 'medium' }).format(new Date(val));
-    } catch (e) { return val; }
   }
 
   function media(url) {
@@ -259,6 +246,10 @@
       var id = e.currentTarget.getAttribute('data-id');
       ctx.setState(function(s){ return Object.assign({}, s, { state: Object.assign({}, s.state, { view: 'detail', selectedId: id }) }); }); 
     },
+    'nav.dash': function(e, ctx) {
+      // TODO: Dashboard implementation
+      ctx.setState(function(s){ return Object.assign({}, s, { state: Object.assign({}, s.state, { view: 'home', showMenu: false }) }); });
+    },
     'filter.region': function(e, ctx) { 
       var v = e.target.value;
       ctx.setState(function(s){ var f=Object.assign({}, s.state.filters); f.region=v; return Object.assign({}, s, { state: Object.assign({}, s.state, { filters: f }) }); });
@@ -302,6 +293,7 @@
       if(socket) socket.insert('inquiries', rec);
       ctx.setState(function(s){ return Object.assign({}, s, { state: Object.assign({}, s.state, { toast: 'Sent!' }) }); });
       setTimeout(function(){ ctx.setState(function(s){ return Object.assign({}, s, { state: Object.assign({}, s.state, { toast: null }) }); }); }, 3000);
+      e.target.reset();
     }
   };
 
@@ -320,7 +312,6 @@
         var next = Object.assign({}, s.data);
         Object.keys(t).forEach(function(k){ next[k] = (k==='app_settings') ? (t[k][0]||{}) : t[k]; });
         
-        // Hydration Check for App Settings
         var settings = next.appSettings;
         if (settings && settings.lang !== env.lang && next.app_settings_lang) {
            var tr = next.app_settings_lang.find(function(x){ return x.app_settings_id === settings.id && x.lang === env.lang; });
@@ -350,10 +341,19 @@
     });
   }
 
-  if (M.app && M.app.createApp) {
-    var app = M.app.createApp(dbInit, DEF);
-    M.app.setBody(View);
-    app.mount('#app');
-    boot(app);
+  // Main Boot: Ensure Mishkah libraries are ready
+  var loader = G.MishkahAuto && G.MishkahAuto.ready;
+  if (loader) {
+    loader(function(ReadyM) {
+      M = ReadyM;
+      D = M.DSL;
+      T = M.utils.twcss.tw;
+      var app = M.app.createApp(dbInit, DEF);
+      M.app.setBody(View);
+      app.mount('#app');
+      boot(app);
+    });
+  } else {
+    console.error('Mishkah Auto-Loader not found.');
   }
 })();
