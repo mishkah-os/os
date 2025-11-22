@@ -2270,7 +2270,6 @@
 
       // الحل المقترح: نأخذ اللوجو الأساسي، وإذا كان الوضع فاتح نضيف -light للاسم
 var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
-// إذا كان الوضع light، نقوم بتغيير اسم الملف (مثلاً logo.svg يصبح logo-light.svg)
 var brandLogo = theme === 'dark' 
   ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
   : baseLogo;
@@ -2362,9 +2361,11 @@ var brandName = settings && settings.brand_name
   ? localized('app_settings', settings.id || 'default', 'brand_name', settings.brand_name) // استخدام localized
   : 'مكاتب عقارات';   
    var theme = db.env && db.env.theme;
-    var brandLogo = settings && settings.brand_logo
-      ? settings.brand_logo
-      : (theme === 'dark' ? '/projects/brocker/images/logo.svg' : '/projects/brocker/images/logo-light.svg');
+
+      var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+var brandLogo = theme === 'dark' 
+  ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
+  : baseLogo;
     var heroTitle = settings && settings.hero_title
       ? localized('app_settings', settings.id || 'default', 'hero_title', settings.hero_title)
       : 'منصة متكاملة للوسطاء';
