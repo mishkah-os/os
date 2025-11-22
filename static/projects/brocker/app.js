@@ -447,49 +447,54 @@
     });
   }
 
-function setEnvLanguage(ctx, lang) {
-  if (!ctx) return;
-  var nextLang = lang || 'ar';
-  var dir = resolveDir(nextLang);
+  function setEnvLanguage(ctx, lang) {
+    if (!ctx) return;
+    var nextLang = lang || 'ar';
+    var dir = resolveDir(nextLang);
 
-  var currentEnv = (ctx.database && ctx.database.env) || { lang: 'ar', theme: 'dark', dir: 'rtl' };
-  var nextEnv = Object.assign({}, currentEnv, { lang: nextLang, dir: dir });
+    // قراءة الـ env الحالي بطريقة آمنة
+    var currentEnv = (ctx.database && ctx.database.env) || { lang: 'ar', theme: 'dark', dir: 'rtl' };
+    var nextEnv = Object.assign({}, currentEnv, { lang: nextLang, dir: dir });
 
-  persistPrefs(nextEnv);
-  syncDocumentEnv(nextEnv);
+    // حفظ التفضيلات أولاً
+    persistPrefs(nextEnv);
+    syncDocumentEnv(nextEnv);
 
-  ctx.setState(function (db) {
-    var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
-    
-    if (db.data && Array.isArray(db.data.uiLabels)) {
-      updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
-    }
+    // تحديث state لتحديث الـ UI فوراً (RTL/LTR)
+    // ✨ الحل: نمسح البيانات القديمة ونعرض loading فوراً في نفس الـ setState
+    ctx.setState(function (db) {
+      var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
+      // إعادة تطبيق label maps مع اللغة الجديدة
+      if (db.data && Array.isArray(db.data.uiLabels)) {
+        updatedEnv = applyLabelMaps(updatedEnv, db.data.uiLabels);
+      }
 
-    return Object.assign({}, db, {
-      env: updatedEnv,
-      data: Object.assign({}, db.data, {
-        listings: [],
-        units: [],
-        projects: [],
-        regions: [],
-        heroSlides: [],
-        unitTypes: [],
-        brokers: [],
-        unitFeatures: [],
-        unitMedia: [],
-        unitLayouts: [],
-        featureValues: []
-      }),
-      state: Object.assign({}, db.state, {
-        loading: true,
-        readyTables: [],
-        error: null
-      })
+      // ✨ مسح البيانات التي تعتمد على اللغة فوراً + إظهار loading
+      return Object.assign({}, db, {
+        env: updatedEnv,
+        data: Object.assign({}, db.data, {
+          // مسح البيانات الديناميكية التي تعتمد على اللغة
+          units: [],
+          listings: [],
+          brokers: [],
+          regions: [],
+          unitTypes: [],
+          unitFeatures: [],
+          unitMedia: [],
+          unitLayouts: [],
+          featureValues: []
+        }),
+        state: Object.assign({}, db.state, {
+          loading: true,
+          readyTables: []
+        })
+      });
     });
-  });
 
-  reloadDataWithLanguage(ctx, nextLang);
-}
+    // إعادة تحميل البيانات بلغة جديدة من Backend
+    console.log('[Brocker PWA] Reloading data with new language:', nextLang);
+    reloadDataWithLanguage(ctx, nextLang);
+  }
 
   function setEnvTheme(ctx, theme) {
     if (!ctx) return;
