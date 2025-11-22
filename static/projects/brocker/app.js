@@ -3,9 +3,11 @@
 
   var G = window;
   
+  // دالة التشغيل الرئيسية - لن تعمل إلا بعد جاهزية النظام
   function startApp(M) {
+    // الآن نضمن وجود المكتبات
     var D = M.DSL;
-    var T = M.utils.twcss.tw; // الآن آمنة للاستخدام
+    var T = M.utils && M.utils.twcss ? M.utils.twcss.tw : function(){ return ''; }; 
 
     var P = new URLSearchParams(G.location.search);
     var BRANCH = P.get('branch') || P.get('branchId') || 'aqar';
@@ -52,6 +54,7 @@
     };
 
     var socket = null;
+    var appInstance = null;
 
     function t(key, def, db) {
       var env = (db && db.env) || initialEnv;
@@ -68,10 +71,9 @@
       if (lang === 'ar') return val;
       var langTable = db.data[table + '_lang'] || [];
       var fk = table + '_id';
-      // تصحيح البحث عن الترجمة في الجدول المنفصل
+      // تصحيح البحث عن الترجمة
       for (var i = 0; i < langTable.length; i++) {
         var row = langTable[i];
-        // دعم أسماء الحقول المختلفة للربط (مثل listings_id أو listing_id)
         var rowRef = row[fk] || row[table + 's_id'] || row[table + 'Id'];
         if (rowRef === id && row.lang === lang && row[field]) {
           return row[field];
@@ -111,7 +113,6 @@
 
     function HeaderSection(db) {
       var s = db.data.appSettings || {};
-      // استخدام l() لترجمة الإعدادات القادمة من قاعدة البيانات
       var name = l('app_settings', s.id, 'brand_name', s.brand_name || 'Makateb Aqarat', db);
       var tag = l('app_settings', s.id, 'tagline', s.tagline, db);
       
@@ -254,14 +255,12 @@
       var lang = s.env.lang;
       var base = G.MishkahAuto && G.MishkahAuto.config ? G.MishkahAuto.config.baseUrl : '';
       
-      // نطلب البيانات مع لغة احتياطية لضمان وجود data
       var url = base + '/api/branches/' + BRANCH + '/modules/' + MODULE + '?lang=' + lang + '&fallback=ar';
 
       fetch(url).then(function(r){ return r.json(); }).then(function(snap) {
         var tbl = snap.tables || {};
         var lbl = tbl.ui_labels || [];
         var i18n = {};
-        // بناء قاموس الترجمة للواجهة
         lbl.forEach(function(l){ if(!i18n[l.key]) i18n[l.key]={}; i18n[l.key][l.lang] = l.text; });
         
         app.setState(function(db){
@@ -269,7 +268,7 @@
             env: Object.assign({}, db.env, { i18n: i18n }),
             data: Object.assign({}, db.data, {
               appSettings: (tbl.app_settings||[])[0],
-              app_settings_lang: tbl.app_settings_lang || [], // مهم جداً للترجمة
+              app_settings_lang: tbl.app_settings_lang || [],
               heroSlides: tbl.hero_slides||[], regions: tbl.regions||[], unitTypes: tbl.unit_types||[],
               listings: tbl.listings||[], brokers: tbl.brokers||[], units: tbl.units||[],
               unitMedia: tbl.unit_media||[], inquiries: tbl.inquiries||[],
@@ -306,14 +305,14 @@
     }
   }
 
-  // The Safe Loader Implementation
+  // ✅ الإصلاح الجذري للخطأ:
+  // ننتظر حتى تكون Mishkah جاهزة بالكامل قبل تشغيل التطبيق
   if (G.MishkahAuto && G.MishkahAuto.ready) {
     G.MishkahAuto.ready(function(M) { startApp(M); });
-  } else if (G.Mishkah && G.Mishkah.DSL && G.Mishkah.utils && G.Mishkah.utils.twcss) {
-    startApp(G.Mishkah);
   } else {
+    // Fallback إذا لم يكن Auto-Loader موجوداً
     G.addEventListener('load', function() {
-      if (G.Mishkah) startApp(G.Mishkah);
+      if (G.Mishkah && G.Mishkah.DSL) startApp(G.Mishkah);
     });
   }
 })();
