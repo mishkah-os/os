@@ -3482,6 +3482,67 @@
           }
         ],
         "indexes": []
+      },{
+        "name": "app_settings_lang",
+        "label": "app_settings (ترجمات)",
+        "comment": "Translations for app settings",
+        "sqlName": "app_settings_lang",
+        "layout": {
+          "x": 1200,
+          "y": 450
+        },
+        "fields": [
+          {
+            "name": "id",
+            "columnName": "id",
+            "type": "uuid",
+            "nullable": false,
+            "primaryKey": true
+          },
+          {
+            "name": "app_settings_id",
+            "columnName": "app_settings_id",
+            "type": "string",
+            "nullable": false,
+            "references": {
+              "table": "app_settings",
+              "column": "id",
+              "onDelete": "CASCADE",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "lang",
+            "columnName": "lang",
+            "type": "string",
+            "nullable": false,
+            "maxLength": 2
+          },
+          {
+            "name": "brand_name",
+            "columnName": "brand_name",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "tagline",
+            "columnName": "tagline",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "hero_title",
+            "columnName": "hero_title",
+            "type": "string",
+            "nullable": true
+          },
+          {
+            "name": "hero_subtitle",
+            "columnName": "hero_subtitle",
+            "type": "text",
+            "nullable": true
+          }
+        ]
       },
       {
         "name": "hero_slides",
