@@ -271,12 +271,17 @@ export default class ModuleStore {
     const lang = options.lang || null;
     const tables = deepClone(this.data);
 
-    // Apply translations if lang is specified
+    // ✅ ONLY apply translations if lang parameter is explicitly provided
+    // This preserves backward compatibility with apps using ui_labels system
     if (lang) {
       for (const tableName in tables) {
         const records = tables[tableName];
-        if (Array.isArray(records)) {
-          tables[tableName] = this.decorateWithTranslations(records, tableName, lang);
+        if (Array.isArray(records) && !tableName.endsWith('_lang')) {
+          tables[tableName] = this.decorateWithTranslations(records, tableName, lang, {
+            defaultLang,
+            strictMode,
+            includeMetadata
+          });
         }
       }
     }
