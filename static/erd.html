@@ -852,6 +852,7 @@
     setupJsonEditorsObserver();
 
     const I18N_DICT = {
+      'context.table.translationStrict':{ ar:'إنشاء جدول ترجمة (صارم - نقل النصوص)', en:'Create Strict Translation Table' },
       'app.title':{ ar:'مخطط قاعدة بيانات مشكاة', en:'Mishkah Database Diagram' },
       'schema.untitled':{ ar:'مخطط بدون اسم', en:'Untitled diagram' },
       'library.title':{ ar:'مكتبة المخططات', en:'Diagram library' },
@@ -4801,6 +4802,166 @@
       });
 
     }
+    async function handleCreateStrictTranslationTable(ctx, tableName){
+      if(!tableName) return;
+      const state = ctx.getState();
+      const t = createTranslator(state);
+      const registry = getRegistry(state);
+      const sourceTable = registry.get(tableName);
+      
+      if(!sourceTable){
+        UI.pushToast(ctx, { title:t('toast.columns.tableMissing', 'الجدول غير موجود'), icon:'⚠️' });
+        return;
+      }
+      
+      const translationName = `${sourceTable.name}_lang`;
+      if(registry.get(translationName)){
+        UI.pushToast(ctx, { title:'جدول الترجمة موجود بالفعل', icon:'ℹ️' });
+        return;
+      }
+
+      // 1. تحديد الحقول التي سيتم نقلها (نصوص وليست FK ولا تحتوي كلمة code)
+      const fieldsToMove = [];
+      const fieldsToKeep = [];
+      
+      (sourceTable.fields || []).forEach(field => {
+        // المعايير:
+        // 1. النوع نصي (string أو text)
+        // 2. ليس مفتاح أساسي (PK)
+        // 3. ليس مفتاح أجنبي (FK)
+        // 4. الاسم لا يحتوي على كلمة "code" (غير حساس لحالة الأحرف)
+        const isText = ['string', 'text'].includes((field.type || '').toLowerCase());
+        const isKey = !!field.primaryKey || !!field.references;
+        const isCode = (field.name || '').toLowerCase().includes('code');
+        
+        if (isText && !isKey && !isCode) {
+          fieldsToMove.push(field);
+        } else {
+          fieldsToKeep.push(field);
+        }
+      });
+
+      if (fieldsToMove.length === 0) {
+        UI.pushToast(ctx, { title:'لا توجد حقول نصية مؤهلة للنقل', message:'تأكد من وجود حقول نصية لا تحتوي على كلمة code وليست مفاتيح.', icon:'⚠️' });
+        return;
+      }
+
+      // 2. تجهيز إعدادات جدول الترجمة الجديد
+      const baseLayout = state.data?.layout || {};
+      const basePoint = baseLayout[tableName] || { x: AUTO_LAYOUT_ORIGIN_X, y: AUTO_LAYOUT_ORIGIN_Y };
+      const translationLayout = { x: basePoint.x + TABLE_WIDTH + 160, y: basePoint.y };
+      
+      // إعداد حقول جدول الترجمة (ID + FK + Lang + الحقول المنقولة)
+      const baseSql = sourceTable.sqlName || Schema.utils.toSnakeCase(sourceTable.name);
+      const fkColumn = `${baseSql}_id`;
+      const pkField = getPrimaryKeyField(sourceTable);
+      const fkType = pkField?.type || 'uuid';
+      const refColumn = pkField?.columnName || 'id';
+
+      const newTableFields = [
+        { name:'id', columnName:'id', type:'uuid', nullable:false, primaryKey:true },
+        {
+          name: fkColumn,
+          columnName: fkColumn,
+          type: fkType,
+          nullable:false,
+          references:{ table: sourceTable.name, column: refColumn, onDelete:'CASCADE', onUpdate:'CASCADE' }
+        },
+        { name:'lang', columnName:'lang', type:'string', nullable:false, maxLength:2, comment:'رمز اللغة' }
+      ];
+
+      // إضافة الحقول المنقولة لجدول الترجمة
+      fieldsToMove.forEach(field => {
+        newTableFields.push({
+          ...field,
+          primaryKey: false,
+          unique: false, // إزالة القيود الفريدة لأن النصوص قد تتكرر عبر اللغات
+          nullable: true // نفضل جعلها Nullable في جدول الترجمة لتجنب مشاكل الإدخال الجزئي
+        });
+      });
+
+      // إضافة حقول التوقيت
+      newTableFields.push({ name:'created_at', columnName:'created_at', type:'timestamp', nullable:true, defaultValue:'NOW()' });
+
+      const config = {
+        name: translationName,
+        label: `${sourceTable.label || sourceTable.name} (نصوص)`,
+        comment: `Strict translations for ${sourceTable.name}`,
+        classCode: sourceTable.classCode || '',
+        layout: translationLayout,
+        fields: newTableFields,
+        indexes: [
+          { name: `${translationName}_unique_lang`, columns:[fkColumn, 'lang'], unique:true }
+        ]
+      };
+
+      try {
+        // 3. تنفيذ التغييرات: تسجيل الجدول الجديد + تنظيف القديم
+        registry.register(config);
+        
+        // حذف الحقول المنقولة من الجدول الأصلي
+        fieldsToMove.forEach(field => {
+          sourceTable.removeField(field.name);
+        });
+
+      } catch(error){
+        console.warn('[Mishkah][ERD] strict translation failed', error);
+        UI.pushToast(ctx, { title:'فشل العملية', message:String(error), icon:'🛑' });
+        return;
+      }
+
+      // 4. تحديث الحالة (State)
+      const schemaJSON = registry.toJSON();
+      let nextState = null;
+      ctx.setState(s=>{
+        const now = Date.now();
+        const layout = ensureLayout({ data:{ layout: s.data.layout, schema: schemaJSON } }, translationName, { registry });
+        
+        const record = {
+          id: s.data.schemaId,
+          name: s.data.schemaMeta?.name || '',
+          title: s.data.schemaMeta?.title || '',
+          description: s.data.schemaMeta?.description || '',
+          schema: schemaJSON,
+          layout,
+          canvas: s.data.canvas,
+          classes: s.data.classes || [],
+          createdAt: s.data.schemaCreatedAt,
+          updatedAt: now
+        };
+
+        const draft = {
+          ...s,
+          data:{
+            ...s.data,
+            schema: schemaJSON,
+            layout,
+            schemaUpdatedAt: now,
+            library:{ ...(s.data.library || {}), items: mergeLibraryItems(s.data.library?.items || [], record) }
+          }
+        };
+        
+        // تحديث الواجهة (إذا كان محرر الأعمدة مفتوحاً مثلاً)
+        if (s.ui?.modals?.columns && s.ui?.form?.columns?.table === tableName) {
+           draft.ui = {
+             ...draft.ui,
+             form: {
+               ...draft.ui.form,
+               columns: { table: tableName, rows: buildColumnsFormRows(registry.get(tableName)), deleted:[] }
+             }
+           };
+        }
+
+        nextState = draft;
+        return draft;
+      });
+
+      if(nextState){
+        schedulePersist(recordFromState(nextState));
+      }
+      
+      UI.pushToast(ctx, { title:`تم نقل ${fieldsToMove.length} حقل إلى ${translationName}`, icon:'🏗️' });
+    }
 
     async function handleCreateTranslationTable(ctx, tableName){
       if(!tableName) return;
@@ -6552,6 +6713,7 @@
             { id:'table:add-unique', label:t('context.table.addUnique', 'إضافة قيد فريد'), icon:'☆', table: menu.table },
             { id:'table:add-index', label:t('context.table.addIndex', 'إضافة فهرس'), icon:'#', table: menu.table },
             { id:'table:create-translation', label:t('context.table.translation', 'إنشاء جدول ترجمة'), icon:'🌐', table: menu.table },
+            { id:'table:create-translation-strict', label:t('context.table.translationStrict', 'إنشاء جدول ترجمة (صارم)'), icon:'🏗️', table: menu.table },
             { id:'table:generate-fk', label:t('context.table.generateFk', 'توليد علاقة خارجية'), icon:'🔗', table: menu.table }
           ]
         });
@@ -9154,6 +9316,9 @@
               break;
             case 'table:create-translation':
               await handleCreateTranslationTable(ctx, tableName);
+              break;
+          case 'table:create-translation-strict':
+              await handleCreateStrictTranslationTable(ctx, tableName);
               break;
             case 'table:toggle-visibility':
               toggleTableVisibility(ctx, tableName);
