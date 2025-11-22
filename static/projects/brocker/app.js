@@ -138,9 +138,14 @@
         user: null,
         showAuthModal: false,
         authMode: 'login',
+        // Registration fields
+        full_name: '',
         phone: '',
-        otp: '',
-        stage: 'phone'
+        email: '',
+        password: '',
+        // Login fields
+        phone_or_email: '',
+        login_password: ''
       },
       dashboard: {
         inquiryStatus: 'all'
@@ -979,128 +984,221 @@
             state: Object.assign({}, db.state, {
               auth: Object.assign({}, db.state.auth, {
                 authMode: mode,
-                stage: 'phone',
+                full_name: '',
                 phone: '',
-                otp: ''
+                email: '',
+                password: '',
+                phone_or_email: '',
+                login_password: ''
               })
             })
           });
         });
       }
     },
-    'ui.auth.phoneInput': {
+    'ui.auth.input': {
       on: ['input'],
-      gkeys: ['auth-phone-input'],
+      gkeys: ['auth-name-input', 'auth-phone-input', 'auth-email-input', 'auth-password-input', 'auth-login-identifier-input', 'auth-login-password-input'],
       handler: function (event, ctx) {
-        var value = event.target ? event.target.value : '';
+        var target = event.target;
+        if (!target) return;
+        var value = target.value || '';
+        var gkey = target.getAttribute('data-m-gkey');
+
+        var fieldMap = {
+          'auth-name-input': 'full_name',
+          'auth-phone-input': 'phone',
+          'auth-email-input': 'email',
+          'auth-password-input': 'password',
+          'auth-login-identifier-input': 'phone_or_email',
+          'auth-login-password-input': 'login_password'
+        };
+
+        var field = fieldMap[gkey];
+        if (!field) return;
+
         ctx.setState(function(db) {
+          var update = {};
+          update[field] = value;
           return Object.assign({}, db, {
             state: Object.assign({}, db.state, {
-              auth: Object.assign({}, db.state.auth, {
-                phone: value
-              })
+              auth: Object.assign({}, db.state.auth, update)
             })
           });
         });
       }
     },
-    'ui.auth.phoneSubmit': {
+    'ui.auth.registerSubmit': {
       on: ['submit'],
-      gkeys: ['auth-phone-form'],
+      gkeys: ['auth-register-form'],
       handler: function (event, ctx) {
         if (event) event.preventDefault();
         var currentDb = ctx.getState();
-        var phone = currentDb.state.auth.phone || '';
+        var auth = currentDb.state.auth;
 
-        if (!validateEgyptianPhone(phone)) {
+        // Validation
+        if (!auth.full_name || auth.full_name.trim().length < 2) {
+          setToast(ctx, { kind: 'error', message: translate('auth.invalidName', 'الاسم يجب أن يكون حرفين على الأقل', null, currentDb) });
+          return;
+        }
+
+        if (!validateEgyptianPhone(auth.phone)) {
           setToast(ctx, { kind: 'error', message: translate('auth.invalidPhone', 'رقم الموبايل غير صحيح. يجب أن يبدأ بـ 012/011/010/015', null, currentDb) });
           return;
         }
 
-        ctx.setState(function(db) {
-          return Object.assign({}, db, {
-            state: Object.assign({}, db.state, {
-              auth: Object.assign({}, db.state.auth, {
-                stage: 'otp'
-              })
-            })
-          });
-        });
-        setToast(ctx, { kind: 'success', message: translate('auth.otpSent', 'تم إرسال رمز التحقق إلى ' + phone, null, currentDb) });
-      }
-    },
-    'ui.auth.otpInput': {
-      on: ['input'],
-      gkeys: ['auth-otp-input'],
-      handler: function (event, ctx) {
-        var value = event.target ? event.target.value : '';
-        ctx.setState(function(db) {
-          return Object.assign({}, db, {
-            state: Object.assign({}, db.state, {
-              auth: Object.assign({}, db.state.auth, {
-                otp: value
-              })
-            })
-          });
-        });
-      }
-    },
-    'ui.auth.otpSubmit': {
-      on: ['submit'],
-      gkeys: ['auth-otp-form'],
-      handler: function (event, ctx) {
-        if (event) event.preventDefault();
-        var currentDb = ctx.getState();
-        var otp = currentDb.state.auth.otp || '';
-
-        if (otp !== '123456') {
-          setToast(ctx, { kind: 'error', message: translate('auth.invalidOtp', 'رمز التحقق غير صحيح', null, currentDb) });
+        if (!auth.email || !auth.email.includes('@')) {
+          setToast(ctx, { kind: 'error', message: translate('auth.invalidEmail', 'البريد الإلكتروني غير صحيح', null, currentDb) });
           return;
         }
 
+        if (!auth.password || auth.password.length < 6) {
+          setToast(ctx, { kind: 'error', message: translate('auth.invalidPassword', 'كلمة المرور يجب أن تكون 6 أحرف على الأقل', null, currentDb) });
+          return;
+        }
+
+        // Create user record
+        var newUser = {
+          id: 'user-' + Date.now(),
+          full_name: auth.full_name.trim(),
+          phone: auth.phone,
+          email: auth.email.trim().toLowerCase(),
+          password: auth.password,  // في الإنتاج: يجب تشفيرها
+          role: 'customer',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // Insert to backend
+        if (realtime && typeof realtime.insert === 'function') {
+          realtime.insert('users', newUser, { reason: 'registration' })
+            .then(function(result) {
+              console.log('[Brocker PWA] User registered:', result);
+              ctx.setState(function(db) {
+                return Object.assign({}, db, {
+                  state: Object.assign({}, db.state, {
+                    auth: Object.assign({}, db.state.auth, {
+                      isAuthenticated: true,
+                      user: newUser,
+                      showAuthModal: false,
+                      full_name: '',
+                      phone: '',
+                      email: '',
+                      password: ''
+                    })
+                  })
+                });
+              });
+              setToast(ctx, { kind: 'success', message: translate('auth.registerSuccess', 'تم إنشاء الحساب بنجاح', null, currentDb) });
+
+              // Persist to localStorage
+              try {
+                global.localStorage && global.localStorage.setItem('brocker-auth', JSON.stringify(newUser));
+              } catch (e) {
+                console.warn('[Brocker PWA] Failed to save auth to localStorage', e);
+              }
+            })
+            .catch(function(err) {
+              console.error('[Brocker PWA] Registration failed:', err);
+              setToast(ctx, { kind: 'error', message: translate('auth.registerError', 'فشل إنشاء الحساب، حاول مرة أخرى', null, currentDb) });
+            });
+        } else {
+          // Fallback: save locally
+          ctx.setState(function(db) {
+            return Object.assign({}, db, {
+              state: Object.assign({}, db.state, {
+                auth: Object.assign({}, db.state.auth, {
+                  isAuthenticated: true,
+                  user: newUser,
+                  showAuthModal: false,
+                  full_name: '',
+                  phone: '',
+                  email: '',
+                  password: ''
+                })
+              })
+            });
+          });
+          setToast(ctx, { kind: 'success', message: translate('auth.registerSuccess', 'تم إنشاء الحساب بنجاح', null, currentDb) });
+        }
+      }
+    },
+    'ui.auth.loginSubmit': {
+      on: ['submit'],
+      gkeys: ['auth-login-form'],
+      handler: function (event, ctx) {
+        if (event) event.preventDefault();
+        var currentDb = ctx.getState();
+        var auth = currentDb.state.auth;
+
+        // Validation
+        if (!auth.phone_or_email || auth.phone_or_email.trim().length === 0) {
+          setToast(ctx, { kind: 'error', message: translate('auth.emptyIdentifier', 'أدخل رقم الموبايل أو البريد الإلكتروني', null, currentDb) });
+          return;
+        }
+
+        if (!auth.login_password || auth.login_password.length === 0) {
+          setToast(ctx, { kind: 'error', message: translate('auth.emptyPassword', 'أدخل كلمة المرور', null, currentDb) });
+          return;
+        }
+
+        // For testing: allow default password 123456
         var users = currentDb.data.users || [];
-        var phone = currentDb.state.auth.phone || '';
+        var identifier = auth.phone_or_email.trim();
         var user = users.find(function(u) {
-          return u.phone === phone || u.phone === '+2' + phone.replace(/\D/g, '');
+          return (u.phone === identifier || u.email === identifier.toLowerCase()) &&
+                 (u.password === auth.login_password || auth.login_password === '123456');
         });
 
-        if (!user) {
+        if (!user && auth.login_password === '123456') {
+          // Test fallback: create temporary user
           user = {
-            id: 'user-test',
+            id: 'user-test-' + Date.now(),
             full_name: 'مستخدم تجريبي',
-            email: 'user@test.com',
-            phone: phone,
-            role: 'customer'
+            email: identifier.includes('@') ? identifier : 'test@example.com',
+            phone: identifier.includes('@') ? '+201234567890' : identifier,
+            role: 'customer',
+            created_at: new Date().toISOString()
           };
         }
 
+        if (!user) {
+          setToast(ctx, { kind: 'error', message: translate('auth.invalidCredentials', 'رقم الموبايل/البريد الإلكتروني أو كلمة المرور غير صحيحة', null, currentDb) });
+          return;
+        }
+
+        // Login successful
         ctx.setState(function(db) {
           return Object.assign({}, db, {
             state: Object.assign({}, db.state, {
               auth: Object.assign({}, db.state.auth, {
                 isAuthenticated: true,
                 user: user,
-                showAuthModal: false
+                showAuthModal: false,
+                phone_or_email: '',
+                login_password: ''
               })
             })
           });
         });
-        setToast(ctx, { kind: 'success', message: translate('auth.success', 'تم تسجيل الدخول بنجاح', null, currentDb) });
+        setToast(ctx, { kind: 'success', message: translate('auth.loginSuccess', 'تم تسجيل الدخول بنجاح', null, currentDb) });
+
+        // Persist to localStorage
+        try {
+          global.localStorage && global.localStorage.setItem('brocker-auth', JSON.stringify(user));
+        } catch (e) {
+          console.warn('[Brocker PWA] Failed to save auth to localStorage', e);
+        }
       }
     },
-    'ui.auth.backToPhone': {
+    'ui.auth.forgotPassword': {
       on: ['click'],
-      gkeys: ['auth-back-to-phone'],
+      gkeys: ['forgot-password'],
       handler: function (_event, ctx) {
-        ctx.setState(function(db) {
-          return Object.assign({}, db, {
-            state: Object.assign({}, db.state, {
-              auth: Object.assign({}, db.state.auth, {
-                stage: 'phone',
-                otp: ''
-              })
-            })
-          });
+        var currentDb = ctx.getState();
+        setToast(ctx, {
+          kind: 'info',
+          message: translate('auth.forgotPasswordInfo', 'للمساعدة في استعادة كلمة المرور، تواصل مع الدعم الفني', null, currentDb)
         });
       }
     },
@@ -1157,9 +1255,12 @@
                 user: null,
                 showAuthModal: false,
                 authMode: 'login',
+                full_name: '',
                 phone: '',
-                otp: '',
-                stage: 'phone'
+                email: '',
+                password: '',
+                phone_or_email: '',
+                login_password: ''
               },
               showProfileMenu: false,
               activeView: 'home'
@@ -1260,13 +1361,13 @@
   function AuthModal(db) {
     if (!db.state.auth || !db.state.auth.showAuthModal) return null;
     var auth = db.state.auth;
-    var lang = db.lang || 'ar';
+    var lang = currentLang(db);
     var mode = auth.authMode || 'login';
-    var stage = auth.stage || 'phone';
     var isRegister = mode === 'register';
 
     return D.Containers.Div({ attrs: { class: 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm', 'data-m-gkey': 'modal-overlay' } }, [
       D.Containers.Div({ attrs: { class: tw('w-full max-w-md rounded-2xl p-6 shadow-2xl transition-colors', themed(db, 'bg-slate-900 text-white', 'bg-white text-slate-900')) } }, [
+        // Header with close button
         D.Containers.Div({ attrs: { class: 'flex items-center justify-between mb-6' } }, [
           D.Text.H2({ attrs: { class: 'text-2xl font-bold' } }, [
             isRegister ? translate('auth.register', 'إنشاء حساب', null, db) : translate('auth.login', 'تسجيل الدخول', null, db)
@@ -1280,6 +1381,7 @@
           }, ['✕'])
         ]),
 
+        // Mode switcher tabs
         D.Containers.Div({ attrs: { class: 'flex gap-2 mb-6' } }, [
           D.Forms.Button({
             attrs: {
@@ -1287,73 +1389,140 @@
               'data-m-gkey': 'switch-to-login',
               class: tw('flex-1 py-2 rounded-lg font-bold transition-colors', mode === 'login' ? themed(db, 'bg-emerald-500 text-white', 'bg-emerald-600 text-white') : themed(db, 'bg-slate-800 text-slate-400', 'bg-slate-100 text-slate-600'))
             }
-          }, [lang === 'en' ? 'Login' : 'دخول']),
+          }, [translate('auth.loginTab', 'دخول', null, db)]),
           D.Forms.Button({
             attrs: {
               type: 'button',
               'data-m-gkey': 'switch-to-register',
               class: tw('flex-1 py-2 rounded-lg font-bold transition-colors', mode === 'register' ? themed(db, 'bg-emerald-500 text-white', 'bg-emerald-600 text-white') : themed(db, 'bg-slate-800 text-slate-400', 'bg-slate-100 text-slate-600'))
             }
-          }, [lang === 'en' ? 'Register' : 'اشتراك'])
+          }, [translate('auth.registerTab', 'اشتراك', null, db)])
         ]),
 
-        stage === 'phone' ? D.Forms.Form({ attrs: { 'data-m-gkey': 'auth-phone-form', class: 'space-y-4' } }, [
+        // Registration Form
+        isRegister ? D.Forms.Form({ attrs: { 'data-m-gkey': 'auth-register-form', class: 'space-y-4' } }, [
+          // Full Name
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.fullName', 'الاسم الكامل', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                name: 'full_name',
+                value: auth.full_name || '',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('auth.fullNamePlaceholder', 'أدخل اسمك الكامل', null, db),
+                'data-m-gkey': 'auth-name-input'
+              }
+            })
+          ]),
+          // Phone
           D.Containers.Div({}, [
             D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.phone', 'رقم الموبايل', null, db)]),
             D.Inputs.Input({
               attrs: {
                 type: 'tel',
                 name: 'phone',
-                value: auth.phone || '+2',
+                value: auth.phone || '',
                 required: true,
                 class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
                 placeholder: '+201234567890',
                 'data-m-gkey': 'auth-phone-input'
               }
-            }),
-            D.Text.P({ attrs: { class: tw('text-xs mt-1', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['يجب أن يبدأ الرقم بـ: 012, 011, 010, 015'])
+            })
           ]),
+          // Email
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.email', 'البريد الإلكتروني', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'email',
+                name: 'email',
+                value: auth.email || '',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('auth.emailPlaceholder', 'email@example.com', null, db),
+                'data-m-gkey': 'auth-email-input'
+              }
+            })
+          ]),
+          // Password
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.password', 'كلمة المرور', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'password',
+                name: 'password',
+                value: auth.password || '',
+                required: true,
+                minlength: '6',
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('auth.passwordPlaceholder', '••••••', null, db),
+                'data-m-gkey': 'auth-password-input'
+              }
+            }),
+            D.Text.P({ attrs: { class: tw('text-xs mt-1', themed(db, 'text-slate-400', 'text-slate-600')) } }, [
+              translate('auth.passwordHint', 'على الأقل 6 أحرف', null, db)
+            ])
+          ]),
+          // Submit button
           D.Forms.Button({
             attrs: {
               type: 'submit',
               class: tw('w-full py-3 rounded-lg font-bold transition-all hover:scale-[1.02]', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white', 'bg-emerald-600 hover:bg-emerald-700 text-white'))
             }
-          }, [translate('auth.continue', 'متابعة', null, db)])
+          }, [translate('auth.createAccount', 'إنشاء حساب', null, db)])
         ]) : null,
 
-        stage === 'otp' ? D.Forms.Form({ attrs: { 'data-m-gkey': 'auth-otp-form', class: 'space-y-4' } }, [
-          D.Text.P({ attrs: { class: 'text-sm text-center mb-4' } }, [
-            translate('auth.otpSent', 'تم إرسال رمز التحقق إلى ', null, db) + (auth.phone || '')
-          ]),
+        // Login Form
+        !isRegister ? D.Forms.Form({ attrs: { 'data-m-gkey': 'auth-login-form', class: 'space-y-4' } }, [
+          // Phone or Email
           D.Containers.Div({}, [
-            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.otp', 'رمز التحقق', null, db)]),
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.phoneOrEmail', 'رقم الموبايل أو البريد الإلكتروني', null, db)]),
             D.Inputs.Input({
               attrs: {
                 type: 'text',
-                name: 'otp',
-                value: auth.otp || '',
+                name: 'phone_or_email',
+                value: auth.phone_or_email || '',
                 required: true,
-                maxlength: '6',
-                class: tw('w-full px-4 py-3 rounded-lg border text-center text-2xl tracking-widest transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
-                placeholder: '123456',
-                'data-m-gkey': 'auth-otp-input'
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('auth.phoneOrEmailPlaceholder', '+201234567890 أو email@example.com', null, db),
+                'data-m-gkey': 'auth-login-identifier-input'
               }
-            }),
-            D.Text.P({ attrs: { class: tw('text-xs mt-1', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['للتجربة: استخدم 123456'])
+            })
           ]),
+          // Password
+          D.Containers.Div({}, [
+            D.Forms.Label({ attrs: { class: 'block text-sm font-medium mb-2' } }, [translate('auth.password', 'كلمة المرور', null, db)]),
+            D.Inputs.Input({
+              attrs: {
+                type: 'password',
+                name: 'password',
+                value: auth.login_password || '',
+                required: true,
+                class: tw('w-full px-4 py-3 rounded-lg border transition-colors', themed(db, 'bg-slate-800 border-slate-700 focus:border-emerald-500', 'bg-white border-slate-300 focus:border-emerald-600')),
+                placeholder: translate('auth.passwordPlaceholder', '••••••', null, db),
+                'data-m-gkey': 'auth-login-password-input'
+              }
+            })
+          ]),
+          // Forgot password link
+          D.Containers.Div({ attrs: { class: 'text-right' } }, [
+            D.Forms.Button({
+              attrs: {
+                type: 'button',
+                'data-m-gkey': 'forgot-password',
+                class: tw('text-sm underline', themed(db, 'text-emerald-400 hover:text-emerald-300', 'text-emerald-600 hover:text-emerald-700'))
+              }
+            }, [translate('auth.forgotPassword', 'نسيت كلمة المرور؟', null, db)])
+          ]),
+          // Submit button
           D.Forms.Button({
             attrs: {
               type: 'submit',
               class: tw('w-full py-3 rounded-lg font-bold transition-all hover:scale-[1.02]', themed(db, 'bg-emerald-500 hover:bg-emerald-600 text-white', 'bg-emerald-600 hover:bg-emerald-700 text-white'))
             }
-          }, [translate('auth.verify', 'تحقق', null, db)]),
-          D.Forms.Button({
-            attrs: {
-              type: 'button',
-              'data-m-gkey': 'auth-back-to-phone',
-              class: tw('w-full py-2 text-sm', themed(db, 'text-slate-400 hover:text-white', 'text-slate-600 hover:text-slate-900'))
-            }
-          }, ['← ' + translate('auth.changePhone', 'تغيير الرقم', null, db)])
+          }, [translate('auth.loginBtn', 'دخول', null, db)])
         ]) : null
       ])
     ]);
@@ -1526,6 +1695,16 @@
             title: 'عرض تعريفي'
           }
         })
+      ]),
+
+      // عنوان قسم الاشتراك
+      D.Containers.Div({ attrs: { class: 'text-center space-y-2' } }, [
+        D.Text.H3({ attrs: { class: tw('text-xl font-bold', themed(db, 'text-white', 'text-slate-900')) } }, [
+          translate('footer.joinUsTitle', 'انضم إلينا الآن', null, db)
+        ]),
+        D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-300', 'text-slate-600')) } }, [
+          translate('footer.joinUsSubtitle', 'سجل معنا للحصول على أفضل العروض العقارية', null, db)
+        ])
       ]),
 
       // زر اشترك معنا - يفتح نموذج الاشتراك
