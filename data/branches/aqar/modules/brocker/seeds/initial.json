@@ -3611,7 +3611,146 @@
   "lang": "en",
   "text": "Register",
   "kind": "ui"
-}
+},{
+        "id": "ui-footer.joinUsTitle-en",
+        "key": "footer.joinUsTitle",
+        "lang": "en",
+        "text": "Join Us Now",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-footer.joinUsSubtitle-en",
+        "key": "footer.joinUsSubtitle",
+        "lang": "en",
+        "text": "Register with us to get the best real estate offers",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.phoneOrEmail-en",
+        "key": "auth.phoneOrEmail",
+        "lang": "en",
+        "text": "Mobile Number or Email",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.password-en",
+        "key": "auth.password",
+        "lang": "en",
+        "text": "Password",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.forgotPassword-en",
+        "key": "auth.forgotPassword",
+        "lang": "en",
+        "text": "Forgot Password?",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.loginTab-en",
+        "key": "auth.loginTab",
+        "lang": "en",
+        "text": "Login",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.registerTab-en",
+        "key": "auth.registerTab",
+        "lang": "en",
+        "text": "Sign Up",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.fullName-en",
+        "key": "auth.fullName",
+        "lang": "en",
+        "text": "Full Name",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.email-en",
+        "key": "auth.email",
+        "lang": "en",
+        "text": "Email Address",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.phone-en",
+        "key": "auth.phone",
+        "lang": "en",
+        "text": "Mobile Number",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.createAccount-en",
+        "key": "auth.createAccount",
+        "lang": "en",
+        "text": "Create Account",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.registerTitle-en",
+        "key": "broker.registerTitle",
+        "lang": "en",
+        "text": "Register Broker Office",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.registerDesc-en",
+        "key": "broker.registerDesc",
+        "lang": "en",
+        "text": "Register your office to manage listings and leads",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.officeName-en",
+        "key": "broker.officeName",
+        "lang": "en",
+        "text": "Office Name",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.officePhone-en",
+        "key": "broker.officePhone",
+        "lang": "en",
+        "text": "Office Phone",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.officeAddress-en",
+        "key": "broker.officeAddress",
+        "lang": "en",
+        "text": "Office Address",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-broker.registerBtn-en",
+        "key": "broker.registerBtn",
+        "lang": "en",
+        "text": "Register Office",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.totalInquiries-en",
+        "key": "dashboard.totalInquiries",
+        "lang": "en",
+        "text": "Total Requests",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.newLeads-en",
+        "key": "dashboard.newLeads",
+        "lang": "en",
+        "text": "New Leads",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-dashboard.activeListings-en",
+        "key": "dashboard.activeListings",
+        "lang": "en",
+        "text": "Active Listings",
+        "kind": "ui"
+      }
     ]
   }
 }
