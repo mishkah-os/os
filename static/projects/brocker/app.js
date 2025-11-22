@@ -990,20 +990,34 @@
         });
       }
     },
-    'ui.auth.switchMode': {
+   'ui.auth.switchMode': {
       on: ['click'],
       gkeys: ['switch-to-login', 'switch-to-register'],
       handler: function (event, ctx) {
-        var target = event.currentTarget;
+        if (event) event.preventDefault();
+        
+        // 1. تحسين التقاط العنصر لضمان الحصول على الزر حتى لو ضغطت على النص بداخله
+        var target = event.currentTarget || (event.target.closest && event.target.closest('[data-m-gkey]'));
         if (!target) return;
+
         var gkey = target.getAttribute('data-m-gkey');
-        var mode = gkey === 'switch-to-login' ? 'login' : 'register';
+        
+        // 2. تحديد الوضع بدقة (بدون افتراضات)
+        var mode = null;
+        if (gkey === 'switch-to-login') mode = 'login';
+        else if (gkey === 'switch-to-register') mode = 'register';
+
+        // إذا لم يتم التعرف على الوضع، لا تقم بأي تغيير
+        if (!mode) return;
+
         ctx.setState(function(db) {
           return Object.assign({}, db, {
             state: Object.assign({}, db.state, {
               auth: Object.assign({}, db.state.auth, {
-                authMode: mode
-                // Do not clear form fields when switching modes
+                authMode: mode,
+                stage: 'phone',
+                phone: '',
+                otp: ''
               })
             })
           });
