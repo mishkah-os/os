@@ -2268,7 +2268,6 @@
     var theme = db.env && db.env.theme;
 
 
-      // الحل المقترح: نأخذ اللوجو الأساسي، وإذا كان الوضع فاتح نضيف -light للاسم
 var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
 var brandLogo = theme === 'dark' 
   ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
@@ -2361,8 +2360,7 @@ var brandName = settings && settings.brand_name
   ? localized('app_settings', settings.id || 'default', 'brand_name', settings.brand_name) // استخدام localized
   : 'مكاتب عقارات';   
    var theme = db.env && db.env.theme;
-
-      var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
 var brandLogo = theme === 'dark' 
   ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
   : baseLogo;
@@ -2869,7 +2867,12 @@ var brandLogo = theme === 'dark'
     }
     var brandName = localized('app_settings', settings.id || 'default', 'brand_name', settings.brand_name);
     var brandTagline = localized('app_settings', settings.id || 'default', 'tagline', settings.tagline);
-    var logoSrc = settings.brand_logo;
+
+    var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+var brandLogo = theme === 'dark' 
+  ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
+  : baseLogo;
+    var logoSrc = brandLogo;
     var logo = logoSrc
       ? D.Media.Img({
           attrs: {
