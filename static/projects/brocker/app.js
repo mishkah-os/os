@@ -425,7 +425,8 @@
     persistPrefs(nextEnv);
     syncDocumentEnv(nextEnv);
 
-    // ✨ الحل: مسح البيانات القديمة فوراً + إظهار loading لمنع عرض البيانات باللغة الخاطئة
+    // تحديث state لتحديث الـ UI فوراً (RTL/LTR)
+    // ✨ الحل: نمسح البيانات القديمة ونعرض loading فوراً في نفس الـ setState
     ctx.setState(function (db) {
       var updatedEnv = Object.assign({}, db.env, { lang: nextLang, dir: dir });
       // إعادة تطبيق label maps مع اللغة الجديدة
