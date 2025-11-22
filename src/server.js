@@ -4872,9 +4872,23 @@ async function handleBranchesApi(req, res, url) {
 
   const store = await ensureModuleStore(branchId, moduleId);
 
-  // Read lang from query string (e.g., ?lang=en)
+  // Read translation options from query string
+  // Examples:
+  //   ?lang=ar           - Request Arabic (with fallback)
+  //   ?lang=en           - Request English (with fallback to Arabic if not found)
+  //   ?lang=ar&strict=1  - Request Arabic only (no fallback)
+  //   ?defaultLang=en    - Change default fallback language to English
   const lang = url.searchParams.get('lang') || null;
-  const snapshot = store.getSnapshot({ lang });
+  const defaultLang = url.searchParams.get('defaultLang') || 'ar';
+  const strictMode = url.searchParams.get('strict') === '1' || url.searchParams.get('strictMode') === 'true';
+  const includeMetadata = url.searchParams.get('meta') !== '0';
+
+  const snapshot = store.getSnapshot({
+    lang,
+    defaultLang,
+    strictMode,
+    includeMetadata
+  });
 
   if (segments.length === 5) {
     if (req.method === 'GET') {
