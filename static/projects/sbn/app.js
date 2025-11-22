@@ -16,10 +16,38 @@
   }
 
   var D = M.DSL;
-  if (!D) {
-    console.error('[SBN PWA] Mishkah DSL is required.');
-    return;
+  // Support for unified mishkah.js with auto-loading
+  function ensureDslBinding(source) {
+    if (source && source.DSL) {
+      D = source.DSL;
+      return;
+    }
+    if (global.Mishkah && global.Mishkah.DSL) {
+      D = global.Mishkah.DSL;
+    }
   }
+  if (!D) {
+    ensureDslBinding(global.Mishkah);
+    if (!D && global.MishkahAuto && typeof global.MishkahAuto.ready === 'function') {
+      try {
+        global.MishkahAuto.ready(function (readyM) {
+          ensureDslBinding(readyM);
+        });
+      } catch (err) {
+        console.warn('[SBN PWA] unable to sync Mishkah DSL binding', err);
+      }
+    }
+  }
+
+  // TailwindCSS utilities
+  var UI = M.UI || {};
+  var twcss = (M.utils && M.utils.twcss) || {};
+  var tw = typeof twcss.tw === 'function'
+    ? twcss.tw
+    : function () {
+        return Array.prototype.slice.call(arguments).filter(Boolean).join(' ');
+      };
+  var token = typeof twcss.token === 'function' ? twcss.token : function () { return ''; };
 
   // ================== CONFIGURATION ==================
   var BRANCH_ID = 'sbn';
@@ -111,15 +139,23 @@
    * Apply theme to document
    */
   function applyTheme(theme) {
-    global.document.documentElement.setAttribute('data-theme', theme || 'light');
+    var resolvedTheme = theme || 'light';
+    global.document.documentElement.setAttribute('data-theme', resolvedTheme);
+    // Update meta theme-color for mobile browsers
+    var metaTheme = global.document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.content = resolvedTheme === 'dark' ? '#0f172a' : '#6366f1';
+    }
   }
 
   /**
    * Apply language to document
    */
   function applyLang(lang, dir) {
-    global.document.documentElement.setAttribute('lang', lang || 'ar');
-    global.document.documentElement.setAttribute('dir', dir || 'rtl');
+    var resolvedLang = lang || 'ar';
+    var resolvedDir = dir || (resolvedLang === 'ar' ? 'rtl' : 'ltr');
+    global.document.documentElement.setAttribute('lang', resolvedLang);
+    global.document.documentElement.setAttribute('dir', resolvedDir);
   }
 
   // ================== INITIAL STATE ==================
@@ -930,8 +966,9 @@
       return;
     }
 
-    // Fetch schema first
-    var schemaUrl = '/api/schema/' + BRANCH_ID + '/' + MODULE_ID;
+    // Fetch schema first (using query parameters, not path)
+    var schemaUrl = '/api/schema?branch=' + encodeURIComponent(BRANCH_ID) +
+                    '&module=' + encodeURIComponent(MODULE_ID);
 
     fetch(schemaUrl, { cache: 'no-store' })
       .then(function(response) {
@@ -939,8 +976,13 @@
         return response.json();
       })
       .then(function(payload) {
-        var schema = payload && payload.schema ? payload.schema : null;
-        if (!schema) throw new Error('schema-invalid');
+        // Extract schema from payload.modules[moduleId].schema
+        var moduleData = payload && payload.modules && payload.modules[MODULE_ID];
+        var schema = moduleData && moduleData.schema ? moduleData.schema : null;
+        if (!schema) {
+          console.error('[SBN PWA] Schema not found in response:', payload);
+          throw new Error('schema-invalid');
+        }
 
         var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY);
 
@@ -951,7 +993,7 @@
           historyLimit: 200,
           autoReconnect: true,
           logger: console,
-          lang: app.database.env.lang
+          lang: (app && app.database && app.database.env) ? app.database.env.lang : initialDatabase.env.lang
         });
 
         return realtime.ready().then(function() {
@@ -1007,7 +1049,7 @@
   }
 
   /**
-   * Bootstrap application
+   * Bootstrap application - Wait for Mishkah to be ready
    */
   function bootstrap() {
     console.log('[SBN PWA] Initializing Mostamal Hawa...');
@@ -1016,19 +1058,40 @@
     applyTheme(initialDatabase.env.theme);
     applyLang(initialDatabase.env.lang, initialDatabase.env.dir);
 
-    // Set body function
-    M.app.setBody(renderBody);
+    // Helper function to wait for Mishkah to be ready
+    var readyHelper = global.MishkahAuto && typeof global.MishkahAuto.ready === 'function'
+      ? global.MishkahAuto.ready.bind(global.MishkahAuto)
+      : function (cb) {
+          return Promise.resolve().then(function () {
+            if (typeof cb === 'function') cb(M);
+          });
+        };
 
-    // Create app
-    app = M.app.createApp(initialDatabase, orders);
+    // Wait for Mishkah to be ready, then initialize app
+    readyHelper(function (readyM) {
+      if (!readyM || !readyM.app || typeof readyM.app.createApp !== 'function') {
+        console.error('[SBN PWA] Mishkah app API not ready');
+        throw new Error('[SBN PWA] mishkah-core-not-ready');
+      }
 
-    // Mount to DOM
-    app.mount('#app');
+      console.log('[SBN PWA] Mishkah is ready, creating app...');
 
-    console.log('[SBN PWA] App mounted successfully');
+      // Set body function
+      readyM.app.setBody(renderBody);
 
-    // Initialize realtime connection
-    initRealtime();
+      // Create app
+      app = readyM.app.createApp(initialDatabase, orders);
+
+      // Mount to DOM
+      app.mount('#app');
+
+      console.log('[SBN PWA] App mounted successfully');
+
+      // Initialize realtime connection
+      initRealtime();
+    }).catch(function (err) {
+      console.error('[SBN PWA] Failed to initialize app:', err);
+    });
   }
 
   // ================== START APP ==================

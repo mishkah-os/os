@@ -126,6 +126,26 @@
         "ui_labels"
       ],
       "description": "Real estate broker-first dataset powering the Mishkah PWA experience."
+    },
+    "mostamal": {
+      "label": "Mostamal Hawa (SBN)",
+      "schemaFallbackPath": "data/schemas/sbn_schema.json",
+      "seedFallbackPath": "data/seeds/sbn_seeds.json",
+      "livePath": "live/data.json",
+      "historyPath": "history",
+      "tables": [
+        "sbn_ui_labels",
+        "sbn_categories",
+        "sbn_users",
+        "sbn_products",
+        "sbn_services",
+        "sbn_wiki_articles",
+        "sbn_transactions",
+        "sbn_reviews",
+        "sbn_messages",
+        "sbn_notifications"
+      ],
+      "description": "Social Business Network - Marketplace, Services, and Knowledge sharing platform."
     }
   }
 }
