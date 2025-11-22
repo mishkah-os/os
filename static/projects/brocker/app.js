@@ -2271,7 +2271,7 @@
       // الحل المقترح: نأخذ اللوجو الأساسي، وإذا كان الوضع فاتح نضيف -light للاسم
 var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
 // إذا كان الوضع light، نقوم بتغيير اسم الملف (مثلاً logo.svg يصبح logo-light.svg)
-var brandLogo = theme === 'light' 
+var brandLogo = theme === 'dark' 
   ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
   : baseLogo;
     var displayName = lang === 'en' ? 'Makateb Aqarat' : brandName;
