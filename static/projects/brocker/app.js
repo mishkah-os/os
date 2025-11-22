@@ -2346,27 +2346,28 @@ var brandLogo = theme === 'dark'
     ]);
   }
 
-  function FooterSection(db) {
+function FooterSection(db) {
     var settings = db.data && db.data.appSettings;
-var brandName = settings && settings.brand_name 
-  ? localized('app_settings', settings.id || 'default', 'brand_name', settings.brand_name) // استخدام localized
-  : 'مكاتب عقارات';   
-   var theme = db.env && db.env.theme;
-var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
-var brandLogo = theme === 'dark' 
-  ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
-  : baseLogo;
-   // تعديل: استخدام translate للنصوص الافتراضية بدلاً من النص العربي المباشر
+    // استخدام المعرف الصحيح من البيانات أو القيمة الافتراضية المعروفة في ملف JSON
+    var settingsId = (settings && settings.id) ? settings.id : 'brocker-app-config';
+    
+    var brandName = settings && settings.brand_name 
+      ? localized('app_settings', settingsId, 'brand_name', settings.brand_name) 
+      : 'Makateb Aqarat';   
+
+    var theme = db.env && db.env.theme;
+    var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
+    var brandLogo = theme === 'dark' 
+      ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
+      : baseLogo;
+
     var heroTitle = settings && settings.hero_title
-      ? localized('app_settings', settings.id || 'default', 'hero_title', settings.hero_title)
-      : translate('footer.defaultHeroTitle', 'منصة متكاملة للوسطاء', null, db);
+      ? localized('app_settings', settingsId, 'hero_title', settings.hero_title)
+      : translate('footer.defaultHeroTitle', 'Integrated Platform for Brokers', null, db);
 
     var heroSubtitle = settings && settings.hero_subtitle
-      ? localized('app_settings', settings.id || 'default', 'hero_subtitle', settings.hero_subtitle)
-      : translate('footer.defaultHeroSubtitle', 'ابحث، أدر، وتابع طلبات عملائك بسهولة.', null, db);
-
-    var whatsapp = settings && settings.support_whatsapp ? settings.support_whatsapp : '';
-    var phone = settings && settings.support_phone ? settings.support_phone : '';
+      ? localized('app_settings', settingsId, 'hero_subtitle', settings.hero_subtitle)
+      : translate('footer.defaultHeroSubtitle', 'Search, manage, and track your client requests easily.', null, db);
 
     return D.Containers.Footer({ attrs: { class: tw(
       'mt-12 rounded-3xl border p-6 space-y-6 shadow-lg transition-colors',
@@ -2408,7 +2409,7 @@ var brandLogo = theme === 'dark'
         ])
       ]),
 
-      // زر اشترك معنا - يفتح نموذج الاشتراك
+      // زر اشترك معنا
       D.Containers.Div({ attrs: { class: 'flex justify-center' } }, [
         D.Forms.Button({
           attrs: {
@@ -2428,7 +2429,6 @@ var brandLogo = theme === 'dark'
       ])
     ]);
   }
-
   function HomeView(db, listingModels) {
     var settings = db.data.appSettings;
     var filtered = filterListings(listingModels, db.state.filters).slice(0, 6);
@@ -2854,21 +2854,30 @@ var brandLogo = theme === 'dark'
   function LoadingSection(db) {
     return D.Containers.Section({ attrs: { class: 'flex min-h-screen items-center justify-center text-slate-400' } }, [translate('misc.loading', 'جارِ تحميل بيانات الوسطاء...', null, db)]);
   }
-  function HeaderSection(db) {
+function HeaderSection(db) {
     var settings = db && db.data ? db.data.appSettings : null;
+    // استخدام المعرف الصحيح لضمان جلب الترجمة
+    var settingsId = (settings && settings.id) ? settings.id : 'brocker-app-config';
+
     if (!settings) {
       return D.Containers.Header({ attrs: { class: tw('space-y-1 text-center', themed(db, 'text-white', 'text-slate-900')) } }, [
-        D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, ['Brocker Mishkah'])
+        D.Text.H1({ attrs: { class: 'text-2xl font-semibold' } }, [
+            translate('header.defaultTitle', 'Makateb Aqarat', null, db)
+        ])
       ]);
     }
-    var brandName = localized('app_settings', settings.id || 'default', 'brand_name', settings.brand_name);
-    var brandTagline = localized('app_settings', settings.id || 'default', 'tagline', settings.tagline);
-    var theme = db.env && db.env.theme;
 
+    // جلب الاسم والوصف مع دعم الترجمة بشكل صحيح
+    var brandName = localized('app_settings', settingsId, 'brand_name', settings.brand_name);
+    var brandTagline = localized('app_settings', settingsId, 'tagline', settings.tagline);
+    
+    // إصلاح الشعار ليدعم الوضع الليلي/النهاري
+    var theme = db.env && db.env.theme;
     var baseLogo = (settings && settings.brand_logo) ? settings.brand_logo : '/projects/brocker/images/logo.svg';
-var brandLogo = theme === 'dark' 
-  ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
-  : baseLogo;
+    var brandLogo = theme === 'dark' 
+      ? baseLogo.replace(/(\.svg|\.png|\.jpg)$/i, '-light$1') 
+      : baseLogo;
+      
     var logoSrc = brandLogo;
     var logo = logoSrc
       ? D.Media.Img({
@@ -2879,13 +2888,18 @@ var brandLogo = theme === 'dark'
           }
         })
       : null;
+
     return D.Containers.Header({ attrs: { class: tw('space-y-2 text-center sm:space-y-3', themed(db, 'text-white', 'text-slate-900')) } }, [
       logo,
-    D.Text.H1({ attrs: { class: 'text-2xl font-semibold sm:text-3xl' } }, [
-      brandName || translate('header.defaultTitle', 'منصة الوسطاء', null, db)
-    ]),
-    brandTagline
-        ? D.Text.P({ attrs: { class: tw('text-sm leading-6 sm:text-base', themed(db, 'text-slate-300', 'text-slate-600')) } }, [brandTagline || translate('header.defaultTagline', 'ابحث، أدر، وتابع طلبات عملائك بسهولة.', null, db)])
+      D.Text.H1({ attrs: { class: 'text-2xl font-semibold sm:text-3xl' } }, [
+        // استخدام النص المترجم، أو fallback إنجليزي صريح
+        brandName || translate('header.defaultTitle', 'Makateb Aqarat', null, db)
+      ]),
+      brandTagline
+        ? D.Text.P({ attrs: { class: tw('text-sm leading-6 sm:text-base', themed(db, 'text-slate-300', 'text-slate-600')) } }, [
+            // استخدام النص المترجم، أو fallback إنجليزي صريح
+            brandTagline || translate('header.defaultTagline', 'Smart Platform for Real Estate Offices', null, db)
+          ])
         : null
     ]);
   }
