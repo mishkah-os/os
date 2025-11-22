@@ -1651,7 +1651,7 @@
     var features = model.features || [];
     var highlights = Array.isArray(model.listing.highlights) ? model.listing.highlights : [];
     return D.Containers.Div({ attrs: { class: tw('space-y-4 rounded-3xl border border-white/5 bg-slate-900/40 p-6') } }, [
-      D.Text.H2({ attrs: { class: 'text-xl font-semibold text-white' } }, [localized('listings', model.listing.id, 'headline', model.listing.headline || translate('listing.details', 'تفاصيل الوحدة', null, db))]),
+      D.Text.H2({ attrs: { class: tw('text-xl font-semibold', themed(db, 'text-white', 'text-slate-900')) } }, [localized('listings', model.listing.id, 'headline', model.listing.headline || translate('listing.details', 'تفاصيل الوحدة', null, db))]),
       unit.description ? D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-300', 'text-slate-700')) } }, [localized('units', unit.id, 'description', unit.description)]) : null,
       D.Containers.Div({ attrs: { class: tw('flex flex-wrap gap-3 text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [
         unit.area ? Chip(unit.area + ' م²') : null,
@@ -1702,7 +1702,7 @@
     }).slice(0, 3);
     if (!notifications.length) return null;
     return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/30 p-4 space-y-2') } }, [
-      D.Text.Strong({ attrs: { class: 'text-sm text-slate-200' } }, ['تنبيهات من الوسيط']),
+      D.Text.Strong({ attrs: { class: tw('text-sm', themed(db, 'text-slate-200', 'text-slate-800')) } }, ['تنبيهات من الوسيط']),
       D.Containers.Ul({ attrs: { class: tw('space-y-1 text-sm', themed(db, 'text-slate-300', 'text-slate-700')) } }, notifications.map(function (item) {
         return D.Lists.Li({ attrs: { key: item.id } }, [item.message]);
       }))
@@ -1765,17 +1765,17 @@
     ]);
   }
   function BrokerAuthPanel(db) {
-    return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-dashed border-white/10 bg-slate-900/30 p-6 space-y-3') } }, [
-      D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, ['انضم كوسيط معتمد']),
-      D.Text.P({ attrs: { class: 'text-sm text-slate-400' } }, ['سجل بياناتك وسيتم إرسال رمز التحقق عبر واتساب.']),
+    return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-dashed p-6 space-y-3', themed(db, 'border-white/10 bg-slate-900/30', 'border-slate-300 bg-slate-50')) } }, [
+      D.Text.H3({ attrs: { class: tw('text-base font-semibold', themed(db, 'text-white', 'text-slate-900')) } }, ['انضم كوسيط معتمد']),
+      D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['سجل بياناتك وسيتم إرسال رمز التحقق عبر واتساب.']),
       D.Forms.Form({ attrs: { class: 'space-y-2', 'data-m-gkey': 'broker-auth' } }, [
         D.Inputs.Input({ attrs: { name: 'brokerName', placeholder: 'الاسم التجاري', class: inputClass() } }),
         D.Inputs.Input({ attrs: { name: 'brokerPhone', placeholder: 'رقم الجوال', class: inputClass(), type: 'tel', required: true } }),
         D.Inputs.Input({ attrs: { name: 'brokerRegion', placeholder: 'منطقة الخدمة الرئيسية', class: inputClass() } }),
-        D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30') } }, ['طلب رمز OTP'])
+        D.Forms.Button({ attrs: { type: 'submit', class: tw('w-full rounded-full py-2 text-sm font-semibold text-white shadow-lg', themed(db, 'bg-emerald-500 shadow-emerald-500/30', 'bg-emerald-600 shadow-emerald-600/30')) } }, ['طلب رمز OTP'])
       ]),
       db.state.brokerAuth && db.state.brokerAuth.phone
-        ? D.Text.Small({ attrs: { class: 'text-xs text-slate-400' } }, ['تم إرسال آخر رمز إلى: ' + db.state.brokerAuth.phone])
+        ? D.Text.Small({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, ['تم إرسال آخر رمز إلى: ' + db.state.brokerAuth.phone])
         : null
     ]);
   }
@@ -1850,13 +1850,13 @@
       return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     }).slice(0, 4);
     if (!notifications.length) return null;
-    return D.Containers.Div({ attrs: { class: tw('rounded-3xl border border-white/5 bg-slate-900/40 p-4 space-y-3') } }, [
-      D.Text.H3({ attrs: { class: 'text-base font-semibold text-white' } }, [translate('misc.noNotifications', 'آخر التنبيهات', null, db)]),
-      D.Containers.Div({ attrs: { class: 'space-y-2 text-sm text-slate-300' } }, notifications.map(function (item) {
-        return D.Containers.Div({ attrs: { key: item.id, class: 'rounded-2xl border border-white/5 bg-slate-950/40 p-3' } }, [
-          D.Text.Strong({ attrs: { class: 'text-slate-100' } }, [item.title || translate('notification.title', 'تنبيه', null, db)]),
-          D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [item.message]),
-          D.Text.Span({ attrs: { class: 'text-[10px] text-slate-500' } }, [formatDate(item.created_at)])
+    return D.Containers.Div({ attrs: { class: tw('rounded-3xl border p-4 space-y-3', themed(db, 'border-white/5 bg-slate-900/40', 'border-slate-200 bg-white')) } }, [
+      D.Text.H3({ attrs: { class: tw('text-base font-semibold', themed(db, 'text-white', 'text-slate-900')) } }, [translate('misc.noNotifications', 'آخر التنبيهات', null, db)]),
+      D.Containers.Div({ attrs: { class: tw('space-y-2 text-sm', themed(db, 'text-slate-300', 'text-slate-700')) } }, notifications.map(function (item) {
+        return D.Containers.Div({ attrs: { key: item.id, class: tw('rounded-2xl border p-3', themed(db, 'border-white/5 bg-slate-950/40', 'border-slate-200 bg-slate-50')) } }, [
+          D.Text.Strong({ attrs: { class: tw('', themed(db, 'text-slate-100', 'text-slate-900')) } }, [item.title || translate('notification.title', 'تنبيه', null, db)]),
+          D.Text.P({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [item.message]),
+          D.Text.Span({ attrs: { class: tw('text-[10px]', themed(db, 'text-slate-500', 'text-slate-500')) } }, [formatDate(item.created_at)])
         ]);
       }))
     ]);
@@ -1875,24 +1875,24 @@
   function InstallBanner(db) {
     var pwa = db.state.pwa;
     if (!pwa) return null;
-    return D.Containers.Div({ attrs: { class: tw('fixed bottom-20 inset-x-0 mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-slate-900/80 p-4 text-sm text-white shadow-2xl shadow-black/50 z-40 space-y-2') } }, [
+    return D.Containers.Div({ attrs: { class: tw('fixed bottom-20 inset-x-0 mx-auto w-full max-w-md rounded-3xl border p-4 text-sm shadow-2xl z-40 space-y-2', themed(db, 'border-white/10 bg-slate-900/80 text-white shadow-black/50', 'border-slate-300 bg-white text-slate-900 shadow-slate-500/30')) } }, [
       D.Text.Strong({ attrs: { class: 'text-base' } }, [translate('pwa.installTitle', 'حوّل المنصة إلى تطبيق', null, db)]),
-      D.Text.P({ attrs: { class: 'text-xs text-slate-400' } }, [pwa.message || translate('pwa.installDesc', 'ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.', null, db)]),
+      D.Text.P({ attrs: { class: tw('text-xs', themed(db, 'text-slate-400', 'text-slate-600')) } }, [pwa.message || translate('pwa.installDesc', 'ثبّت التطبيق لتحصل على تجربة أسرع وإشعارات فورية.', null, db)]),
       D.Containers.Div({ attrs: { class: 'flex gap-2' } }, [
-        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, [translate('actions.install', 'تثبيت', null, db)]),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'لاحقاً', null, db)])
+        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full py-2 text-sm font-semibold text-white', themed(db, 'bg-emerald-500', 'bg-emerald-600')), 'data-m-gkey': 'pwa-install' } }, [translate('actions.install', 'تثبيت', null, db)]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('flex-1 rounded-full border py-2 text-sm', themed(db, 'border-white/20 text-slate-200', 'border-slate-300 text-slate-700')), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'لاحقاً', null, db)])
       ])
     ]);
   }
 
   function InstallGate(db) {
     var pwa = db.state.pwa;
-    return D.Containers.Div({ attrs: { class: tw('fixed inset-0 z-50 grid place-items-center bg-slate-950/95 backdrop-blur') } }, [
-      D.Containers.Div({ attrs: { class: tw('max-w-sm space-y-4 rounded-3xl border border-white/10 bg-slate-900/80 p-6 text-center text-white') } }, [
+    return D.Containers.Div({ attrs: { class: tw('fixed inset-0 z-50 grid place-items-center backdrop-blur', themed(db, 'bg-slate-950/95', 'bg-white/95')) } }, [
+      D.Containers.Div({ attrs: { class: tw('max-w-sm space-y-4 rounded-3xl border p-6 text-center', themed(db, 'border-white/10 bg-slate-900/80 text-white', 'border-slate-300 bg-white text-slate-900')) } }, [
         D.Text.H2({ attrs: { class: 'text-xl font-semibold' } }, [translate('pwa.installRequired', 'تثبيت التطبيق مطلوب', null, db)]),
-        D.Text.P({ attrs: { class: 'text-sm text-slate-300' } }, [pwa && pwa.message ? pwa.message : translate('pwa.installRequiredDesc', 'لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.', null, db)]),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full bg-emerald-500 py-2 text-sm font-semibold text-white'), 'data-m-gkey': 'pwa-install' } }, [translate('actions.installNow', 'تثبيت الآن', null, db)]),
-        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full border border-white/20 py-2 text-sm text-slate-200'), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'تخطي للاختبار', null, db)])
+        D.Text.P({ attrs: { class: tw('text-sm', themed(db, 'text-slate-300', 'text-slate-600')) } }, [pwa && pwa.message ? pwa.message : translate('pwa.installRequiredDesc', 'لتجربة كاملة على الجوال قم بتثبيت التطبيق كـ PWA.', null, db)]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full py-2 text-sm font-semibold text-white', themed(db, 'bg-emerald-500', 'bg-emerald-600')), 'data-m-gkey': 'pwa-install' } }, [translate('actions.installNow', 'تثبيت الآن', null, db)]),
+        D.Forms.Button({ attrs: { type: 'button', class: tw('w-full rounded-full border py-2 text-sm', themed(db, 'border-white/20 text-slate-200', 'border-slate-300 text-slate-700')), 'data-m-gkey': 'pwa-skip' } }, [translate('actions.skip', 'تخطي للاختبار', null, db)])
       ])
     ]);
   }
@@ -2506,7 +2506,11 @@
       return;
     }
 
-    var currentLang = forceLang || (app.database && app.database.env && app.database.env.lang) || 'ar';
+    // ✅ الحل: قراءة اللغة من localStorage أولاً، ثم من app.database، ثم default
+    var persistedLang = loadPersistedPrefs().lang;
+    var currentLang = forceLang || persistedLang || (app.database && app.database.env && app.database.env.lang) || 'ar';
+
+    console.log('[Brocker PWA] bootstrapRealtime with lang:', currentLang, '(forceLang:', forceLang, ', persisted:', persistedLang, ')');
 
     fetchModuleSchema(BRANCH_ID, MODULE_ID)
       .then(function (payload) {
