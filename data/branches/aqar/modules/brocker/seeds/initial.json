@@ -60,6 +60,36 @@
         "name": "New Administrative Capital",
         "city": "Cairo",
         "country": "Egypt"
+      },
+      {
+        "id": "region-lang-region-new-cairo-ar",
+        "regions_id": "region-new-cairo",
+        "name": "التجمع الخامس",
+        "city": "القاهرة الجديدة",
+        "country": "مصر",
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z"
+      },
+      {
+        "id": "region-lang-region-zayed-ar",
+        "regions_id": "region-zayed",
+        "name": "الشيخ زايد",
+        "city": "الجيزة",
+        "country": "مصر",
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z"
+      },
+      {
+        "id": "region-lang-region-capital-ar",
+        "regions_id": "region-capital",
+        "name": "العاصمة الإدارية",
+        "city": "القاهرة",
+        "country": "مصر",
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z"
       }
     ],
     "app_settings": [
@@ -98,7 +128,8 @@
         "created_at": "2024-11-25T09:00:00Z",
         "updated_at": "2024-11-30T10:00:00Z"
       }
-    ],"app_settings_lang": [
+    ],
+    "app_settings_lang": [
       {
         "id": "settings-lang-en",
         "app_settings_id": "brocker-app-config",
@@ -1735,7 +1766,8 @@
         "lang": "en",
         "text": "120sqm hotel-furnished for daily/weekly rental",
         "created_at": "2024-11-20T10:00:00Z"
-      },{
+      },
+      {
         "id": "listing-nour-1501-sale-en",
         "listings_id": "listing-nour-1501-sale",
         "lang": "en",
@@ -1782,6 +1814,230 @@
         "headline": "Daily Rental Furnished Apartment",
         "excerpt": "120sqm hotel-furnished for daily/weekly rental",
         "primary_highlight": "Daily Rental"
+      },
+      {
+        "id": "listing-lang-listing-nour-0901-sale-ar",
+        "listings_id": "listing-nour-0901-sale",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.742Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "شقة 3 غرف مع تراس بانورامي",
+        "excerpt": "165م بتشطيب فندقي وموقفين سيارات في برج الندى",
+        "primary_highlight": "جاهزة للتسليم"
+      },
+      {
+        "id": "listing-lang-listing-nour-1203-rent-ar",
+        "listings_id": "listing-nour-1203-rent",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "شقة مفروشة بالكامل",
+        "excerpt": "132م مع شرفة واسعة وخدمة فندقية",
+        "primary_highlight": "إيجار شهري"
+      },
+      {
+        "id": "listing-lang-listing-hayat-villa05-ar",
+        "listings_id": "listing-hayat-villa05",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "فيلا مستقلة مع حديقة 120م",
+        "excerpt": "تصميم عصري في قلب زايد مع إمكانية توسعة",
+        "primary_highlight": "نصف تشطيب"
+      },
+      {
+        "id": "listing-lang-listing-capital-retail-a3-ar",
+        "listings_id": "listing-capital-retail-a3",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "محل تجاري بواجهة 9 م",
+        "excerpt": "جاهز للترخيص التجاري في محور الأعمال",
+        "primary_highlight": "ترخيص تجاري"
+      },
+      {
+        "id": "listing-lang-listing-nour-1501-sale-ar",
+        "listings_id": "listing-nour-1501-sale",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "شقة 2 غرف بإطلالة على النيل",
+        "excerpt": "120م بتشطيب سوبر لوكس وإطلالة مباشرة",
+        "primary_highlight": "إطلالة نيل مباشرة"
+      },
+      {
+        "id": "listing-lang-listing-hayat-villa08-sale-ar",
+        "listings_id": "listing-hayat-villa08-sale",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "فيلا فاخرة مع حمام سباحة",
+        "excerpt": "450م مع حديقة 200م وحمام سباحة خاص",
+        "primary_highlight": "حمام سباحة خاص"
+      },
+      {
+        "id": "listing-lang-listing-nour-0805-rent-ar",
+        "listings_id": "listing-nour-0805-rent",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "استوديو مفروش للإيجار",
+        "excerpt": "85م مفروش بالكامل مع بلكونة واسعة",
+        "primary_highlight": "مفروش بالكامل"
+      },
+      {
+        "id": "listing-lang-listing-capital-office-rent-ar",
+        "listings_id": "listing-capital-office-rent",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "مكتب تجاري في برج أعمال",
+        "excerpt": "180م مع إطلالة رائعة وخدمات متكاملة",
+        "primary_highlight": "برج أعمال حديث"
+      },
+      {
+        "id": "listing-lang-listing-nour-2003-lease-ar",
+        "listings_id": "listing-nour-2003-lease",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "بنتهاوس مع روف خاص",
+        "excerpt": "210م + روف 100م مع جاكوزي وإطلالة بانورامية",
+        "primary_highlight": "روف خاص"
+      },
+      {
+        "id": "listing-lang-listing-nour-1501-short-ar",
+        "listings_id": "listing-nour-1501-short",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "إيجار يومي شقة مفروشة",
+        "excerpt": "120م مفروشة فندقي للإيجار اليومي/الأسبوعي",
+        "primary_highlight": "إيجار يومي"
+      },
+      {
+        "id": "listing-lang-listing-nour-1501-sale-ar",
+        "listings_id": "listing-nour-1501-sale",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "شقة 2 غرف بإطلالة على النيل",
+        "excerpt": "120م بتشطيب سوبر لوكس وإطلالة مباشرة",
+        "primary_highlight": "إطلالة نيل مباشرة"
+      },
+      {
+        "id": "listing-lang-listing-hayat-villa08-sale-ar",
+        "listings_id": "listing-hayat-villa08-sale",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "فيلا فاخرة مع حمام سباحة",
+        "excerpt": "450م مع حديقة 200م وحمام سباحة خاص",
+        "primary_highlight": "حمام سباحة خاص"
+      },
+      {
+        "id": "listing-lang-listing-nour-0805-rent-ar",
+        "listings_id": "listing-nour-0805-rent",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "استوديو مفروش للإيجار",
+        "excerpt": "85م مفروش بالكامل مع بلكونة واسعة",
+        "primary_highlight": "مفروش بالكامل"
+      },
+      {
+        "id": "listing-lang-listing-capital-office-rent-ar",
+        "listings_id": "listing-capital-office-rent",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "مكتب تجاري في برج أعمال",
+        "excerpt": "180م مع إطلالة رائعة وخدمات متكاملة",
+        "primary_highlight": "برج أعمال حديث"
+      },
+      {
+        "id": "listing-lang-listing-nour-2003-lease-ar",
+        "listings_id": "listing-nour-2003-lease",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "بنتهاوس مع روف خاص",
+        "excerpt": "210م + روف 100م مع جاكوزي وإطلالة بانورامية",
+        "primary_highlight": "روف خاص"
+      },
+      {
+        "id": "listing-lang-listing-nour-1501-short-ar",
+        "listings_id": "listing-nour-1501-short",
+        "listing_type": null,
+        "listing_status": null,
+        "currency": null,
+        "price_period": null,
+        "lang": "ar",
+        "created_date": "2025-11-22T19:06:19.743Z",
+        "modified_date": "2025-11-22T19:06:19.743Z",
+        "headline": "إيجار يومي شقة مفروشة",
+        "excerpt": "120م مفروشة فندقي للإيجار اليومي/الأسبوعي",
+        "primary_highlight": "إيجار يومي"
       }
     ],
     "unit_features_lang": [],
@@ -3580,48 +3836,50 @@
         "lang": "en",
         "text": "Your request has been submitted successfully! We will contact you soon.",
         "kind": "ui"
-      },{
-  "id": "ui-auth.login-ar",
-  "key": "auth.login",
-  "lang": "ar",
-  "text": "تسجيل الدخول",
-  "kind": "ui"
-},
-{
-  "id": "ui-auth.login-en",
-  "key": "auth.login",
-  "lang": "en",
-  "text": "Login",
-  "kind": "ui"
-},
-{
-  "id": "ui-auth.loginBtn-ar",
-  "key": "auth.loginBtn",
-  "lang": "ar",
-  "text": "دخول",
-  "kind": "ui"
-},
-{
-  "id": "ui-auth.loginBtn-en",
-  "key": "auth.loginBtn",
-  "lang": "en",
-  "text": "Sign In",
-  "kind": "ui"
-},
-{
-  "id": "ui-auth.register-ar",
-  "key": "auth.register",
-  "lang": "ar",
-  "text": "إنشاء حساب",
-  "kind": "ui"
-},
-{
-  "id": "ui-auth.register-en",
-  "key": "auth.register",
-  "lang": "en",
-  "text": "Register",
-  "kind": "ui"
-},{
+      },
+      {
+        "id": "ui-auth.login-ar",
+        "key": "auth.login",
+        "lang": "ar",
+        "text": "تسجيل الدخول",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.login-en",
+        "key": "auth.login",
+        "lang": "en",
+        "text": "Login",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.loginBtn-ar",
+        "key": "auth.loginBtn",
+        "lang": "ar",
+        "text": "دخول",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.loginBtn-en",
+        "key": "auth.loginBtn",
+        "lang": "en",
+        "text": "Sign In",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.register-ar",
+        "key": "auth.register",
+        "lang": "ar",
+        "text": "إنشاء حساب",
+        "kind": "ui"
+      },
+      {
+        "id": "ui-auth.register-en",
+        "key": "auth.register",
+        "lang": "en",
+        "text": "Register",
+        "kind": "ui"
+      },
+      {
         "id": "ui-footer.joinUsTitle-en",
         "key": "footer.joinUsTitle",
         "lang": "en",
@@ -3760,7 +4018,8 @@
         "lang": "en",
         "text": "Active Listings",
         "kind": "ui"
-      },{
+      },
+      {
         "id": "content-app_settings.brocker-app-config.brand_name-en",
         "key": "app_settings.brocker-app-config.brand_name",
         "lang": "en",
@@ -3829,7 +4088,8 @@
         "lang": "en",
         "text": "Logout",
         "kind": "ui"
-      },{
+      },
+      {
         "id": "ui-auth.fullNamePlaceholder-en",
         "key": "auth.fullNamePlaceholder",
         "lang": "en",
@@ -3934,7 +4194,7 @@
         "text": "Smart Platform for Real Estate Offices",
         "kind": "content"
       },
-       {
+      {
         "id": "ui-listing.selectRegion-en",
         "key": "listing.selectRegion",
         "lang": "en",
@@ -3989,7 +4249,8 @@
         "lang": "en",
         "text": "Optional",
         "kind": "ui"
-      },{
+      },
+      {
         "id": "ui-footer.defaultHeroTitle-en",
         "key": "footer.defaultHeroTitle",
         "lang": "en",
@@ -4002,7 +4263,8 @@
         "lang": "en",
         "text": "Search, manage, and track your client requests easily.",
         "kind": "ui"
-      },{
+      },
+      {
         "id": "ui-header.defaultTitle-en",
         "key": "header.defaultTitle",
         "lang": "en",
@@ -4078,7 +4340,8 @@
         "lang": "en",
         "text": "No media available.",
         "kind": "ui"
-      },{
+      },
+      {
         "id": "content-app_settings.brocker-app-config.brand_name-en",
         "key": "app_settings.brocker-app-config.brand_name",
         "lang": "en",
@@ -4098,7 +4361,8 @@
         "lang": "en",
         "text": "Search, manage, and track your client requests easily.",
         "kind": "content"
-      },{
+      },
+      {
         "id": "ui-app.brandName-en",
         "key": "app.brandName",
         "lang": "en",
