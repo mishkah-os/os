@@ -1,0 +1,77 @@
+{
+  "id": "purge-f88c99a0-79de-4977-ab66-8ae60a704c2b",
+  "type": "purge",
+  "branchId": "dar",
+  "moduleId": "pos",
+  "createdAt": "2025-11-23T09:46:51.638Z",
+  "reason": "branch-api-reset",
+  "requestedBy": null,
+  "clearedTables": [
+    "order_header",
+    "order_line",
+    "order_payment",
+    "pos_shift"
+  ],
+  "originalVersion": 1,
+  "totalRecords": 0,
+  "tables": [
+    {
+      "name": "order_header",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_line",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "order_payment",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "pos_shift",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    }
+  ],
+  "summary": [
+    {
+      "name": "order_header",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_line",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "order_payment",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "pos_shift",
+      "count": 0,
+      "sample": []
+    }
+  ]
+}
