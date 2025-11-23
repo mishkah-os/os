@@ -893,6 +893,21 @@
   var App = (function(){
     var _bodyFn=null, _database={}, _ordersObj={}, _ordersArr=[];
     var _vApp=null, _$root=null, _ctx=null, _delegation=null;
+    var APP_REGISTRY = global.__MISHKAH_APP_REGISTRY__ = global.__MISHKAH_APP_REGISTRY__ || [];
+    var APP_COUNTER = global.__MISHKAH_APP_COUNTER__ || 0;
+
+    function nextAppId(){
+      APP_COUNTER = (typeof APP_COUNTER === 'number' ? APP_COUNTER : 0) + 1;
+      global.__MISHKAH_APP_COUNTER__ = APP_COUNTER;
+      return 'app#' + APP_COUNTER;
+    }
+
+    function registerAppInstance(instance){
+      if (!instance) return;
+      if (!instance.__appId) instance.__appId = nextAppId();
+      APP_REGISTRY.push(instance);
+      global.__MISHKAH_LAST_APP__ = instance;
+    }
 
     function setBody(fn){ _bodyFn = fn; }
 
@@ -1245,8 +1260,12 @@
       _database = database || {};
       _ordersObj = orders || {};
       _ordersArr = normalizeOrders(_ordersObj);
-      return {
-        mount: mount,
+      var instance = {
+        mount: function(selector){
+          instance.__appMountTarget = selector;
+          mount(selector);
+          instance.root = _$root;
+        },
         setOrders: function(next){
           _ordersObj = next || {};
           _ordersArr = normalizeOrders(_ordersObj);
@@ -1275,6 +1294,15 @@
         isFrozen: function(){ return _ctx && _ctx.isFrozen ? _ctx.isFrozen() : false; },
         isDirty: function(){ return _ctx && _ctx.isDirty ? _ctx.isDirty() : false; }
       };
+      Object.defineProperty(instance, 'state', {
+        configurable: true,
+        enumerable: false,
+        get: function(){
+          return instance.getState();
+        }
+      });
+      registerAppInstance(instance);
+      return instance;
     }
 
     return { setBody:setBody, createApp:createApp };
@@ -1286,6 +1314,14 @@
   M.DSL = assign({ h: VDOM.h }, hAtoms);
   M.Head = Head;
   M.app  = App;
+  Object.defineProperty(M.app, 'state', {
+    configurable: true,
+    enumerable: false,
+    get: function(){
+      var active = global.__MISHKAH_LAST_APP__;
+      return active && active.getState ? active.getState() : null;
+    }
+  });
 
   // keep contracts on global M for replacement by full modules
   // (already created above if missing): M.Auditor, M.RuleCenter, M.Guardian, M.Devtools

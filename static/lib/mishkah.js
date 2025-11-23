@@ -77,6 +77,9 @@
   var storesFlag = parseDatasetFlag(parseDatasetValue('stores', null), undefined);
   var storesEnabled = (typeof storesFlag === 'boolean') ? storesFlag
     : (typeof userConfig.stores === 'boolean' ? userConfig.stores : false);
+  var devtoolsFlag = parseDatasetFlag(parseDatasetValue('devtools', null), undefined);
+  var devtoolsEnabled = (typeof devtoolsFlag === 'boolean') ? devtoolsFlag
+    : (typeof userConfig.devtools === 'boolean' ? userConfig.devtools : false);
 
   function joinBase(path, fallback) {
     if (path && /^(https?:)?\/\//i.test(path)) return path;
@@ -138,6 +141,16 @@
         test: function () { return typeof global.createSimpleStore === 'function'; }
       }
     );
+  }
+
+  if (devtoolsEnabled) {
+    resources.push({
+      id: 'mishkah-devtools',
+      src: joinBase(paths.devtools || 'mishkah.div.js'),
+      test: function () {
+        return global.Mishkah && global.Mishkah.Devtools && global.Mishkah.Devtools.Judgment;
+      }
+    });
   }
 
   var cssHref = joinBase(paths.css || 'mishkah-css.css');

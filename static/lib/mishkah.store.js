@@ -18,6 +18,19 @@ window.basedomain='https://ws.mas.com.eg';
 const DEFAULT_WS_PATH = '/ws';
 const DEFAULT_ROLE = 'pos-sdk';
 const DEFAULT_HISTORY_LIMIT = 100;
+const STORE_REGISTRY = window.__MISHKAH_STORE_REGISTRY__ = window.__MISHKAH_STORE_REGISTRY__ || [];
+let STORE_COUNTER = window.__MISHKAH_STORE_COUNTER__ || 0;
+
+function registerStoreInstance(store) {
+  if (!store) return;
+  STORE_COUNTER += 1;
+  window.__MISHKAH_STORE_COUNTER__ = STORE_COUNTER;
+  if (!store.__storeId) {
+    store.__storeId = (store.moduleId || 'module') + '#' + STORE_COUNTER;
+  }
+  STORE_REGISTRY.push(store);
+  window.__MISHKAH_LAST_STORE__ = store;
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -163,6 +176,7 @@ class MishkahRealtimeStore extends EventEmitter {
         version: options.dbVersion || 1,
       });
     }
+    this.__storeId = options.debugId || (this.moduleId || 'module') + '#' + (STORE_REGISTRY.length + 1);
   }
 
   async connect() {
@@ -642,7 +656,9 @@ class MishkahRealtimeStore extends EventEmitter {
 }
 
  function createStore(options) {
-  return new MishkahRealtimeStore(options);
+  var store = new MishkahRealtimeStore(options);
+  registerStoreInstance(store);
+  return store;
 }
 window.MishkahRealtimeStore = MishkahRealtimeStore;
 window.createStore = createStore;

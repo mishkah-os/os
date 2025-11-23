@@ -150,6 +150,7 @@ function createContext(store, config) {
   // Smart Store: REST API fetching state
   let initialFetchTriggered = false;
   let initialFetchInProgress = false;
+  let fetchPromise = null;
   const restApiCache = new Map(); // Temporary cache for REST API data
 
   function indexDefinition(def) {
@@ -162,55 +163,56 @@ function createContext(store, config) {
 
   // Smart Store: Fetch initial data from REST API
   const fetchInitialSnapshot = async () => {
-    if (initialFetchTriggered || initialFetchInProgress) {
-      return; // Already fetching or done
+    if (fetchPromise) {
+      return fetchPromise;
     }
 
     initialFetchTriggered = true;
     initialFetchInProgress = true;
 
-    try {
-      // ✅ Include lang parameter for Auto-Flattening translation support
-      let apiUrl =  window.basedomain + `/api/branches/${encodeURIComponent(config.branchId)}/modules/${encodeURIComponent(config.moduleId)}`;
-      if (config.lang) {
-        apiUrl += `?lang=${encodeURIComponent(config.lang)}`;
-      }
-      const response = await fetch(apiUrl, { cache: 'no-store' });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const snapshot = await response.json();
-      const fetchedTables = snapshot.tables || {};
-
-      // Store data in restApiCache AND update cache directly
-      for (const [tableName, rows] of Object.entries(fetchedTables)) {
-        const dataRows = Array.isArray(rows) ? rows : (Array.isArray(rows?.rows) ? rows.rows : []);
-        restApiCache.set(tableName, dataRows);
-      }
-
-      // Update cache for all registered definitions and emit
-      let emitCount = 0;
-      for (const [name, def] of definitions.entries()) {
-        if (restApiCache.has(def.table)) {
-          const rows = restApiCache.get(def.table) || [];
-          const plain = rows.map((row) => def.fromRecord(row, baseCtx));
-          cache.set(name, plain);
-
-          // Emit to notify watchers
-          emit(name);
-          emitCount++;
+    fetchPromise = (async function(){
+      try {
+        // ✅ Include lang parameter for Auto-Flattening translation support
+        let apiUrl =  window.location.origin.replace(/\/+$/, '') + `/api/branches/${encodeURIComponent(config.branchId)}/modules/${encodeURIComponent(config.moduleId)}`;
+        if (config.lang) {
+          apiUrl += `?lang=${encodeURIComponent(config.lang)}`;
         }
+        const response = await fetch(apiUrl, { cache: 'no-store' });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const snapshot = await response.json();
+        const fetchedTables = snapshot.tables || {};
+
+        for (const [tableName, rows] of Object.entries(fetchedTables)) {
+          const dataRows = Array.isArray(rows) ? rows : (Array.isArray(rows?.rows) ? rows.rows : []);
+          restApiCache.set(tableName, dataRows);
+        }
+
+        let emitCount = 0;
+        for (const [name, def] of definitions.entries()) {
+          if (restApiCache.has(def.table)) {
+            const rows = restApiCache.get(def.table) || [];
+            const plain = rows.map((row) => def.fromRecord(row, baseCtx));
+            cache.set(name, plain);
+            emit(name);
+            emitCount++;
+          }
+        }
+
+        return snapshot;
+      } catch (error) {
+        config.logger?.warn?.(`[MishkahSimpleDB] Smart fetch failed:`, error.message);
+        throw error;
+      } finally {
+        initialFetchInProgress = false;
+        fetchPromise = null;
       }
-
-    } catch (error) {
-      config.logger?.warn?.(`[MishkahSimpleDB] Smart fetch failed:`, error.message);
-    } finally {
-      initialFetchInProgress = false;
-    }
+    })();
+    return fetchPromise;
   };
-
   let api = null;
 
   function register(name, defOptions = {}) {

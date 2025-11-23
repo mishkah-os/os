@@ -1861,7 +1861,128 @@ var _hmr = {
     compute: snapshotCompute,
     print: snapshotPrint
   };
-    Devtools.HMR = _hmr;
+  Devtools.HMR = _hmr;
+
+  // ===== Inspectors (App/Store registries) =====
+  var StoreInspector = {};
+  var AppInspector = {};
+
+  function getStoreRegistry(){
+    return global.__MISHKAH_STORE_REGISTRY__ || [];
+  }
+  function getAppRegistry(){
+    return global.__MISHKAH_APP_REGISTRY__ || [];
+  }
+  function resolveStoreTarget(target){
+    var registry = getStoreRegistry();
+    if (!registry.length) return null;
+    if (target == null) return registry[registry.length - 1];
+    if (typeof target === 'number') return registry[target] || null;
+    if (typeof target === 'string'){
+      for (var i=0;i<registry.length;i++){
+        var entry = registry[i];
+        if (!entry) continue;
+        if (entry.__storeId === target || entry.moduleId === target || entry.role === target){
+          return entry;
+        }
+      }
+    }
+    if (registry.indexOf(target) !== -1) return target;
+    return null;
+  }
+  function resolveAppTarget(target){
+    var registry = getAppRegistry();
+    if (!registry.length) return null;
+    if (target == null) return registry[registry.length - 1];
+    if (typeof target === 'number') return registry[target] || null;
+    if (typeof target === 'string'){
+      for (var i=0;i<registry.length;i++){
+        var entry = registry[i];
+        if (!entry) continue;
+        if (entry.__appId === target || entry.__appMountTarget === target) return entry;
+      }
+    }
+    if (registry.indexOf(target) !== -1) return target;
+    return null;
+  }
+
+  StoreInspector.list = function(){
+    return getStoreRegistry().map(function(store, index){
+      if (!store) return null;
+      return {
+        index: index,
+        id: store.__storeId || ('store#' + (index + 1)),
+        branchId: store.branchId,
+        moduleId: store.moduleId,
+        role: store.role,
+        status: store.status
+      };
+    }).filter(Boolean);
+  };
+  StoreInspector.state = function(target){
+    var store = resolveStoreTarget(target);
+    if (!store){
+      console.warn('[Mishkah][Inspectors] store not found');
+      return null;
+    }
+    var state = store.getState ? store.getState() : null;
+    console.log('[Mishkah][StoreInspector][state]', store.__storeId, state);
+    return state;
+  };
+  StoreInspector.dump = function(tableName, limit, target){
+    if (!tableName){
+      console.warn('[Mishkah][Inspectors] Provide table name, e.g. MishkahStoreDump(\"sbn_posts\")');
+      return [];
+    }
+    var store = resolveStoreTarget(target);
+    if (!store){
+      console.warn('[Mishkah][Inspectors] store not found for dump');
+      return [];
+    }
+    var rows = store.listTable ? store.listTable(tableName) : [];
+    var sample = Array.isArray(rows) ? rows.slice(0, limit || 10) : rows;
+    console.log('[Mishkah][StoreInspector][dump]', store.__storeId, tableName, 'count:', Array.isArray(rows) ? rows.length : 0, 'sample:', sample);
+    return sample;
+  };
+
+  AppInspector.list = function(){
+    return getAppRegistry().map(function(instance, index){
+      if (!instance) return null;
+      return {
+        index: index,
+        id: instance.__appId || ('app#' + (index + 1)),
+        mounted: !!instance.root,
+        mountTarget: instance.__appMountTarget || null
+      };
+    }).filter(Boolean);
+  };
+  AppInspector.state = function(target){
+    var instance = resolveAppTarget(target);
+    if (!instance){
+      console.warn('[Mishkah][Inspectors] app instance not found');
+      return null;
+    }
+    var snapshot = instance.getState ? instance.getState() : null;
+    console.log('[Mishkah][AppInspector][state]', instance.__appId, snapshot);
+    return snapshot;
+  };
+  AppInspector.instance = function(target){
+    var instance = resolveAppTarget(target);
+    if (!instance){
+      console.warn('[Mishkah][Inspectors] app instance not found');
+      return null;
+    }
+    console.log('[Mishkah][AppInspector][instance]', instance.__appId, instance);
+    return instance;
+  };
+
+  Devtools.StoreInspector = StoreInspector;
+  Devtools.AppInspector = AppInspector;
+  global.MishkahStoreDebug = StoreInspector;
+  global.MishkahStoreDump = function(tableName, limit, target){
+    return StoreInspector.dump(tableName, limit, target);
+  };
+  global.MishkahAppDebug = AppInspector;
 
   M.Devtools = Devtools;
 
