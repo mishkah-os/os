@@ -330,42 +330,58 @@
   };
 
   // ===========================
-  // Create App with MishkahAuto
+  // Create Mishkah App
   // ===========================
-  if (typeof M.createDBAuto === 'function') {
-    M.createDBAuto({
-      initialState: initialDatabase,
-      orders: orders,
-      wsUrl: 'ws://localhost:3200',
-      branchId: BRANCH_ID,
-      moduleId: MODULE_ID,
-      lang: initialLang,
-      onSnapshot: function (snapshot, ctx) {
-        // Update state with snapshot data
-        var tables = snapshot.tables || {};
-        ctx.setState(function (prev) {
-          return Object.assign({}, prev, {
-            listings: tables.listings || [],
-            regions: tables.regions || [],
-            brokers: tables.brokers || [],
-            units: tables.units || [],
-            unit_types: tables.unit_types || [],
-            loading: false,
-            connected: true
-          });
-        });
-      },
-      onConnect: function (ctx) {
-        console.log('[Brocker v2] Connected to server');
-      },
-      onDisconnect: function (ctx) {
-        console.log('[Brocker v2] Disconnected from server');
-        ctx.setState(function (prev) {
-          return Object.assign({}, prev, { connected: false });
-        });
-      }
+  // Get DB instance from window (initialized by scaffold in HTML)
+  var db = global.__BROCKER_DB__;
+
+  if (!db) {
+    console.error('[Brocker v2] Database not initialized. Make sure index-v2.html initialized it first.');
+    return;
+  }
+
+  console.log('[Brocker v2] Creating Mishkah app...');
+
+  // Create the app
+  var app = M.app.createApp(initialDatabase, orders);
+  global.__BROCKER_APP__ = app;
+
+  // Setup watchers to update app state when data changes
+  var tables = ['listings', 'regions', 'brokers', 'units', 'unit_types'];
+
+  tables.forEach(function (tableName) {
+    db.watch(tableName, function (rows, meta) {
+      console.log('[Brocker v2] Table "' + tableName + '" updated:', rows.length, 'rows');
+
+      var update = { loading: false, connected: true };
+      update[tableName] = rows;
+
+      app.setState(function (prev) {
+        return Object.assign({}, prev, update);
+      });
     });
-  } else {
-    console.error('[Brocker v2] MishkahAuto.createDBAuto is not available');
+  });
+
+  // Mount the app
+  app.mount('#app');
+  console.log('[Brocker v2] App mounted successfully!');
+
+  // Listen to connection status
+  if (typeof db.onConnect === 'function') {
+    db.onConnect(function () {
+      console.log('[Brocker v2] Connected to server');
+      app.setState(function (prev) {
+        return Object.assign({}, prev, { connected: true });
+      });
+    });
+  }
+
+  if (typeof db.onDisconnect === 'function') {
+    db.onDisconnect(function () {
+      console.log('[Brocker v2] Disconnected from server');
+      app.setState(function (prev) {
+        return Object.assign({}, prev, { connected: false });
+      });
+    });
   }
 })();
