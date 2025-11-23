@@ -3578,6 +3578,7 @@ for (const schemaPath of schemaPaths) {
   }
 }
 const modulesConfig = (await readJsonSafe(MODULES_CONFIG_PATH, { modules: {} })) || { modules: {} };
+await hydrateModuleTablesFromSchema();
 const branchConfig = (await readJsonSafe(BRANCHES_CONFIG_PATH, { branches: {}, patterns: [], defaults: [] })) || { branches: {}, patterns: [], defaults: [] };
 
 async function persistModulesConfig() {
@@ -3586,6 +3587,62 @@ async function persistModulesConfig() {
 
 async function persistBranchConfig() {
   await writeJson(BRANCHES_CONFIG_PATH, branchConfig);
+}
+
+async function hydrateModuleTablesFromSchema() {
+  const entries = Object.entries(modulesConfig.modules || {});
+  for (const [moduleId, def] of entries) {
+    if (!def || typeof def !== 'object') continue;
+    const schemaTables = await loadSchemaTablesFromDefinition(moduleId, def);
+    if (!schemaTables.length) continue;
+    const merged = mergeUniqueTables(def.tables, schemaTables);
+    if (merged.length) {
+      def.tables = merged;
+    }
+  }
+}
+
+function mergeUniqueTables(listA, listB) {
+  const seen = new Set();
+  const push = (value) => {
+    if (!value) return;
+    const normalized = String(value).trim();
+    if (!normalized) return;
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+    }
+  };
+  (Array.isArray(listA) ? listA : []).forEach(push);
+  (Array.isArray(listB) ? listB : []).forEach(push);
+  return Array.from(seen);
+}
+
+async function loadSchemaTablesFromDefinition(moduleId, def) {
+  const fallbackPath = def?.schemaFallbackPath
+    ? (path.isAbsolute(def.schemaFallbackPath)
+        ? def.schemaFallbackPath
+        : path.join(ROOT_DIR, def.schemaFallbackPath))
+    : null;
+  if (!fallbackPath) return [];
+  const payload = await readJsonSafe(fallbackPath, null);
+  if (!payload) return [];
+  const tables = Array.isArray(payload?.tables)
+    ? payload.tables
+    : Array.isArray(payload?.schema?.tables)
+      ? payload.schema.tables
+      : [];
+  const names = [];
+  tables.forEach((table) => {
+    if (!table || typeof table !== 'object') return;
+    const name = table.name || table.tableName || table.sqlName || table.id || table.key;
+    if (name) {
+      names.push(String(name));
+    }
+  });
+  if (!names.length) {
+    logger.warn({ moduleId, fallbackPath }, 'Schema fallback contains no tables');
+  }
+  return names;
 }
 
 async function ensureBranchDirectory(branchId) {
