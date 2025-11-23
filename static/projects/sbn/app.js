@@ -1,7 +1,7 @@
 /**
- * مستعمل حوا (Mostamal Hawa) - PWA Mobile Application
- * Schema-driven, fully internationalized, NO hardcoded text
- * All data including UI labels come from backend
+ * Mostamal Hawaa - PWA Mobile Application
+ * Schema-driven, fully internationalized, no hardcoded UI text
+ * All labels/data resolved from backend seeds
  */
 
 (function() {
@@ -64,7 +64,11 @@
     'sbn_services': 'services',
     'sbn_wiki_articles': 'articles',
     'sbn_categories': 'categories',
-    'sbn_users': 'users'
+    'sbn_users': 'users',
+    'sbn_posts': 'posts',
+    'sbn_comments': 'comments',
+    'sbn_hashtags': 'hashtags',
+    'sbn_reviews': 'reviews'
   };
 
   // ================== HELPERS ==================
@@ -175,7 +179,22 @@
     state: {
       loading: true,
       error: null,
-      currentSection: 'home',
+      notice: null,
+      currentSection: 'timeline',
+      activeUserId: 'usr_001',
+      postOverlay: {
+        open: false,
+        postId: null
+      },
+      composer: {
+        open: false,
+        type: 'plain',
+        text: '',
+        targetId: '',
+        media: '',
+        posting: false,
+        error: null
+      },
       filters: {
         search: '',
         category: '',
@@ -188,11 +207,126 @@
       services: [],
       articles: [],
       categories: [],
-      users: []
+      users: [],
+      posts: [],
+      comments: [],
+      hashtags: [],
+      reviews: []
     }
   };
 
   // ================== DATA HELPERS ==================
+
+  function markAppReady() {
+    if (!app) return;
+    app.setState(function(db) {
+      if (db.state.loading === false && !db.state.error) {
+        return db;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { loading: false, error: null }),
+        data: db.data
+      };
+    });
+  }
+
+  function generateId(prefix) {
+    return (prefix || 'id') + '_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function toArray(value) {
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (_err) {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  function resolvePrimaryImage(record) {
+    if (!record || typeof record !== 'object') return '/projects/sbn/placeholder.jpg';
+    if (record.main_image_url) return record.main_image_url;
+    if (record.cover_image) return record.cover_image;
+    if (record.cover_url) return record.cover_url;
+    if (record.avatar_url) return record.avatar_url;
+    const media = toArray(record.images || record.media || record.gallery);
+    return media.length ? media[0] : '/projects/sbn/placeholder.jpg';
+  }
+
+  function resolveProductTitle(product) {
+    return getLocalizedField(product, 'title', t('product.untitled'));
+  }
+
+  function resolveCityName(record) {
+    if (!record || typeof record !== 'object') return '';
+    return record.location_city || record.city || record.location || '';
+  }
+
+  function formatPriceRange(min, max) {
+    if (min == null && max == null) return '';
+    if (min != null && max != null && min !== max) {
+      return String(min) + ' - ' + String(max);
+    }
+    const value = min != null ? min : max;
+    return value != null ? String(value) : '';
+  }
+
+  function parseDateValue(value) {
+    if (!value) return 0;
+    var ts = Date.parse(value);
+    if (Number.isNaN(ts)) return 0;
+    return ts;
+  }
+
+  function getSortedPosts(db) {
+    var posts = db.data.posts || [];
+    return posts
+      .slice()
+      .sort(function (a, b) {
+        return parseDateValue(b.created_at || b.createdAt) - parseDateValue(a.created_at || a.createdAt);
+      });
+  }
+
+  function getCurrentLang() {
+    var env = activeEnv();
+    return (env && env.lang) || initialDatabase.env.lang || 'ar';
+  }
+
+  function getLangBucket(record, lang) {
+    if (!record || !record.i18n || !record.i18n.lang) return null;
+    var container = record.i18n.lang;
+    var requested = lang || getCurrentLang();
+    if (container[requested]) return container[requested];
+    if (container.ar) return container.ar;
+    var firstKey = Object.keys(container)[0];
+    return firstKey ? container[firstKey] : null;
+  }
+
+  function getLocalizedField(record, field, fallback) {
+    if (!record) return fallback || '';
+    if (record[field] !== undefined && record[field] !== null && record[field] !== '') {
+      return record[field];
+    }
+    var bucket = getLangBucket(record);
+    if (bucket && bucket[field] !== undefined && bucket[field] !== null) {
+      return bucket[field];
+    }
+    return fallback || '';
+  }
+
+  function resolveUserName(user) {
+    return getLocalizedField(user, 'full_name', user && user.username ? user.username : t('user.unknown'));
+  }
+
+  function resolveHashtagLabel(tag) {
+    return getLocalizedField(tag, 'name', tag && tag.normalized_name ? '#' + tag.normalized_name : '');
+  }
 
   /**
    * Commit table data to app state
@@ -223,6 +357,8 @@
         data: Object.assign({}, db.data, newData)
       };
     });
+
+    markAppReady();
   }
 
   // ================== VIEW HELPERS ==================
@@ -243,9 +379,11 @@
       }
       if (filters.search) {
         var searchLower = filters.search.toLowerCase();
-        var nameMatch = product.name && product.name.toLowerCase().indexOf(searchLower) !== -1;
-        var descMatch = product.description && product.description.toLowerCase().indexOf(searchLower) !== -1;
-        if (!nameMatch && !descMatch) return false;
+        var titleText = resolveProductTitle(product).toLowerCase();
+        var descText = (product.description || '').toLowerCase();
+        var titleMatch = titleText.indexOf(searchLower) !== -1;
+        var descMatch = descText.indexOf(searchLower) !== -1;
+        if (!titleMatch && !descMatch) return false;
       }
       if (product.status !== 'active') return false;
       return true;
@@ -293,7 +431,7 @@
     return D.Containers.Div({ attrs: { class: 'loading-screen' } }, [
       D.Containers.Div({ attrs: { class: 'loading-spinner' } }, []),
       D.Text.P({ attrs: { class: 'loading-text' } }, [
-        t('loading.app', 'جاري التحميل...')
+        t('loading.app')
       ])
     ]);
   }
@@ -303,11 +441,11 @@
    */
   function renderError(db) {
     return D.Containers.Div({ attrs: { class: 'error-screen' } }, [
-      D.Text.H2({}, [t('error.title', 'حدث خطأ')]),
-      D.Text.P({}, [db.state.error || t('error.generic', 'حدث خطأ أثناء تحميل البيانات')]),
+      D.Text.H2({}, [t('error.title')]),
+      D.Text.P({}, [db.state.error || t('error.generic')]),
       D.Forms.Button(
         { attrs: { 'data-m-gkey': 'retry', class: 'btn-primary' } },
-        [t('btn.retry', 'إعادة المحاولة')]
+        [t('btn.retry')]
       )
     ]);
   }
@@ -317,79 +455,514 @@
    */
   function renderHeader(db) {
     return D.Containers.Header({ attrs: { class: 'app-header' } }, [
-      D.Containers.Div({ attrs: { class: 'header-content' } }, [
-        // App title
-        D.Text.H1({ attrs: { class: 'app-title' } }, [
-          t('app.name', 'مستعمل حوا')
-        ]),
-
-        // Controls
-        D.Containers.Div({ attrs: { class: 'header-controls' } }, [
-          // Theme toggle
-          D.Forms.Button(
-            { attrs: {
+      D.Containers.Div({ attrs: { class: 'brand' } }, [
+        D.Text.Span({ attrs: { class: 'brand-title' } }, [t('app.name')]),
+        D.Text.Span({ attrs: { class: 'brand-subtitle' } }, [t('app.tagline')])
+      ]),
+      D.Containers.Div({ attrs: { class: 'header-actions' } }, [
+        D.Forms.Button(
+          {
+            attrs: {
               'data-m-gkey': 'toggle-theme',
               class: 'icon-btn',
-              title: t('settings.theme.toggle', 'تبديل الوضع')
-            } },
-            [db.env.theme === 'dark' ? '☀️' : '🌙']
-          ),
-
-          // Language toggle
-          D.Forms.Button(
-            { attrs: {
+              title: t('settings.theme.toggle')
+            }
+          },
+          [db.env.theme === 'dark' ? '☀️' : '🌙']
+        ),
+        D.Forms.Button(
+          {
+            attrs: {
               'data-m-gkey': 'toggle-lang',
               class: 'icon-btn',
-              title: t('settings.language.toggle', 'تبديل اللغة')
-            } },
-            [db.env.lang === 'ar' ? 'EN' : 'ع']
-          )
-        ])
+              title: t('settings.language.toggle')
+            }
+          },
+          [db.env.lang === 'ar' ? t('settings.language.code.en') : t('settings.language.code.ar')]
+        )
       ])
     ]);
+  }
+
+  function renderComposer(db) {
+    var composer = db.state.composer || initialDatabase.state.composer;
+    var activeUser = getActiveUser(db);
+    var userName = resolveUserName(activeUser);
+    var avatar = (activeUser && activeUser.avatar_url) || 'https://i.pravatar.cc/120?img=12';
+    if (!composer.open) {
+      return D.Containers.Div({ attrs: { class: 'composer-card collapsed' } }, [
+        D.Media.Img({ attrs: { class: 'composer-avatar', src: avatar, alt: userName } }, []),
+        D.Forms.Button({
+          attrs: { class: 'composer-trigger', 'data-m-gkey': 'composer-open' }
+        }, [t('composer.start')])
+      ]);
+    }
+
+    var typeOptions = [
+      { value: 'plain', label: t('composer.type.plain') },
+      { value: 'product_share', label: t('composer.type.product') },
+      { value: 'service_share', label: t('composer.type.service') },
+      { value: 'article_share', label: t('composer.type.article') },
+      { value: 'reel', label: t('composer.type.reel') }
+    ];
+    var attachments = getAttachmentOptions(db, composer.type);
+    var showTarget = attachments.length > 0;
+    var showMedia = composer.type === 'reel';
+
+    return D.Containers.Div({ attrs: { class: 'composer-card expanded' } }, [
+      D.Containers.Div({ attrs: { class: 'composer-header' } }, [
+        D.Media.Img({ attrs: { class: 'composer-avatar', src: avatar, alt: userName } }, []),
+        D.Containers.Div({ attrs: { class: 'composer-user' } }, [
+          D.Text.Span({ attrs: { class: 'composer-user-name' } }, [userName]),
+          D.Text.Span({ attrs: { class: 'composer-meta' } }, [t('composer.visible.public')])
+        ]),
+        D.Forms.Button({
+          attrs: { class: 'composer-close', 'data-m-gkey': 'composer-close' }
+        }, ['✕'])
+      ]),
+      D.Inputs.Select({
+        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-type', value: composer.type || 'plain' }
+      }, typeOptions.map(function(option) {
+        return D.Inputs.Option({
+          attrs: { value: option.value, selected: composer.type === option.value }
+        }, [option.label]);
+      })),
+      showTarget
+        ? D.Inputs.Select({
+            attrs: {
+              class: 'composer-select',
+              'data-m-gkey': 'composer-target',
+              value: composer.targetId || ''
+            }
+          }, [
+            D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.default')])
+          ].concat(
+            attachments.map(function(option) {
+              return D.Inputs.Option({
+                attrs: { value: option.value, selected: composer.targetId === option.value }
+              }, [option.label]);
+            })
+          ))
+        : null,
+      showMedia
+        ? D.Inputs.Input({
+            attrs: {
+              type: 'text',
+              class: 'composer-input',
+              placeholder: t('composer.media.placeholder'),
+              value: composer.media || '',
+              'data-m-gkey': 'composer-media'
+            }
+          }, [])
+        : null,
+      D.Inputs.Textarea({
+        attrs: {
+          class: 'composer-textarea',
+          placeholder: t('composer.placeholder'),
+          value: composer.text || '',
+          'data-m-gkey': 'composer-text'
+        }
+      }, []),
+      composer.error
+        ? D.Text.P({ attrs: { class: 'composer-error' } }, [composer.error])
+        : null,
+      D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+        D.Forms.Button({
+          attrs: {
+            class: 'hero-cta',
+            'data-m-gkey': 'composer-submit',
+            disabled: composer.posting ? 'disabled' : null
+          }
+        }, [composer.posting ? t('composer.posting') : t('composer.publish')]),
+        D.Forms.Button({
+          attrs: { class: 'hero-ghost', 'data-m-gkey': 'composer-close' }
+        }, ['✕'])
+      ])
+    ]);
+  }
+
+  function renderHero(db) {
+    return D.Containers.Div({ attrs: { class: 'hero-card' } }, [
+      D.Text.Span({ attrs: { class: 'hero-badge' } }, ['⚡️ ', t('home.hero.badge')]),
+      D.Text.H2({ attrs: { class: 'hero-title' } }, [
+        t('home.hero.title')
+      ]),
+      D.Text.P({ attrs: { class: 'hero-subtitle' } }, [
+        t('home.hero.subtitle')
+      ]),
+      D.Containers.Div({ attrs: { class: 'hero-actions' } }, [
+        D.Forms.Button({
+          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-marketplace' }
+        }, [t('home.action.explore')]),
+        D.Forms.Button({
+          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-services' }
+        }, ['＋'])
+      ])
+    ]);
+  }
+
+  function renderNotice(db) {
+    if (!db.state.notice) return null;
+    return D.Containers.Div({ attrs: { class: 'notice-toast' } }, [db.state.notice]);
+  }
+
+  function renderMetricGrid(db) {
+    var stats = [
+      { value: String(db.data.products?.length || 0), label: t('home.stats.products') },
+      { value: String(db.data.services?.length || 0), label: t('home.stats.services') },
+      { value: String(db.data.users?.length || 0), label: t('home.stats.creators') }
+    ];
+    return D.Containers.Div({ attrs: { class: 'metric-grid' } }, stats.map(function(entry, index) {
+      return D.Containers.Div({ attrs: { class: 'metric-card', key: 'metric-' + index } }, [
+        D.Containers.Div({ attrs: { class: 'metric-value' } }, [entry.value]),
+        D.Containers.Div({ attrs: { class: 'metric-label' } }, [entry.label])
+      ]);
+    }));
+  }
+
+  function renderSectionHeader(titleKey, _unused, metaKey, _unusedMeta) {
+    return D.Containers.Div({ attrs: { class: 'section-heading' } }, [
+      D.Text.H3({}, [t(titleKey)]),
+      metaKey
+        ? D.Text.Span({ attrs: { class: 'section-meta' } }, [t(metaKey)])
+        : D.Text.Span({ attrs: { class: 'section-meta' } }, [])
+    ]);
+  }
+
+  function findById(rows, keyField, target) {
+    if (!Array.isArray(rows)) return null;
+    return rows.find(function(row) {
+      return row && row[keyField] === target;
+    }) || null;
+  }
+
+  function getActiveUser(db) {
+    var users = db.data.users || [];
+    var activeId = db.state.activeUserId;
+    if (!activeId && users.length) {
+      activeId = users[0].user_id;
+    }
+    return findById(users, 'user_id', activeId) || (users.length ? users[0] : null);
+  }
+
+  function getAttachmentOptions(db, type) {
+    if (type === 'product_share') {
+      return (db.data.products || []).map(function(product) {
+        return { value: product.product_id, label: resolveProductTitle(product) };
+      });
+    }
+    if (type === 'service_share') {
+      return (db.data.services || []).map(function(service) {
+        return { value: service.service_id, label: getLocalizedField(service, 'title', t('services.default')) };
+      });
+    }
+    if (type === 'article_share') {
+      return (db.data.articles || []).map(function(article) {
+        return { value: article.article_id, label: getLocalizedField(article, 'title', t('knowledge.card.title')) };
+      });
+    }
+    return [];
+  }
+
+  function applyComposerState(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentComposer = db.state.composer || initialDatabase.state.composer;
+      var nextComposer = typeof updates === 'function' ? updates(currentComposer) : Object.assign({}, currentComposer, updates);
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { composer: nextComposer }),
+        data: db.data
+      };
+    });
+  }
+
+  function setPostOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.postOverlay || initialDatabase.state.postOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { postOverlay: nextOverlay }),
+        data: db.data
+      };
+    });
+  }
+
+  function showNotice(ctx, message) {
+    ctx.setState(function(db) {
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { notice: message }),
+        data: db.data
+      };
+    });
+    setTimeout(function() {
+      if (!app) return;
+      app.setState(function(db) {
+        if (!db.state.notice || db.state.notice !== message) return db;
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: Object.assign({}, db.state, { notice: null }),
+          data: db.data
+        };
+      });
+    }, 2500);
+  }
+
+  function handleComposerSubmit(ctx) {
+    var currentDb = app ? app.database : null;
+    if (!currentDb) return;
+    var composer = currentDb.state.composer || initialDatabase.state.composer;
+    if (composer.posting) return;
+    var user = getActiveUser(currentDb);
+    if (!user) {
+      applyComposerState(ctx, { error: t('composer.error.user') });
+      return;
+    }
+    if (!realtime || !realtime.store || typeof realtime.store.insert !== 'function') {
+      applyComposerState(ctx, { error: t('composer.error.offline'), posting: false });
+      return;
+    }
+    if ((!composer.text || !composer.text.trim()) && composer.type === 'plain') {
+      applyComposerState(ctx, { error: t('composer.error.empty'), posting: false });
+      return;
+    }
+    if (composer.type !== 'plain' && composer.type !== 'reel' && !composer.targetId) {
+      applyComposerState(ctx, { error: t('composer.error.target'), posting: false });
+      return;
+    }
+    applyComposerState(ctx, { posting: true, error: null });
+    var lang = getCurrentLang();
+    var now = new Date().toISOString();
+    var postId = typeof realtime.store.uuid === 'function'
+      ? realtime.store.uuid('post')
+      : generateId('post');
+    var record = {
+      post_id: postId,
+      user_id: user.user_id,
+      post_type: composer.type || 'plain',
+      visibility: 'public',
+      is_pinned: false,
+      likes_count: 0,
+      comments_count: 0,
+      shares_count: 0,
+      views_count: 0,
+      created_at: now,
+      updated_at: now
+    };
+    if (composer.type === 'product_share') {
+      record.shared_product_id = composer.targetId;
+    } else if (composer.type === 'service_share') {
+      record.shared_service_id = composer.targetId;
+    } else if (composer.type === 'article_share') {
+      record.shared_article_id = composer.targetId;
+    }
+    if (composer.media) {
+      record.media_urls = JSON.stringify([composer.media.trim()]);
+    }
+    var langRecord = {
+      id: postId + '_lang_' + lang,
+      post_id: postId,
+      lang: lang,
+      content: composer.text || '',
+      is_auto: false,
+      created_at: now
+    };
+    Promise.all([
+      realtime.store.insert('sbn_posts', record, { source: 'pwa-composer' }),
+      realtime.store.insert('sbn_posts_lang', langRecord, { source: 'pwa-composer' })
+    ])
+      .then(function() {
+        ctx.setState(function(db) {
+          var resetComposer = {
+            open: false,
+            type: 'plain',
+            text: '',
+            targetId: '',
+            media: '',
+            posting: false,
+            error: null
+          };
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { composer: resetComposer }),
+            data: db.data
+          };
+        });
+        showNotice(ctx, t('composer.success'));
+      })
+      .catch(function(error) {
+        console.error('[SBN PWA] composer failed', error);
+        applyComposerState(ctx, { posting: false, error: t('composer.error.failed') });
+      });
+  }
+
+  function renderSocialFeed(db) {
+    var posts = getSortedPosts(db);
+    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
+      renderSectionHeader('home.feed', null, 'home.feed.meta', null),
+      posts.length
+        ? D.Containers.Div({ attrs: { class: 'feed-list' } }, posts.map(function(post) {
+            return renderPostCard(db, post);
+          }))
+        : D.Text.P({}, [t('home.feed.empty')])
+    ]);
+  }
+
+  function renderTrendingHashtags(db) {
+    var tags = (db.data.hashtags || []).slice().sort(function(a, b) {
+      return (b.usage_count || 0) - (a.usage_count || 0);
+    }).slice(0, 6);
+    if (!tags.length) return null;
+    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
+      renderSectionHeader('home.hashtags', null, null, null),
+      D.Containers.Div({ attrs: { class: 'chips-row' } },
+        tags.map(function(tag) {
+          return D.Containers.Div({ attrs: { class: 'chip' } }, [resolveHashtagLabel(tag)]);
+        })
+      )
+    ]);
+  }
+
+  function renderPostCard(db, post) {
+    var users = db.data.users || [];
+    var products = db.data.products || [];
+    var services = db.data.services || [];
+    var articles = db.data.articles || [];
+    var user = findById(users, 'user_id', post.user_id);
+    var userName = resolveUserName(user);
+    var avatar = (user && user.avatar_url) || 'https://i.pravatar.cc/120?img=60';
+    var mediaList = toArray(post.media_urls);
+    var attachment = null;
+
+    if (post.post_type === 'product_share' && post.shared_product_id) {
+      var product = findById(products, 'product_id', post.shared_product_id);
+      if (product) attachment = renderProductCard(db, product, { compact: true });
+    } else if (post.post_type === 'article_share' && post.shared_article_id) {
+      var article = findById(articles, 'article_id', post.shared_article_id);
+      if (article) {
+        attachment = D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
+          D.Text.Span({ attrs: { class: 'chip' } }, [t('knowledge.title')]),
+          D.Text.P({}, [getLocalizedField(article, 'title', t('knowledge.card.title'))])
+        ]);
+      }
+    } else if (post.post_type === 'service_share' && post.shared_service_id) {
+      var service = findById(services, 'service_id', post.shared_service_id);
+      if (service) {
+        attachment = D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
+          D.Text.Span({ attrs: { class: 'chip' } }, [t('nav.services')]),
+          D.Text.P({}, [getLocalizedField(service, 'title', t('services.default'))])
+        ]);
+      }
+    }
+
+    var mediaStrip = null;
+    if (mediaList.length) {
+      mediaStrip = D.Containers.Div({ attrs: { class: 'feed-media' } }, mediaList.slice(0, 3).map(function(url, idx) {
+        return D.Media.Img({ attrs: { src: url, class: 'media-thumb', key: post.post_id + '-media-' + idx } }, []);
+      }));
+    }
+
+    return D.Containers.Div({
+      attrs: {
+        class: 'feed-card',
+        key: post.post_id,
+        'data-m-gkey': 'post-open',
+        'data-post-id': post.post_id
+      }
+    }, [
+      D.Containers.Div({ attrs: { class: 'feed-header' } }, [
+        D.Media.Img({ attrs: { src: avatar, class: 'feed-avatar', alt: userName } }, []),
+        D.Containers.Div({ attrs: { class: 'feed-user' } }, [
+          D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
+          D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
+            t('post.type.' + (post.post_type || 'plain')) || (post.post_type || 'post'),
+            ' · ',
+            new Date(post.created_at).toLocaleDateString()
+          ])
+        ]),
+        post.is_pinned
+          ? D.Text.Span({ attrs: { class: 'chip' } }, [t('post.pinned')])
+          : null
+      ].filter(Boolean)),
+      D.Text.P({ attrs: { class: 'feed-content' } }, [
+        getLocalizedField(post, 'content', '')
+      ]),
+      attachment,
+      mediaStrip,
+      D.Containers.Div({ attrs: { class: 'feed-stats' } }, [
+        D.Text.Span({}, ['👁️ ', String(post.views_count || 0)]),
+        D.Text.Span({}, ['💬 ', String(post.comments_count || 0)]),
+        D.Text.Span({}, ['❤️ ', String(post.likes_count || 0)]),
+        D.Text.Span({}, ['🔁 ', String(post.shares_count || 0)])
+      ])
+    ]);
+  }
+
+  function renderCategoryChips(db, categories, field, gkey) {
+    var selected = db.state.filters[field] || '';
+    var chips = [
+      D.Forms.Button({
+        attrs: {
+          class: 'chip' + (selected === '' ? ' chip-active' : ''),
+          'data-m-gkey': gkey,
+          'data-value': ''
+        }
+      }, [t('filter.all')])
+    ];
+    chips = chips.concat(categories.map(function(cat) {
+      return D.Forms.Button({
+        attrs: {
+          class: 'chip' + (selected === cat.category_id ? ' chip-active' : ''),
+          'data-m-gkey': gkey,
+          'data-value': cat.category_id
+        }
+      }, [getLocalizedField(cat, 'name', cat.slug || '')]);
+    }));
+    return chips;
   }
 
   /**
    * Render product card
    */
-  function renderProductCard(db, product) {
+  function renderProductCard(db, product, options) {
+    var title = resolveProductTitle(product);
+    var imageSrc = resolvePrimaryImage(product);
+    var city = resolveCityName(product) || t('product.location.unknown');
+    var priceValue = product.price != null ? product.price : (product.price_min != null ? product.price_min : product.price_max);
+    var priceText = priceValue != null ? String(priceValue) + ' ' + t('currency.egp') : t('product.price.request');
+    var cardClass = 'product-card';
+    if (options && options.compact) {
+      cardClass += ' carousel-card';
+    }
     return D.Containers.Div({
       attrs: {
-        class: 'product-card',
+        class: cardClass,
         key: product.product_id,
         'data-m-key': 'product-' + product.product_id
       }
     }, [
-      D.Media.Img({
-        attrs: {
-          src: product.main_image_url || '/projects/sbn/placeholder.jpg',
-          alt: product.name,
-          class: 'product-image'
-        }
-      }, []),
-      D.Containers.Div({ attrs: { class: 'product-content' } }, [
-        D.Text.H4({ attrs: { class: 'product-name' } }, [product.name]),
-        D.Text.P({ attrs: { class: 'product-price' } }, [
-          String(product.price) + ' ' + t('currency.sar', 'ريال')
-        ]),
-        D.Containers.Div({ attrs: { class: 'product-meta' } }, [
-          D.Text.Span({ attrs: { class: 'product-condition' } }, [
-            t('product.condition.' + product.condition, product.condition)
-          ]),
-          D.Text.Span({ attrs: { class: 'product-location' } }, [
-            product.city || ''
-          ])
-        ])
+      D.Containers.Div({ attrs: { class: 'product-media' } }, [
+        D.Media.Img({
+          attrs: { src: imageSrc, alt: title }
+        }, [])
       ]),
-      D.Containers.Div({ attrs: { class: 'product-actions' } }, [
-        D.Forms.Button(
-          { attrs: {
-            'data-m-gkey': 'view-product',
-            'data-product-id': product.product_id,
-            class: 'btn-secondary'
-          } },
-          [t('btn.view', 'عرض')]
-        )
+      D.Containers.Div({ attrs: { class: 'product-body' } }, [
+        D.Containers.Div({ attrs: { class: 'product-price' } }, [priceText]),
+        D.Containers.Div({ attrs: { class: 'product-title' } }, [title]),
+        D.Containers.Div({ attrs: { class: 'product-meta' } }, [
+          D.Text.Span({}, [
+            product.condition
+              ? t('product.condition.' + product.condition, product.condition)
+              : t('product.condition.unknown')
+          ]),
+          D.Text.Span({}, [city])
+        ])
       ])
     ]);
   }
@@ -397,44 +970,51 @@
   /**
    * Render home section
    */
-  function renderHome(db) {
+  function renderTimeline(db) {
     var products = db.data.products || [];
     var services = db.data.services || [];
-    var articles = db.data.articles || [];
+    var articles = getWikiArticles(db).slice(0, 3);
+    var categories = (db.data.categories || []).slice(0, 6);
 
-    return D.Containers.Div({ attrs: { class: 'section section-home' } }, [
-      // Welcome banner
-      D.Containers.Div({ attrs: { class: 'welcome-banner' } }, [
-        D.Text.H2({}, [t('home.welcome', 'مرحباً بك في مستعمل حوا')]),
-        D.Text.P({}, [t('home.subtitle', 'منصتك للتجارة والخدمات والمعرفة')])
-      ]),
-
-      // Quick stats
-      D.Containers.Div({ attrs: { class: 'stats-grid' } }, [
-        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-          D.Text.Span({ attrs: { class: 'stat-number' } }, [String(products.length)]),
-          D.Text.Span({ attrs: { class: 'stat-label' } }, [t('home.stats.products', 'منتج')])
-        ]),
-        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-          D.Text.Span({ attrs: { class: 'stat-number' } }, [String(services.length)]),
-          D.Text.Span({ attrs: { class: 'stat-label' } }, [t('home.stats.services', 'خدمة')])
-        ]),
-        D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-          D.Text.Span({ attrs: { class: 'stat-number' } }, [String(articles.length)]),
-          D.Text.Span({ attrs: { class: 'stat-label' } }, [t('home.stats.articles', 'مقال')])
-        ])
-      ]),
-
-      // Recent items
-      D.Containers.Div({ attrs: { class: 'recent-section' } }, [
-        D.Text.H3({}, [t('home.recent.title', 'آخر المنتجات')]),
-        D.Containers.Div({ attrs: { class: 'cards-grid' } },
-          products.slice(0, 4).map(function(product) {
-            return renderProductCard(db, product);
-          })
+    var sections = [
+      renderComposer(db),
+      renderSocialFeed(db),
+      renderHero(db),
+      renderTrendingHashtags(db),
+      renderMetricGrid(db),
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('home.categories', null, 'home.categories.meta', null),
+        D.Containers.Div({ attrs: { class: 'chips-row' } },
+          renderCategoryChips(db, categories, 'category', 'category-chip')
         )
+      ]),
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('home.featured', null, 'home.featured.meta', null),
+        products.length
+          ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
+              products.slice(0, 5).map(function(product) {
+                return renderProductCard(db, product, { compact: true });
+              })
+            )
+          : D.Text.P({}, [t('marketplace.empty')])
+      ]),
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('home.services', null, null, null),
+        services.length
+          ? services.slice(0, 4).map(function(service) {
+              return renderServiceCard(db, service);
+            })
+          : D.Text.P({}, [t('services.empty')])
+      ]),
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('knowledge.title', null, null, null),
+        articles.length
+          ? articles.map(function(article) { return renderArticleItem(db, article); })
+          : D.Text.P({}, [t('knowledge.empty')])
       ])
-    ]);
+    ].filter(Boolean);
+
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, sections);
   }
 
   /**
@@ -444,69 +1024,52 @@
     var products = getFilteredProducts(db);
     var categories = (db.data.categories || []).filter(function(cat) {
       return cat.type === 'product';
-    });
+    }).slice(0, 8);
 
-    return D.Containers.Div({ attrs: { class: 'section section-marketplace' } }, [
-      // Filters
-      D.Containers.Div({ attrs: { class: 'filters-bar' } }, [
-        D.Inputs.Input({
+    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
+      renderSectionHeader('nav.marketplace', null, 'home.featured.meta', null),
+      D.Inputs.Input({
+        attrs: {
+          type: 'text',
+          placeholder: t('placeholder.search.marketplace'),
+          'data-m-gkey': 'search-input',
+          class: 'search-input',
+          value: db.state.filters.search || ''
+        }
+      }, []),
+      D.Containers.Div({ attrs: { class: 'chips-row' } },
+        renderCategoryChips(db, categories, 'category', 'category-chip')
+      ),
+      D.Containers.Div({ attrs: { class: 'chips-row' } }, [
+        D.Forms.Button({
           attrs: {
-            type: 'text',
-            placeholder: t('placeholder.search', 'بحث...'),
-            'data-m-gkey': 'search-input',
-            class: 'search-input',
-            value: db.state.filters.search || ''
+            class: 'chip' + (db.state.filters.condition === '' ? ' chip-active' : ''),
+            'data-m-gkey': 'condition-chip',
+            'data-value': ''
           }
-        }, []),
-        D.Inputs.Select({
+        }, [t('filter.all.conditions')]),
+        D.Forms.Button({
           attrs: {
-            'data-m-gkey': 'category-filter',
-            class: 'filter-select'
+            class: 'chip' + (db.state.filters.condition === 'new' ? ' chip-active' : ''),
+            'data-m-gkey': 'condition-chip',
+            'data-value': 'new'
           }
-        }, [
-          D.Inputs.Option({ attrs: { value: '' } }, [t('filter.all.categories', 'كل الفئات')])
-        ].concat(
-          categories.map(function(cat) {
-            return D.Inputs.Option({
-              attrs: {
-                value: cat.category_id,
-                selected: db.state.filters.category === cat.category_id
-              }
-            }, [cat.name]);
-          })
-        )),
-        D.Inputs.Select({
+        }, [t('product.condition.new')]),
+        D.Forms.Button({
           attrs: {
-            'data-m-gkey': 'condition-filter',
-            class: 'filter-select'
+            class: 'chip' + (db.state.filters.condition === 'used' ? ' chip-active' : ''),
+            'data-m-gkey': 'condition-chip',
+            'data-value': 'used'
           }
-        }, [
-          D.Inputs.Option({ attrs: { value: '' } }, [t('filter.all.conditions', 'كل الحالات')]),
-          D.Inputs.Option({
-            attrs: {
-              value: 'new',
-              selected: db.state.filters.condition === 'new'
-            }
-          }, [t('product.condition.new', 'جديد')]),
-          D.Inputs.Option({
-            attrs: {
-              value: 'used',
-              selected: db.state.filters.condition === 'used'
-            }
-          }, [t('product.condition.used', 'مستعمل')])
-        ])
+        }, [t('product.condition.used')])
       ]),
-
-      // Products grid
-      D.Containers.Div({ attrs: { class: 'products-grid' } },
-        products.length > 0
-          ? products.map(function(product) {
-              return renderProductCard(db, product);
+      products.length > 0
+        ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
+            products.map(function(product) {
+              return renderProductCard(db, product, { compact: true });
             })
-          : [D.Text.P({ attrs: { class: 'empty-message' } }, [
-              t('marketplace.empty', 'لا توجد منتجات')
-            ])]
-      )
+          )
+        : D.Text.P({}, [t('marketplace.empty')])
     ]);
   }
 
@@ -514,6 +1077,11 @@
    * Render service card
    */
   function renderServiceCard(db, service) {
+    var priceRange = formatPriceRange(service.price_min, service.price_max);
+    var priceLabel = priceRange
+      ? priceRange + ' ' + t('currency.egp')
+      : (service.price ? String(service.price) + ' ' + t('currency.egp') : t('services.price.request'));
+    var serviceCity = resolveCityName(service) || t('services.location.unknown');
     return D.Containers.Div({
       attrs: {
         class: 'service-card',
@@ -521,25 +1089,11 @@
         'data-m-key': 'service-' + service.service_id
       }
     }, [
-      D.Containers.Div({ attrs: { class: 'service-content' } }, [
-        D.Text.H4({ attrs: { class: 'service-title' } }, [service.title]),
-        D.Text.P({ attrs: { class: 'service-description' } }, [service.description || '']),
-        D.Containers.Div({ attrs: { class: 'service-meta' } }, [
-          D.Text.Span({ attrs: { class: 'service-price' } }, [
-            String(service.price_from) + ' - ' + String(service.price_to) + ' ' + t('currency.sar', 'ريال')
-          ]),
-          D.Text.Span({ attrs: { class: 'service-location' } }, [service.city || ''])
-        ])
-      ]),
-      D.Containers.Div({ attrs: { class: 'service-actions' } }, [
-        D.Forms.Button(
-          { attrs: {
-            'data-m-gkey': 'view-service',
-            'data-service-id': service.service_id,
-            class: 'btn-secondary'
-          } },
-          [t('btn.view', 'عرض')]
-        )
+      D.Text.H4({ attrs: { class: 'service-title' } }, [getLocalizedField(service, 'title', t('services.default'))]),
+      D.Text.P({ attrs: { class: 'service-description' } }, [getLocalizedField(service, 'description', '') || '']),
+      D.Containers.Div({ attrs: { class: 'service-meta' } }, [
+        D.Text.Span({ attrs: { class: 'service-price' } }, [priceLabel]),
+        D.Text.Span({ attrs: { class: 'service-location' } }, [serviceCity])
       ])
     ]);
   }
@@ -551,47 +1105,27 @@
     var services = getFilteredServices(db);
     var categories = (db.data.categories || []).filter(function(cat) {
       return cat.type === 'service';
-    });
+    }).slice(0, 8);
 
-    return D.Containers.Div({ attrs: { class: 'section section-services' } }, [
-      D.Containers.Div({ attrs: { class: 'filters-bar' } }, [
-        D.Inputs.Input({
-          attrs: {
-            type: 'text',
-            placeholder: t('placeholder.search', 'بحث...'),
-            'data-m-gkey': 'search-input',
-            class: 'search-input',
-            value: db.state.filters.search || ''
-          }
-        }, []),
-        D.Inputs.Select({
-          attrs: {
-            'data-m-gkey': 'category-filter',
-            class: 'filter-select'
-          }
-        }, [
-          D.Inputs.Option({ attrs: { value: '' } }, [t('filter.all.categories', 'كل الفئات')])
-        ].concat(
-          categories.map(function(cat) {
-            return D.Inputs.Option({
-              attrs: {
-                value: cat.category_id,
-                selected: db.state.filters.category === cat.category_id
-              }
-            }, [cat.name]);
+    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
+      renderSectionHeader('nav.services', null, null, null),
+      D.Inputs.Input({
+        attrs: {
+          type: 'text',
+          placeholder: t('placeholder.search.services'),
+          'data-m-gkey': 'search-input',
+          class: 'search-input',
+          value: db.state.filters.search || ''
+        }
+      }, []),
+      D.Containers.Div({ attrs: { class: 'chips-row' } },
+        renderCategoryChips(db, categories, 'category', 'category-chip')
+      ),
+      services.length > 0
+        ? services.map(function(service) {
+            return renderServiceCard(db, service);
           })
-        ))
-      ]),
-
-      D.Containers.Div({ attrs: { class: 'services-list' } },
-        services.length > 0
-          ? services.map(function(service) {
-              return renderServiceCard(db, service);
-            })
-          : [D.Text.P({ attrs: { class: 'empty-message' } }, [
-              t('services.empty', 'لا توجد خدمات')
-            ])]
-      )
+        : D.Text.P({}, [t('services.empty')])
     ]);
   }
 
@@ -599,30 +1133,27 @@
    * Render article item
    */
   function renderArticleItem(db, article) {
+    var excerpt = article.excerpt || article.summary || article.description || '';
+    var views = article.views_count != null ? article.views_count : (article.view_count || 0);
     return D.Containers.Div({
       attrs: {
-        class: 'article-item',
+        class: 'article-card',
         key: article.article_id,
         'data-m-key': 'article-' + article.article_id
       }
     }, [
-      D.Containers.Div({ attrs: { class: 'article-content' } }, [
-        D.Text.H4({ attrs: { class: 'article-title' } }, [article.title]),
-        D.Text.P({ attrs: { class: 'article-summary' } }, [article.summary || '']),
-        D.Containers.Div({ attrs: { class: 'article-meta' } }, [
-          D.Text.Span({ attrs: { class: 'article-views' } }, [
-            String(article.view_count || 0) + ' ' + t('wiki.views', 'مشاهدة')
-          ])
-        ])
-      ]),
-      D.Forms.Button(
-        { attrs: {
-          'data-m-gkey': 'view-article',
-          'data-article-id': article.article_id,
-          class: 'btn-link'
-        } },
-        [t('btn.read', 'قراءة')]
-      )
+      D.Text.H4({ attrs: { class: 'article-title' } }, [getLocalizedField(article, 'title', t('knowledge.card.title'))]),
+      D.Text.P({ attrs: { class: 'article-summary' } }, [getLocalizedField(article, 'excerpt', excerpt) || t('wiki.noSummary')]),
+      D.Containers.Div({ attrs: { class: 'article-meta' } }, [
+        D.Text.Span({}, [String(views) + ' ' + t('wiki.views')]),
+        D.Forms.Button({
+          attrs: {
+            'data-m-gkey': 'view-article',
+            'data-article-id': article.article_id,
+            class: 'chip'
+          }
+        }, [t('btn.read')])
+      ])
     ]);
   }
 
@@ -632,30 +1163,133 @@
   function renderKnowledge(db) {
     var articles = getWikiArticles(db);
 
-    return D.Containers.Div({ attrs: { class: 'section section-knowledge' } }, [
-      D.Text.H2({}, [t('knowledge.title', 'المعرفة')]),
-      D.Text.P({ attrs: { class: 'section-subtitle' } }, [
-        t('knowledge.subtitle', 'مقالات تشاركية')
+    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
+      renderSectionHeader('knowledge.title', null, null, null),
+      articles.length > 0
+        ? articles.map(function(article) { return renderArticleItem(db, article); })
+        : D.Text.P({}, [t('knowledge.empty')])
+    ]);
+  }
+
+  function renderProfile(db) {
+    var user = getActiveUser(db);
+    if (!user) {
+      return D.Text.P({}, [t('profile.empty')]);
+    }
+    var avatar = user.avatar_url || 'https://i.pravatar.cc/180?img=47';
+    var stats = [
+      { label: t('profile.followers'), value: String(user.followers_count || 0) },
+      { label: t('profile.following'), value: String(user.following_count || 0) },
+      { label: t('profile.posts'), value: String(user.posts_count || 0) }
+    ];
+    var posts = (db.data.posts || []).filter(function(post) {
+      return post && post.user_id === user.user_id;
+    });
+
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      D.Containers.Div({ attrs: { class: 'section-card profile-card' } }, [
+        D.Media.Img({ attrs: { class: 'profile-avatar', src: avatar, alt: resolveUserName(user) } }, []),
+        D.Text.H3({ attrs: { class: 'profile-name' } }, [resolveUserName(user)]),
+        D.Text.P({ attrs: { class: 'profile-handle' } }, ['@' + (user.username || '')]),
+        D.Text.P({ attrs: { class: 'profile-bio' } }, [
+          getLocalizedField(user, 'bio', t('profile.bio.placeholder'))
+        ]),
+        D.Containers.Div({ attrs: { class: 'profile-stats' } }, stats.map(function(stat, index) {
+          return D.Containers.Div({ attrs: { class: 'profile-stat', key: 'stat-' + index } }, [
+            D.Text.Span({ attrs: { class: 'profile-stat-value' } }, [stat.value]),
+            D.Text.Span({ attrs: { class: 'profile-stat-label' } }, [stat.label])
+          ]);
+        })),
+        D.Containers.Div({ attrs: { class: 'profile-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('profile.cta.compose')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-message' } }, [t('profile.cta.message')])
+        ]),
+        renderProfileSwitcher(db)
       ]),
-      D.Containers.Div({ attrs: { class: 'search-bar' } }, [
-        D.Inputs.Input({
-          attrs: {
-            type: 'text',
-            placeholder: t('placeholder.search.articles', 'بحث في المقالات...'),
-            'data-m-gkey': 'search-input',
-            class: 'search-input'
-          }
-        }, [])
-      ]),
-      D.Containers.Div({ attrs: { class: 'articles-list' } },
-        articles.length > 0
-          ? articles.map(function(article) {
-              return renderArticleItem(db, article);
-            })
-          : [D.Text.P({ attrs: { class: 'empty-message' } }, [
-              t('knowledge.empty', 'لا توجد مقالات')
-            ])]
-      )
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('profile.timeline', null, null, null),
+        posts.length
+          ? posts.map(function(post) { return renderPostCard(db, post); })
+          : D.Text.P({}, [t('profile.timeline.empty')])
+      ])
+    ]);
+  }
+
+  function renderProfileSwitcher(db) {
+    var users = db.data.users || [];
+    if (!users.length) return null;
+    return D.Containers.Div({ attrs: { class: 'profile-switcher' } }, users.map(function(user) {
+      var active = db.state.activeUserId === user.user_id;
+      return D.Forms.Button({
+        attrs: {
+          class: 'profile-chip' + (active ? ' active' : ''),
+          'data-m-gkey': 'profile-select',
+          'data-user-id': user.user_id
+        }
+      }, [resolveUserName(user)]);
+    }));
+  }
+
+  function renderPostOverlay(db) {
+    var overlay = db.state.postOverlay;
+    if (!overlay || !overlay.open) return null;
+    var posts = db.data.posts || [];
+    var post = findById(posts, 'post_id', overlay.postId);
+    if (!post) return null;
+    var user = findById(db.data.users || [], 'user_id', post.user_id);
+    var userName = resolveUserName(user);
+    var avatar = (user && user.avatar_url) || 'https://i.pravatar.cc/120?img=24';
+    var comments = (db.data.comments || []).filter(function(comment) {
+      return comment && comment.post_id === post.post_id;
+    });
+    var commentList = comments.length
+      ? comments.map(function(comment) {
+          var commenter = findById(db.data.users || [], 'user_id', comment.user_id);
+          return D.Containers.Div({ attrs: { class: 'comment-row', key: comment.comment_id } }, [
+            D.Text.Span({ attrs: { class: 'comment-author' } }, [resolveUserName(commenter)]),
+            D.Text.Span({ attrs: { class: 'comment-text' } }, [getLocalizedField(comment, 'content', '')])
+          ]);
+        })
+      : [D.Text.P({ attrs: { class: 'comment-empty' } }, [t('post.overlay.empty')])];
+    var langContent = getLocalizedField(post, 'content', '');
+
+    return D.Containers.Div({
+      attrs: { class: 'post-overlay', 'data-m-gkey': 'post-close' }
+    }, [
+      D.Containers.Div({ attrs: { class: 'post-overlay-panel', 'data-m-gkey': 'post-overlay-inner' } }, [
+        D.Containers.Div({ attrs: { class: 'feed-header' } }, [
+          D.Media.Img({ attrs: { class: 'feed-avatar', src: avatar, alt: userName } }, []),
+          D.Containers.Div({ attrs: { class: 'feed-user' } }, [
+            D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
+            D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
+              t('post.type.' + (post.post_type || 'plain'), post.post_type || 'post'),
+              ' · ',
+              new Date(post.created_at).toLocaleString()
+            ])
+          ]),
+          D.Forms.Button({ attrs: { class: 'composer-close', 'data-m-gkey': 'post-close' } }, ['✕'])
+        ]),
+        D.Text.P({ attrs: { class: 'feed-content' } }, [langContent]),
+        D.Containers.Div({ attrs: { class: 'feed-stats overlay-stats' } }, [
+          D.Text.Span({}, ['👁️ ', String(post.views_count || 0)]),
+          D.Text.Span({}, ['💬 ', String(post.comments_count || 0)]),
+          D.Text.Span({}, ['❤️ ', String(post.likes_count || 0)]),
+          D.Text.Span({}, ['🔁 ', String(post.shares_count || 0)])
+        ]),
+        D.Containers.Div({ attrs: { class: 'overlay-actions' } }, [
+          D.Forms.Button({
+            attrs: { class: 'chip', 'data-m-gkey': 'post-like', 'data-post-id': post.post_id }
+          }, ['❤️ ', t('post.action.like')]),
+          D.Forms.Button({
+            attrs: { class: 'chip', 'data-m-gkey': 'post-share', 'data-post-id': post.post_id }
+          }, ['🔁 ', t('post.action.share')]),
+          D.Forms.Button({
+            attrs: { class: 'chip', 'data-m-gkey': 'post-subscribe', 'data-post-id': post.post_id }
+          }, ['🔔 ', t('post.action.subscribe')])
+        ]),
+        D.Text.H4({}, [t('post.overlay.comments')]),
+        D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList)
+      ])
     ]);
   }
 
@@ -669,11 +1303,11 @@
       D.Forms.Button({
         attrs: {
           'data-m-gkey': 'nav-home',
-          class: 'nav-item' + (currentSection === 'home' ? ' active' : '')
+          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.home', 'الرئيسية')])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
       ]),
       D.Forms.Button({
         attrs: {
@@ -682,7 +1316,7 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛒']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.marketplace', 'المتجر')])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.marketplace')])
       ]),
       D.Forms.Button({
         attrs: {
@@ -691,7 +1325,7 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🔧']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.services', 'الخدمات')])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.services')])
       ]),
       D.Forms.Button({
         attrs: {
@@ -700,7 +1334,7 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['📚']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.knowledge', 'المعرفة')])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.knowledge')])
       ]),
       D.Forms.Button({
         attrs: {
@@ -709,7 +1343,7 @@
         }
       }, [
         D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile', 'الملف')])
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
       ])
     ]);
   }
@@ -740,25 +1374,27 @@
         sectionView = renderKnowledge(db);
         break;
       case 'profile':
-        sectionView = D.Containers.Div({ attrs: { class: 'section' } }, [
-          D.Text.H2({}, [t('nav.profile', 'الملف الشخصي')])
-        ]);
+        sectionView = renderProfile(db);
         break;
-      case 'home':
+      case 'timeline':
       default:
-        sectionView = renderHome(db);
+        sectionView = renderTimeline(db);
     }
 
-    return D.Containers.Div({ attrs: { class: 'app-container' } }, [
-      renderHeader(db),
-      D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
-      renderBottomNav(db)
+    return D.Containers.Div({ attrs: { class: 'screen-bg' } }, [
+      D.Containers.Div({ attrs: { class: 'app-shell' } }, [
+        renderNotice(db),
+        renderHeader(db),
+        D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
+        renderBottomNav(db),
+        renderPostOverlay(db)
+      ].filter(Boolean))
     ]);
   }
 
   // ================== EVENT HANDLERS (ORDERS) ==================
   var orders = {
-    'nav.home': {
+    'nav.timeline': {
       on: ['click'],
       gkeys: ['nav-home'],
       handler: function(event, ctx) {
@@ -766,7 +1402,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'home' }),
+            state: Object.assign({}, db.state, { currentSection: 'timeline' }),
             data: db.data
           };
         });
@@ -865,10 +1501,11 @@
           return {
             env: newEnv,
             meta: db.meta,
-            state: db.state,
+            state: Object.assign({}, db.state, { loading: true, error: null }),
             data: db.data
           };
         });
+        setTimeout(initRealtime, 0);
       }
     },
 
@@ -908,6 +1545,23 @@
       }
     },
 
+    'filter.category.chip': {
+      on: ['click'],
+      gkeys: ['category-chip'],
+      handler: function(event, ctx) {
+        var categoryValue = event.currentTarget && event.currentTarget.getAttribute('data-value') || '';
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: Object.assign({}, db.state.filters, { category: categoryValue })
+            }),
+            data: db.data
+          };
+        });
+      }
+    },
     'filter.condition': {
       on: ['change'],
       gkeys: ['condition-filter'],
@@ -926,6 +1580,100 @@
       }
     },
 
+    'filter.condition.chip': {
+      on: ['click'],
+      gkeys: ['condition-chip'],
+      handler: function(event, ctx) {
+        var conditionValue = event.currentTarget && event.currentTarget.getAttribute('data-value') || '';
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: Object.assign({}, db.state.filters, { condition: conditionValue })
+            }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'composer.open': {
+      on: ['click'],
+      gkeys: ['composer-open'],
+      handler: function(event, ctx) {
+        applyComposerState(ctx, function(current) {
+          return Object.assign({}, current, { open: true, error: null });
+        });
+      }
+    },
+    'composer.close': {
+      on: ['click'],
+      gkeys: ['composer-close'],
+      handler: function(event, ctx) {
+        applyComposerState(ctx, { open: false, posting: false });
+      }
+    },
+    'composer.text': {
+      on: ['input'],
+      gkeys: ['composer-text'],
+      handler: function(event, ctx) {
+        var value = event.target.value;
+        applyComposerState(ctx, { text: value });
+      }
+    },
+    'composer.type': {
+      on: ['change'],
+      gkeys: ['composer-type'],
+      handler: function(event, ctx) {
+        var value = event.target.value || 'plain';
+        applyComposerState(ctx, { type: value, targetId: '' });
+      }
+    },
+    'composer.target': {
+      on: ['change'],
+      gkeys: ['composer-target'],
+      handler: function(event, ctx) {
+        var value = event.target.value || '';
+        applyComposerState(ctx, { targetId: value });
+      }
+    },
+    'composer.media': {
+      on: ['input'],
+      gkeys: ['composer-media'],
+      handler: function(event, ctx) {
+        applyComposerState(ctx, { media: event.target.value });
+      }
+    },
+    'composer.submit': {
+      on: ['click'],
+      gkeys: ['composer-submit'],
+      handler: function(event, ctx) {
+        handleComposerSubmit(ctx);
+      }
+    },
+    'profile.select': {
+      on: ['click'],
+      gkeys: ['profile-select'],
+      handler: function(event, ctx) {
+        var userId = event.currentTarget && event.currentTarget.getAttribute('data-user-id');
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { activeUserId: userId || db.state.activeUserId }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'profile.message': {
+      on: ['click'],
+      gkeys: ['profile-message'],
+      handler: function() {
+        console.info('[SBN PWA] message action tapped');
+      }
+    },
+
     'retry.load': {
       on: ['click'],
       gkeys: ['retry'],
@@ -940,16 +1688,82 @@
         });
         initRealtime();
       }
+    },
+
+    'post.open': {
+      on: ['click'],
+      gkeys: ['post-open'],
+      handler: function(event, ctx) {
+        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        if (!postId) return;
+        setPostOverlay(ctx, { open: true, postId });
+      }
+    },
+
+    'post.close': {
+      on: ['click'],
+      gkeys: ['post-close'],
+      handler: function(event, ctx) {
+        event.stopPropagation();
+        setPostOverlay(ctx, { open: false, postId: null });
+      }
+    },
+
+    'post.overlay.inner': {
+      on: ['click'],
+      gkeys: ['post-overlay-inner'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+
+    'post-like': {
+      on: ['click'],
+      gkeys: ['post-like'],
+      handler: function(event, ctx) {
+        event.stopPropagation();
+        showNotice(ctx, t('post.action.like') + ' ✓');
+      }
+    },
+
+    'post-share': {
+      on: ['click'],
+      gkeys: ['post-share'],
+      handler: function(event, ctx) {
+        event.stopPropagation();
+        showNotice(ctx, t('post.action.share') + ' ✓');
+      }
+    },
+
+    'post-subscribe': {
+      on: ['click'],
+      gkeys: ['post-subscribe'],
+      handler: function(event, ctx) {
+        event.stopPropagation();
+        showNotice(ctx, t('post.action.subscribe') + ' ✓');
+      }
     }
   };
 
   // ================== INITIALIZATION ==================
   var app = null;
 
+  function disposeRealtime() {
+    if (realtime && typeof realtime.disconnect === 'function') {
+      try {
+        realtime.disconnect();
+      } catch (err) {
+        console.warn('[SBN PWA] Failed to dispose realtime store', err);
+      }
+    }
+    realtime = null;
+  }
+
   /**
    * Initialize realtime connection
    */
   function initRealtime() {
+    disposeRealtime();
     if (typeof global.createDBAuto !== 'function') {
       console.warn('[SBN PWA] createDBAuto not available, using mock data mode');
       // Mark as loaded with empty data
@@ -967,7 +1781,10 @@
     }
 
     // Fetch schema first (using query parameters, not path)
-    var schemaUrl = '/api/schema?branch=' + encodeURIComponent(BRANCH_ID) +
+    var baseDomain = typeof global.basedomain === 'string' && global.basedomain.trim()
+      ? global.basedomain.trim().replace(/\/+$/, '')
+      : '';
+    var schemaUrl = (baseDomain || '') + '/api/schema?branch=' + encodeURIComponent(BRANCH_ID) +
                     '&module=' + encodeURIComponent(MODULE_ID);
 
     fetch(schemaUrl, { cache: 'no-store' })
@@ -993,7 +1810,9 @@
           historyLimit: 200,
           autoReconnect: true,
           logger: console,
-          lang: (app && app.database && app.database.env) ? app.database.env.lang : initialDatabase.env.lang
+          lang: (app && app.database && app.database.env) ? app.database.env.lang : initialDatabase.env.lang,
+          defaultLang: 'ar',
+          includeLangMeta: true
         });
 
         return realtime.ready().then(function() {
@@ -1012,7 +1831,7 @@
                   env: db.env,
                   meta: db.meta,
                   state: Object.assign({}, db.state, {
-                    error: t('error.connection', 'انقطع الاتصال بقاعدة البيانات')
+                    error: t('error.connection')
                   }),
                   data: db.data
                 };
@@ -1039,7 +1858,7 @@
               meta: db.meta,
               state: Object.assign({}, db.state, {
                 loading: false,
-                error: t('error.init', 'فشل الاتصال بالخادم')
+                error: t('error.init')
               }),
               data: db.data
             };

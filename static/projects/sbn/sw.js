@@ -204,7 +204,7 @@ self.addEventListener('push', (event) => {
   console.log('[SW v2.0] Push notification received');
 
   const data = event.data ? event.data.json() : {};
-  const title = data.title || 'مستعمل حوا';
+  const title = data.title || 'مستعمل حواء';
   const options = {
     body: data.body || 'لديك إشعار جديد',
     icon: '/projects/sbn/icons/icon-192x192.png',

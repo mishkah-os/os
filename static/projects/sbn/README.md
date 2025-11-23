@@ -1,4 +1,4 @@
-# مستعمل حوا (Mostamal Hawa) PWA
+# مستعمل حواء (Mostamal Hawa) PWA
 
 **بسم الله الرحمن الرحيم**
 
@@ -134,7 +134,7 @@ orders: {
 
 ```javascript
 {
-  'app.name': { ar: 'مستعمل حوا', en: 'Mostamal Hawa' },
+  'app.name': { ar: 'مستعمل حواء', en: 'Mostamal Hawa' },
   'nav.home': { ar: 'الرئيسية', en: 'Home' },
   // ... 400+ label
 }
