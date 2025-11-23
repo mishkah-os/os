@@ -13,6 +13,8 @@
       href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap"
       rel="stylesheet"
     />
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
       :root {
         color-scheme: dark;
@@ -65,6 +67,15 @@
           const BRANCH_ID = params.get('branch') || params.get('branchId') || 'aqar';
           const MODULE_ID = params.get('module') || params.get('moduleId') || 'brocker';
 
+          // Get language from preferences
+          let currentLang = 'ar';
+          try {
+            const prefs = JSON.parse(localStorage.getItem('brocker:prefs:v2') || '{}');
+            currentLang = prefs.lang || 'ar';
+          } catch (e) {
+            currentLang = 'ar';
+          }
+
           // Fetch schema
           console.log('📡 [Brocker v2] Fetching schema from /api/schema...');
           const schemaParams = new URLSearchParams({
@@ -87,6 +98,7 @@
           // Define tables to watch
           const tables = [
             'listings',
+            'listings_lang',
             'regions',
             'brokers',
             'units',
@@ -104,6 +116,7 @@
             branchId: BRANCH_ID,
             moduleId: MODULE_ID,
             role: 'brocker-v2',
+            lang: currentLang,
             autoReconnect: true,
             historyLimit: 200,
             logger: console

@@ -276,20 +276,12 @@
         var newLang = state.lang === 'ar' ? 'en' : 'ar';
         var newDir = newLang === 'ar' ? 'rtl' : 'ltr';
 
-        var newState = {
-          lang: newLang,
-          dir: newDir
-        };
-
         // Save preferences
         savePrefs({ lang: newLang, dir: newDir, theme: state.theme });
 
-        // Update state (will trigger WebSocket reconnect with new lang)
-        ctx.setState(function (prev) {
-          var updated = Object.assign({}, prev, newState);
-          syncDocumentEnv(updated);
-          return updated;
-        });
+        // Reload page to reconnect with new language
+        // This ensures the backend sends data with correct translations
+        global.location.reload();
       }
     },
 
