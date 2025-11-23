@@ -295,7 +295,7 @@
       },
       expoPassTicket:{ canonical:'expo_pass_ticket', aliases:['expo_pass_tickets','expo_tickets','expoPassTickets'] },
       kitchenSection:{ canonical:'kitchen_section', aliases:['kitchen_sections','kitchenStations'] },
-      diningTable:{ canonical:'dining_table', aliases:['tables','dining_tables','restaurant_tables'] },
+      diningTable:{ canonical:'dining_tables', aliases:['tables','dining_tables','restaurant_tables'] },
       tableLock:{ canonical:'table_lock', aliases:['table_locks','locks','tableLocks'] },
       customerProfile:{ canonical:'customer_profile', aliases:['customer_profiles','customers','customerProfiles'] },
       customerAddress:{ canonical:'customer_address', aliases:['customer_addresses','addresses','customerAddresses'] }
@@ -4048,7 +4048,7 @@
       return header;
     }
 
-    // ✅ [POS V2] Sanitize dining_table row from WebSocket
+    // ✅ [POS V2] Sanitize dining_tables row from WebSocket
     function sanitizeDiningTableRow(row){
       if(!row) return null;
       const id = row.id ?? row.table_id;
@@ -4740,7 +4740,7 @@
       const store = realtimeTables.store;
 
       // Register table names (canonical names matching backend)
-      const diningTableName = 'dining_table';
+      const diningTableName = 'dining_tables';
       const tableLockName = 'table_lock';
 
       const registeredObjects = Object.keys(store.config?.objects || {});
@@ -4750,7 +4750,7 @@
         if(!registeredObjects.includes(diningTableName)){
           console.log('[POS][installRealtimeTableWatchers] Registering:', diningTableName);
           try {
-            store.register(diningTableName, { table: 'dining_table' });
+            store.register(diningTableName, { table: 'dining_tables' });
           } catch(err) {
             console.warn('[POS][installRealtimeTableWatchers] Failed to register', diningTableName, err);
           }
@@ -4782,8 +4782,8 @@
 
           const fetchedTables = snapshot.tables || {};
 
-          // Process dining_table
-          const tableRows = Array.isArray(fetchedTables.dining_table) ? fetchedTables.dining_table : [];
+          // Process dining_tables
+          const tableRows = Array.isArray(fetchedTables.dining_tables) ? fetchedTables.dining_tables : [];
           const tablesMap = new Map();
           tableRows.forEach(row=>{
             const normalized = sanitizeDiningTableRow(row);
@@ -4836,7 +4836,7 @@
         });
         realtimeTables.tables = tablesMap;
         const afterCount = tablesMap.size;
-        console.log('[POS][WATCH][dining_table]', {
+        console.log('[POS][WATCH][dining_tables]', {
           count: (rows || []).length,
           before: beforeCount,
           after: afterCount,
@@ -8165,16 +8165,40 @@
             // Update table_lock in backend via WebSocket (for multi-device sync)
             if(window.__POS_DB__ && typeof window.__POS_DB__.update === 'function'){
               const store = window.__POS_DB__;
+              const tableLocksInDatabase = (typeof window !== 'undefined' && window.database && Array.isArray(window.database.table_lock))
+                ? window.database.table_lock
+                : [];
+
               tableLockUpdates.forEach(lock=>{
                 if(lock.orderId === orderPayload.id && !lock.active){
+                  // ✅ CRITICAL: Get current lock from database to get latest version
+                  const existingLock = tableLocksInDatabase.find(l => String(l.id) === String(lock.id));
+                  const currentVersion = existingLock?.version || lock.version || 1;
+                  const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+                  if(!Number.isFinite(nextVersion) || nextVersion < 1){
+                    console.error('[POS V2] ❌ Cannot update table_lock without valid version!', {
+                      lockId: lock.id,
+                      currentVersion,
+                      nextVersion
+                    });
+                    return;  // Skip this lock - cannot update without version
+                  }
+
+                  const updatePayload = {
+                    ...lock,
+                    version: nextVersion  // ✅ REQUIRED: version for optimistic locking
+                  };
+
                   // Update in backend (will broadcast to all devices)
-                  store.update('table_lock', lock).catch(err=>{
+                  store.update('table_lock', updatePayload).catch(err=>{
                     console.warn('[POS V2] Failed to update table_lock in backend:', err);
                   });
                   console.log('[POS V2] ✅ Released table lock via WebSocket:', {
                     lockId: lock.id,
                     tableId: lock.tableId,
-                    orderId: lock.orderId
+                    orderId: lock.orderId,
+                    version: `v${currentVersion}→v${nextVersion}`
                   });
                 }
               });
