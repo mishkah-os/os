@@ -1,6 +1,6 @@
 {
   "name": "sbn_schema",
-  "title": "مستعمل حوا - Social Business Network",
+  "title": "مستعمل حواء - Social Business Network",
   "description": "Complete schema for Mostamal Hawa platform: marketplace, services, knowledge/wiki, and social networking. Supports i18n with separate translation tables.",
   "schema": {
     "tables": [
