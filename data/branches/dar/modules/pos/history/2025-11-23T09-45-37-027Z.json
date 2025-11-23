@@ -1,88 +1,494 @@
 {
+  "moduleId": "pos",
+  "branchId": "dar",
   "version": 1,
-  "meta": {
-    "branchId": "dar",
-    "moduleId": "pos",
-    "counter": 0,
-    "labCounter": 0
-  },
   "tables": {
-    "settings": {
-      "tax_rate": 0.14,
-      "service_charge_rate": 0.12,
-      "default_delivery_fee": 30,
-      "currency": {
-        "code": "EGP",
-        "display": "symbol",
-        "name": {
-          "en": "Egyptian Pound",
-          "ar": "الجنيه المصري"
+    "pos_database": [
+      {
+        "branchId": "dar",
+        "createdAt": "2025-11-23T09:43:09.774Z",
+        "id": "id-545191d1-8752-4e58-a3d0-a476db421325",
+        "payload": {},
+        "updatedAt": "2025-11-23T09:43:09.775Z",
+        "orders": [],
+        "shifts": [],
+        "orderLines": [],
+        "orderNotes": [],
+        "orderStatusLogs": [],
+        "posMeta": [],
+        "syncLog": []
+      }
+    ],
+    "pos_terminal": [],
+    "employees": [
+      {
+        "allowedDiscountRate": 0.1,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "email": null,
+        "fullName": "أحمد محمود",
+        "hiredAt": "2025-11-23T09:43:09.775Z",
+        "id": "e7a8f0b4",
+        "phone": null,
+        "pinCode": "1122",
+        "role": "cashier",
+        "status": "active",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
+        "pin_code": "1122",
+        "full_name": "أحمد محمود",
+        "allowed_discount_rate": 0.1
+      },
+      {
+        "allowedDiscountRate": 0.1,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "email": null,
+        "fullName": "سارة علي",
+        "hiredAt": "2025-11-23T09:43:09.775Z",
+        "id": "f3c9d8e1",
+        "phone": null,
+        "pinCode": "3344",
+        "role": "cashier",
+        "status": "active",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
+        "pin_code": "3344",
+        "full_name": "سارة علي",
+        "allowed_discount_rate": 0.1
+      },
+      {
+        "allowedDiscountRate": 0.25,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "email": null,
+        "fullName": "خالد إبراهيم",
+        "hiredAt": "2025-11-23T09:43:09.775Z",
+        "id": "a1b2c3d4",
+        "phone": null,
+        "pinCode": "9999",
+        "role": "manager",
+        "status": "active",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
+        "pin_code": "9999",
+        "full_name": "خالد إبراهيم",
+        "allowed_discount_rate": 0.25
+      },
+      {
+        "allowedDiscountRate": 0,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "email": null,
+        "fullName": "فاطمة حسن",
+        "hiredAt": "2025-11-23T09:43:09.775Z",
+        "id": "b5c6d7e8",
+        "phone": null,
+        "pinCode": "5566",
+        "role": "kitchen_staff",
+        "status": "active",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
+        "pin_code": "5566",
+        "full_name": "فاطمة حسن",
+        "allowed_discount_rate": 0
+      },
+      {
+        "allowedDiscountRate": 0,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "email": null,
+        "fullName": "يوسف كريم",
+        "hiredAt": "2025-11-23T09:43:09.775Z",
+        "id": "c9d0e1f2",
+        "phone": null,
+        "pinCode": "7788",
+        "role": "delivery_driver",
+        "status": "active",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
+        "pin_code": "7788",
+        "full_name": "يوسف كريم",
+        "allowed_discount_rate": 0
+      }
+    ],
+    "pos_shift": [],
+    "shift_cash_audit": [],
+    "shift_payment_summary": [],
+    "order_types": [
+      {
+        "allowsFinalizeLater": true,
+        "allowsLineAdditions": true,
+        "allowsReturns": true,
+        "allowsSave": true,
+        "id": "dine_in",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "workflow": "multi-step",
+        "type_name": {
+          "en": "Dine-in",
+          "ar": "صالة"
         },
-        "symbols": {
-          "en": "E£",
-          "ar": "ج.م"
+        "description": {
+          "en": "Table service orders managed inside the restaurant.",
+          "ar": "طلبات الصالة التي تُدار داخل المطعم."
+        },
+        "allows_save": true,
+        "allows_finalize_later": true,
+        "allows_line_additions": true,
+        "allows_returns": true
+      },
+      {
+        "allowsFinalizeLater": false,
+        "allowsLineAdditions": false,
+        "allowsReturns": false,
+        "allowsSave": false,
+        "id": "delivery",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "workflow": "single-step",
+        "type_name": {
+          "en": "Delivery",
+          "ar": "دليفري"
+        },
+        "description": {
+          "en": "Orders delivered to customers with a single-step closure.",
+          "ar": "طلبات التوصيل التي تُغلق في خطوة واحدة."
+        },
+        "allows_save": false,
+        "allows_finalize_later": false,
+        "allows_line_additions": false,
+        "allows_returns": false
+      },
+      {
+        "allowsFinalizeLater": false,
+        "allowsLineAdditions": false,
+        "allowsReturns": false,
+        "allowsSave": false,
+        "id": "takeaway",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "workflow": "single-step",
+        "type_name": {
+          "en": "Takeaway",
+          "ar": "تيك أواي"
+        },
+        "description": {
+          "en": "Counter pickup orders paid on capture.",
+          "ar": "طلبات التيك أواي تُدفع وتُغلق في نفس الخطوة."
+        },
+        "allows_save": false,
+        "allows_finalize_later": false,
+        "allows_line_additions": false,
+        "allows_returns": false
+      }
+    ],
+    "order_statuses": [
+      {
+        "id": "open",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "Open",
+          "ar": "مفتوح"
         }
       },
-      "sync": {
-        "branch_id": "branch-main",
-        "branch_name": {
-          "ar": "الفرع الرئيسي",
-          "en": "Main branch"
-        },
-        "channel": "branch-main",
-        "ws_endpoint": "/ws",
-        "http_endpoint": "/api/branches/branch-main/modules/pos/events",
-        "token": null,
-        "central_only": false,
-        "allow_indexeddb_fallback": true
+      {
+        "id": "held",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "On Hold",
+          "ar": "معلّق"
+        }
+      },
+      {
+        "id": "finalized",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "Finalized",
+          "ar": "منتهي"
+        }
+      },
+      {
+        "id": "closed",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "Closed",
+          "ar": "مغلق"
+        }
       }
-    },
-    "shift_settings": {
-      "opening_float": 500,
-      "pin": "2580",
-      "pin_length": 4
-    },
+    ],
+    "order_stages": [
+      {
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "id": "new",
+        "lockLineEdits": false,
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 1,
+        "stage_name": {
+          "en": "New",
+          "ar": "جديد"
+        },
+        "description": {
+          "en": "Order is created and waiting to be sent to the kitchen.",
+          "ar": "تم إنشاء الطلب وينتظر الإرسال إلى المطبخ."
+        },
+        "lock_line_edits": false
+      },
+      {
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "id": "preparing",
+        "lockLineEdits": true,
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 2,
+        "stage_name": {
+          "en": "Preparing",
+          "ar": "جاري التجهيز"
+        },
+        "description": {
+          "en": "Kitchen started preparing the order items.",
+          "ar": "المطبخ بدأ في تجهيز أصناف الطلب."
+        },
+        "lock_line_edits": true
+      },
+      {
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "id": "prepared",
+        "lockLineEdits": true,
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 3,
+        "stage_name": {
+          "en": "Prepared",
+          "ar": "تم التجهيز"
+        },
+        "description": {
+          "en": "Items are ready and waiting for dispatch.",
+          "ar": "الأصناف جاهزة وتنتظر التسليم."
+        },
+        "lock_line_edits": true
+      },
+      {
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "id": "delivering",
+        "lockLineEdits": true,
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 4,
+        "stage_name": {
+          "en": "Delivering",
+          "ar": "جاري التسليم"
+        },
+        "description": {
+          "en": "Order is on the way to the guest.",
+          "ar": "الطلب في الطريق إلى العميل."
+        },
+        "lock_line_edits": true
+      },
+      {
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "id": "delivered",
+        "lockLineEdits": true,
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 5,
+        "stage_name": {
+          "en": "Delivered",
+          "ar": "تم التسليم"
+        },
+        "description": {
+          "en": "Order was delivered or served.",
+          "ar": "تم تسليم الطلب أو تقديمه."
+        },
+        "lock_line_edits": true
+      },
+      {
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "id": "paid",
+        "lockLineEdits": true,
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 6,
+        "stage_name": {
+          "en": "Paid",
+          "ar": "تم الدفع"
+        },
+        "description": {
+          "en": "Payment has been captured for the order.",
+          "ar": "تم تحصيل قيمة الطلب."
+        },
+        "lock_line_edits": true
+      },
+      {
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "id": "closed",
+        "lockLineEdits": true,
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 7,
+        "stage_name": {
+          "en": "Closed",
+          "ar": "تم الإغلاق"
+        },
+        "description": {
+          "en": "Order was audited and closed after shift end.",
+          "ar": "تمت مراجعة الطلب وإغلاقه بعد نهاية الوردية."
+        },
+        "lock_line_edits": true
+      }
+    ],
+    "order_payment_state": [
+      {
+        "id": "unpaid",
+        "nameAr": "",
+        "nameEn": "",
+        "payment_name": {
+          "en": "Unpaid",
+          "ar": "غير مدفوع"
+        }
+      },
+      {
+        "id": "partial",
+        "nameAr": "",
+        "nameEn": "",
+        "payment_name": {
+          "en": "Partially Paid",
+          "ar": "مدفوع جزئيًا"
+        }
+      },
+      {
+        "id": "paid",
+        "nameAr": "",
+        "nameEn": "",
+        "payment_name": {
+          "en": "Paid",
+          "ar": "مدفوع"
+        }
+      }
+    ],
+    "order_line_statuses": [
+      {
+        "id": "draft",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "Draft",
+          "ar": "مسودة"
+        }
+      },
+      {
+        "id": "queued",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "Queued",
+          "ar": "بانتظار التحضير"
+        }
+      },
+      {
+        "id": "preparing",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "Preparing",
+          "ar": "جاري التحضير"
+        }
+      },
+      {
+        "id": "ready",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "Ready",
+          "ar": "جاهز"
+        }
+      },
+      {
+        "id": "served",
+        "nameAr": "",
+        "nameEn": "",
+        "sequence": 0,
+        "status_name": {
+          "en": "Served",
+          "ar": "مُقدّم"
+        }
+      }
+    ],
     "payment_methods": [
       {
-        "id": "1a5b8418-88aa-47b2-a106-f2318e68dd9a",
         "icon": "📱",
+        "id": "1a5b8418-88aa-47b2-a106-f2318e68dd9a",
+        "isActive": true,
+        "nameAr": "",
+        "nameEn": "",
+        "requiresReference": false,
+        "type": "wallet",
         "name": {
           "ar": "انستا",
           "en": "insta"
-        },
-        "type": "wallet"
+        }
       },
       {
-        "id": "4d3c1d65-4620-4421-8782-c008f2a3e857",
         "icon": "💳",
+        "id": "4d3c1d65-4620-4421-8782-c008f2a3e857",
+        "isActive": true,
+        "nameAr": "",
+        "nameEn": "",
+        "requiresReference": false,
+        "type": "card",
         "name": {
           "ar": "فيزا",
           "en": "visa"
-        },
-        "type": "card"
+        }
       },
       {
-        "id": "608b58a4-8f49-4d65-9f01-889d79f27350",
         "icon": "📱",
+        "id": "608b58a4-8f49-4d65-9f01-889d79f27350",
+        "isActive": true,
+        "nameAr": "",
+        "nameEn": "",
+        "requiresReference": false,
+        "type": "wallet",
         "name": {
           "ar": "محفظة إلكترونية ",
           "en": "wallet"
-        },
-        "type": "wallet"
+        }
       },
       {
-        "id": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59",
         "icon": "💵",
+        "id": "80a08ac7-1dd5-46d6-ac96-45ca3b75ae59",
+        "isActive": true,
+        "nameAr": "",
+        "nameEn": "",
+        "requiresReference": false,
+        "type": "cash",
         "name": {
           "ar": "نقدا",
           "en": "cash"
-        },
-        "type": "cash"
+        }
       }
     ],
     "kitchen_sections": [
       {
+        "descriptionAr": null,
+        "descriptionEn": null,
         "id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "sortOrder": 0,
         "section_name": {
           "en": "Hot Line",
           "ar": "شاشة السخن"
@@ -93,7 +499,12 @@
         }
       },
       {
+        "descriptionAr": null,
+        "descriptionEn": null,
         "id": "34476cab-abec-47fc-ac37-34faa4ab4092",
+        "nameAr": "",
+        "nameEn": "",
+        "sortOrder": 0,
         "section_name": {
           "en": "Buffet & Drinks",
           "ar": "شاشة البوفيه"
@@ -104,7 +515,12 @@
         }
       },
       {
+        "descriptionAr": null,
+        "descriptionEn": null,
         "id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "sortOrder": 0,
         "section_name": {
           "en": "Mandi & Kabsa",
           "ar": "شاشه المندي"
@@ -115,7 +531,12 @@
         }
       },
       {
+        "descriptionAr": null,
+        "descriptionEn": null,
         "id": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "sortOrder": 0,
         "section_name": {
           "en": "Grill Station",
           "ar": "شاشة المشاوي"
@@ -126,462 +547,14 @@
         }
       }
     ],
-    "category_sections": [
-      {
-        "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
-        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
-      },
-      {
-        "category_id": "17E1117979A94AEC93B71C80ADDF1561",
-        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
-      },
-      {
-        "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
-        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
-      },
-      {
-        "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
-        "section_id": "34476cab-abec-47fc-ac37-34faa4ab4092"
-      },
-      {
-        "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
-        "section_id": "c61d5bc4-1429-42b6-b250-f9254a176848"
-      },
-      {
-        "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
-        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
-      },
-      {
-        "category_id": "CF44B6AEE120414796208411A11D82BD",
-        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
-      },
-      {
-        "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
-        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
-      },
-      {
-        "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
-        "section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
-      }
-    ],
-    "order_types": [
-      {
-        "id": "dine_in",
-        "type_name": {
-          "en": "Dine-in",
-          "ar": "صالة"
-        },
-        "description": {
-          "en": "Table service orders managed inside the restaurant.",
-          "ar": "طلبات الصالة التي تُدار داخل المطعم."
-        },
-        "workflow": "multi-step",
-        "allows_save": true,
-        "allows_finalize_later": true,
-        "allows_line_additions": true,
-        "allows_returns": true
-      },
-      {
-        "id": "delivery",
-        "type_name": {
-          "en": "Delivery",
-          "ar": "دليفري"
-        },
-        "description": {
-          "en": "Orders delivered to customers with a single-step closure.",
-          "ar": "طلبات التوصيل التي تُغلق في خطوة واحدة."
-        },
-        "workflow": "single-step",
-        "allows_save": false,
-        "allows_finalize_later": false,
-        "allows_line_additions": false,
-        "allows_returns": false
-      },
-      {
-        "id": "takeaway",
-        "type_name": {
-          "en": "Takeaway",
-          "ar": "تيك أواي"
-        },
-        "description": {
-          "en": "Counter pickup orders paid on capture.",
-          "ar": "طلبات التيك أواي تُدفع وتُغلق في نفس الخطوة."
-        },
-        "workflow": "single-step",
-        "allows_save": false,
-        "allows_finalize_later": false,
-        "allows_line_additions": false,
-        "allows_returns": false
-      }
-    ],
-    "order_statuses": [
-      {
-        "id": "open",
-        "status_name": {
-          "en": "Open",
-          "ar": "مفتوح"
-        }
-      },
-      {
-        "id": "held",
-        "status_name": {
-          "en": "On Hold",
-          "ar": "معلّق"
-        }
-      },
-      {
-        "id": "finalized",
-        "status_name": {
-          "en": "Finalized",
-          "ar": "منتهي"
-        }
-      },
-      {
-        "id": "closed",
-        "status_name": {
-          "en": "Closed",
-          "ar": "مغلق"
-        }
-      }
-    ],
-    "order_payment_states": [
-      {
-        "id": "unpaid",
-        "payment_name": {
-          "en": "Unpaid",
-          "ar": "غير مدفوع"
-        }
-      },
-      {
-        "id": "partial",
-        "payment_name": {
-          "en": "Partially Paid",
-          "ar": "مدفوع جزئيًا"
-        }
-      },
-      {
-        "id": "paid",
-        "payment_name": {
-          "en": "Paid",
-          "ar": "مدفوع"
-        }
-      }
-    ],
-    "order_stages": [
-      {
-        "id": "new",
-        "stage_name": {
-          "en": "New",
-          "ar": "جديد"
-        },
-        "description": {
-          "en": "Order is created and waiting to be sent to the kitchen.",
-          "ar": "تم إنشاء الطلب وينتظر الإرسال إلى المطبخ."
-        },
-        "sequence": 1,
-        "lock_line_edits": false
-      },
-      {
-        "id": "preparing",
-        "stage_name": {
-          "en": "Preparing",
-          "ar": "جاري التجهيز"
-        },
-        "description": {
-          "en": "Kitchen started preparing the order items.",
-          "ar": "المطبخ بدأ في تجهيز أصناف الطلب."
-        },
-        "sequence": 2,
-        "lock_line_edits": true
-      },
-      {
-        "id": "prepared",
-        "stage_name": {
-          "en": "Prepared",
-          "ar": "تم التجهيز"
-        },
-        "description": {
-          "en": "Items are ready and waiting for dispatch.",
-          "ar": "الأصناف جاهزة وتنتظر التسليم."
-        },
-        "sequence": 3,
-        "lock_line_edits": true
-      },
-      {
-        "id": "delivering",
-        "stage_name": {
-          "en": "Delivering",
-          "ar": "جاري التسليم"
-        },
-        "description": {
-          "en": "Order is on the way to the guest.",
-          "ar": "الطلب في الطريق إلى العميل."
-        },
-        "sequence": 4,
-        "lock_line_edits": true
-      },
-      {
-        "id": "delivered",
-        "stage_name": {
-          "en": "Delivered",
-          "ar": "تم التسليم"
-        },
-        "description": {
-          "en": "Order was delivered or served.",
-          "ar": "تم تسليم الطلب أو تقديمه."
-        },
-        "sequence": 5,
-        "lock_line_edits": true
-      },
-      {
-        "id": "paid",
-        "stage_name": {
-          "en": "Paid",
-          "ar": "تم الدفع"
-        },
-        "description": {
-          "en": "Payment has been captured for the order.",
-          "ar": "تم تحصيل قيمة الطلب."
-        },
-        "sequence": 6,
-        "lock_line_edits": true
-      },
-      {
-        "id": "closed",
-        "stage_name": {
-          "en": "Closed",
-          "ar": "تم الإغلاق"
-        },
-        "description": {
-          "en": "Order was audited and closed after shift end.",
-          "ar": "تمت مراجعة الطلب وإغلاقه بعد نهاية الوردية."
-        },
-        "sequence": 7,
-        "lock_line_edits": true
-      }
-    ],
-    "order_line_statuses": [
-      {
-        "id": "draft",
-        "status_name": {
-          "en": "Draft",
-          "ar": "مسودة"
-        }
-      },
-      {
-        "id": "queued",
-        "status_name": {
-          "en": "Queued",
-          "ar": "بانتظار التحضير"
-        }
-      },
-      {
-        "id": "preparing",
-        "status_name": {
-          "en": "Preparing",
-          "ar": "جاري التحضير"
-        }
-      },
-      {
-        "id": "ready",
-        "status_name": {
-          "en": "Ready",
-          "ar": "جاهز"
-        }
-      },
-      {
-        "id": "served",
-        "status_name": {
-          "en": "Served",
-          "ar": "مُقدّم"
-        }
-      }
-    ],
-    "employees": [
-      {
-        "id": "e7a8f0b4",
-        "pin_code": "1122",
-        "full_name": "أحمد محمود",
-        "role": "cashier",
-        "allowed_discount_rate": 0.1
-      },
-      {
-        "id": "f3c9d8e1",
-        "pin_code": "3344",
-        "full_name": "سارة علي",
-        "role": "cashier",
-        "allowed_discount_rate": 0.1
-      },
-      {
-        "id": "a1b2c3d4",
-        "pin_code": "9999",
-        "full_name": "خالد إبراهيم",
-        "role": "manager",
-        "allowed_discount_rate": 0.25
-      },
-      {
-        "id": "b5c6d7e8",
-        "pin_code": "5566",
-        "full_name": "فاطمة حسن",
-        "role": "kitchen_staff",
-        "allowed_discount_rate": 0
-      },
-      {
-        "id": "c9d0e1f2",
-        "pin_code": "7788",
-        "full_name": "يوسف كريم",
-        "role": "delivery_driver",
-        "allowed_discount_rate": 0
-      }
-    ],
-    "tableLocks": [],
-    "reservations": [
-      {
-        "id": "res-001",
-        "customerName": "محمد سامي",
-        "phone": "01000200300",
-        "partySize": 4,
-        "scheduledAt": "2024-02-18T19:00:00Z",
-        "holdUntil": "2024-02-18T19:20:00Z",
-        "tableIds": [
-          "T7"
-        ],
-        "status": "booked",
-        "note": "عيد ميلاد"
-      },
-      {
-        "id": "res-002",
-        "customerName": "Sarah Ahmed",
-        "phone": "01133344455",
-        "partySize": 2,
-        "scheduledAt": "2024-02-18T20:30:00Z",
-        "holdUntil": "2024-02-18T20:50:00Z",
-        "tableIds": [
-          "T5",
-          "T6"
-        ],
-        "status": "booked",
-        "note": "جلسة هادئة"
-      },
-      {
-        "id": "res-003",
-        "customerName": "شركة بريميوم",
-        "phone": "01266677788",
-        "partySize": 10,
-        "scheduledAt": "2024-02-19T13:00:00Z",
-        "holdUntil": "2024-02-19T13:15:00Z",
-        "tableIds": [
-          "T16"
-        ],
-        "status": "seated",
-        "note": "اجتماع عمل"
-      }
-    ],
-    "auditEvents": [
-      {
-        "id": "audit-001",
-        "userId": "a1b2c3d4",
-        "action": "table.state",
-        "refType": "table",
-        "refId": "T19",
-        "at": "2024-02-15T10:00:00Z",
-        "meta": {
-          "state": "disactive"
-        }
-      }
-    ],
-    "delivery_drivers": [
-      {
-        "id": 1,
-        "name": "محمود عبد العزيز",
-        "phone": "01012345678",
-        "vehicle_id": "موتوسيكل - أ ب ج 123"
-      },
-      {
-        "id": 2,
-        "name": "كريم السيد",
-        "phone": "01198765432",
-        "vehicle_id": "موتوسيكل - س ص ع 456"
-      },
-      {
-        "id": 3,
-        "name": "علي حسن",
-        "phone": "01234567890",
-        "vehicle_id": "سيارة - ف ق ل 789"
-      }
-    ],
-    "add_ons": [
-      {
-        "id": 101,
-        "name": {
-          "en": "Extra Mozzarella",
-          "ar": "جبنة موتزاريلا زيادة"
-        },
-        "price_change": 15
-      },
-      {
-        "id": 102,
-        "name": {
-          "en": "Extra Tahini Sauce",
-          "ar": "صوص طحينة إضافي"
-        },
-        "price_change": 8
-      },
-      {
-        "id": 103,
-        "name": {
-          "en": "Extra Roumy Cheese",
-          "ar": "جبنة رومي زيادة"
-        },
-        "price_change": 12
-      },
-      {
-        "id": 104,
-        "name": {
-          "en": "Extra Rice",
-          "ar": "أرز إضافي"
-        },
-        "price_change": 25
-      }
-    ],
-    "removals": [
-      {
-        "id": 201,
-        "name": {
-          "en": "Without Pickles",
-          "ar": "بدون مخلل"
-        },
-        "price_change": 0
-      },
-      {
-        "id": 202,
-        "name": {
-          "en": "Without Onions",
-          "ar": "بدون بصل"
-        },
-        "price_change": 0
-      },
-      {
-        "id": 203,
-        "name": {
-          "en": "Without Tomatoes",
-          "ar": "بدون طماطم"
-        },
-        "price_change": 0
-      }
-    ],
-    "stores": {
-      "orders": [],
-      "shifts": [],
-      "orderLines": [],
-      "orderNotes": [],
-      "orderStatusLogs": [],
-      "posMeta": [],
-      "syncLog": []
-    },
     "menu_categories": [
       {
         "id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "Appetizers",
           "ar": "المقبلات"
@@ -590,6 +563,11 @@
       },
       {
         "id": "17E1117979A94AEC93B71C80ADDF1561",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "Salad",
           "ar": "السلطات"
@@ -598,6 +576,11 @@
       },
       {
         "id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "Casserole",
           "ar": "الطواجن"
@@ -606,6 +589,11 @@
       },
       {
         "id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "Juices and drinks",
           "ar": "عصائر و مشروبات"
@@ -614,6 +602,11 @@
       },
       {
         "id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "Grills",
           "ar": "المشويات"
@@ -622,6 +615,11 @@
       },
       {
         "id": "8B4DD88028014EA3ABFDB1964D82202D",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "Rice and Pasta",
           "ar": "الأرز والمكرونة"
@@ -630,6 +628,11 @@
       },
       {
         "id": "CF44B6AEE120414796208411A11D82BD",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "Soup",
           "ar": "الشورب"
@@ -638,6 +641,11 @@
       },
       {
         "id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "Fattah",
           "ar": "الفتة"
@@ -646,6 +654,11 @@
       },
       {
         "id": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "nameAr": "",
+        "nameEn": "",
+        "sectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "sortOrder": 0,
+        "isActive": true,
         "category_name": {
           "en": "mandy",
           "ar": "المندي"
@@ -653,9 +666,79 @@
         "section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
       }
     ],
+    "category_sections": [
+      {
+        "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+      },
+      {
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "category_id": "17E1117979A94AEC93B71C80ADDF1561",
+        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+      },
+      {
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+      },
+      {
+        "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+        "sectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+        "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+        "section_id": "34476cab-abec-47fc-ac37-34faa4ab4092"
+      },
+      {
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "sectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "section_id": "c61d5bc4-1429-42b6-b250-f9254a176848"
+      },
+      {
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
+        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+      },
+      {
+        "categoryId": "CF44B6AEE120414796208411A11D82BD",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "category_id": "CF44B6AEE120414796208411A11D82BD",
+        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+      },
+      {
+        "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+        "sectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+        "section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e"
+      },
+      {
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "sectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87"
+      }
+    ],
     "menu_items": [
       {
         "id": "04b2b3c7-be56-4066-940f-2675fb740247",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -675,6 +758,20 @@
       },
       {
         "id": "05d98de6-7bb6-48dc-930a-642144514159",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -694,6 +791,20 @@
       },
       {
         "id": "060E11D89BF042D4A89B76EAFB025D01",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -713,6 +824,20 @@
       },
       {
         "id": "09cc9ae6-402c-4cb3-95e8-0c0b0902bb9a",
+        "sku": null,
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
         "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
         "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
         "pricing": {
@@ -732,6 +857,20 @@
       },
       {
         "id": "0ff8cd4a-005b-4a44-9187-c50eaaa84643",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.775Z",
+        "updatedAt": "2025-11-23T09:43:09.775Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -751,6 +890,20 @@
       },
       {
         "id": "157997A151BC4C4CBF40FC0724718662",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -770,6 +923,20 @@
       },
       {
         "id": "17435D48A4A546E696AAAB3B974A9B03",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -789,6 +956,20 @@
       },
       {
         "id": "1ce2e699-9e55-4d4f-86b8-e90a446f385b",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -808,6 +989,20 @@
       },
       {
         "id": "22330C99983E483EA748660133546BB5",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -827,6 +1022,20 @@
       },
       {
         "id": "23a3f9df-d213-4215-9e38-30e6b0d350b5",
+        "sku": null,
+        "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -846,6 +1055,20 @@
       },
       {
         "id": "23EFFEA6AF914C59B27E98C76ED0E350",
+        "sku": null,
+        "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+        "kitchenSectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
         "kitchen_section_id": "34476cab-abec-47fc-ac37-34faa4ab4092",
         "pricing": {
@@ -862,6 +1085,20 @@
       },
       {
         "id": "246299ec-debe-4e9d-9fb9-eb113b6026bc",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -881,6 +1118,20 @@
       },
       {
         "id": "253dcaa6-ddc5-4eea-bdeb-d81e36e25a1b",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -900,6 +1151,20 @@
       },
       {
         "id": "2B51504E5F52442599137563447D56B8",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -919,6 +1184,20 @@
       },
       {
         "id": "2D45E484D3014257B9871C827AAA55E4",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -938,6 +1217,20 @@
       },
       {
         "id": "31A7A1D70788433B87D47CE9BE09BAD0",
+        "sku": null,
+        "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -957,6 +1250,20 @@
       },
       {
         "id": "32ACB7E2BEE54F698D062F93F6860301",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -976,6 +1283,20 @@
       },
       {
         "id": "348393a1-0e12-41a7-9c33-9bd3de2cded4",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -995,6 +1316,20 @@
       },
       {
         "id": "36521D1FCD2248EA95994E2464CEAC3A",
+        "sku": null,
+        "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1011,6 +1346,20 @@
       },
       {
         "id": "41328805-90bd-4bf3-a2e1-6f520f0e2d14",
+        "sku": null,
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
         "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
         "pricing": {
@@ -1030,6 +1379,20 @@
       },
       {
         "id": "4191dee2-2392-4c0a-88e7-9c96a1682df0",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1049,6 +1412,20 @@
       },
       {
         "id": "44600bcc-b0a2-4f45-b934-6f882d444b96",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1068,6 +1445,20 @@
       },
       {
         "id": "484526DA12E24B9690FEF6B1F0590A0B",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1087,6 +1478,20 @@
       },
       {
         "id": "48A3DDD886DD4D81A7862CC9E0187836",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1106,6 +1511,20 @@
       },
       {
         "id": "4B727BCBF0DA472FA156AD7FEB64E084",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1125,6 +1544,20 @@
       },
       {
         "id": "4fc5ffe7-bf87-4c4d-9270-5ad431ffefa2",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1144,6 +1577,20 @@
       },
       {
         "id": "58745ECD28C94B5AB3C2A00423C07443",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1163,6 +1610,20 @@
       },
       {
         "id": "58ACF4ED464A4F7DB3B5D7AF3AB6F378",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1182,6 +1643,20 @@
       },
       {
         "id": "5BBF99B4D9F94B2C8155C3E82E3354A8",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1201,6 +1676,20 @@
       },
       {
         "id": "5E5E982385C1483686493059DFEB265D",
+        "sku": null,
+        "categoryId": "CF44B6AEE120414796208411A11D82BD",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "CF44B6AEE120414796208411A11D82BD",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1220,6 +1709,20 @@
       },
       {
         "id": "60301604-d257-4e4c-8614-995554eea195",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1239,6 +1742,20 @@
       },
       {
         "id": "6094B864B09B4F90912C84A800F886C9",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1258,6 +1775,20 @@
       },
       {
         "id": "64757CC825B347538B008F2DD6CDEAE4",
+        "sku": null,
+        "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+        "kitchenSectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
         "kitchen_section_id": "34476cab-abec-47fc-ac37-34faa4ab4092",
         "pricing": {
@@ -1274,6 +1805,20 @@
       },
       {
         "id": "65AC8F98788B4D0EA70CD8BB2D742910",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1293,6 +1838,20 @@
       },
       {
         "id": "6795dca3-e8a7-4848-bbb5-5fca71ba8135",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1312,6 +1871,20 @@
       },
       {
         "id": "6991e6f7-6c32-40ee-b390-2135f4962945",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1331,6 +1904,20 @@
       },
       {
         "id": "6B747E4E934F477C9C761D59E44E198E",
+        "sku": null,
+        "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1350,6 +1937,20 @@
       },
       {
         "id": "6c03d084-c502-4c44-a5b1-81873a54e1c6",
+        "sku": null,
+        "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1369,6 +1970,20 @@
       },
       {
         "id": "6f7a361b-7879-4449-a8d3-2b02bf4cc904",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1388,6 +2003,20 @@
       },
       {
         "id": "70EBC0110EC74D4F888184504EAF3B27",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1407,6 +2036,20 @@
       },
       {
         "id": "71102800-5e0e-4481-81f9-7e899bbdf735",
+        "sku": null,
+        "categoryId": "CF44B6AEE120414796208411A11D82BD",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "CF44B6AEE120414796208411A11D82BD",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1426,6 +2069,20 @@
       },
       {
         "id": "788A4608818D457090A5F47338062A66",
+        "sku": null,
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
         "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
         "pricing": {
@@ -1445,6 +2102,20 @@
       },
       {
         "id": "7997963C6C62451196AEA351838CF3EB",
+        "sku": null,
+        "categoryId": "CF44B6AEE120414796208411A11D82BD",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "CF44B6AEE120414796208411A11D82BD",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1464,6 +2135,20 @@
       },
       {
         "id": "7A0CC02C7E4849E080D8B6A0B06CB44D",
+        "sku": null,
+        "categoryId": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
+        "kitchenSectionId": "34476cab-abec-47fc-ac37-34faa4ab4092",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "5ecd0660-01ad-4038-8ba6-eef5d77d6254",
         "kitchen_section_id": "34476cab-abec-47fc-ac37-34faa4ab4092",
         "pricing": {
@@ -1480,6 +2165,20 @@
       },
       {
         "id": "7e113265-7545-47f9-9c9e-648a43033a92",
+        "sku": null,
+        "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1499,6 +2198,20 @@
       },
       {
         "id": "7ecdc2b7-c130-4a87-95f6-badf7334bb7e",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1518,6 +2231,20 @@
       },
       {
         "id": "7F398DDAD1A14A1F8A5CC359183BEC2C",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1537,6 +2264,20 @@
       },
       {
         "id": "802EB21D758F4D208068387C61D17D5A",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1556,6 +2297,20 @@
       },
       {
         "id": "8139E5B67DC14D1AA5AB4641C258842E",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1575,6 +2330,20 @@
       },
       {
         "id": "821C5F06C3974635ACD61F046501FBE6",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.776Z",
+        "updatedAt": "2025-11-23T09:43:09.776Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1594,6 +2363,20 @@
       },
       {
         "id": "841F09136E0D4000AE0EE4DA828B44C1",
+        "sku": null,
+        "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1613,6 +2396,20 @@
       },
       {
         "id": "87114fe2-8999-4876-a838-3ef0e97829dc",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1632,6 +2429,20 @@
       },
       {
         "id": "8809a1c4-6711-4971-9a41-730d34b54d2f",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1651,6 +2462,20 @@
       },
       {
         "id": "8A34ECCF3259496D8A9486877B151C3A",
+        "sku": null,
+        "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1670,6 +2495,20 @@
       },
       {
         "id": "8C8F90DA88FB44EEBDDE06D202DC25F8",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1689,6 +2528,20 @@
       },
       {
         "id": "8CDB27CDF9864307B031DEE0C1EB54B7",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1708,6 +2561,20 @@
       },
       {
         "id": "8F1ADDDD66524EBDA47B6F0B6BB43385",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1727,6 +2594,20 @@
       },
       {
         "id": "8F5621FB70864741BA9397B5C0A94049",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1746,6 +2627,20 @@
       },
       {
         "id": "9177079f-d774-4f9e-80e8-bd6f09d30dde",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1765,6 +2660,20 @@
       },
       {
         "id": "9714F3F23ADA4BC2A6A48D1D0293576A",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1784,6 +2693,20 @@
       },
       {
         "id": "97573f85-fa75-4379-a8ae-f342db4f1f0f",
+        "sku": null,
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
         "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
         "pricing": {
@@ -1803,6 +2726,20 @@
       },
       {
         "id": "9a0d0056-00b8-437a-992e-92612dae376c",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1822,6 +2759,20 @@
       },
       {
         "id": "9FFF97AFCA0A4630BA06FA25C071B06E",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1841,6 +2792,20 @@
       },
       {
         "id": "A0C89D2A78DA4F1B9397DF7ED152B69E",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1860,6 +2825,20 @@
       },
       {
         "id": "A665C2A3EE774B4DA918BA8FF80CD5C4",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1879,6 +2858,20 @@
       },
       {
         "id": "a7064cf3-5f56-42c1-bdd4-cfeb86dc4282",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1898,6 +2891,20 @@
       },
       {
         "id": "AA08A6C676674C61818854FE7BDC8A7D",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1917,6 +2924,20 @@
       },
       {
         "id": "ABFDE31A6ABA4F648C8C9C71C224EE0B",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -1936,6 +2957,20 @@
       },
       {
         "id": "add49f5a-fc6b-4dfa-a85d-ac80a4528e63",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1955,6 +2990,20 @@
       },
       {
         "id": "b4621617-258d-42fc-8cc9-0931dde744a0",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -1974,6 +3023,20 @@
       },
       {
         "id": "b4b6918d-1d41-4967-acff-c80821d20972",
+        "sku": null,
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
         "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
         "pricing": {
@@ -1993,6 +3056,20 @@
       },
       {
         "id": "b7993fad-25c0-4c81-996f-2f349c81ede1",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2012,6 +3089,20 @@
       },
       {
         "id": "B9F8D5325B444F7DA4FE19A153EF5E6A",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -2031,6 +3122,20 @@
       },
       {
         "id": "BA5DC617220B4A2DA3C5F01209ED0D30",
+        "sku": null,
+        "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2050,6 +3155,20 @@
       },
       {
         "id": "be49d74d-84cf-4794-aae1-f2b38741c895",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2069,6 +3188,20 @@
       },
       {
         "id": "c5d7f04e-4384-4875-909a-cdcd20351330",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2088,6 +3221,20 @@
       },
       {
         "id": "C5ED8A044DC34C5EAA76487B8CD7030B",
+        "sku": null,
+        "categoryId": "0CDCD17AE3A741D089FA17B8F1EEB57F",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "0CDCD17AE3A741D089FA17B8F1EEB57F",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2107,6 +3254,20 @@
       },
       {
         "id": "c80aecee-6e8d-4086-a3cd-ed5cff577164",
+        "sku": null,
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
         "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
         "pricing": {
@@ -2126,6 +3287,20 @@
       },
       {
         "id": "D16D2B5542034E9CBE92AE1319B4FE9D",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -2145,6 +3320,20 @@
       },
       {
         "id": "d41bb1a6-a7f5-4b8a-8cd3-b6542a60534d",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2164,6 +3353,20 @@
       },
       {
         "id": "D5626B317CDC4AFE947ED855978BB483",
+        "sku": null,
+        "categoryId": "CF44B6AEE120414796208411A11D82BD",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "CF44B6AEE120414796208411A11D82BD",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2183,6 +3386,20 @@
       },
       {
         "id": "d67ecea2-35e1-4f05-b40c-20c6663dd800",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2202,6 +3419,20 @@
       },
       {
         "id": "DD5B87EB346749BFBB1302EC90627EDB",
+        "sku": null,
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
         "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
         "pricing": {
@@ -2221,6 +3452,20 @@
       },
       {
         "id": "DE4AB3233FE24F4B9F400AAE5A55740B",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2240,6 +3485,20 @@
       },
       {
         "id": "E224EA6AF5D24FF6AB9EB2ECBDCAE339",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2259,6 +3518,20 @@
       },
       {
         "id": "ea2e1755-97a5-46e0-896b-483af1b9034b",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2278,6 +3551,20 @@
       },
       {
         "id": "ec9503e7-b069-48b6-85cd-b275fb85d9be",
+        "sku": null,
+        "categoryId": "4AA74FE9AF23457E874FBF53F15DAFD3",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "4AA74FE9AF23457E874FBF53F15DAFD3",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2297,6 +3584,20 @@
       },
       {
         "id": "F0098A17F91448178496215D46249434",
+        "sku": null,
+        "categoryId": "CF44B6AEE120414796208411A11D82BD",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "CF44B6AEE120414796208411A11D82BD",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2316,6 +3617,20 @@
       },
       {
         "id": "f21ff3c0-480a-446f-a806-6d930d3cf6d7",
+        "sku": null,
+        "categoryId": "F9785744F0004F6AB1C108C0E3DE87D4",
+        "kitchenSectionId": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "F9785744F0004F6AB1C108C0E3DE87D4",
         "kitchen_section_id": "67ba4d64-42c0-4f93-90e9-12ded7b70c87",
         "pricing": {
@@ -2335,6 +3650,20 @@
       },
       {
         "id": "f2b4d007-f3d5-4426-963b-b7a189041177",
+        "sku": null,
+        "categoryId": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
+        "kitchenSectionId": "c61d5bc4-1429-42b6-b250-f9254a176848",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "80AAC2AC551B4BFCA39607CE4F0A8CF2",
         "kitchen_section_id": "c61d5bc4-1429-42b6-b250-f9254a176848",
         "pricing": {
@@ -2354,6 +3683,20 @@
       },
       {
         "id": "F47A6741E3584882ADA1EF90CCB7FA55",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2373,6 +3716,20 @@
       },
       {
         "id": "f6f47b3a-b77a-4333-a433-f4187a2ab07a",
+        "sku": null,
+        "categoryId": "ea4c54e8-e140-4283-8890-4cc81bc19663",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "ea4c54e8-e140-4283-8890-4cc81bc19663",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2392,6 +3749,20 @@
       },
       {
         "id": "FCC1FE285CE34388ADD434E0A61196DD",
+        "sku": null,
+        "categoryId": "17E1117979A94AEC93B71C80ADDF1561",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "17E1117979A94AEC93B71C80ADDF1561",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2411,6 +3782,20 @@
       },
       {
         "id": "fe3ec19c-89b1-4b52-bd21-23ee0ebceac2",
+        "sku": null,
+        "categoryId": "8B4DD88028014EA3ABFDB1964D82202D",
+        "kitchenSectionId": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
+        "nameAr": "",
+        "nameEn": "",
+        "descriptionAr": null,
+        "descriptionEn": null,
+        "basePrice": 0,
+        "taxGroupId": null,
+        "isCombo": false,
+        "isActive": true,
+        "favoriteRank": null,
+        "createdAt": "2025-11-23T09:43:09.777Z",
+        "updatedAt": "2025-11-23T09:43:09.777Z",
         "category_id": "8B4DD88028014EA3ABFDB1964D82202D",
         "kitchen_section_id": "1e7a48ec-425a-4268-81db-c8f3fd4d432e",
         "pricing": {
@@ -2429,307 +3814,418 @@
         }
       }
     ],
+    "menu_item_price": [],
+    "menu_item_media": [],
+    "menu_modifiers": [],
+    "menu_item_modifier": [],
+    "customer_profiles": [],
+    "customer_addresses": [],
     "dining_tables": [
       {
+        "displayOrder": 1,
         "id": "T01",
         "name": "طاولة 1",
-        "displayOrder": 1,
-        "seats": 4,
-        "zone": "indoor",
-        "state": "active",
         "note": null,
+        "seats": 4,
+        "state": "active",
+        "zone": "indoor",
         "version": 1
       },
       {
+        "displayOrder": 2,
         "id": "T02",
         "name": "طاولة 2",
-        "displayOrder": 2,
-        "seats": 6,
-        "zone": "indoor",
-        "state": "active",
         "note": null,
+        "seats": 6,
+        "state": "active",
+        "zone": "indoor",
         "version": 1
       },
       {
+        "displayOrder": 3,
         "id": "T03",
         "name": "طاولة 3",
-        "displayOrder": 3,
-        "seats": 8,
-        "zone": "indoor",
-        "state": "active",
         "note": null,
+        "seats": 8,
+        "state": "active",
+        "zone": "indoor",
         "version": 1
       },
       {
+        "displayOrder": 4,
         "id": "T04",
         "name": "طاولة 4",
-        "displayOrder": 4,
-        "seats": 2,
-        "zone": "indoor",
-        "state": "active",
         "note": null,
+        "seats": 2,
+        "state": "active",
+        "zone": "indoor",
         "version": 1
       },
       {
+        "displayOrder": 5,
         "id": "T05",
         "name": "طاولة 5",
-        "displayOrder": 5,
-        "seats": 4,
-        "zone": "indoor",
-        "state": "active",
         "note": null,
+        "seats": 4,
+        "state": "active",
+        "zone": "indoor",
         "version": 1
       },
       {
+        "displayOrder": 6,
         "id": "T06",
         "name": "طاولة 6",
-        "displayOrder": 6,
-        "seats": 6,
-        "zone": "indoor",
-        "state": "active",
         "note": null,
+        "seats": 6,
+        "state": "active",
+        "zone": "indoor",
         "version": 1
       },
       {
+        "displayOrder": 7,
         "id": "T07",
         "name": "طاولة 7",
-        "displayOrder": 7,
-        "seats": 8,
-        "zone": "indoor",
-        "state": "active",
         "note": null,
+        "seats": 8,
+        "state": "active",
+        "zone": "indoor",
         "version": 1
       },
       {
+        "displayOrder": 8,
         "id": "T08",
         "name": "طاولة 8",
-        "displayOrder": 8,
-        "seats": 2,
-        "zone": "indoor",
-        "state": "active",
         "note": null,
+        "seats": 2,
+        "state": "active",
+        "zone": "indoor",
         "version": 1
       },
       {
+        "displayOrder": 9,
         "id": "T09",
         "name": "طاولة 9",
-        "displayOrder": 9,
-        "seats": 4,
-        "zone": "outdoor",
-        "state": "active",
         "note": null,
+        "seats": 4,
+        "state": "active",
+        "zone": "outdoor",
         "version": 1
       },
       {
+        "displayOrder": 10,
         "id": "T10",
         "name": "طاولة 10",
-        "displayOrder": 10,
-        "seats": 6,
-        "zone": "outdoor",
-        "state": "active",
         "note": null,
+        "seats": 6,
+        "state": "active",
+        "zone": "outdoor",
         "version": 1
       },
       {
+        "displayOrder": 11,
         "id": "T11",
         "name": "طاولة 11",
-        "displayOrder": 11,
-        "seats": 8,
-        "zone": "outdoor",
-        "state": "active",
         "note": null,
+        "seats": 8,
+        "state": "active",
+        "zone": "outdoor",
         "version": 1
       },
       {
+        "displayOrder": 12,
         "id": "T12",
         "name": "طاولة 12",
-        "displayOrder": 12,
-        "seats": 2,
-        "zone": "outdoor",
-        "state": "active",
         "note": null,
+        "seats": 2,
+        "state": "active",
+        "zone": "outdoor",
         "version": 1
       },
       {
+        "displayOrder": 13,
         "id": "T13",
         "name": "طاولة 13",
-        "displayOrder": 13,
-        "seats": 4,
-        "zone": "outdoor",
-        "state": "active",
         "note": null,
+        "seats": 4,
+        "state": "active",
+        "zone": "outdoor",
         "version": 1
       },
       {
+        "displayOrder": 14,
         "id": "T14",
         "name": "طاولة 14",
-        "displayOrder": 14,
-        "seats": 6,
-        "zone": "outdoor",
-        "state": "active",
         "note": null,
+        "seats": 6,
+        "state": "active",
+        "zone": "outdoor",
         "version": 1
       },
       {
+        "displayOrder": 15,
         "id": "T15",
         "name": "طاولة 15",
-        "displayOrder": 15,
-        "seats": 8,
-        "zone": "outdoor",
-        "state": "active",
         "note": null,
+        "seats": 8,
+        "state": "active",
+        "zone": "outdoor",
         "version": 1
       },
       {
+        "displayOrder": 16,
         "id": "T16",
         "name": "طاولة 16",
-        "displayOrder": 16,
-        "seats": 2,
-        "zone": "outdoor",
-        "state": "active",
         "note": null,
+        "seats": 2,
+        "state": "active",
+        "zone": "outdoor",
         "version": 1
       },
       {
+        "displayOrder": 17,
         "id": "T17",
         "name": "طاولة 17",
-        "displayOrder": 17,
-        "seats": 4,
-        "zone": "vip",
-        "state": "active",
         "note": null,
+        "seats": 4,
+        "state": "active",
+        "zone": "vip",
         "version": 1
       },
       {
+        "displayOrder": 18,
         "id": "T18",
         "name": "طاولة 18",
-        "displayOrder": 18,
-        "seats": 6,
-        "zone": "vip",
-        "state": "active",
         "note": null,
+        "seats": 6,
+        "state": "active",
+        "zone": "vip",
         "version": 1
       },
       {
+        "displayOrder": 19,
         "id": "T19",
         "name": "طاولة 19",
-        "displayOrder": 19,
-        "seats": 8,
-        "zone": "vip",
-        "state": "active",
         "note": null,
+        "seats": 8,
+        "state": "active",
+        "zone": "vip",
         "version": 1
       },
       {
+        "displayOrder": 20,
         "id": "T20",
         "name": "طاولة 20",
-        "displayOrder": 20,
-        "seats": 2,
-        "zone": "vip",
-        "state": "active",
         "note": null,
+        "seats": 2,
+        "state": "active",
+        "zone": "vip",
         "version": 1
       },
       {
+        "displayOrder": 21,
         "id": "T21",
         "name": "طاولة 21",
-        "displayOrder": 21,
-        "seats": 4,
-        "zone": "vip",
-        "state": "active",
         "note": null,
+        "seats": 4,
+        "state": "active",
+        "zone": "vip",
         "version": 1
       },
       {
+        "displayOrder": 22,
         "id": "T22",
         "name": "طاولة 22",
-        "displayOrder": 22,
-        "seats": 6,
-        "zone": "vip",
-        "state": "active",
         "note": null,
+        "seats": 6,
+        "state": "active",
+        "zone": "vip",
         "version": 1
       },
       {
+        "displayOrder": 23,
         "id": "T23",
         "name": "طاولة 23",
-        "displayOrder": 23,
-        "seats": 8,
-        "zone": "vip",
-        "state": "active",
         "note": null,
+        "seats": 8,
+        "state": "active",
+        "zone": "vip",
         "version": 1
       },
       {
+        "displayOrder": 24,
         "id": "T24",
         "name": "طاولة 24",
-        "displayOrder": 24,
-        "seats": 2,
-        "zone": "vip",
-        "state": "active",
         "note": null,
+        "seats": 2,
+        "state": "active",
+        "zone": "vip",
         "version": 1
       },
       {
+        "displayOrder": 25,
         "id": "T25",
         "name": "طاولة 25",
-        "displayOrder": 25,
-        "seats": 4,
-        "zone": "terrace",
-        "state": "active",
         "note": null,
+        "seats": 4,
+        "state": "active",
+        "zone": "terrace",
         "version": 1
       },
       {
+        "displayOrder": 26,
         "id": "T26",
         "name": "طاولة 26",
-        "displayOrder": 26,
-        "seats": 6,
-        "zone": "terrace",
-        "state": "active",
         "note": null,
+        "seats": 6,
+        "state": "active",
+        "zone": "terrace",
         "version": 1
       },
       {
+        "displayOrder": 27,
         "id": "T27",
         "name": "طاولة 27",
-        "displayOrder": 27,
-        "seats": 8,
-        "zone": "terrace",
-        "state": "active",
         "note": null,
+        "seats": 8,
+        "state": "active",
+        "zone": "terrace",
         "version": 1
       },
       {
+        "displayOrder": 28,
         "id": "T28",
         "name": "طاولة 28",
-        "displayOrder": 28,
-        "seats": 2,
-        "zone": "terrace",
-        "state": "active",
         "note": null,
+        "seats": 2,
+        "state": "active",
+        "zone": "terrace",
         "version": 1
       },
       {
+        "displayOrder": 29,
         "id": "T29",
         "name": "طاولة 29",
-        "displayOrder": 29,
-        "seats": 4,
-        "zone": "terrace",
-        "state": "active",
         "note": null,
+        "seats": 4,
+        "state": "active",
+        "zone": "terrace",
         "version": 1
       },
       {
+        "displayOrder": 30,
         "id": "T30",
         "name": "طاولة 30",
-        "displayOrder": 30,
-        "seats": 6,
-        "zone": "terrace",
-        "state": "active",
         "note": null,
+        "seats": 6,
+        "state": "active",
+        "zone": "terrace",
         "version": 1
       }
+    ],
+    "table_lock": [],
+    "reservations": [
+      {
+        "customerName": "محمد سامي",
+        "holdUntil": "2024-02-18T19:20:00Z",
+        "id": "res-001",
+        "note": "عيد ميلاد",
+        "partySize": 4,
+        "phone": "01000200300",
+        "scheduledAt": "2024-02-18T19:00:00Z",
+        "status": "booked",
+        "tableIds": [
+          "T7"
+        ]
+      },
+      {
+        "customerName": "Sarah Ahmed",
+        "holdUntil": "2024-02-18T20:50:00Z",
+        "id": "res-002",
+        "note": "جلسة هادئة",
+        "partySize": 2,
+        "phone": "01133344455",
+        "scheduledAt": "2024-02-18T20:30:00Z",
+        "status": "booked",
+        "tableIds": [
+          "T5",
+          "T6"
+        ]
+      },
+      {
+        "customerName": "شركة بريميوم",
+        "holdUntil": "2024-02-19T13:15:00Z",
+        "id": "res-003",
+        "note": "اجتماع عمل",
+        "partySize": 10,
+        "phone": "01266677788",
+        "scheduledAt": "2024-02-19T13:00:00Z",
+        "status": "seated",
+        "tableIds": [
+          "T16"
+        ]
+      }
+    ],
+    "reservation_table": [],
+    "delivery_drivers": [
+      {
+        "id": 1,
+        "isActive": true,
+        "name": "محمود عبد العزيز",
+        "phone": "01012345678",
+        "vehicleId": "موتوسيكل - أ ب ج 123",
+        "vehicle_id": "موتوسيكل - أ ب ج 123"
+      },
+      {
+        "id": 2,
+        "isActive": true,
+        "name": "كريم السيد",
+        "phone": "01198765432",
+        "vehicleId": "موتوسيكل - س ص ع 456",
+        "vehicle_id": "موتوسيكل - س ص ع 456"
+      },
+      {
+        "id": 3,
+        "isActive": true,
+        "name": "علي حسن",
+        "phone": "01234567890",
+        "vehicleId": "سيارة - ف ق ل 789",
+        "vehicle_id": "سيارة - ف ق ل 789"
+      }
+    ],
+    "order_header": [],
+    "order_line": [],
+    "order_line_modifier": [],
+    "order_status_log": [],
+    "order_line_status_log": [],
+    "order_payment": [],
+    "order_refund": [],
+    "order_return_header": [],
+    "order_return_line": [],
+    "order_delivery": [],
+    "job_order_batch": [],
+    "job_order_header": [],
+    "job_order_detail": [],
+    "job_order_detail_modifier": [],
+    "job_order_status_history": [],
+    "audit_events": [
+      {
+        "action": "table.state",
+        "id": "audit-001",
+        "meta": {
+          "state": "disactive"
+        },
+        "occurredAt": "2025-11-23T09:43:09.779Z",
+        "refId": "T19",
+        "refType": "table",
+        "userId": "a1b2c3d4",
+        "at": "2024-02-15T10:00:00Z"
+      }
     ]
-  }
+  },
+  "meta": {
+    "lastUpdatedAt": "2025-11-23T09:43:09.779Z",
+    "counter": 185,
+    "labCounter": 185
+  },
+  "savedAt": "2025-11-23T09:43:09.781Z"
 }
