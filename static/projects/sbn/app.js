@@ -16,6 +16,94 @@
   }
 
   var D = M.DSL;
+  var DEBUG_STORAGE_KEY = 'sbn:pwa:debug';
+  function readStoredDebugFlag() {
+    try {
+      if (global.localStorage) {
+        var stored = global.localStorage.getItem(DEBUG_STORAGE_KEY);
+        if (stored === '1') return true;
+        if (stored === '0') return false;
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+    return null;
+  }
+  function persistDebugFlag(flag) {
+    try {
+      if (!global.localStorage) return;
+      if (flag) {
+        global.localStorage.setItem(DEBUG_STORAGE_KEY, '1');
+      } else {
+        global.localStorage.setItem(DEBUG_STORAGE_KEY, '0');
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+  }
+  var initialDebug = typeof global.SBN_PWA_DEBUG === 'boolean'
+    ? global.SBN_PWA_DEBUG
+    : (readStoredDebugFlag());
+  var DEBUG = Boolean(initialDebug);
+  function debugLog() {
+    if (!DEBUG) return;
+    var args = Array.prototype.slice.call(arguments);
+    try {
+      console.log.apply(console, args);
+    } catch (_err) {
+      /* ignore logging issues */
+    }
+  }
+  global.SBN_PWA_SET_DEBUG = function(next) {
+    DEBUG = Boolean(next);
+    persistDebugFlag(DEBUG);
+    debugLog('[SBN PWA][debug] mode:', DEBUG ? 'ON' : 'OFF');
+  };
+
+  function currentDatabase() {
+    if (app && app.database) return app.database;
+    return initialDatabase;
+  }
+
+  function resolveDataKey(name) {
+    if (!name) return null;
+    if (TABLE_TO_DATA_KEY[name]) return TABLE_TO_DATA_KEY[name];
+    if (currentDatabase().data && currentDatabase().data[name]) return name;
+    // attempt to allow using alias without prefix, e.g. 'posts'
+    var prefixed = 'sbn_' + name;
+    if (TABLE_TO_DATA_KEY[prefixed]) return TABLE_TO_DATA_KEY[prefixed];
+    return name;
+  }
+
+  function exposeConsoleHelpers() {
+    global.SBN_PWA_DUMP = function(tableName, limit) {
+      if (!tableName) {
+        console.warn('[SBN PWA] Provide a table name, e.g. SBN_PWA_DUMP(\"sbn_posts\", 5)');
+        return;
+      }
+      var key = resolveDataKey(tableName);
+      var db = currentDatabase();
+      var rows = (db.data && db.data[key]) || [];
+      var sample = Array.isArray(rows) ? rows.slice(0, limit || 10) : rows;
+      console.log('[SBN PWA][dump]', tableName, '(key:', key + ') count:', Array.isArray(rows) ? rows.length : 0, 'sample:', sample);
+      return sample;
+    };
+    global.SBN_PWA_ENV = function() {
+      var db = currentDatabase();
+      console.log('[SBN PWA][env]', db.env);
+      return db.env;
+    };
+    global.SBN_PWA_LABEL = function(key) {
+      if (!key) {
+        console.warn('[SBN PWA] Provide a label key, e.g. SBN_PWA_LABEL(\"app.name\")');
+        return null;
+      }
+      var dict = resolveI18nDictionary();
+      console.log('[SBN PWA][label]', key, dict[key]);
+      return dict[key];
+    };
+  }
+  exposeConsoleHelpers();
   // Support for unified mishkah.js with auto-loading
   function ensureDslBinding(source) {
     if (source && source.DSL) {
@@ -57,6 +145,17 @@
   var BASE_I18N = {};
   var realtime = null;
 
+  function registerRealtimeStoreInstance(rt) {
+    if (!rt || !rt.store) return;
+    var registry = global.__MISHKAH_STORE_REGISTRY__;
+    if (Array.isArray(registry)) {
+      if (registry.indexOf(rt.store) === -1) {
+        registry.push(rt.store);
+      }
+    }
+    global.__MISHKAH_LAST_STORE__ = rt.store;
+  }
+
   // ================== TABLE MAPPINGS ==================
   var TABLE_TO_DATA_KEY = {
     'sbn_ui_labels': 'uiLabels',
@@ -73,15 +172,52 @@
 
   // ================== HELPERS ==================
 
+  function coerceLabelRows(rows) {
+    return coerceTableRows(rows);
+  }
+
+  function normalizeLocale(value) {
+    if (value == null) return '';
+    var normalized = String(value).trim().toLowerCase();
+    if (!normalized) return '';
+    normalized = normalized.replace(/_/g, '-');
+    return normalized;
+  }
+
+  function normalizeLabelRow(row) {
+    if (!row || typeof row !== 'object') return null;
+    var key = row.label_key || row.labelKey || row.key;
+    var lang = row.lang || row.lang_code || row.language || row.locale;
+    var text = row.text || row.translation || row.value || row.label_text;
+    if (!key || !lang || typeof text !== 'string') return null;
+    var normalizedKey = String(key).trim();
+    var normalizedLang = normalizeLocale(lang);
+    if (!normalizedKey || !normalizedLang) return null;
+    return { key: normalizedKey, lang: normalizedLang, text: text };
+  }
+
   /**
    * Build i18n dictionary from sbn_ui_labels table
    */
   function buildTranslationMaps(rows) {
     var ui = {};
-    (rows || []).forEach(function (row) {
-      if (!row || !row.label_key || !row.lang || !row.text) return;
-      if (!ui[row.label_key]) ui[row.label_key] = {};
-      ui[row.label_key][row.lang] = row.text;
+    coerceLabelRows(rows).forEach(function (row) {
+      var normalized = normalizeLabelRow(row);
+      if (!normalized) return;
+      if (!ui[normalized.key]) ui[normalized.key] = {};
+      var localeTargets = [normalized.lang];
+      var langParts = normalized.lang.split('-');
+      if (langParts.length > 1) {
+        var baseLang = langParts[0];
+        if (baseLang && localeTargets.indexOf(baseLang) === -1) {
+          localeTargets.push(baseLang);
+        }
+      }
+      localeTargets.forEach(function(target) {
+        if (target && !ui[normalized.key][target]) {
+          ui[normalized.key][target] = normalized.text;
+        }
+      });
     });
     return { ui: ui };
   }
@@ -93,17 +229,91 @@
     return app && app.database && app.database.env ? app.database.env : null;
   }
 
+  function coerceTableRows(rows) {
+    if (Array.isArray(rows)) return rows;
+    if (!rows || typeof rows !== 'object') return [];
+    var candidates = ['rows', 'data', 'records', 'items', 'results', 'list', 'payload', 'value', 'values'];
+    for (var i = 0; i < candidates.length; i++) {
+      var key = candidates[i];
+      if (Array.isArray(rows[key])) return rows[key];
+    }
+    return [];
+  }
+
+  function mergeTranslationEntries(base, updates) {
+    var target = Object.assign({}, base || {});
+    Object.keys(updates || {}).forEach(function(key) {
+      var existing = target[key] || {};
+      target[key] = Object.assign({}, existing, updates[key]);
+    });
+    return target;
+  }
+
+  function mergeUiLabelRows(existingRows, incomingRows) {
+    var registry = {};
+    function register(row) {
+      var normalized = normalizeLabelRow(row);
+      if (!normalized) return;
+      var sanitized = Object.assign({}, row, {
+        label_key: normalized.key,
+        lang: normalized.lang,
+        text: normalized.text
+      });
+      var id = normalized.key + '::' + normalized.lang;
+      registry[id] = sanitized;
+    }
+    coerceLabelRows(existingRows).forEach(register);
+    coerceLabelRows(incomingRows).forEach(register);
+    return Object.keys(registry).map(function(id) {
+      return registry[id];
+    });
+  }
+
+  function hasEntries(obj) {
+    return !!(obj && typeof obj === 'object' && Object.keys(obj).length);
+  }
+
+  function resolveI18nDictionary() {
+    var env = activeEnv();
+    if (hasEntries(env && env.i18n)) {
+      return env.i18n;
+    }
+    if (hasEntries(BASE_I18N)) {
+      return BASE_I18N;
+    }
+    var db = app && app.database;
+    var rows = (db && db.data && db.data.uiLabels) || initialDatabase.data.uiLabels || [];
+    if (!rows || !rows.length) return {};
+    var rebuilt = buildTranslationMaps(rows).ui;
+    if (hasEntries(rebuilt)) {
+      BASE_I18N = rebuilt;
+    }
+    return rebuilt;
+  }
+
   /**
    * Translate helper function
    */
   function translate(key, fallback, lang) {
     var env = activeEnv();
-    var locale = lang || (env && env.lang) || 'ar';
-    var map = (env && env.i18n) || BASE_I18N;
-    var entry = map[key];
-    if (entry && entry[locale]) return entry[locale];
-    if (entry && entry.ar) return entry.ar;
-    return typeof fallback === 'string' ? fallback : key;
+    var locale = normalizeLocale(lang || (env && env.lang) || 'ar') || 'ar';
+    var normalizedKey = typeof key === 'string' ? key.trim() : key;
+    var map = resolveI18nDictionary();
+    var entry = map[normalizedKey] || map[key];
+    if (entry) {
+      if (entry[locale]) return entry[locale];
+      if (locale.indexOf('-') !== -1) {
+        var base = locale.split('-')[0];
+        if (base && entry[base]) return entry[base];
+      }
+      var altLocale = locale.replace(/-/g, '_');
+      if (altLocale && entry[altLocale]) return entry[altLocale];
+      if (entry.en) return entry.en;
+      if (entry.ar) return entry.ar;
+      var firstLocale = Object.keys(entry)[0];
+      if (firstLocale && entry[firstLocale]) return entry[firstLocale];
+    }
+    return typeof fallback === 'string' ? fallback : normalizedKey;
   }
 
   /**
@@ -337,13 +547,20 @@
 
     app.setState(function (db) {
       var newData = {};
-      newData[dataKey] = Array.isArray(rows) ? rows : [];
+      var normalizedRows = coerceTableRows(rows);
+      debugLog('[SBN PWA][data]', tableName, 'incoming sample:', Array.isArray(normalizedRows) ? normalizedRows.slice(0, 3) : normalizedRows, 'count:', Array.isArray(normalizedRows) ? normalizedRows.length : 0);
+      newData[dataKey] = normalizedRows;
 
       // Special handling for UI labels
       if (tableName === 'sbn_ui_labels') {
-        var maps = buildTranslationMaps(rows);
+        var mergedRows = mergeUiLabelRows(db.data.uiLabels || [], normalizedRows);
+        var maps = buildTranslationMaps(mergedRows);
+        var mergedI18n = mergeTranslationEntries(db.env && db.env.i18n, maps.ui);
+        BASE_I18N = mergeTranslationEntries(BASE_I18N, maps.ui);
+        newData[dataKey] = mergedRows;
+        debugLog('[SBN PWA][i18n]', 'total labels:', mergedRows.length, 'langs snapshot:', Object.keys(maps.ui || {}).slice(0, 5));
         return {
-          env: Object.assign({}, db.env, { i18n: maps.ui }),
+          env: Object.assign({}, db.env, { i18n: mergedI18n }),
           meta: db.meta,
           state: db.state,
           data: Object.assign({}, db.data, newData)
@@ -1752,6 +1969,7 @@
     if (realtime && typeof realtime.disconnect === 'function') {
       try {
         realtime.disconnect();
+        debugLog('[SBN PWA][rt] disposed previous realtime instance');
       } catch (err) {
         console.warn('[SBN PWA] Failed to dispose realtime store', err);
       }
@@ -1763,9 +1981,11 @@
    * Initialize realtime connection
    */
   function initRealtime() {
+    debugLog('[SBN PWA][rt] initializing realtime connection...');
     disposeRealtime();
     if (typeof global.createDBAuto !== 'function') {
       console.warn('[SBN PWA] createDBAuto not available, using mock data mode');
+      debugLog('[SBN PWA][rt] createDBAuto missing, staying in mock mode');
       // Mark as loaded with empty data
       if (app) {
         app.setState(function(db) {
@@ -1781,11 +2001,10 @@
     }
 
     // Fetch schema first (using query parameters, not path)
-    var baseDomain = typeof global.basedomain === 'string' && global.basedomain.trim()
-      ? global.basedomain.trim().replace(/\/+$/, '')
-      : '';
-    var schemaUrl = (baseDomain || '') + '/api/schema?branch=' + encodeURIComponent(BRANCH_ID) +
+    var baseDomain = global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
+    var schemaUrl = baseDomain + '/api/schema?branch=' + encodeURIComponent(BRANCH_ID) +
                     '&module=' + encodeURIComponent(MODULE_ID);
+    debugLog('[SBN PWA][rt] fetching schema from', schemaUrl);
 
     fetch(schemaUrl, { cache: 'no-store' })
       .then(function(response) {
@@ -1800,6 +2019,7 @@
           console.error('[SBN PWA] Schema not found in response:', payload);
           throw new Error('schema-invalid');
         }
+        debugLog('[SBN PWA][rt] schema fetched, tables:', Object.keys(TABLE_TO_DATA_KEY));
 
         var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY);
 
@@ -1814,17 +2034,25 @@
           defaultLang: 'ar',
           includeLangMeta: true
         });
+        debugLog('[SBN PWA][rt] realtime instance created');
+        registerRealtimeStoreInstance(realtime);
+
+        var currentLang = (app && app.database && app.database.env && app.database.env.lang) || initialDatabase.env.lang;
+        fetchInitialTables(currentLang);
 
         return realtime.ready().then(function() {
           // Watch all tables
           tablesToWatch.forEach(function(tableName) {
             realtime.watch(tableName, function(rows) {
-              commitTable(app, tableName, Array.isArray(rows) ? rows : []);
+              debugLog('[SBN PWA][rt][watch]', tableName, 'raw payload sample:', Array.isArray(rows) ? rows.slice(0, 3) : rows);
+              commitTable(app, tableName, rows);
             });
           });
+          debugLog('[SBN PWA][rt] watchers registered');
 
           // Watch connection status
           realtime.status(function(status) {
+            debugLog('[SBN PWA][rt] status update:', status);
             if (status === 'error') {
               app.setState(function(db) {
                 return {
@@ -1851,6 +2079,7 @@
       })
       .catch(function(error) {
         console.error('[SBN PWA] failed to bootstrap realtime', error);
+        debugLog('[SBN PWA][rt] init failed', error);
         if (app) {
           app.setState(function(db) {
             return {
@@ -1864,6 +2093,39 @@
             };
           });
         }
+      });
+  }
+
+  /**
+   * Fetch initial tables via REST snapshot
+   */
+  function fetchInitialTables(lang) {
+    var baseDomain = global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
+    if (!baseDomain) return Promise.resolve();
+    var url = baseDomain + '/api/branches/' + encodeURIComponent(BRANCH_ID) +
+      '/modules/' + encodeURIComponent(MODULE_ID);
+    if (lang) {
+      url += '?lang=' + encodeURIComponent(lang);
+    }
+    debugLog('[SBN PWA][rest] fetching snapshot from', url);
+    return fetch(url, { cache: 'no-store' })
+      .then(function(response) {
+        if (!response.ok) throw new Error('snapshot-fetch-failed');
+        return response.json();
+      })
+      .then(function(payload) {
+        var tables = payload && payload.tables;
+        if (!tables || typeof tables !== 'object') {
+          debugLog('[SBN PWA][rest] snapshot payload missing tables');
+          return;
+        }
+        Object.keys(tables).forEach(function(tableName) {
+          var rows = tables[tableName];
+          commitTable(app, tableName, rows);
+        });
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][rest] snapshot fetch failed', error);
       });
   }
 
