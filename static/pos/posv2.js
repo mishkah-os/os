@@ -295,7 +295,7 @@
       },
       expoPassTicket:{ canonical:'expo_pass_ticket', aliases:['expo_pass_tickets','expo_tickets','expoPassTickets'] },
       kitchenSection:{ canonical:'kitchen_section', aliases:['kitchen_sections','kitchenStations'] },
-      diningTable:{ canonical:'dining_table', aliases:['tables','dining_tables','restaurant_tables'] },
+      diningTable:{ canonical:'dining_tables', aliases:['tables','dining_tables','restaurant_tables'] },
       tableLock:{ canonical:'table_lock', aliases:['table_locks','locks','tableLocks'] },
       customerProfile:{ canonical:'customer_profile', aliases:['customer_profiles','customers','customerProfiles'] },
       customerAddress:{ canonical:'customer_address', aliases:['customer_addresses','addresses','customerAddresses'] }
@@ -3561,6 +3561,20 @@
       debugLogged:{ headers:false, details:false, modifiers:false, status:false, expo:false }
     };
 
+    // ✅ [POS V2] Realtime Tables & Table Locks for Multi-Device Sync
+    const realtimeTables = {
+      store: (typeof window !== 'undefined' && window.__POS_DB__ && typeof window.__POS_DB__.watch === 'function')
+        ? window.__POS_DB__
+        : null,
+      installed:false,
+      pending:false,
+      tables:new Map(),
+      tableLocks:new Map(),
+      snapshot:{ tables:[], tableLocks:[] },
+      unsubscribes:[],
+      debugLogged:{ tables:false, tableLocks:false }
+    };
+
     function normalizeIdToken(value, fallback=''){
       if(value == null) return fallback;
       const text = String(value).trim();
@@ -4032,6 +4046,45 @@
         header.expectedVersion = Math.trunc(versionValue);
       }
       return header;
+    }
+
+    // ✅ [POS V2] Sanitize dining_tables row from WebSocket
+    function sanitizeDiningTableRow(row){
+      if(!row) return null;
+      const id = row.id ?? row.table_id;
+      if(id == null) return null;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      normalized.name = row.name ?? row.table_name ?? `Table ${id}`;
+      normalized.capacity = Number(row.capacity ?? row.seats ?? 4) || 4;
+      normalized.zone = row.zone ?? row.area ?? '';
+      normalized.displayOrder = Number.isFinite(Number(row.displayOrder ?? row.display_order))
+        ? Number(row.displayOrder ?? row.display_order)
+        : 0;
+      normalized.state = row.state ?? row.status ?? 'active';
+      normalized.note = row.note ?? row.notes ?? '';
+      if(row.version != null) normalized.version = Number(row.version);
+      return normalized;
+    }
+
+    // ✅ [POS V2] Sanitize table_lock row from WebSocket
+    function sanitizeTableLockRow(row){
+      if(!row) return null;
+      const id = row.id ?? row.lock_id;
+      if(id == null) return null;
+      const tableId = row.tableId ?? row.table_id;
+      if(tableId == null) return null;
+      const normalized = { ...row };
+      normalized.id = String(id);
+      normalized.tableId = String(tableId);
+      normalized.orderId = row.orderId ?? row.order_id ?? null;
+      normalized.reservationId = row.reservationId ?? row.reservation_id ?? null;
+      normalized.lockedBy = row.lockedBy ?? row.locked_by ?? 'system';
+      normalized.lockedAt = toMillis(row.lockedAt ?? row.locked_at);
+      normalized.source = row.source ?? 'pos';
+      normalized.active = row.active !== false;
+      if(row.version != null) normalized.version = Number(row.version);
+      return normalized;
     }
 
     function normalizeRealtimeOrderLine(raw, header){
@@ -4677,6 +4730,167 @@
       });
       realtimeJobOrders.unsubscribes = [unsubHeaders, unsubDetails, unsubModifiers, unsubStatus, unsubExpo].filter(Boolean);
       realtimeJobOrders.installed = true;
+    }
+
+    // ✅ [POS V2] Install Realtime Table Watchers for Multi-Device Sync
+    async function installRealtimeTableWatchers(){
+      console.log('[POS][installRealtimeTableWatchers] Starting...', realtimeTables);
+      if(realtimeTables.installed) return;
+      if(!realtimeTables.store) return;
+      const store = realtimeTables.store;
+
+      // Register table names (canonical names matching backend)
+      const diningTableName = 'dining_tables';
+      const tableLockName = 'table_lock';
+
+      const registeredObjects = Object.keys(store.config?.objects || {});
+      console.log('[POS][installRealtimeTableWatchers] Registered objects:', registeredObjects);
+
+      if(typeof store.register === 'function'){
+        if(!registeredObjects.includes(diningTableName)){
+          console.log('[POS][installRealtimeTableWatchers] Registering:', diningTableName);
+          try {
+            store.register(diningTableName, { table: 'dining_tables' });
+          } catch(err) {
+            console.warn('[POS][installRealtimeTableWatchers] Failed to register', diningTableName, err);
+          }
+        }
+        if(!registeredObjects.includes(tableLockName)){
+          console.log('[POS][installRealtimeTableWatchers] Registering:', tableLockName);
+          try {
+            store.register(tableLockName, { table: 'table_lock' });
+          } catch(err) {
+            console.warn('[POS][installRealtimeTableWatchers] Failed to register', tableLockName, err);
+          }
+        }
+      }
+
+      console.log('[POS][installRealtimeTableWatchers] Using table names:', { diningTableName, tableLockName });
+
+      // Load initial data from REST API
+      const fetchInitialData = async ()=>{
+        try {
+          const branchId = BRANCH_ID || 'dar';
+          const apiUrl = window.basedomain + `/api/branches/${encodeURIComponent(branchId)}/modules/pos`;
+          console.log('[POS][installRealtimeTableWatchers] Fetching from:', apiUrl);
+          const response = await fetch(apiUrl, { cache: 'no-store' });
+          if(!response.ok){
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          const snapshot = await response.json();
+          console.log('[POS][installRealtimeTableWatchers] Received snapshot with tables:', Object.keys(snapshot.tables || {}));
+
+          const fetchedTables = snapshot.tables || {};
+
+          // Process dining_tables
+          const tableRows = Array.isArray(fetchedTables.dining_tables) ? fetchedTables.dining_tables : [];
+          const tablesMap = new Map();
+          tableRows.forEach(row=>{
+            const normalized = sanitizeDiningTableRow(row);
+            if(!normalized) return;
+            const id = String(normalized.id);
+            tablesMap.set(id, normalized);
+          });
+          realtimeTables.tables = tablesMap;
+          console.log('[POS][installRealtimeTableWatchers] Loaded', tablesMap.size, 'tables from REST API');
+
+          // Process table_lock
+          const lockRows = Array.isArray(fetchedTables.table_lock) ? fetchedTables.table_lock : [];
+          const locksArray = [];
+          lockRows.forEach(row=>{
+            const normalized = sanitizeTableLockRow(row);
+            if(!normalized) return;
+            locksArray.push(normalized);
+          });
+          realtimeTables.snapshot = {
+            tables: Array.from(tablesMap.values()),
+            tableLocks: locksArray
+          };
+          console.log('[POS][installRealtimeTableWatchers] Loaded', locksArray.length, 'table locks from REST API');
+
+          // Apply to state
+          applyRealtimeTablesToState();
+          console.log('[POS][installRealtimeTableWatchers] Initial data loaded successfully');
+        } catch(err) {
+          console.warn('[POS][installRealtimeTableWatchers] Smart Fetch failed:', err.message);
+          console.log('[POS][installRealtimeTableWatchers] Will rely on WebSocket updates only');
+          realtimeTables.tables = new Map();
+          realtimeTables.snapshot = { tables:[], tableLocks:[] };
+          applyRealtimeTablesToState();
+        }
+      };
+
+      await fetchInitialData();
+
+      // Register watchers for real-time updates
+      console.log('[POS][installRealtimeTableWatchers] Registering watchers...');
+
+      const unsubTables = store.watch(diningTableName, (rows)=>{
+        const beforeCount = realtimeTables.tables.size;
+        const tablesMap = new Map();
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeDiningTableRow(row);
+          if(!normalized) return;
+          const id = String(normalized.id);
+          tablesMap.set(id, normalized);
+        });
+        realtimeTables.tables = tablesMap;
+        const afterCount = tablesMap.size;
+        console.log('[POS][WATCH][dining_tables]', {
+          count: (rows || []).length,
+          before: beforeCount,
+          after: afterCount,
+          sample: (rows && rows.length ? sanitizeDiningTableRow(rows[0]) : null)
+        });
+        applyRealtimeTablesToState();
+      });
+
+      const unsubLocks = store.watch(tableLockName, (rows)=>{
+        const locksArray = [];
+        (rows || []).forEach(row=>{
+          const normalized = sanitizeTableLockRow(row);
+          if(!normalized) return;
+          locksArray.push(normalized);
+        });
+        realtimeTables.snapshot.tableLocks = locksArray;
+        console.log('[POS][WATCH][table_lock]', {
+          count: (rows || []).length,
+          activeLocks: locksArray.filter(lock=> lock.active).length,
+          sample: (rows && rows.length ? sanitizeTableLockRow(rows[0]) : null)
+        });
+        applyRealtimeTablesToState();
+      });
+
+      realtimeTables.unsubscribes = [unsubTables, unsubLocks].filter(Boolean);
+      realtimeTables.installed = true;
+      console.log('[POS][installRealtimeTableWatchers] Completed successfully');
+    }
+
+    function applyRealtimeTablesToState(){
+      if(!posState || !posState.data) return;
+      const tablesClone = Array.from(realtimeTables.tables.values()).map(t => ({ ...t }));
+      const locksClone = (realtimeTables.snapshot.tableLocks || []).map(l => ({ ...l }));
+      const baseData = posState.data || {};
+      const nextData = {
+        ...baseData,
+        tables: tablesClone,
+        tableLocks: locksClone
+      };
+      posState.data = nextData;
+      if(appRef && typeof appRef.setState === 'function'){
+        appRef.setState(prev=>{
+          const prevData = prev.data || {};
+          return {
+            ...prev,
+            data:{
+              ...prevData,
+              tables: tablesClone.map(t => ({ ...t })),
+              tableLocks: locksClone.map(l => ({ ...l }))
+            }
+          };
+        });
+      }
+      console.log('[POS][applyRealtimeTablesToState] Updated state with', tablesClone.length, 'tables and', locksClone.length, 'locks');
     }
 
 
@@ -6397,13 +6611,15 @@
       if(window.__POS_DB__ && typeof window.__POS_DB__.watch === 'function'){
         realtimeOrders.store = window.__POS_DB__;
         realtimeJobOrders.store = window.__POS_DB__;
-        console.log('✅ [POS V2] Set realtimeOrders.store and realtimeJobOrders.store from window.__POS_DB__');
+        realtimeTables.store = window.__POS_DB__;
+        console.log('✅ [POS V2] Set realtimeOrders.store, realtimeJobOrders.store, and realtimeTables.store from window.__POS_DB__');
       } else {
         console.warn('⚠️ [POS V2] window.__POS_DB__ not available or missing watch function');
       }
 
       installRealtimeOrderWatchers();
       installRealtimeJobOrderWatchers();
+      installRealtimeTableWatchers();
     });
 
     function flushRemoteUpdate(){
@@ -7927,11 +8143,76 @@
             console.log('✅ [TABLE FIX] Added new order to ordersQueue with tableIds:', syncedOrderForState.tableIds);
           }
 
+          // ✅ [POS V2] Unlock tables when order is finalized (multi-device sync)
+          let tableLockUpdates = idChanged
+            ? (data.tableLocks || []).map(lock=> lock.orderId === previousOrderId ? { ...lock, orderId: orderPayload.id } : lock)
+            : (data.tableLocks || []);
+
+          if(finalize && assignedTables.length > 0){
+            console.log('[POS V2] 🔓 Finalizing order - unlocking tables:', {
+              orderId: orderPayload.id,
+              assignedTables,
+              beforeLocks: tableLockUpdates.length
+            });
+
+            // Deactivate table locks for this order
+            tableLockUpdates = tableLockUpdates.map(lock=>
+              lock.orderId === orderPayload.id
+                ? { ...lock, active:false }
+                : lock
+            );
+
+            // Update table_lock in backend via WebSocket (for multi-device sync)
+            if(window.__POS_DB__ && typeof window.__POS_DB__.update === 'function'){
+              const store = window.__POS_DB__;
+              const tableLocksInDatabase = (typeof window !== 'undefined' && window.database && Array.isArray(window.database.table_lock))
+                ? window.database.table_lock
+                : [];
+
+              tableLockUpdates.forEach(lock=>{
+                if(lock.orderId === orderPayload.id && !lock.active){
+                  // ✅ CRITICAL: Get current lock from database to get latest version
+                  const existingLock = tableLocksInDatabase.find(l => String(l.id) === String(lock.id));
+                  const currentVersion = existingLock?.version || lock.version || 1;
+                  const nextVersion = Number.isFinite(currentVersion) ? Math.trunc(currentVersion) + 1 : 2;
+
+                  if(!Number.isFinite(nextVersion) || nextVersion < 1){
+                    console.error('[POS V2] ❌ Cannot update table_lock without valid version!', {
+                      lockId: lock.id,
+                      currentVersion,
+                      nextVersion
+                    });
+                    return;  // Skip this lock - cannot update without version
+                  }
+
+                  const updatePayload = {
+                    ...lock,
+                    version: nextVersion  // ✅ REQUIRED: version for optimistic locking
+                  };
+
+                  // Update in backend (will broadcast to all devices)
+                  store.update('table_lock', updatePayload).catch(err=>{
+                    console.warn('[POS V2] Failed to update table_lock in backend:', err);
+                  });
+                  console.log('[POS V2] ✅ Released table lock via WebSocket:', {
+                    lockId: lock.id,
+                    tableId: lock.tableId,
+                    orderId: lock.orderId,
+                    version: `v${currentVersion}→v${nextVersion}`
+                  });
+                }
+              });
+            }
+
+            console.log('[POS V2] 🔓 Tables unlocked:', {
+              orderId: orderPayload.id,
+              afterLocks: tableLockUpdates.filter(l => l.active).length
+            });
+          }
+
           const updatedData = {
             ...data,
-            tableLocks: idChanged
-              ? (data.tableLocks || []).map(lock=> lock.orderId === previousOrderId ? { ...lock, orderId: orderPayload.id } : lock)
-              : data.tableLocks,
+            tableLocks: tableLockUpdates,
             ordersQueue: updatedOrdersQueue,  // ✅ Use updated queue instead of latestOrders
             ordersHistory: history,
             shift:{ ...(data.shift || {}), current: nextShift },

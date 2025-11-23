@@ -826,6 +826,18 @@
             "index": false,
             "comment": "",
             "notes": ""
+          },
+          {
+            "name": "version",
+            "columnName": "version",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 1,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Version number for optimistic locking",
+            "notes": ""
           }
         ],
         "indexes": [
@@ -6209,6 +6221,73 @@
               "onDelete": "CASCADE",
               "onUpdate": "CASCADE"
             }
+          },
+          {
+            "name": "orderId",
+            "columnName": "order_id",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Order ID associated with this table lock",
+            "notes": "",
+            "references": {
+              "table": "order_header",
+              "column": "order_id",
+              "onDelete": "SET NULL",
+              "onUpdate": "CASCADE"
+            }
+          },
+          {
+            "name": "reservationId",
+            "columnName": "reservation_id",
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Reservation ID if this lock is from a reservation",
+            "notes": ""
+          },
+          {
+            "name": "active",
+            "columnName": "active",
+            "type": "boolean",
+            "nullable": false,
+            "defaultValue": true,
+            "primaryKey": false,
+            "unique": false,
+            "index": true,
+            "comment": "Whether this lock is currently active",
+            "notes": ""
+          },
+          {
+            "name": "source",
+            "columnName": "source",
+            "type": "string",
+            "nullable": false,
+            "defaultValue": "pos",
+            "maxLength": 32,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Source of the lock (pos, reservation, manual)",
+            "notes": ""
+          },
+          {
+            "name": "version",
+            "columnName": "version",
+            "type": "integer",
+            "nullable": false,
+            "defaultValue": 1,
+            "primaryKey": false,
+            "unique": false,
+            "index": false,
+            "comment": "Version number for optimistic locking",
+            "notes": ""
           }
         ],
         "indexes": [
@@ -6216,6 +6295,18 @@
             "name": "idx_table_lock_table",
             "columns": [
               "table_id"
+            ]
+          },
+          {
+            "name": "idx_table_lock_order",
+            "columns": [
+              "order_id"
+            ]
+          },
+          {
+            "name": "idx_table_lock_active",
+            "columns": [
+              "active"
             ]
           }
         ]
