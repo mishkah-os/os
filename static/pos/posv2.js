@@ -4282,7 +4282,11 @@
         const totalDue = Number(totals.due || 0);
         const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
         const isFullyPaid = totalDue > 0 && paidAmount >= totalDue;
-        return isNotOpen && isFullyPaid;
+		 var order_linearr=window.__POS_DB__.store.state.modules.pos.tables.order_line.filter(item => item.orderId === order.id);
+     
+       const isAllCompleted = order_linearr?.every(line => line.statusId === 'completed');
+ 
+        return isAllCompleted && isFullyPaid;
       };
 
       const active = [];
@@ -9724,16 +9728,10 @@
         const paidAmount = round((Array.isArray(order.payments) ? order.payments : []).reduce((sum, entry)=> sum + (Number(entry.amount) || 0), 0));
         const isFullyPaid = totalDue > 0 && paidAmount >= totalDue;
 		
-		
-		var order_linearr=window.__POS_DB__.store.state.modules.pos.tables.order_line.filter(item => item.orderId === order.id);
+		 var order_linearr=window.__POS_DB__.store.state.modules.pos.tables.order_line.filter(item => item.orderId === order.id);
      
        const isAllCompleted = order_linearr?.every(line => line.statusId === 'completed');
-     console.log("orders lines",order_linearr);
-     console.log("is completed",isAllCompleted);
-
-         console.log("isFullyPaid",isFullyPaid);
-		
-		
+ 
         return isAllCompleted && isFullyPaid;
       };
 
