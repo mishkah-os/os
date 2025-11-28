@@ -8108,7 +8108,8 @@
           }
           const uiBase = s.ui || {};
           const modals = { ...(uiBase.modals || {}) };
-          if(openPrint){
+          const shouldPrintFirst = openPrint || (finalize && orderType === 'dine_in');
+          if(shouldPrintFirst){
             modals.print = true;
           }
           const nextUi = {
@@ -8117,8 +8118,12 @@
             paymentDraft:{ ...(uiBase.paymentDraft || {}), amount:'' },
             pendingAction:null
           };
-          if(openPrint){
+          if(shouldPrintFirst){
             nextUi.print = { ...(uiBase.print || {}), docType: data.print?.docType || 'customer', size: data.print?.size || 'thermal_80' };
+            // ✅ Flag to trigger Clear & New after print modal closes
+            nextUi.shouldClearAfterPrint = true;
+            nextUi.savedOrderForPrint = orderPayload; // ✅ Save order for printing
+            console.log('🖨️ [POS] Print modal will open, Clear & New deferred until after print');
           }
 
           // ✅ CRITICAL FIX: Update ordersQueue with saved order (preserving tableIds)
@@ -8225,13 +8230,14 @@
               indexeddb:{ state:'online', lastSync: now }
             }
           };
-          // ✅ CRITICAL: After save/finalize, ALWAYS create new blank order
-          // Don't leave saved order in cart - prevents duplicate saves
-          // User requirement: "أي عملية حفظ أو انهاء يتبعها clear للأوردر وعمل أوردر جديد"
-          // ALWAYS create new order regardless of type (dine_in, delivery, takeaway)
-          const shouldCreateNewOrder = true;  // ✅ ALWAYS clear after save/finalize!
+          // ✅ CRITICAL: After save/finalize, handle Clear & New based on print requirement
+          // If print is needed (takeaway finalize-print OR dine-in finalize), delay Clear & New until after print
+          // Otherwise, create new order immediately
+          const shouldPrintFirst = openPrint || (finalize && orderType === 'dine_in');
+          const shouldCreateNewOrder = !shouldPrintFirst;  // ✅ Only clear immediately if NO print needed
 
           if(shouldCreateNewOrder){
+            // ✅ Create new order immediately (for save/draft without print)
             const newOrderId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
             updatedData.order = {
               id: newOrderId,
@@ -8254,14 +8260,20 @@
               paymentsLocked: false
             };
             updatedData.payments = { ...(data.payments || {}), split:[] };
-            console.log('✅ [POS] Created new blank order after save (ALL order types cleared):', {
+            console.log('✅ [POS] Created new blank order immediately after save (no print needed):', {
               reason: finalize ? 'finalize' : 'save',
               newOrderId,
+              orderType
+            });
+          } else {
+            // ✅ Delay Clear & New until after print - keep saved order for printing
+            console.log('⏳ [POS] Delaying Clear & New until after print:', {
               orderType,
-              openPrint
+              finalize,
+              openPrint,
+              orderId: orderPayload.id
             });
           }
-          // ✅ No else case - ALWAYS create new order!
           return {
             ...s,
             data: updatedData,
@@ -9287,7 +9299,8 @@
     function PrintModal(db){
       const t = getTexts(db);
       if(!db.ui.modals.print) return null;
-      const order = db.data.order || {};
+      // ✅ Use savedOrderForPrint if available (for printing after finalize), otherwise use current order
+      const order = db.ui.savedOrderForPrint || db.data.order || {};
       const uiPrint = db.ui.print || {};
       const docType = uiPrint.docType || db.data.print?.docType || 'customer';
       const profiles = db.data.print?.profiles || {};
@@ -11325,14 +11338,116 @@
       return true;
     }
 
+    // ✅ Helper function to create new blank order after print
+    async function createNewOrderAfterPrint(ctx){
+      const state = ctx.getState();
+      const t = getTexts(state);
+      const currentShift = state.data.shift?.current;
+
+      if(!currentShift){
+        console.warn('[POS] Cannot create new order - no active shift');
+        return;
+      }
+
+      const data = state.data || {};
+      const order = data.order || {};
+      const type = order.type || 'dine_in';
+      const newId = `draft-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+
+      ctx.setState(s=> {
+        const totals = calculateTotals([], s.data.settings || {}, type, { orderDiscount: null });
+        return {
+          ...s,
+          data:{
+            ...s.data,
+            order:{
+              id: newId,
+              status: 'open',
+              fulfillmentStage: 'new',
+              paymentState: 'unpaid',
+              type,
+              tableIds: [],
+              guests: type === 'dine_in' ? 0 : (order.guests || 0),
+              lines: [],
+              notes: [],
+              discount: null,
+              totals,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              shiftId: currentShift.id,
+              posId: data.pos?.id || POS_INFO.id,
+              posLabel: data.pos?.label || POS_INFO.label,
+              posNumber: Number.isFinite(Number(data.pos?.number)) ? Number(data.pos.number) : POS_INFO.number,
+              payments: [],
+              returns: [],
+              customerId: null,
+              customerAddressId: null,
+              customerName: '',
+              customerPhone: '',
+              customerAddress: '',
+              customerAreaId: null,
+              dirty: false,
+              orderTypeId: type,
+              statusId: 'open',
+              stageId: 'new',
+              paymentStateId: 'unpaid',
+              tableId: null,
+              subtotal: totals.subtotal || 0,
+              discount_amount: totals.discount || 0,
+              service_amount: totals.service || 0,
+              tax_amount: totals.vat || 0,
+              delivery_fee: totals.deliveryFee || 0,
+              total: totals.due || 0,
+              total_paid: 0,
+              total_due: totals.due || 0,
+              version: 1,
+              currentVersion: 1,
+              isPersisted: false,
+              allowAdditions: true,
+              paymentsLocked: false,
+              metadata: {
+                orderType: type,
+                orderTypeId: type,
+                serviceMode: type
+              }
+            },
+            payments: { ...(s.data.payments || {}), split: [] },
+            tableLocks: (s.data.tableLocks || []).map(lock=> lock.orderId === order.id ? { ...lock, active: false } : lock)
+          },
+          ui:{
+            ...(s.ui || {}),
+            shouldClearAfterPrint: false,
+            savedOrderForPrint: null,
+            pendingAction: null
+          }
+        };
+      });
+
+      console.log('✅ [POS] Created new blank order after print:', {
+        newOrderId: newId,
+        orderType: type
+      });
+      UI.pushToast(ctx, { title: t.toast.new_order, icon: '🆕' });
+    }
+
     const posOrders = {
       'ui.modal.close':{
         on:['click'],
         gkeys:['ui:modal:close'],
-        handler:(e,ctx)=>{
+        handler: async (e,ctx)=>{
           e.preventDefault();
           e.stopPropagation();
+          const state = ctx.getState();
+          const wasPrintModalOpen = state.ui?.modals?.print;
+          const shouldClearAfterPrint = state.ui?.shouldClearAfterPrint;
+
           closeActiveModals(ctx);
+
+          // ✅ If closing print modal AND shouldClearAfterPrint flag is set, create new order
+          if(wasPrintModalOpen && shouldClearAfterPrint){
+            console.log('🧹 [POS] Print modal closed - executing deferred Clear & New');
+            await createNewOrderAfterPrint(ctx);
+          }
         }
       },
       'pos.order.jobs.details.close':{
@@ -14140,25 +14255,43 @@
       'pos.print.save':{
         on:['click'],
         gkeys:['pos:print:save'],
-        handler:(e,ctx)=>{
-          const t = getTexts(ctx.getState());
+        handler: async (e,ctx)=>{
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const shouldClearAfterPrint = state.ui?.shouldClearAfterPrint;
+
           UI.pushToast(ctx, { title:t.toast.print_profile_saved, icon:'💾' });
           ctx.setState(s=>({
             ...s,
             ui:{ ...(s.ui || {}), modals:{ ...(s.ui?.modals || {}), print:false } }
           }));
+
+          // ✅ If shouldClearAfterPrint flag is set, create new order after closing print modal
+          if(shouldClearAfterPrint){
+            console.log('🧹 [POS] Print saved - executing deferred Clear & New');
+            await createNewOrderAfterPrint(ctx);
+          }
         }
       },
       'pos.print.send':{
         on:['click'],
         gkeys:['pos:print:send'],
-        handler:(e,ctx)=>{
-          const t = getTexts(ctx.getState());
+        handler: async (e,ctx)=>{
+          const state = ctx.getState();
+          const t = getTexts(state);
+          const shouldClearAfterPrint = state.ui?.shouldClearAfterPrint;
+
           UI.pushToast(ctx, { title:t.toast.print_sent, icon:'🖨️' });
           ctx.setState(s=>({
             ...s,
             ui:{ ...(s.ui || {}), modals:{ ...(s.ui?.modals || {}), print:false } }
           }));
+
+          // ✅ If shouldClearAfterPrint flag is set, create new order after closing print modal
+          if(shouldClearAfterPrint){
+            console.log('🧹 [POS] Print sent - executing deferred Clear & New');
+            await createNewOrderAfterPrint(ctx);
+          }
         }
       },
       'pos.print.browser':{
