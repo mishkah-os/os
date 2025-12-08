@@ -214,12 +214,13 @@
     }
 
     .hero-ghost {
-      width: 54px;
-      height: 54px;
+      padding: 12px 16px;
+      min-height: 54px;
       border-radius: 16px;
       background: rgba(255, 255, 255, 0.2);
       border: none;
-      font-size: 1.2rem;
+      font-size: 1rem;
+      color: #fff;
     }
 
     .metric-grid {
@@ -286,6 +287,7 @@
       border: 1px solid var(--border);
       background: var(--bg-muted);
       font-size: 0.85rem;
+      cursor: pointer;
     }
 
     .chip-active {
@@ -366,6 +368,21 @@
       background: var(--bg-card);
       padding: 16px;
       box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .article-cover {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 12px;
+    }
+
+    .article-title {
+      font-size: 1rem;
+      font-weight: 700;
     }
 
     .service-title {
@@ -822,6 +839,43 @@
     .quick-actions .chips-row {
       display: flex;
       gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .category-tree-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .category-tree-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    .category-tree-column {
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .category-tree-heading {
+      font-weight: 700;
+    }
+
+    .cluster-title {
+      font-weight: 700;
+    }
+
+    .cluster-description {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
     }
 
     .hero-cta.small {
