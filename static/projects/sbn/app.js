@@ -156,6 +156,8 @@
   var BRANCH_ID = 'sbn';
   var MODULE_ID = 'mostamal';
   var PREF_STORAGE_KEY = 'sbn:prefs:v1';
+  var NOTIFICATION_PREFS_KEY = 'sbn:notification:prefs:v1';
+  var COMPLIANCE_PREFS_KEY = 'sbn:compliance:prefs:v1';
   var COMPOSER_DRAFT_KEY = 'sbn:composer:draft';
   var ONBOARDING_STORAGE_KEY = 'sbn:onboarding:progress';
   var LAUNCH_CHECKLIST_KEY = 'sbn:launch:checklist';
@@ -455,6 +457,44 @@
     }
   }
 
+  function loadNotificationPrefs() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(NOTIFICATION_PREFS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistNotificationPrefs(prefs) {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(prefs || {}));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  function loadCompliancePrefs() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(COMPLIANCE_PREFS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistCompliancePrefs(prefs) {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(COMPLIANCE_PREFS_KEY, JSON.stringify(prefs || {}));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
   function loadComposerDraft() {
     if (!global.localStorage) return null;
     try {
@@ -692,6 +732,8 @@
   var persistedComposerDraft = loadComposerDraft();
   var persistedOnboarding = loadOnboardingProgress();
   var persistedLaunchChecklist = loadLaunchChecklistState();
+  var persistedNotificationPrefs = loadNotificationPrefs();
+  var persistedCompliancePrefs = loadCompliancePrefs();
 
   var initialDatabase = {
     env: {
@@ -766,6 +808,11 @@
         preset: '',
         message: ''
       },
+      readerOverlay: {
+        open: false,
+        articleId: null,
+        fontSize: 'md'
+      },
       reportOverlay: {
         open: false,
         targetType: null,
@@ -782,7 +829,26 @@
       commentDraft: '',
       showPwaPrompt: false,
       notificationsOpen: false,
+      inboxOpen: false,
       profileTab: 'posts',
+      notificationPrefs: Object.assign({
+        pushEnabled: false,
+        inboxEnabled: true,
+        permission: 'default',
+        webPushPrompted: false,
+        channels: {
+          comments: true,
+          messages: true,
+          saves: true,
+          reports: true
+        }
+      }, persistedNotificationPrefs || {}),
+      compliance: Object.assign({
+        termsAccepted: false,
+        privacyAccepted: false,
+        dataConsent: false,
+        deletionRequested: false
+      }, persistedCompliancePrefs || {}),
       auth: {
         open: false,
         step: 'login',
@@ -809,9 +875,40 @@
       hashtags: [],
       reviews: [],
       classifieds: [],
-      notifications: []
+      notifications: [],
+      inboxThreads: []
     }
   };
+
+  var DEFAULT_INBOX_THREADS = [
+    {
+      thread_id: 'thread_demo_1',
+      title: 'سؤال حول الإعلان',
+      snippet: 'هل ما زال المنتج متوفراً؟ أحتاج صوراً إضافية قبل الطلب.',
+      unread: true,
+      type: 'message',
+      updated_at: new Date().toISOString(),
+      counterpart: 'سارة العطار'
+    },
+    {
+      thread_id: 'thread_demo_2',
+      title: 'تعليق جديد على البوست',
+      snippet: 'أعجبني عرض الخدمة، هل يوجد باقة شهرية؟',
+      unread: false,
+      type: 'comment',
+      updated_at: new Date().toISOString(),
+      counterpart: 'منى عادل'
+    },
+    {
+      thread_id: 'thread_demo_3',
+      title: 'حفظ منتجك',
+      snippet: 'تم حفظ منتجك في قائمة مفضلات 12 مستخدمًا.',
+      unread: true,
+      type: 'save',
+      updated_at: new Date().toISOString(),
+      counterpart: 'تنبيه النظام'
+    }
+  ];
 
   // ================== DATA HELPERS ==================
 
@@ -855,6 +952,47 @@
     if (record.avatar_url) return record.avatar_url;
     const media = toArray(record.images || record.media || record.gallery);
     return media.length ? media[0] : '/projects/sbn/placeholder.jpg';
+  }
+
+  function resolveInboxThreads(db) {
+    var threads = (db && db.data && db.data.inboxThreads) || [];
+    if (Array.isArray(threads) && threads.length) return threads;
+    return DEFAULT_INBOX_THREADS;
+  }
+
+  function updateNotificationPreferences(ctx, updates) {
+    ctx.setState(function(db) {
+      var current = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
+      persistNotificationPrefs(next);
+      var launch = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
+      var nextLaunch = next.pushEnabled || next.inboxEnabled
+        ? Object.assign({}, launch, { safety: true })
+        : launch;
+      if (nextLaunch !== launch) {
+        persistLaunchChecklistState(nextLaunch);
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { notificationPrefs: next, launchChecklist: nextLaunch }),
+        data: db.data
+      };
+    });
+  }
+
+  function updateComplianceState(ctx, updates) {
+    ctx.setState(function(db) {
+      var current = db.state.compliance || initialDatabase.state.compliance;
+      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
+      persistCompliancePrefs(next);
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { compliance: next }),
+        data: db.data
+      };
+    });
   }
 
   function resolveUserTrust(user) {
@@ -1550,6 +1688,16 @@
             }
           },
           [notifCount > 0 ? ('🔔 ' + notifCount) : '🔔']
+        ),
+        D.Forms.Button(
+          {
+            attrs: {
+              'data-m-gkey': 'open-inbox',
+              class: 'icon-btn',
+              title: t('notifications.inbox.title', 'صندوق الوارد')
+            }
+          },
+          ['💬']
         ),
         D.Forms.Button(
           {
@@ -2394,6 +2542,82 @@
     });
   }
 
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReaderOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.readerOverlay || initialDatabase.state.readerOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { readerOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setContactOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReportOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
   function showNotice(ctx, message) {
     ctx.setState(function(db) {
       return {
@@ -2653,6 +2877,110 @@
           }, [label]);
         }))
       )
+    ]);
+  }
+
+  function renderNotificationSettings(db) {
+    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+    var permission = prefs.permission || (global.Notification && Notification.permission) || 'default';
+    var channelPrefs = prefs.channels || {};
+    var summary = [
+      prefs.pushEnabled ? t('notifications.push.enabled', 'Push/WebPush مفعّل') : t('notifications.push.disabled', 'Push غير مفعل'),
+      prefs.inboxEnabled ? t('notifications.inbox.enabled', 'Inbox قيد العمل') : t('notifications.inbox.disabled', 'Inbox متوقف'),
+      t('notifications.permission', 'تصريح: ') + permission
+    ].join(' • ');
+
+    var channelOptions = [
+      { key: 'messages', label: t('notifications.channel.messages', 'رسائل ودردشات'), hint: t('notifications.channel.messages.hint', 'تفعيل تنبيهات المحادثات والاستفسارات')),
+      { key: 'comments', label: t('notifications.channel.comments', 'تعليقات وردود'), hint: t('notifications.channel.comments.hint', 'تنبيهات التعليقات على البوستات والريلز')),
+      { key: 'saves', label: t('notifications.channel.saves', 'حفظ ومفضلة'), hint: t('notifications.channel.saves.hint', 'إشعارات الحفظ والتفضيل لمحتواك')),
+      { key: 'reports', label: t('notifications.channel.reports', 'إبلاغات الأمان'), hint: t('notifications.channel.reports.hint', 'تنبيهات التبليغ أو التحذير على محتوى مرتبط بك'))
+    ];
+
+    return D.Containers.Div({ attrs: { class: 'section-card settings-card' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('notifications.settings', 'الإشعارات والتراسل')]),
+        D.Text.Small({ attrs: { class: 'text-muted' } }, [summary])
+      ]),
+      D.Containers.Div({ attrs: { class: 'settings-actions' } }, [
+        D.Forms.Button({
+          attrs: { class: 'chip primary', 'data-m-gkey': 'notifications-request' }
+        }, [prefs.pushEnabled ? t('notifications.push.recheck', 'إعادة فحص التصريح') : t('notifications.push.enable', 'تفعيل Push/WebPush')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'notifications-toggle-inbox', 'data-enabled': prefs.inboxEnabled ? '1' : '0' }
+        }, [prefs.inboxEnabled ? t('notifications.inbox.on', 'إيقاف Inbox') : t('notifications.inbox.off', 'تشغيل Inbox')]),
+        D.Forms.Button({
+          attrs: { class: 'chip', 'data-m-gkey': 'open-inbox' }
+        }, [t('notifications.openInbox', 'فتح صندوق الوارد')])
+      ]),
+      D.Containers.Div({ attrs: { class: 'toggle-grid' } }, channelOptions.map(function(channel) {
+        var enabled = channelPrefs[channel.key] !== false;
+        return D.Containers.Div({ attrs: { class: 'toggle-row', key: channel.key } }, [
+          D.Containers.Div({ attrs: { class: 'toggle-copy' } }, [
+            D.Text.Span({ attrs: { class: 'toggle-title' } }, [channel.label]),
+            D.Text.Small({ attrs: { class: 'toggle-hint' } }, [channel.hint])
+          ]),
+          D.Forms.Button({
+            attrs: {
+              class: 'toggle-pill' + (enabled ? ' active' : ''),
+              'data-m-gkey': 'notifications-toggle-channel',
+              'data-channel': channel.key
+            }
+          }, [enabled ? t('action.on', 'مفعل') : t('action.off', 'متوقف')])
+        ]);
+      })),
+      D.Text.Small({ attrs: { class: 'text-muted' } }, [
+        t('notifications.settings.note', 'نفعل WebPush + Inbox لعرض التعليقات، الرسائل، الحفظ، والتبليغ داخل التطبيق.')
+      ])
+    ]);
+  }
+
+  function renderComplianceCard(db) {
+    var compliance = db.state.compliance || initialDatabase.state.compliance;
+    var checklist = [
+      { key: 'termsAccepted', label: t('compliance.terms', 'شروط الاستخدام'), hint: t('compliance.terms.hint', 'الموافقة على بنود الاستخدام وآلية النشر') },
+      { key: 'privacyAccepted', label: t('compliance.privacy', 'سياسة الخصوصية'), hint: t('compliance.privacy.hint', 'الاطلاع والموافقة على جمع/استخدام البيانات') },
+      { key: 'dataConsent', label: t('compliance.data', 'موافقة جمع البيانات'), hint: t('compliance.data.hint', 'تفعيل التتبع الضروري وتجربة الإشعارات') }
+    ];
+    var status = [
+      compliance.termsAccepted ? '✔️ ' + t('compliance.terms.short', 'الشروط') : '• ' + t('compliance.terms.short', 'الشروط'),
+      compliance.privacyAccepted ? '✔️ ' + t('compliance.privacy.short', 'الخصوصية') : '• ' + t('compliance.privacy.short', 'الخصوصية'),
+      compliance.dataConsent ? '✔️ ' + t('compliance.data.short', 'البيانات') : '• ' + t('compliance.data.short', 'البيانات')
+    ].join(' / ');
+
+    return D.Containers.Div({ attrs: { class: 'section-card consent-card' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('compliance.title', 'الامتثال والخصوصية')]),
+        D.Text.Small({ attrs: { class: 'text-muted' } }, [status])
+      ]),
+      D.Containers.Div({ attrs: { class: 'consent-list' } }, checklist.map(function(item) {
+        var enabled = Boolean(compliance[item.key]);
+        return D.Containers.Div({ attrs: { class: 'toggle-row', key: item.key } }, [
+          D.Containers.Div({ attrs: { class: 'toggle-copy' } }, [
+            D.Text.Span({ attrs: { class: 'toggle-title' } }, [item.label]),
+            D.Text.Small({ attrs: { class: 'toggle-hint' } }, [item.hint])
+          ]),
+          D.Forms.Button({
+            attrs: {
+              class: 'toggle-pill' + (enabled ? ' active' : ''),
+              'data-m-gkey': 'compliance-toggle',
+              'data-key': item.key
+            }
+          }, [enabled ? t('action.on', 'مفعل') : t('action.off', 'متوقف')])
+        ]);
+      })),
+      D.Containers.Div({ attrs: { class: 'consent-actions' } }, [
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'compliance-delete' }
+        }, [
+          compliance.deletionRequested
+            ? t('compliance.delete.requested', 'تم طلب حذف الحساب/البيانات')
+            : t('compliance.delete', 'طلب حذف الحساب/البيانات')
+        ]),
+        D.Text.Small({ attrs: { class: 'text-muted' } }, [
+          t('compliance.note', 'تتطلب اللوائح إتاحة الموافقة، الانسحاب، وحذف البيانات من واجهة واحدة.')
+        ])
+      ])
     ]);
   }
 
@@ -3197,6 +3525,8 @@
       renderQuickActions(),
       renderOnboardingCard(db),
       renderLaunchChecklist(db),
+      renderNotificationSettings(db),
+      renderComplianceCard(db),
       renderHomeTabs(),
       renderActiveFilters(db)
     ];
@@ -3784,6 +4114,73 @@
     ]);
   }
 
+  function renderReaderOverlay(db) {
+    var overlay = db.state.readerOverlay;
+    if (!overlay || !overlay.open) return null;
+    var article = findById(db.data.articles || [], 'article_id', overlay.articleId);
+    if (!article) return null;
+
+    var cover = resolvePrimaryImage(article);
+    var title = getLocalizedField(article, 'title', t('knowledge.card.title'));
+    var body = getLocalizedField(article, 'content', article.body || article.summary || article.excerpt || '');
+    var words = body.split(/\s+/).filter(Boolean).length;
+    var readMinutes = Math.max(1, Math.ceil(words / 170));
+    var fontSize = overlay.fontSize || 'md';
+    var related = (db.data.articles || []).filter(function(item) { return item.article_id !== article.article_id; }).slice(0, 3);
+
+    var fontOptions = [
+      { value: 'sm', label: 'A-' },
+      { value: 'md', label: 'A' },
+      { value: 'lg', label: 'A+' }
+    ];
+
+    return D.Containers.Div({ attrs: { class: 'reader-overlay', 'data-m-gkey': 'reader-close' } }, [
+      D.Containers.Div({ attrs: { class: 'reader-panel', 'data-m-gkey': 'reader-inner' } }, [
+        D.Containers.Div({ attrs: { class: 'reader-head' } }, [
+          D.Text.H4({ attrs: { class: 'reader-title' } }, [title]),
+          D.Containers.Div({ attrs: { class: 'reader-tools' } }, [
+            D.Text.Small({ attrs: { class: 'reader-meta' } }, [readMinutes + ' ' + t('knowledge.read.time', 'دقيقة قراءة')]),
+            D.Containers.Div({ attrs: { class: 'reader-fonts' } }, fontOptions.map(function(opt) {
+              var active = opt.value === fontSize;
+              return D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost' + (active ? ' active' : ''),
+                  'data-m-gkey': 'reader-font',
+                  'data-size': opt.value
+                }
+              }, [opt.label]);
+            })),
+            D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'reader-close' } }, ['✕'])
+          ])
+        ]),
+        cover ? D.Media.Img({ attrs: { class: 'reader-cover', src: cover, alt: title } }, []) : null,
+        D.Containers.Div({ attrs: { class: 'reader-body reader-size-' + fontSize } },
+          body
+            ? body.split(/\n+/).filter(Boolean).map(function(paragraph, idx) {
+                return D.Text.P({ attrs: { key: 'p-' + idx, class: 'reader-paragraph' } }, [paragraph.trim()]);
+              })
+            : [D.Text.P({}, [t('knowledge.empty', 'لا يوجد محتوى بعد.')])]
+        ),
+        related.length
+          ? D.Containers.Div({ attrs: { class: 'reader-related' } }, [
+              D.Text.H5({}, [t('knowledge.related', 'مقالات ذات صلة')]),
+              D.Containers.Div({ attrs: { class: 'reader-related-list' } },
+                related.map(function(item) {
+                  return D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'reader-open-related',
+                      'data-article-id': item.article_id
+                    }
+                  }, [getLocalizedField(item, 'title', t('knowledge.card.title'))]);
+                })
+              )
+            ])
+          : null
+      ])
+    ]);
+  }
+
   function renderContactOverlay(db) {
     var overlay = db.state.contactOverlay;
     if (!overlay || !overlay.open) return null;
@@ -3917,6 +4314,34 @@
             })
           )
         : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.empty', 'لا توجد إشعارات حالياً')])
+    ]);
+  }
+
+  function renderInboxPanel(db) {
+    if (!db.state.inboxOpen) return null;
+    var threads = resolveInboxThreads(db);
+    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
+        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
+        ])
+      ]),
+      !prefs.inboxEnabled
+        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
+        : null,
+      threads && threads.length
+        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
+            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
+            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
+              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
+              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
+              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
+            ]);
+          }))
+        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
     ]);
   }
 
@@ -4152,9 +4577,11 @@
         renderNotice(db),
         renderHeader(db),
         renderNotificationsPanel(db),
+        renderInboxPanel(db),
         D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
         renderBottomNav(db),
         renderDetailOverlay(db),
+        renderReaderOverlay(db),
         renderContactOverlay(db),
         renderReportOverlay(db),
         renderPostOverlay(db),
@@ -4245,7 +4672,7 @@
         } else if (kind === 'service') {
           setDetailOverlay(ctx, { open: true, kind: 'service', targetId: targetId, activeIndex: 0 });
         } else if (kind === 'wiki') {
-          setDetailOverlay(ctx, { open: true, kind: 'wiki', targetId: targetId, activeIndex: 0 });
+          setReaderOverlay(ctx, { open: true, articleId: targetId, fontSize: 'md' });
         } else if (kind === 'classified') {
           if (targetId) {
             setDetailOverlay(ctx, { open: true, kind: 'classified', targetId: targetId, activeIndex: 0 });
@@ -4392,6 +4819,55 @@
       }
     },
 
+    'reader.close': {
+      on: ['click'],
+      gkeys: ['reader-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          if (!db.state.readerOverlay.open) return db;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { readerOverlay: Object.assign({}, db.state.readerOverlay, { open: false }) }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'reader.inner': {
+      on: ['click'],
+      gkeys: ['reader-inner'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+
+    'reader.font': {
+      on: ['click'],
+      gkeys: ['reader-font'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var size = event.currentTarget && event.currentTarget.getAttribute('data-size');
+        if (!size) return;
+        setReaderOverlay(ctx, function(current) {
+          return Object.assign({}, current, { fontSize: size });
+        });
+      }
+    },
+
+    'reader.open.related': {
+      on: ['click'],
+      gkeys: ['reader-open-related'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var id = event.currentTarget && event.currentTarget.getAttribute('data-article-id');
+        if (!id) return;
+        setReaderOverlay(ctx, { open: true, articleId: id });
+      }
+    },
+
     'detail.inner': {
       on: ['click'],
       gkeys: ['detail-overlay-inner'],
@@ -4506,6 +4982,143 @@
             data: db.data
           };
         });
+      }
+    },
+
+    'notifications.request': {
+      on: ['click'],
+      gkeys: ['notifications-request'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var hasNotificationApi = typeof Notification !== 'undefined' && typeof Notification.requestPermission === 'function';
+        if (!hasNotificationApi) {
+          updateNotificationPreferences(ctx, { permission: 'unsupported', pushEnabled: false });
+          showNotice(ctx, t('notifications.push.unsupported', 'المتصفح الحالي لا يدعم Push/WebPush.'));
+          return;
+        }
+        Notification.requestPermission().then(function(permission) {
+          var enabled = permission === 'granted';
+          updateNotificationPreferences(ctx, function(current) {
+            return Object.assign({}, current, {
+              permission: permission,
+              pushEnabled: enabled,
+              webPushPrompted: true,
+              inboxEnabled: enabled || current.inboxEnabled
+            });
+          });
+          if (enabled) {
+            showNotice(ctx, t('notifications.push.ready', 'سيتم إرسال التنبيهات للأحداث الجديدة.'));
+          } else {
+            showNotice(ctx, t('notifications.push.denied', 'تم رفض الإذن. يمكنك إعادة المحاولة لاحقاً.'));
+          }
+        }).catch(function(err) {
+          console.warn('[SBN PWA] push permission failed', err);
+          updateNotificationPreferences(ctx, { permission: 'denied', pushEnabled: false });
+        });
+      }
+    },
+
+    'notifications.toggle-channel': {
+      on: ['click'],
+      gkeys: ['notifications-toggle-channel'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var channel = event.currentTarget && event.currentTarget.getAttribute('data-channel');
+        if (!channel) return;
+        updateNotificationPreferences(ctx, function(current) {
+          var channels = Object.assign({}, current.channels || {});
+          channels[channel] = channels[channel] === false;
+          return Object.assign({}, current, { channels: channels });
+        });
+      }
+    },
+
+    'notifications.toggle-inbox': {
+      on: ['click'],
+      gkeys: ['notifications-toggle-inbox'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        updateNotificationPreferences(ctx, function(current) {
+          return Object.assign({}, current, { inboxEnabled: !current.inboxEnabled });
+        });
+      }
+    },
+
+    'open-inbox': {
+      on: ['click'],
+      gkeys: ['open-inbox'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var threads = resolveInboxThreads(db);
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { inboxOpen: true }),
+            data: Object.assign({}, db.data, { inboxThreads: threads })
+          };
+        });
+      }
+    },
+
+    'close-inbox': {
+      on: ['click'],
+      gkeys: ['close-inbox'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          if (!db.state.inboxOpen) return db;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { inboxOpen: false }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'mark-inbox-read': {
+      on: ['click'],
+      gkeys: ['mark-inbox-read'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var threads = resolveInboxThreads(db).map(function(thread) {
+            return Object.assign({}, thread, { unread: false });
+          });
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: db.state,
+            data: Object.assign({}, db.data, { inboxThreads: threads })
+          };
+        });
+      }
+    },
+
+    'compliance-toggle': {
+      on: ['click'],
+      gkeys: ['compliance-toggle'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var key = event.currentTarget && event.currentTarget.getAttribute('data-key');
+        if (!key) return;
+        updateComplianceState(ctx, function(current) {
+          var next = Object.assign({}, current);
+          next[key] = !current[key];
+          return next;
+        });
+      }
+    },
+
+    'compliance-delete': {
+      on: ['click'],
+      gkeys: ['compliance-delete'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        updateComplianceState(ctx, { deletionRequested: true });
+        showNotice(ctx, t('compliance.delete.notice', 'تم تسجيل طلب حذف البيانات. سنذكرك بمتطلبات التحقق.'));
       }
     },
 

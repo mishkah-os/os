@@ -1159,6 +1159,96 @@
       font-size: 0.9rem;
     }
 
+    .notification-item.unread {
+      border-color: var(--primary-light);
+      box-shadow: var(--shadow);
+    }
+
+    .notification-meta {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+    }
+
+    .panel-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .settings-card, .consent-card {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .settings-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .toggle-grid, .consent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      background: var(--bg-card);
+    }
+
+    .toggle-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .toggle-title {
+      font-weight: 700;
+    }
+
+    .toggle-hint {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .toggle-pill {
+      min-width: 120px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      background: var(--bg-muted);
+      color: var(--text-secondary);
+    }
+
+    .toggle-pill.active {
+      background: var(--primary-muted);
+      border-color: var(--primary);
+      color: var(--primary-light);
+    }
+
+    .inbox-panel {
+      background: var(--bg-card);
+    }
+
+    .consent-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .text-muted {
+      color: var(--text-secondary);
+    }
+
     .tab-switcher {
       display: flex;
       align-items: center;
@@ -1249,6 +1339,17 @@
       z-index: 50;
     }
 
+    .reader-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      padding: 20px;
+      z-index: 60;
+    }
+
     .detail-panel {
       background: var(--bg-card);
       width: min(520px, 100%);
@@ -1305,6 +1406,96 @@
     .detail-thumb.active {
       border-color: var(--primary);
       box-shadow: var(--shadow);
+    }
+
+    .reader-panel {
+      background: var(--bg-card);
+      width: min(720px, 100%);
+      max-height: 90vh;
+      overflow-y: auto;
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .reader-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .reader-title {
+      font-size: 1.2rem;
+      font-weight: 800;
+      flex: 1;
+    }
+
+    .reader-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .reader-meta {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .reader-fonts {
+      display: flex;
+      gap: 6px;
+    }
+
+    .reader-cover {
+      width: 100%;
+      border-radius: 14px;
+      object-fit: cover;
+      max-height: 280px;
+      border: 1px solid var(--border);
+    }
+
+    .reader-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      line-height: 1.8;
+      color: var(--text-primary);
+    }
+
+    .reader-body.reader-size-sm {
+      font-size: 0.95rem;
+    }
+
+    .reader-body.reader-size-md {
+      font-size: 1rem;
+    }
+
+    .reader-body.reader-size-lg {
+      font-size: 1.08rem;
+    }
+
+    .reader-paragraph {
+      margin: 0;
+      text-align: justify;
+    }
+
+    .reader-related {
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .reader-related-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
     .detail-body {
