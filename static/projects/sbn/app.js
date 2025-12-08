@@ -2450,6 +2450,20 @@
         env: db.env,
         meta: db.meta,
         state: nextState,
+      data: db.data
+    };
+  });
+}
+
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
         data: db.data
       };
     });
