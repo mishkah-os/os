@@ -158,6 +158,7 @@
   var PREF_STORAGE_KEY = 'sbn:prefs:v1';
   var COMPOSER_DRAFT_KEY = 'sbn:composer:draft';
   var ONBOARDING_STORAGE_KEY = 'sbn:onboarding:progress';
+  var LAUNCH_CHECKLIST_KEY = 'sbn:launch:checklist';
 
   var BASE_I18N = {};
   var realtime = null;
@@ -498,6 +499,25 @@
     }
   }
 
+  function loadLaunchChecklistState() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(LAUNCH_CHECKLIST_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistLaunchChecklistState(progress) {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(LAUNCH_CHECKLIST_KEY, JSON.stringify(progress || {}));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
   function loadPersistedSession() {
     if (!global.localStorage) return null;
     try {
@@ -671,6 +691,7 @@
   var persistedSession = loadPersistedSession();
   var persistedComposerDraft = loadComposerDraft();
   var persistedOnboarding = loadOnboardingProgress();
+  var persistedLaunchChecklist = loadLaunchChecklistState();
 
   var initialDatabase = {
     env: {
@@ -723,6 +744,13 @@
         completed: {},
         dismissed: false
       }, persistedOnboarding || {}),
+      launchChecklist: Object.assign({
+        composer: false,
+        attachments: false,
+        profile: false,
+        discovery: false,
+        safety: false
+      }, persistedLaunchChecklist || {}),
       profileEditor: {
         open: false,
         fullName: '',
@@ -1845,6 +1873,47 @@
     ];
   }
 
+  function getLaunchChecklist(db) {
+    var defaults = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
+    return [
+      {
+        key: 'composer',
+        title: t('launch.composer', 'تحقق من الكومبوزر والمرفقات'),
+        hint: t('launch.composer.hint', 'تأكد أن الحقول الإلزامية والدرَفت تعمل بلا أعطال.'),
+        done: Boolean(defaults.composer),
+        action: 'composer-open'
+      },
+      {
+        key: 'attachments',
+        title: t('launch.attachments', 'شاشات التفاصيل والجاليري'),
+        hint: t('launch.attachments.hint', 'جرّب فتح إعلان، منتج، خدمة، ومقال مع الجاليري.'),
+        done: Boolean(defaults.attachments),
+        action: 'open-attachment'
+      },
+      {
+        key: 'profile',
+        title: t('launch.profile', 'تعديل الملف والتبويبات'),
+        hint: t('launch.profile.hint', 'اختبر التبويبات (بوست، إعلان، تجارة، معرفة) وخيار التعديل.'),
+        done: Boolean(defaults.profile),
+        action: 'nav-profile'
+      },
+      {
+        key: 'discovery',
+        title: t('launch.discovery', 'الفلاتر والهاشتاغات'),
+        hint: t('launch.discovery.hint', 'تأكد من البحث، التصنيفات، وإعادة الضبط للهاشتاغ.'),
+        done: Boolean(defaults.discovery),
+        action: 'reset-filters'
+      },
+      {
+        key: 'safety',
+        title: t('launch.safety', 'الثقة والتبليغ والإشعارات'),
+        hint: t('launch.safety.hint', 'اختبر الاتصال، الإبلاغ، والشارات الموثقة والإشعارات.'),
+        done: Boolean(defaults.safety),
+        action: 'open-notifications'
+      }
+    ];
+  }
+
   function renderOnboardingCard(db) {
     var user = getActiveUser(db);
     var onboarding = db.state.onboarding || initialDatabase.state.onboarding;
@@ -1886,6 +1955,52 @@
       D.Containers.Div({ attrs: { class: 'onboarding-actions' } }, [
         D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('composer.start')]),
         D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')])
+      ])
+    ]);
+  }
+
+  function renderLaunchChecklist(db) {
+    var items = getLaunchChecklist(db);
+    var doneCount = items.filter(function(item) { return item.done; }).length;
+    var progress = Math.round((doneCount / items.length) * 100);
+
+    return D.Containers.Div({ attrs: { class: 'section-card launch-card' } }, [
+      D.Containers.Div({ attrs: { class: 'launch-head' } }, [
+        D.Text.H4({}, [t('launch.title', 'جاهزية الإطلاق')]),
+        D.Text.Small({ attrs: { class: 'launch-progress' } }, [progress + '%'])
+      ]),
+      D.Containers.Div({ attrs: { class: 'launch-bar' } }, [
+        D.Containers.Div({ attrs: { class: 'launch-bar-fill', style: 'width:' + progress + '%;' } }, [])
+      ]),
+      D.Containers.Div({ attrs: { class: 'launch-list' } },
+        items.map(function(item) {
+          return D.Containers.Div({ attrs: { class: 'launch-item' + (item.done ? ' done' : ''), key: item.key } }, [
+            D.Forms.Button({
+              attrs: {
+                class: 'launch-check',
+                'data-m-gkey': 'launch-toggle',
+                'data-key': item.key,
+                'aria-pressed': item.done ? 'true' : 'false'
+              }
+            }, [item.done ? '✓' : '•']),
+            D.Containers.Div({ attrs: { class: 'launch-copy' } }, [
+              D.Text.Span({ attrs: { class: 'launch-title' } }, [item.title]),
+              D.Text.Small({ attrs: { class: 'launch-hint' } }, [item.hint])
+            ]),
+            item.action
+              ? D.Forms.Button({
+                  attrs: {
+                    class: 'chip ghost',
+                    'data-m-gkey': item.action
+                  }
+                }, [t('launch.action.test', 'تجربة')])
+              : null
+          ].filter(Boolean));
+        })
+      ),
+      D.Containers.Div({ attrs: { class: 'launch-actions' } }, [
+        D.Forms.Button({ attrs: { class: 'hero-cta small', 'data-m-gkey': 'launch-complete-all' } }, [t('launch.complete', 'تمييز الكل كمكتمل')]),
+        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'reset-filters' } }, [t('filters.reset', 'مسح الفلاتر')])
       ])
     ]);
   }
@@ -2078,6 +2193,20 @@
     });
   }
 
+  function updateLaunchChecklist(ctx, updates) {
+    ctx.setState(function(db) {
+      var current = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
+      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
+      persistLaunchChecklistState(next);
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { launchChecklist: next }),
+        data: db.data
+      };
+    });
+  }
+
   function openAuthModal(step) {
     var mode = step || 'login';
     if (app) {
@@ -2199,6 +2328,63 @@
       var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
       var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
       var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setContactOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReportOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
       return {
         env: db.env,
         meta: db.meta,
@@ -2340,10 +2526,15 @@
         ctx.setState(function(db) {
           var resetComposer = createComposerState({ open: false });
           persistComposerDraft(resetComposer);
+          var nextLaunch = Object.assign({}, db.state.launchChecklist, { composer: true });
+          persistLaunchChecklistState(nextLaunch);
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { composer: resetComposer }),
+            state: Object.assign({}, db.state, {
+              composer: resetComposer,
+              launchChecklist: nextLaunch
+            }),
             data: db.data
           };
         });
@@ -3005,6 +3196,7 @@
       renderHero(db),
       renderQuickActions(),
       renderOnboardingCard(db),
+      renderLaunchChecklist(db),
       renderHomeTabs(),
       renderActiveFilters(db)
     ];
@@ -4685,11 +4877,14 @@
       gkeys: ['reset-filters'],
       handler: function(event, ctx) {
         ctx.setState(function(db) {
+          var nextLaunch = Object.assign({}, db.state.launchChecklist, { discovery: true });
+          persistLaunchChecklistState(nextLaunch);
           return {
             env: db.env,
             meta: db.meta,
             state: Object.assign({}, db.state, {
-              filters: { search: '', category: '', condition: '', hashtag: '' }
+              filters: { search: '', category: '', condition: '', hashtag: '' },
+              launchChecklist: nextLaunch
             }),
             data: db.data
           };
@@ -5168,12 +5363,15 @@
             })
           });
           persistOnboardingProgress(nextOnboarding);
+          var nextLaunch = Object.assign({}, db.state.launchChecklist, { profile: true });
+          persistLaunchChecklistState(nextLaunch);
           return {
             env: db.env,
             meta: db.meta,
             state: Object.assign({}, db.state, {
               profileEditor: Object.assign({}, editor, { open: false }),
-              onboarding: nextOnboarding
+              onboarding: nextOnboarding,
+              launchChecklist: nextLaunch
             }),
             data: Object.assign({}, db.data, { users: updatedUsers })
           };
@@ -5255,6 +5453,67 @@
       handler: function(event, ctx) {
         event.preventDefault();
         updateOnboardingState(ctx, { dismissed: true });
+      }
+    },
+
+    'launch.toggle': {
+      on: ['click'],
+      gkeys: ['launch-toggle'],
+      handler: function(event, ctx) {
+        var key = event.currentTarget && event.currentTarget.getAttribute('data-key');
+        if (!key) return;
+        updateLaunchChecklist(ctx, function(current) {
+          var next = Object.assign({}, current);
+          next[key] = !current[key];
+          return next;
+        });
+      }
+    },
+
+    'launch.completeAll': {
+      on: ['click'],
+      gkeys: ['launch-complete-all'],
+      handler: function(_event, ctx) {
+        updateLaunchChecklist(ctx, {
+          composer: true,
+          attachments: true,
+          profile: true,
+          discovery: true,
+          safety: true
+        });
+        showNotice(ctx, t('launch.done', 'تم ضبط جاهزية الإطلاق.'));
+      }
+    },
+
+    'launch.openAttachment': {
+      on: ['click'],
+      gkeys: ['open-attachment'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var classifieds = db.data.classifieds || [];
+          var products = db.data.products || [];
+          var services = db.data.services || [];
+          var articles = db.data.articles || [];
+          var target = (classifieds[0] && { kind: 'classified', id: classifieds[0].classified_id })
+            || (products[0] && { kind: 'product', id: products[0].product_id })
+            || (services[0] && { kind: 'service', id: services[0].service_id })
+            || (articles[0] && { kind: 'article', id: articles[0].article_id });
+          if (!target) return db;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              detailOverlay: {
+                open: true,
+                kind: target.kind,
+                targetId: target.id,
+                activeIndex: 0
+              }
+            }),
+            data: db.data
+          };
+        });
       }
     },
 

@@ -272,6 +272,92 @@
       flex-wrap: wrap;
     }
 
+    .launch-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .launch-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .launch-progress {
+      color: var(--text-secondary);
+    }
+
+    .launch-bar {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--bg-muted);
+      overflow: hidden;
+    }
+
+    .launch-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #22c55e, #10b981);
+      transition: width 0.2s ease;
+      border-radius: 999px;
+    }
+
+    .launch-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .launch-item {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg-card);
+      align-items: center;
+    }
+
+    .launch-item.done {
+      opacity: 0.7;
+    }
+
+    .launch-check {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-muted);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+    }
+
+    .launch-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .launch-title {
+      font-weight: 700;
+    }
+
+    .launch-hint {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .launch-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
     .hero-actions {
       display: flex;
       gap: 12px;
