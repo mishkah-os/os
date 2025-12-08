@@ -766,6 +766,11 @@
         preset: '',
         message: ''
       },
+      readerOverlay: {
+        open: false,
+        articleId: null,
+        fontSize: 'md'
+      },
       reportOverlay: {
         open: false,
         targetType: null,
@@ -2394,6 +2399,82 @@
     });
   }
 
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReaderOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.readerOverlay || initialDatabase.state.readerOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { readerOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setContactOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReportOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
   function showNotice(ctx, message) {
     ctx.setState(function(db) {
       return {
@@ -3784,6 +3865,73 @@
     ]);
   }
 
+  function renderReaderOverlay(db) {
+    var overlay = db.state.readerOverlay;
+    if (!overlay || !overlay.open) return null;
+    var article = findById(db.data.articles || [], 'article_id', overlay.articleId);
+    if (!article) return null;
+
+    var cover = resolvePrimaryImage(article);
+    var title = getLocalizedField(article, 'title', t('knowledge.card.title'));
+    var body = getLocalizedField(article, 'content', article.body || article.summary || article.excerpt || '');
+    var words = body.split(/\s+/).filter(Boolean).length;
+    var readMinutes = Math.max(1, Math.ceil(words / 170));
+    var fontSize = overlay.fontSize || 'md';
+    var related = (db.data.articles || []).filter(function(item) { return item.article_id !== article.article_id; }).slice(0, 3);
+
+    var fontOptions = [
+      { value: 'sm', label: 'A-' },
+      { value: 'md', label: 'A' },
+      { value: 'lg', label: 'A+' }
+    ];
+
+    return D.Containers.Div({ attrs: { class: 'reader-overlay', 'data-m-gkey': 'reader-close' } }, [
+      D.Containers.Div({ attrs: { class: 'reader-panel', 'data-m-gkey': 'reader-inner' } }, [
+        D.Containers.Div({ attrs: { class: 'reader-head' } }, [
+          D.Text.H4({ attrs: { class: 'reader-title' } }, [title]),
+          D.Containers.Div({ attrs: { class: 'reader-tools' } }, [
+            D.Text.Small({ attrs: { class: 'reader-meta' } }, [readMinutes + ' ' + t('knowledge.read.time', 'دقيقة قراءة')]),
+            D.Containers.Div({ attrs: { class: 'reader-fonts' } }, fontOptions.map(function(opt) {
+              var active = opt.value === fontSize;
+              return D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost' + (active ? ' active' : ''),
+                  'data-m-gkey': 'reader-font',
+                  'data-size': opt.value
+                }
+              }, [opt.label]);
+            })),
+            D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'reader-close' } }, ['✕'])
+          ])
+        ]),
+        cover ? D.Media.Img({ attrs: { class: 'reader-cover', src: cover, alt: title } }, []) : null,
+        D.Containers.Div({ attrs: { class: 'reader-body reader-size-' + fontSize } },
+          body
+            ? body.split(/\n+/).filter(Boolean).map(function(paragraph, idx) {
+                return D.Text.P({ attrs: { key: 'p-' + idx, class: 'reader-paragraph' } }, [paragraph.trim()]);
+              })
+            : [D.Text.P({}, [t('knowledge.empty', 'لا يوجد محتوى بعد.')])]
+        ),
+        related.length
+          ? D.Containers.Div({ attrs: { class: 'reader-related' } }, [
+              D.Text.H5({}, [t('knowledge.related', 'مقالات ذات صلة')]),
+              D.Containers.Div({ attrs: { class: 'reader-related-list' } },
+                related.map(function(item) {
+                  return D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'reader-open-related',
+                      'data-article-id': item.article_id
+                    }
+                  }, [getLocalizedField(item, 'title', t('knowledge.card.title'))]);
+                })
+              )
+            ])
+          : null
+      ])
+    ]);
+  }
+
   function renderContactOverlay(db) {
     var overlay = db.state.contactOverlay;
     if (!overlay || !overlay.open) return null;
@@ -4155,6 +4303,7 @@
         D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
         renderBottomNav(db),
         renderDetailOverlay(db),
+        renderReaderOverlay(db),
         renderContactOverlay(db),
         renderReportOverlay(db),
         renderPostOverlay(db),
@@ -4245,7 +4394,7 @@
         } else if (kind === 'service') {
           setDetailOverlay(ctx, { open: true, kind: 'service', targetId: targetId, activeIndex: 0 });
         } else if (kind === 'wiki') {
-          setDetailOverlay(ctx, { open: true, kind: 'wiki', targetId: targetId, activeIndex: 0 });
+          setReaderOverlay(ctx, { open: true, articleId: targetId, fontSize: 'md' });
         } else if (kind === 'classified') {
           if (targetId) {
             setDetailOverlay(ctx, { open: true, kind: 'classified', targetId: targetId, activeIndex: 0 });
@@ -4389,6 +4538,55 @@
       handler: function(event, ctx) {
         event.preventDefault();
         setDetailOverlay(ctx, { open: false, targetId: null, kind: null, activeIndex: 0 });
+      }
+    },
+
+    'reader.close': {
+      on: ['click'],
+      gkeys: ['reader-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          if (!db.state.readerOverlay.open) return db;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { readerOverlay: Object.assign({}, db.state.readerOverlay, { open: false }) }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'reader.inner': {
+      on: ['click'],
+      gkeys: ['reader-inner'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+
+    'reader.font': {
+      on: ['click'],
+      gkeys: ['reader-font'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var size = event.currentTarget && event.currentTarget.getAttribute('data-size');
+        if (!size) return;
+        setReaderOverlay(ctx, function(current) {
+          return Object.assign({}, current, { fontSize: size });
+        });
+      }
+    },
+
+    'reader.open.related': {
+      on: ['click'],
+      gkeys: ['reader-open-related'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var id = event.currentTarget && event.currentTarget.getAttribute('data-article-id');
+        if (!id) return;
+        setReaderOverlay(ctx, { open: true, articleId: id });
       }
     },
 

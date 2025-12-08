@@ -6,10 +6,11 @@
 - **Attachment rendering in feed**: Shared attachments resolve to their card renderers for products, services, wiki articles, classifieds, or ad link previews, ensuring the feed shows a consistent attachment block beneath the text.【F:static/projects/sbn/app.js†L2223-L2279】
 - **Commerce/service surfacing**: The home timeline stacks hero, quick actions, composer, social feed, classifieds spotlight, trending chips, metrics, category showcase, and featured carousels for products, services, and knowledge articles.【F:static/projects/sbn/app.js†L2515-L2557】
 - **Launch readiness layer**: A persisted launch checklist card sits under the onboarding block to track composer, attachment details, profile tabs, discovery filters، and safety/reporting tests with quick shortcuts to each flow.【F:static/projects/sbn/app.js†L1852-L1894】【F:static/projects/sbn/app.js†L1870-L1894】
+- **Knowledge reader**: Wiki articles now open in a dedicated reader overlay with cover, estimated read time, adjustable font sizes, and quick related-article jumps, keeping attachments counted toward launch readiness while improving readability.【F:static/projects/sbn/app.js†L3774-L3831】【F:static/projects/sbn/index.html†L1239-L1311】
 
 ## Gaps and UX debt
 - **Fine-grain media polish**: Galleries and detail sheets are wired, but reel-only swipe mode and inline media reordering/captions are still future niceties.
-- **Deep article reading**: Knowledge cards open with clearer covers and titles, yet a paginated reader (font controls, estimated read time) remains a potential enhancement.
+- **Deep article reading**: The new reader overlay adds typography controls and read-time cues, but a paginated longform view with annotations remains a future enhancement.
 - **Motion and performance**: Animations are intentionally minimal; add lazy-loading and skeletons if we notice jank on very low-end devices.
 
 ## Recommendations to reach a complete user journey
