@@ -161,6 +161,9 @@
   var COMPOSER_DRAFT_KEY = 'sbn:composer:draft';
   var ONBOARDING_STORAGE_KEY = 'sbn:onboarding:progress';
   var LAUNCH_CHECKLIST_KEY = 'sbn:launch:checklist';
+  var OTP_COOLDOWN_MS = 10 * 60 * 1000;
+  var OTP_BLOCK_MS = 30 * 60 * 1000;
+  var STATIC_OTP = '123456';
 
   var BASE_I18N = {};
   var realtime = null;
@@ -173,8 +176,9 @@
   var notificationsUnsubscribe = null;
   var DEMO_ACCOUNT = {
     email: 'demo@mostamal.eg',
+    phone: '+201000000000',
     password: 'demo123',
-    otp: '123456',
+    otp: STATIC_OTP,
     userId: 'usr_001'
   };
 
@@ -583,6 +587,7 @@
       var payload = {
         userId: session.userId,
         email: session.email || '',
+        phone: session.phone || '',
         updatedAt: Date.now()
       };
       global.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
@@ -779,6 +784,7 @@
         classifiedTitle: '',
         classifiedPrice: '',
         contactPhone: '',
+        editAttachmentId: '',
         posting: false,
         error: null
       }, persistedComposerDraft || {}),
@@ -853,9 +859,15 @@
         open: false,
         step: 'login',
         fullName: '',
+        phone: (persistedSession && persistedSession.phone) || '+201',
         email: (persistedSession && persistedSession.email) || 'demo@mostamal.eg',
         password: '',
         otp: '',
+        otpRequestedAt: 0,
+        blockedUntil: 0,
+        loginAttempts: 0,
+        recaptcha: false,
+        newPassword: '',
         error: null,
         pendingUser: null
       }
@@ -2457,91 +2469,6 @@
     });
   }
 
-  function setContactOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setReportOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setDetailOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setContactOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setReportOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
   function setDetailOverlay(ctx, updates) {
     ctx.setState(function(db) {
       var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
@@ -2798,6 +2725,8 @@
       return;
     }
     var images = Array.isArray(composer.mediaList) ? composer.mediaList.slice() : [];
+    var targetId = composer.editAttachmentId || composer.targetId || '';
+    var isEdit = Boolean(composer.editAttachmentId);
     var payload = {
       seller_id: sellerId,
       category_id: categoryId,
@@ -2809,29 +2738,91 @@
       images: images
     };
     applyComposerState(ctx, { posting: true, error: null });
-    fetch(origin + '/api/classifieds', {
-      method: 'POST',
+    var endpoint = isEdit && targetId
+      ? origin + '/api/classifieds/' + encodeURIComponent(targetId)
+      : origin + '/api/classifieds';
+    var method = isEdit ? 'PUT' : 'POST';
+    fetch(endpoint, {
+      method: method,
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload)
     })
       .then(function(response) {
-        if (!response.ok) throw new Error('classified-create-failed');
+        if (!response.ok) throw new Error('classified-' + (isEdit ? 'update' : 'create') + '-failed');
         return response.json();
       })
-      .then(function() {
+      .then(function(body) {
         setTimeout(function() {
           refreshClassifiedsSnapshot(getCurrentLang());
         }, 0);
+        if (isEdit && db && db.data && Array.isArray(db.data.classifieds)) {
+          var updatedRows = db.data.classifieds.map(function(row) {
+            if (!row) return row;
+            var rowId = row.id || row.classified_id;
+            if (rowId && rowId === targetId) {
+              return Object.assign({}, row, payload, body || {});
+            }
+            return row;
+          });
+          ctx.setState(function(prev) {
+            return {
+              env: prev.env,
+              meta: prev.meta,
+              state: prev.state,
+              data: Object.assign({}, prev.data, { classifieds: updatedRows })
+            };
+          });
+        }
         applyComposerState(ctx, function() {
-          var resetComposer = createComposerState({ open: false });
+          var resetComposer = createComposerState({ open: false, editAttachmentId: '' });
           persistComposerDraft(resetComposer);
           return resetComposer;
         });
-        showNotice(ctx, t('composer.classified.success', 'تم إضافة الإعلان بنجاح'));
+        var successKey = isEdit ? 'composer.classified.updated' : 'composer.classified.success';
+        showNotice(ctx, t(successKey, isEdit ? 'تم تحديث الإعلان بنجاح' : 'تم إضافة الإعلان بنجاح'));
       })
       .catch(function(error) {
         debugLog('[SBN PWA][classified]', error);
         applyComposerState(ctx, { posting: false, error: t('composer.classified.error', 'تعذر إنشاء الإعلان') });
+      });
+  }
+
+  function deleteClassified(ctx, targetId) {
+    var origin = getApiOrigin();
+    if (!origin) {
+      showNotice(ctx, t('classifieds.delete.offline', 'يرجى الاتصال بالإنترنت لإزالة الإعلان'));
+      return;
+    }
+    if (!targetId) return;
+    fetch(origin + '/api/classifieds/' + encodeURIComponent(targetId), {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' }
+    })
+      .then(function(response) {
+        if (!response.ok) throw new Error('classified-delete-failed');
+        return response.json().catch(function() { return {}; });
+      })
+      .then(function() {
+        refreshClassifiedsSnapshot(getCurrentLang());
+        if (app && app.database && Array.isArray(app.database.data.classifieds)) {
+          app.setState(function(prev) {
+            var nextClassifieds = (prev.data.classifieds || []).filter(function(row) {
+              var id = row && (row.id || row.classified_id);
+              return id !== targetId;
+            });
+            return {
+              env: prev.env,
+              meta: prev.meta,
+              state: prev.state,
+              data: Object.assign({}, prev.data, { classifieds: nextClassifieds })
+            };
+          });
+        }
+        showNotice(ctx, t('classifieds.delete.success', 'تم حذف الإعلان'));
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][classified][delete]', error);
+        showNotice(ctx, t('classifieds.delete.error', 'تعذر حذف الإعلان'));
       });
   }
 
@@ -3259,6 +3250,8 @@
     var priceLabel = item.price != null ? formatCurrencyValue(item.price, item.currency) : t('classifieds.price.ask', 'سعر عند التواصل');
     var expires = item.expires_at ? new Date(item.expires_at).toLocaleDateString() : '';
     var seller = findById(db.data.users || [], 'user_id', item.user_id || item.owner_id);
+    var activeUserId = db.state.activeUserId;
+    var isOwner = activeUserId && (item.user_id === activeUserId || item.owner_id === activeUserId || item.seller_id === activeUserId);
     var badge = renderTrustBadge(seller);
     var sellerName = resolveUserName(seller) || '';
     return D.Containers.Div({ attrs: { class: 'classified-card', key: item.id } }, [
@@ -3305,8 +3298,26 @@
               'data-target-type': 'classified',
               'data-target-id': classifiedId
             }
-          }, [t('safety.report', 'إبلاغ/حظر')])
-        ])
+          }, [t('safety.report', 'إبلاغ/حظر')]),
+          isOwner
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'classified-edit',
+                  'data-target-id': classifiedId
+                }
+              }, [t('classifieds.edit', 'تعديل الإعلان')])
+            : null,
+          isOwner
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost danger',
+                  'data-m-gkey': 'classified-delete',
+                  'data-target-id': classifiedId
+                }
+              }, [t('classifieds.delete', 'حذف')])
+            : null
+        ].filter(Boolean))
       ])
     ]);
   }
@@ -4386,15 +4397,20 @@
    var title = t('auth.login.title', 'مرحبا بك');
    var subtitle = t('auth.login.subtitle', 'سجّل دخولك للمتابعة');
    var fields = [];
-  var demoHint = null;
+   var demoHint = null;
+   var recaptchaBox = null;
    if (step === 'register') {
      title = t('auth.register.title', 'إنشاء حساب جديد');
      subtitle = t('auth.register.subtitle', 'شارك أعمالك وخدماتك فوراً');
      fields = [
        { name: 'fullName', type: 'text', label: t('auth.fullName', 'الاسم الكامل'), value: auth.fullName || '' },
-       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' },
+       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
        { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
      ];
+     recaptchaBox = D.Forms.Label({ attrs: { class: 'auth-recaptcha' } }, [
+       D.Inputs.Input({ attrs: { type: 'checkbox', checked: !!auth.recaptcha, 'data-m-gkey': 'auth-recaptcha' } }, []),
+       D.Text.Span({ attrs: { class: 'auth-recaptcha-label' } }, [t('auth.recaptcha', 'أنا لست روبوتاً')])
+     ]);
    } else if (step === 'otp') {
      title = t('auth.otp.title', 'أدخل رمز التحقق');
      subtitle = t('auth.otp.subtitle', 'استخدم الرمز 123456 لإكمال التفعيل');
@@ -4405,20 +4421,40 @@
      title = t('auth.forgot.title', 'استعادة كلمة المرور');
      subtitle = t('auth.forgot.subtitle', 'سوف نرسل لك رمز تفعيل لتغيير كلمة المرور');
      fields = [
-       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' }
+       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
+       { name: 'newPassword', type: 'password', label: t('auth.password.new', 'كلمة المرور الجديدة'), value: auth.newPassword || '' }
      ];
+     recaptchaBox = D.Forms.Label({ attrs: { class: 'auth-recaptcha' } }, [
+       D.Inputs.Input({ attrs: { type: 'checkbox', checked: !!auth.recaptcha, 'data-m-gkey': 'auth-recaptcha' } }, []),
+       D.Text.Span({ attrs: { class: 'auth-recaptcha-label' } }, [t('auth.recaptcha', 'أنا لست روبوتاً')])
+     ]);
    } else {
      fields = [
-       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' },
+       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
        { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
      ];
      demoHint = D.Text.Small({ attrs: { class: 'auth-note' } }, [
-       t('auth.demo.hint', 'بيانات العرض: demo@mostamal.eg / demo123')
+       t('auth.demo.hint', 'بيانات العرض: +201000000000 / demo123')
      ]);
    }
+  var now = Date.now();
+  var cooldownRemaining = Math.max(0, (auth.otpRequestedAt || 0) + OTP_COOLDOWN_MS - now);
+  var blockedRemaining = Math.max(0, (auth.blockedUntil || 0) - now);
+  var cooldownNode = cooldownRemaining > 0 && (step === 'register' || step === 'forgot')
+    ? D.Text.Small({ attrs: { class: 'auth-note warning' } }, [
+        t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد'), ' ', Math.ceil(cooldownRemaining / 60000), ' ', t('auth.minutes', 'دقيقة')
+      ])
+    : null;
+  var blockNode = blockedRemaining > 0 && step === 'login'
+    ? D.Text.Small({ attrs: { class: 'auth-note warning' } }, [
+        t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), ' ', Math.ceil(blockedRemaining / 60000), ' ', t('auth.minutes', 'دقيقة متبقية')
+      ])
+    : null;
   var autocompleteMap = {
     email: 'email',
+    phone: 'tel',
     password: step === 'login' ? 'current-password' : 'new-password',
+    newPassword: 'new-password',
     fullName: 'name',
     otp: 'one-time-code'
   };
@@ -4473,6 +4509,9 @@
         attrs: { class: 'auth-form', 'data-m-gkey': 'auth-submit', novalidate: 'novalidate' }
       }, [
         D.Containers.Div({ attrs: { class: 'auth-fields' } }, fieldElements),
+        recaptchaBox,
+        cooldownNode,
+        blockNode,
         D.Forms.Button({
           attrs: { class: 'hero-cta', type: 'submit' }
         }, [primaryLabel]),
@@ -4718,6 +4757,52 @@
           message: '',
           preset: t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.')
         });
+      }
+    },
+
+    'classified.edit': {
+      on: ['click'],
+      gkeys: ['classified-edit'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var targetId = event.currentTarget && event.currentTarget.getAttribute('data-target-id');
+        if (!targetId || !app || !app.database) return;
+        var db = app.database;
+        var match = findById(db.data.classifieds || [], 'id', targetId) || findById(db.data.classifieds || [], 'classified_id', targetId);
+        if (!match) return;
+        var mediaList = Array.isArray(match.images) ? match.images.slice() : [];
+        var base = createComposerState({
+          open: true,
+          attachmentKind: 'classified',
+          editAttachmentId: targetId,
+          targetId: targetId,
+          text: match.description || '',
+          classifiedTitle: match.title || '',
+          classifiedPrice: match.price || '',
+          contactPhone: match.contact_phone || '',
+          categoryId: match.category_id || '',
+          subcategoryId: match.category_id || '',
+          mediaList: mediaList
+        });
+        applyComposerState(ctx, base);
+      }
+    },
+
+    'classified.delete': {
+      on: ['click'],
+      gkeys: ['classified-delete'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var targetId = event.currentTarget && event.currentTarget.getAttribute('data-target-id');
+        if (!targetId) return;
+        var confirmed = true;
+        try {
+          confirmed = global.confirm ? global.confirm(t('classifieds.delete.confirm', 'هل أنت متأكد من حذف الإعلان؟')) : true;
+        } catch (_err) {
+          confirmed = true;
+        }
+        if (!confirmed) return;
+        deleteClassified(ctx, targetId);
       }
     },
 
@@ -5191,7 +5276,8 @@
             otp: '',
             fullName: step === 'register' ? current.fullName : '',
             pendingUser: step === 'otp' ? current.pendingUser : null,
-            password: step === 'login' ? '' : current.password
+            password: step === 'login' ? '' : current.password,
+            recaptcha: false
           });
         });
       }
@@ -5202,6 +5288,14 @@
       gkeys: ['auth-input-email'],
       handler: function(event) {
         updateAuthState({ email: event.target.value });
+      }
+    },
+
+    'auth-input-phone': {
+      on: ['input'],
+      gkeys: ['auth-input-phone'],
+      handler: function(event) {
+        updateAuthState({ phone: event.target.value });
       }
     },
 
@@ -5223,6 +5317,14 @@
       }
     },
 
+    'auth-input-newPassword': {
+      on: ['input'],
+      gkeys: ['auth-input-newPassword'],
+      handler: function(event) {
+        updateAuthState({ newPassword: event.target.value });
+      }
+    },
+
     'auth-input-otp': {
       on: ['input'],
       gkeys: ['auth-input-otp'],
@@ -5230,6 +5332,15 @@
         updateAuthState({ otp: event.target.value });
       }
     },
+
+    'auth-recaptcha': {
+      on: ['change'],
+      gkeys: ['auth-recaptcha'],
+      handler: function(event) {
+        updateAuthState({ recaptcha: !!(event && event.target && event.target.checked) });
+      }
+    },
+
 
     'auth.submit': {
       on: ['submit'],
@@ -5244,24 +5355,30 @@
         var formEl = event && event.target;
         var step = auth.step || 'login';
         var email = (auth.email || '').trim().toLowerCase();
+        var phone = (auth.phone || '').trim();
         var password = auth.password || '';
         if (!password && formEl && typeof formEl.querySelector === 'function') {
-          var passwordInput = formEl.querySelector('input[name=\"password\"]');
+          var passwordInput = formEl.querySelector('input[name="password"]');
           if (passwordInput && passwordInput.value) {
             password = passwordInput.value;
             updateAuthState({ password: password });
           }
         }
+        var now = Date.now();
+        var blockedUntil = auth.blockedUntil || 0;
+        if (step === 'login' && blockedUntil > now) {
+          var remaining = Math.ceil((blockedUntil - now) / 60000);
+          updateAuthState({ error: t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), loginAttempts: auth.loginAttempts || 0 });
+          showNotice(ctx, t('auth.blocked.retry', 'حاول مرة أخرى بعد ') + remaining + ' ' + t('auth.minutes', 'دقائق'));
+          return;
+        }
         if (step === 'login') {
-          console.log('[SBN PWA][auth] login attempt', {
-            email: email,
-            matchesDemoEmail: email === DEMO_ACCOUNT.email,
-            passwordMatch: password === DEMO_ACCOUNT.password,
-            hasPassword: Boolean(password)
-          });
-          if (email === DEMO_ACCOUNT.email && password === DEMO_ACCOUNT.password) {
+          var phoneDigits = phone.replace(/\D/g, '');
+          var demoPhoneDigits = (DEMO_ACCOUNT.phone || '').replace(/\D/g, '');
+          var loginSuccess = phoneDigits && phoneDigits === demoPhoneDigits && password === DEMO_ACCOUNT.password;
+          if (loginSuccess) {
             ctx.setState(function(prev) {
-              var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '' });
+              var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '', loginAttempts: 0, blockedUntil: 0, recaptcha: false });
               return {
                 env: prev.env,
                 meta: prev.meta,
@@ -5269,51 +5386,84 @@
                 data: prev.data
               };
             });
-            persistSession({ userId: DEMO_ACCOUNT.userId, email: email });
+            persistSession({ userId: DEMO_ACCOUNT.userId, email: email || DEMO_ACCOUNT.email, phone: phone });
             showNotice(ctx, t('auth.success.login', 'تم تسجيل الدخول بنجاح'));
           } else {
-            updateAuthState({ error: t('auth.error.credentials', 'بيانات الدخول غير صحيحة') });
+            var attempts = (auth.loginAttempts || 0) + 1;
+            var nextBlock = attempts >= 3 ? now + OTP_BLOCK_MS : auth.blockedUntil;
+            updateAuthState({
+              error: t('auth.error.credentials', 'بيانات الدخول غير صحيحة'),
+              loginAttempts: attempts,
+              blockedUntil: nextBlock
+            });
           }
           return;
         }
         if (step === 'register') {
-          if (!auth.fullName || !auth.fullName.trim() || !email || !auth.password) {
-            updateAuthState({ error: t('auth.error.fields', 'يرجى تعبئة جميع الحقول') });
+          var phoneDigitsRegister = phone.replace(/\D/g, '');
+          if (!auth.fullName || !auth.fullName.trim() || !phoneDigitsRegister || !auth.password || !auth.recaptcha) {
+            updateAuthState({ error: t('auth.error.fields', 'يرجى تعبئة جميع الحقول وتأكيد أنك لست روبوتاً') });
+            return;
+          }
+          if (auth.otpRequestedAt && now - auth.otpRequestedAt < OTP_COOLDOWN_MS) {
+            updateAuthState({ error: t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد مرور فترة التهدئة') });
             return;
           }
           var pendingUser = {
             user_id: generateId('usr'),
             full_name: auth.fullName.trim(),
             username: auth.fullName.trim().split(/\s+/).join('_'),
-            email: email,
+            email: email || (phoneDigitsRegister + '@mostamal.eg'),
+            phone: phone,
+            newPassword: auth.password,
+            flow: 'register',
             avatar_url: 'https://i.pravatar.cc/120?img=28'
           };
-          updateAuthState({ pendingUser: pendingUser, step: 'otp', error: null, otp: '' });
+          updateAuthState({ pendingUser: pendingUser, step: 'otp', error: null, otp: '', otpRequestedAt: now });
           showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
           return;
         }
         if (step === 'forgot') {
-          if (!email) {
-            updateAuthState({ error: t('auth.error.email', 'أدخل بريدك الإلكتروني') });
+          var phoneDigitsForgot = phone.replace(/\D/g, '');
+          if (!phoneDigitsForgot || !auth.newPassword || !auth.recaptcha) {
+            updateAuthState({ error: t('auth.error.fields', 'أدخل رقم الهاتف وكلمة المرور الجديدة وأكّد أنك لست روبوتاً') });
             return;
           }
-          updateAuthState({ pendingUser: { user_id: DEMO_ACCOUNT.userId }, step: 'otp', error: null, otp: '' });
+          if (auth.otpRequestedAt && now - auth.otpRequestedAt < OTP_COOLDOWN_MS) {
+            updateAuthState({ error: t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد مرور فترة التهدئة') });
+            return;
+          }
+          updateAuthState({ pendingUser: { user_id: DEMO_ACCOUNT.userId, phone: phone, newPassword: auth.newPassword, flow: 'forgot' }, step: 'otp', error: null, otp: '', otpRequestedAt: now });
           showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
           return;
         }
         if (step === 'otp') {
-          if ((auth.otp || '').trim() !== DEMO_ACCOUNT.otp) {
+          if ((auth.otp || '').trim() !== STATIC_OTP) {
             updateAuthState({ error: t('auth.error.otp', 'رمز التحقق غير صحيح') });
             return;
           }
-          var pendingUser = auth.pendingUser || { user_id: DEMO_ACCOUNT.userId, email: auth.email || DEMO_ACCOUNT.email };
+          var pendingUser = auth.pendingUser || { user_id: DEMO_ACCOUNT.userId, email: auth.email || DEMO_ACCOUNT.email, phone: phone };
           var resolvedUserId = pendingUser.user_id || DEMO_ACCOUNT.userId;
+          if (pendingUser.flow === 'forgot' && pendingUser.newPassword) {
+            DEMO_ACCOUNT.password = pendingUser.newPassword;
+          }
           ctx.setState(function(prev) {
             var pending = (prev.state.auth && prev.state.auth.pendingUser) || pendingUser;
-            var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, otp: '', password: '', pendingUser: null });
+            var nextAuth = Object.assign({}, prev.state.auth, {
+              open: false,
+              error: null,
+              otp: '',
+              password: '',
+              newPassword: '',
+              recaptcha: false,
+              otpRequestedAt: 0,
+              pendingUser: null,
+              loginAttempts: 0,
+              blockedUntil: 0
+            });
             var nextData = prev.data;
             var newUserId = pending && pending.user_id ? pending.user_id : DEMO_ACCOUNT.userId;
-            if (pending) {
+            if (pending && pending.flow === 'register') {
               var users = Array.isArray(prev.data.users) ? prev.data.users.slice() : [];
               if (!users.some(function(user) { return user && user.user_id === pending.user_id; })) {
                 var newUser = {
@@ -5321,6 +5471,7 @@
                   username: pending.username || pending.full_name.replace(/\s+/g, '_').toLowerCase(),
                   full_name: pending.full_name,
                   email: pending.email,
+                  phone: pending.phone,
                   avatar_url: pending.avatar_url || 'https://i.pravatar.cc/120?img=11',
                   followers_count: 0,
                   following_count: 0,
@@ -5338,8 +5489,11 @@
               data: nextData
             };
           });
-          persistSession({ userId: resolvedUserId, email: pendingUser.email || auth.email || DEMO_ACCOUNT.email });
-          showNotice(ctx, t('auth.success.register', 'تم التفعيل بنجاح'));
+          persistSession({ userId: resolvedUserId, email: pendingUser.email || auth.email || DEMO_ACCOUNT.email, phone: pendingUser.phone || phone });
+          var successMsg = pendingUser.flow === 'forgot'
+            ? t('auth.success.reset', 'تم تحديث كلمة المرور بنجاح')
+            : t('auth.success.register', 'تم التفعيل بنجاح');
+          showNotice(ctx, successMsg);
           return;
         }
       }
@@ -5597,7 +5751,7 @@
       handler: function(event, ctx) {
         var value = event.target.value || 'none';
         applyComposerState(ctx, function(current) {
-          var next = Object.assign({}, current, { attachmentKind: value, targetId: '' });
+          var next = Object.assign({}, current, { attachmentKind: value, targetId: '', editAttachmentId: '' });
           if (value !== 'classified') {
             next.categoryId = '';
             next.subcategoryId = '';
