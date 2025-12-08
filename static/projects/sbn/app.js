@@ -2713,6 +2713,26 @@
     ]);
   }
 
+  function renderClassifiedsPage(db) {
+    var classifieds = db.data.classifieds || [];
+    var rows = classifieds.length
+      ? classifieds.map(function(item) { return renderClassifiedCard(db, item); })
+      : [D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات مستعملة حالياً')])];
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('classifieds.section', 'مستعمل حواء', 'classifieds.section.meta', 'أحدث الإعلانات'),
+        D.Containers.Div({ attrs: { class: 'classified-grid' } }, rows)
+      ])
+    ]);
+  }
+
+  function renderCommerce(db) {
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      renderMarketplace(db),
+      renderServices(db)
+    ]);
+  }
+
   /**
    * Render marketplace section
    */
