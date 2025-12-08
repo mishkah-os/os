@@ -2295,6 +2295,105 @@
         env: db.env,
         meta: db.meta,
         state: nextState,
+      data: db.data
+    };
+  });
+}
+
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setContactOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReportOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setContactOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReportOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
         data: db.data
       };
     });
