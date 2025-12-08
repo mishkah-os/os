@@ -1,0 +1,827 @@
+{
+  "id": "purge-14e4099e-fc82-4b06-b39c-e56bd5647631",
+  "type": "purge",
+  "branchId": "sbn",
+  "moduleId": "mostamal",
+  "createdAt": "2025-12-07T18:23:26.809Z",
+  "reason": "branch-api-reset",
+  "requestedBy": null,
+  "clearedTables": [
+    "sbn_ui_labels",
+    "sbn_users",
+    "sbn_products",
+    "sbn_services",
+    "sbn_wiki_articles",
+    "sbn_transactions",
+    "sbn_reviews",
+    "sbn_messages",
+    "sbn_notifications",
+    "sbn_classified_categories",
+    "sbn_classified_categories_lang",
+    "sbn_marketplace_categories",
+    "sbn_marketplace_categories_lang",
+    "sbn_service_categories",
+    "sbn_service_categories_lang",
+    "sbn_knowledge_categories",
+    "sbn_knowledge_categories_lang",
+    "sbn_classifieds",
+    "sbn_classifieds_lang",
+    "sbn_comments",
+    "sbn_comments_lang",
+    "sbn_conversation_participants",
+    "sbn_conversations",
+    "sbn_conversations_lang",
+    "sbn_follows",
+    "sbn_hashtag_usages",
+    "sbn_hashtags",
+    "sbn_hashtags_lang",
+    "sbn_messages_lang",
+    "sbn_notifications_lang",
+    "sbn_posts",
+    "sbn_posts_lang",
+    "sbn_product_attributes",
+    "sbn_product_inquiries",
+    "sbn_product_inquiries_lang",
+    "sbn_products_lang",
+    "sbn_reactions",
+    "sbn_reports",
+    "sbn_reports_lang",
+    "sbn_reviews_lang",
+    "sbn_saves",
+    "sbn_saves_lang",
+    "sbn_service_bookings",
+    "sbn_service_bookings_lang",
+    "sbn_services_lang",
+    "sbn_transactions_lang",
+    "sbn_user_role_assignments",
+    "sbn_user_roles",
+    "sbn_user_roles_lang",
+    "sbn_user_stats",
+    "sbn_users_lang",
+    "sbn_wiki_articles_lang",
+    "sbn_wiki_revisions",
+    "sbn_wiki_revisions_lang"
+  ],
+  "originalVersion": 1,
+  "totalRecords": 0,
+  "tables": [
+    {
+      "name": "sbn_ui_labels",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "label_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_users",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "user_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_products",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "product_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_services",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "service_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_wiki_articles",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "article_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_transactions",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "transaction_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_reviews",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "review_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_messages",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "message_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_notifications",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "notification_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_classified_categories",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "category_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_classified_categories_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_marketplace_categories",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "category_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_marketplace_categories_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_service_categories",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "category_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_service_categories_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_knowledge_categories",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "category_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_knowledge_categories_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_classifieds",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "classified_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_classifieds_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_comments",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "comment_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_comments_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_conversation_participants",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "participant_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_conversations",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "conversation_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_conversations_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_follows",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "follow_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_hashtag_usages",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "usage_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_hashtags",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "hashtag_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_hashtags_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_messages_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_notifications_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_posts",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "post_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_posts_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_product_attributes",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "attribute_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_product_inquiries",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "inquiry_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_product_inquiries_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_products_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_reactions",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "reaction_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_reports",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "report_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_reports_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_reviews_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_saves",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "save_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_saves_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_service_bookings",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "booking_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_service_bookings_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_services_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_transactions_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_user_role_assignments",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "assignment_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_user_roles",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "role_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_user_roles_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_user_stats",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "stat_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_users_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_wiki_articles_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_wiki_revisions",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "revision_id"
+      ],
+      "sample": []
+    },
+    {
+      "name": "sbn_wiki_revisions_lang",
+      "count": 0,
+      "records": [],
+      "primaryKeyFields": [
+        "id"
+      ],
+      "sample": []
+    }
+  ],
+  "summary": [
+    {
+      "name": "sbn_ui_labels",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_users",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_products",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_services",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_wiki_articles",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_transactions",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_reviews",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_messages",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_notifications",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_classified_categories",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_classified_categories_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_marketplace_categories",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_marketplace_categories_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_service_categories",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_service_categories_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_knowledge_categories",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_knowledge_categories_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_classifieds",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_classifieds_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_comments",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_comments_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_conversation_participants",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_conversations",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_conversations_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_follows",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_hashtag_usages",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_hashtags",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_hashtags_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_messages_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_notifications_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_posts",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_posts_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_product_attributes",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_product_inquiries",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_product_inquiries_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_products_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_reactions",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_reports",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_reports_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_reviews_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_saves",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_saves_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_service_bookings",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_service_bookings_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_services_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_transactions_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_user_role_assignments",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_user_roles",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_user_roles_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_user_stats",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_users_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_wiki_articles_lang",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_wiki_revisions",
+      "count": 0,
+      "sample": []
+    },
+    {
+      "name": "sbn_wiki_revisions_lang",
+      "count": 0,
+      "sample": []
+    }
+  ]
+}
