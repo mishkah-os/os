@@ -156,6 +156,8 @@
   var BRANCH_ID = 'sbn';
   var MODULE_ID = 'mostamal';
   var PREF_STORAGE_KEY = 'sbn:prefs:v1';
+  var COMPOSER_DRAFT_KEY = 'sbn:composer:draft';
+  var ONBOARDING_STORAGE_KEY = 'sbn:onboarding:progress';
 
   var BASE_I18N = {};
   var realtime = null;
@@ -452,6 +454,50 @@
     }
   }
 
+  function loadComposerDraft() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(COMPOSER_DRAFT_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistComposerDraft(draft) {
+    if (!global.localStorage) return;
+    try {
+      if (!draft || draft.open === false) {
+        global.localStorage.removeItem(COMPOSER_DRAFT_KEY);
+        return;
+      }
+      var payload = JSON.stringify(draft);
+      global.localStorage.setItem(COMPOSER_DRAFT_KEY, payload);
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  function loadOnboardingProgress() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(ONBOARDING_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistOnboardingProgress(progress) {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(progress || {}));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
   function loadPersistedSession() {
     if (!global.localStorage) return null;
     try {
@@ -623,6 +669,8 @@
   // ================== INITIAL STATE ==================
   var persisted = loadPersistedPrefs();
   var persistedSession = loadPersistedSession();
+  var persistedComposerDraft = loadComposerDraft();
+  var persistedOnboarding = loadOnboardingProgress();
 
   var initialDatabase = {
     env: {
@@ -645,7 +693,14 @@
         open: false,
         postId: null
       },
-      composer: {
+      detailOverlay: {
+        open: false,
+        kind: null,
+        targetId: null,
+        activeIndex: 0
+      },
+      homeTab: 'timeline',
+      composer: Object.assign({
         open: false,
         mediaMode: 'plain',
         attachmentKind: 'classified',
@@ -663,6 +718,32 @@
         contactPhone: '',
         posting: false,
         error: null
+      }, persistedComposerDraft || {}),
+      onboarding: Object.assign({
+        completed: {},
+        dismissed: false
+      }, persistedOnboarding || {}),
+      profileEditor: {
+        open: false,
+        fullName: '',
+        bio: '',
+        avatarUrl: ''
+      },
+      contactOverlay: {
+        open: false,
+        kind: null,
+        targetId: null,
+        phone: '',
+        userId: null,
+        preset: '',
+        message: ''
+      },
+      reportOverlay: {
+        open: false,
+        targetType: null,
+        targetId: null,
+        reason: '',
+        notes: ''
       },
       filters: {
         search: '',
@@ -744,6 +825,23 @@
     if (record.avatar_url) return record.avatar_url;
     const media = toArray(record.images || record.media || record.gallery);
     return media.length ? media[0] : '/projects/sbn/placeholder.jpg';
+  }
+
+  function resolveUserTrust(user) {
+    if (!user) return null;
+    if (user.verified || user.trusted || user.trust_score >= 70) {
+      return t('trust.verified', 'موثّق');
+    }
+    if ((user.reviews_count || user.reputation || 0) >= 3) {
+      return t('trust.seller', 'بائع موثوق');
+    }
+    return null;
+  }
+
+  function renderTrustBadge(user) {
+    var label = resolveUserTrust(user);
+    if (!label) return null;
+    return D.Text.Span({ attrs: { class: 'chip trust' } }, ['🔒 ', label]);
   }
 
   function resolveProductTitle(product) {
@@ -1539,6 +1637,25 @@
             }
           }, [])
         : null,
+      isClassified
+        ? (function() {
+            var hasBasics = composer.classifiedTitle || composer.classifiedPrice || composer.contactPhone;
+            if (!hasBasics) return null;
+            return D.Containers.Div({ attrs: { class: 'composer-target-preview classified-preview' } }, [
+              D.Containers.Div({ attrs: { class: 'preview-copy' } }, [
+                composer.classifiedTitle
+                  ? D.Text.Span({ attrs: { class: 'preview-title' } }, [composer.classifiedTitle])
+                  : null,
+                composer.classifiedPrice
+                  ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [formatCurrencyValue(composer.classifiedPrice, t('currency.egp'))])
+                  : null,
+                composer.contactPhone
+                  ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [composer.contactPhone])
+                  : null
+              ].filter(Boolean))
+            ]);
+          })()
+        : null,
       (function() {
         var uploadLabel = composer.mediaMode === 'reel'
           ? t('composer.media.upload.reel', 'رفع فيديو')
@@ -1632,11 +1749,91 @@
       ]),
       D.Containers.Div({ attrs: { class: 'hero-actions' } }, [
         D.Forms.Button({
-          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-marketplace' }
+          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-commerce' }
         }, [t('home.action.explore')]),
         D.Forms.Button({
-          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-services' }
-        }, ['＋'])
+          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-classifieds' }
+        }, [t('nav.classifieds', 'إعلان مستعمل')])
+      ])
+    ]);
+  }
+
+  function getOnboardingTasks(db) {
+    var user = getActiveUser(db);
+    var completed = (db.state.onboarding && db.state.onboarding.completed) || {};
+    var userPosts = (db.data.posts || []).filter(function(post) { return user && post.user_id === user.user_id; });
+    var hasAttachmentShare = userPosts.some(function(post) {
+      return post && post.attachment_kind && post.attachment_kind !== 'none';
+    });
+    return [
+      {
+        key: 'avatar',
+        title: t('onboarding.avatar', 'أضف صورة شخصية'),
+        hint: t('onboarding.avatar.hint', 'يرفع الثقة مع المشترين'),
+        done: Boolean((user && user.avatar_url) || completed.avatar)
+      },
+      {
+        key: 'bio',
+        title: t('onboarding.bio', 'أكمل السيرة الذاتية'),
+        hint: t('onboarding.bio.hint', 'عرّف بنفسك أو نشاطك التجاري'),
+        done: Boolean((user && getLocalizedField(user, 'bio', '')) || completed.bio)
+      },
+      {
+        key: 'firstPost',
+        title: t('onboarding.firstPost', 'انشر أول بوست'),
+        hint: t('onboarding.firstPost.hint', 'شارك إعلان، منتج، خدمة أو مقال'),
+        done: Boolean(userPosts.length || completed.firstPost)
+      },
+      {
+        key: 'attachment',
+        title: t('onboarding.attachment', 'جرّب إضافة مرفق'),
+        hint: t('onboarding.attachment.hint', 'أضف إعلان مستعمل أو منتج/خدمة'),
+        done: Boolean(hasAttachmentShare || completed.attachment)
+      }
+    ];
+  }
+
+  function renderOnboardingCard(db) {
+    var user = getActiveUser(db);
+    var onboarding = db.state.onboarding || initialDatabase.state.onboarding;
+    if (!user || onboarding.dismissed) return null;
+    var tasks = getOnboardingTasks(db);
+    var remaining = tasks.filter(function(task) { return !task.done; });
+    if (!remaining.length) return null;
+    var progress = Math.round(((tasks.length - remaining.length) / tasks.length) * 100);
+
+    return D.Containers.Div({ attrs: { class: 'section-card onboarding-card' } }, [
+      D.Containers.Div({ attrs: { class: 'onboarding-head' } }, [
+        D.Text.H4({}, [t('onboarding.title', 'ابدأ رحلتك على مستعمل حواء')]),
+        D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'onboarding-dismiss' } }, ['✕'])
+      ]),
+      D.Containers.Div({ attrs: { class: 'onboarding-progress' } }, [
+        D.Containers.Div({ attrs: { class: 'onboarding-progress-fill', style: 'width:' + progress + '%;' } }, [])
+      ]),
+      D.Containers.Div({ attrs: { class: 'onboarding-tasks' } },
+        tasks.map(function(task) {
+          var done = task.done;
+          return D.Containers.Div({ attrs: { class: 'onboarding-task' + (done ? ' done' : ''), key: task.key } }, [
+            D.Text.Span({ attrs: { class: 'onboarding-check' } }, [done ? '✓' : '•']),
+            D.Containers.Div({ attrs: { class: 'onboarding-copy' } }, [
+              D.Text.Span({ attrs: { class: 'onboarding-title' } }, [task.title]),
+              D.Text.Small({ attrs: { class: 'onboarding-hint' } }, [task.hint])
+            ]),
+            done
+              ? null
+              : D.Forms.Button({
+                  attrs: {
+                    class: 'chip primary',
+                    'data-m-gkey': 'onboarding-complete',
+                    'data-task': task.key
+                  }
+                }, [t('onboarding.action', 'تم')])
+          ].filter(Boolean));
+        })
+      ),
+      D.Containers.Div({ attrs: { class: 'onboarding-actions' } }, [
+        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('composer.start')]),
+        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')])
       ])
     ]);
   }
@@ -1707,11 +1904,11 @@
       D.Text.H4({}, [t('home.quickActions', 'الوصول السريع')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } }, [
         D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-marketplace' }
-        }, ['🛒 ', t('nav.marketplace')]),
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-commerce' }
+        }, ['🛍️ ', t('nav.commerce', 'منتج / خدمة')]),
         D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-services' }
-        }, ['🔧 ', t('nav.services')]),
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-classifieds' }
+        }, ['📢 ', t('nav.classifieds', 'إعلان مستعمل')]),
         D.Forms.Button({
           attrs: { class: 'chip primary', 'data-m-gkey': 'nav-knowledge' }
         }, ['📚 ', t('nav.knowledge')])
@@ -1735,6 +1932,23 @@
     return rows.find(function(row) {
       return row && row[keyField] === target;
     }) || null;
+  }
+
+  function resolveAttachmentPreview(db, kind, targetId) {
+    if (!db || !kind || !targetId) return null;
+    if (kind === 'product') {
+      return findById(db.data.products || [], 'product_id', targetId);
+    }
+    if (kind === 'service') {
+      return findById(db.data.services || [], 'service_id', targetId);
+    }
+    if (kind === 'wiki') {
+      return findById(db.data.articles || [], 'article_id', targetId);
+    }
+    if (kind === 'classified') {
+      return findById(db.data.classifieds || [], 'id', targetId) || findById(db.data.classifieds || [], 'classified_id', targetId);
+    }
+    return null;
   }
 
   function getActiveUser(db) {
@@ -1773,6 +1987,7 @@
     ctx.setState(function(db) {
       var currentComposer = db.state.composer || initialDatabase.state.composer;
       var nextComposer = typeof updates === 'function' ? updates(currentComposer) : Object.assign({}, currentComposer, updates);
+      persistComposerDraft(nextComposer);
       return {
         env: db.env,
         meta: db.meta,
@@ -1795,6 +2010,20 @@
       Object.assign(snapshot, overrides);
     }
     return snapshot;
+  }
+
+  function updateOnboardingState(ctx, updates) {
+    ctx.setState(function(db) {
+      var current = db.state.onboarding || initialDatabase.state.onboarding || {};
+      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
+      persistOnboardingProgress(next);
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { onboarding: next }),
+        data: db.data
+      };
+    });
   }
 
   function openAuthModal(step) {
@@ -1876,6 +2105,48 @@
       } else if (!nextOverlay || nextOverlay.open === false) {
         nextState.commentDraft = '';
       }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+      data: db.data
+    };
+  });
+}
+
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setContactOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReportOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
       return {
         env: db.env,
         meta: db.meta,
@@ -2016,6 +2287,7 @@
       .then(function() {
         ctx.setState(function(db) {
           var resetComposer = createComposerState({ open: false });
+          persistComposerDraft(resetComposer);
           return {
             env: db.env,
             meta: db.meta,
@@ -2053,6 +2325,11 @@
       applyComposerState(ctx, { error: t('composer.classified.title.error', 'ادخل عنوان الإعلان') });
       return;
     }
+    var phoneDigits = (composer.contactPhone || '').replace(/\D/g, '');
+    if (!phoneDigits || phoneDigits.length < 6) {
+      applyComposerState(ctx, { error: t('composer.classified.phone.error', 'أضف رقم هاتف صالح للتواصل') });
+      return;
+    }
     var images = Array.isArray(composer.mediaList) ? composer.mediaList.slice() : [];
     var payload = {
       seller_id: sellerId,
@@ -2079,7 +2356,9 @@
           refreshClassifiedsSnapshot(getCurrentLang());
         }, 0);
         applyComposerState(ctx, function() {
-          return createComposerState({ open: false });
+          var resetComposer = createComposerState({ open: false });
+          persistComposerDraft(resetComposer);
+          return resetComposer;
         });
         showNotice(ctx, t('composer.classified.success', 'تم إضافة الإعلان بنجاح'));
       })
@@ -2198,6 +2477,7 @@
         D.Media.Img({ attrs: { src: avatar, class: 'feed-avatar', alt: userName } }, []),
         D.Containers.Div({ attrs: { class: 'feed-user' } }, [
           D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
+          renderTrustBadge(user),
           D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
             resolvePostPresentationLabel(post),
             ' · ',
@@ -2345,6 +2625,9 @@
     var classifiedId = item.id || item.classified_id;
     var priceLabel = item.price != null ? formatCurrencyValue(item.price, item.currency) : t('classifieds.price.ask', 'سعر عند التواصل');
     var expires = item.expires_at ? new Date(item.expires_at).toLocaleDateString() : '';
+    var seller = findById(db.data.users || [], 'user_id', item.user_id || item.owner_id);
+    var badge = renderTrustBadge(seller);
+    var sellerName = resolveUserName(seller) || '';
     return D.Containers.Div({ attrs: { class: 'classified-card', key: item.id } }, [
       D.Media.Img({ attrs: { src: pickClassifiedImage(item), alt: item.title || '', class: 'classified-cover' } }, []),
       D.Containers.Div({ attrs: { class: 'classified-body' } }, [
@@ -2353,6 +2636,12 @@
           priceLabel,
           item.location_city ? ' · ' + item.location_city : ''
         ]),
+        sellerName || badge
+          ? D.Containers.Div({ attrs: { class: 'seller-inline' } }, [
+              sellerName ? D.Text.Span({ attrs: { class: 'seller-inline-name' } }, [sellerName]) : null,
+              badge
+            ].filter(Boolean))
+          : null,
         item.description
           ? D.Text.P({ attrs: { class: 'classified-description' } }, [item.description])
           : null,
@@ -2364,7 +2653,27 @@
         ].filter(Boolean)),
         renderAttachmentAction('classified', t('classifieds.cta.contact', 'تواصل الآن'), classifiedId, {
           'data-phone': item.contact_phone || ''
-        })
+        }),
+        D.Containers.Div({ attrs: { class: 'card-actions-row' } }, [
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-contact',
+              'data-kind': 'classified',
+              'data-target-id': classifiedId,
+              'data-phone': item.contact_phone || '',
+              'data-user-id': seller && seller.user_id ? seller.user_id : ''
+            }
+          }, [t('contact.message', 'مراسلة')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-report',
+              'data-target-type': 'classified',
+              'data-target-id': classifiedId
+            }
+          }, [t('safety.report', 'إبلاغ/حظر')])
+        ])
       ])
     ]);
   }
@@ -2427,6 +2736,25 @@
           : null
       ].filter(Boolean));
     }
+    var selectedRecord = resolveAttachmentPreview(db, composer.attachmentKind, composer.targetId);
+    var previewNode = null;
+    if (selectedRecord) {
+      var image = resolvePrimaryImage(selectedRecord);
+      var title = getLocalizedField(selectedRecord, 'title', selectedRecord.title || selectedRecord.name || '');
+      var meta = composer.attachmentKind === 'product'
+        ? formatCurrencyValue(selectedRecord.price, selectedRecord.currency)
+        : resolveCityName(selectedRecord) || '';
+      previewNode = D.Containers.Div({ attrs: { class: 'composer-target-preview' } }, [
+        D.Media.Img({ attrs: { class: 'preview-thumb', src: image, alt: title } }, []),
+        D.Containers.Div({ attrs: { class: 'preview-copy' } }, [
+          D.Text.Span({ attrs: { class: 'preview-title' } }, [title]),
+          meta ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [meta]) : null
+        ].filter(Boolean)),
+        D.Forms.Button({
+          attrs: { class: 'composer-target-clear', 'data-m-gkey': 'composer-target-clear' }
+        }, ['✕'])
+      ]);
+    }
     return D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
       D.Inputs.Select({
         attrs: {
@@ -2450,7 +2778,8 @@
               'data-m-gkey': addGkey
             }
           }, [addLabel])
-        : null
+        : null,
+      previewNode
     ].filter(Boolean));
   }
 
@@ -2520,43 +2849,116 @@
     var services = db.data.services || [];
     var articles = getWikiArticles(db).slice(0, 3);
     var categoryShowcase = renderCategoryShowcase(db);
+    var tab = db.state.homeTab || 'timeline';
+
+    function renderHomeTabs() {
+      var tabOptions = [
+        { value: 'timeline', label: t('nav.timeline') },
+        { value: 'classifieds', label: t('nav.classifieds', 'إعلان مستعمل') },
+        { value: 'commerce', label: t('nav.commerce', 'منتج / خدمة') },
+        { value: 'knowledge', label: t('nav.knowledge') }
+      ];
+      return D.Containers.Div({ attrs: { class: 'section-card tab-switcher' } }, [
+        D.Containers.Div({ attrs: { class: 'tab-row' } }, tabOptions.map(function(entry) {
+          var active = tab === entry.value;
+          return D.Forms.Button({
+            attrs: {
+              class: 'tab-btn' + (active ? ' active' : ''),
+              'data-m-gkey': 'home-tab',
+              'data-value': entry.value
+            }
+          }, [entry.label]);
+        }))
+      ]);
+    }
 
     var sections = [
-      renderComposer(db),
-      renderQuickActions(),
-      renderClassifiedsSection(db),
-      renderSocialFeed(db),
       renderHero(db),
-      renderTrendingHashtags(db),
-      renderMetricGrid(db),
-      categoryShowcase,
-      D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('home.featured', null, 'home.featured.meta', null),
-        products.length
-          ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
-              products.slice(0, 5).map(function(product) {
-                return renderProductCard(db, product, { compact: true });
-              })
-            )
-          : D.Text.P({}, [t('marketplace.empty')])
-      ]),
-      D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('home.services', null, null, null),
-        services.length
-          ? services.slice(0, 4).map(function(service) {
-              return renderServiceCard(db, service);
-            })
-          : D.Text.P({}, [t('services.empty')])
-      ]),
-      D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('knowledge.title', null, null, null),
-        articles.length
-          ? articles.map(function(article) { return renderArticleItem(db, article); })
-          : D.Text.P({}, [t('knowledge.empty')])
-      ])
-    ].filter(Boolean);
+      renderQuickActions(),
+      renderOnboardingCard(db),
+      renderHomeTabs()
+    ];
 
-    return D.Containers.Div({ attrs: { class: 'app-section' } }, sections);
+    if (tab === 'timeline') {
+      sections = sections.concat([
+        renderComposer(db),
+        renderSocialFeed(db),
+        renderClassifiedsSection(db),
+        renderTrendingHashtags(db),
+        renderMetricGrid(db),
+        categoryShowcase,
+        D.Containers.Div({ attrs: { class: 'section-card' } }, [
+          renderSectionHeader('home.featured', null, 'home.featured.meta', null),
+          products.length
+            ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
+                products.slice(0, 5).map(function(product) {
+                  return renderProductCard(db, product, { compact: true });
+                })
+              )
+            : D.Text.P({}, [t('marketplace.empty')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'section-card' } }, [
+          renderSectionHeader('home.services', null, null, null),
+          services.length
+            ? services.slice(0, 4).map(function(service) {
+                return renderServiceCard(db, service);
+              })
+            : D.Text.P({}, [t('services.empty')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'section-card' } }, [
+          renderSectionHeader('knowledge.title', null, null, null),
+          articles.length
+            ? articles.map(function(article) { return renderArticleItem(db, article); })
+            : D.Text.P({}, [t('knowledge.empty')])
+        ])
+      ]);
+    } else if (tab === 'classifieds') {
+      sections = sections.concat([
+        renderComposer(db),
+        renderClassifiedsSection(db),
+        renderTrendingHashtags(db),
+        categoryShowcase
+      ]);
+    } else if (tab === 'commerce') {
+      sections = sections.concat([
+        renderComposer(db),
+        renderMarketplace(db),
+        renderServices(db),
+        categoryShowcase
+      ]);
+    } else if (tab === 'knowledge') {
+      sections = sections.concat([
+        renderComposer(db),
+        D.Containers.Div({ attrs: { class: 'section-card' } }, [
+          renderSectionHeader('knowledge.title', null, null, null),
+          articles.length
+            ? articles.map(function(article) { return renderArticleItem(db, article); })
+            : D.Text.P({}, [t('knowledge.empty')])
+        ])
+      ]);
+    }
+
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, sections.filter(Boolean));
+  }
+
+  function renderClassifiedsPage(db) {
+    var classifieds = db.data.classifieds || [];
+    var rows = classifieds.length
+      ? classifieds.map(function(item) { return renderClassifiedCard(db, item); })
+      : [D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات مستعملة حالياً')])];
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('classifieds.section', 'مستعمل حواء', 'classifieds.section.meta', 'أحدث الإعلانات'),
+        D.Containers.Div({ attrs: { class: 'classified-grid' } }, rows)
+      ])
+    ]);
+  }
+
+  function renderCommerce(db) {
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      renderMarketplace(db),
+      renderServices(db)
+    ]);
   }
 
   /**
@@ -2686,6 +3088,7 @@
   function renderArticleItem(db, article) {
     var excerpt = article.excerpt || article.summary || article.description || '';
     var views = article.views_count != null ? article.views_count : (article.view_count || 0);
+    var cover = resolvePrimaryImage(article);
     return D.Containers.Div({
       attrs: {
         class: 'article-card',
@@ -2693,13 +3096,16 @@
         'data-m-key': 'article-' + article.article_id
       }
     }, [
+      cover
+        ? D.Media.Img({ attrs: { class: 'article-cover', src: cover, alt: getLocalizedField(article, 'title', '') } }, [])
+        : null,
       D.Text.H4({ attrs: { class: 'article-title' } }, [getLocalizedField(article, 'title', t('knowledge.card.title'))]),
       D.Text.P({ attrs: { class: 'article-summary' } }, [getLocalizedField(article, 'excerpt', excerpt) || t('wiki.noSummary')]),
       D.Containers.Div({ attrs: { class: 'article-meta' } }, [
         D.Text.Span({}, [String(views) + ' ' + t('wiki.views')]),
         renderAttachmentAction('wiki', t('btn.read', 'اقرأ الآن'), article.article_id)
       ])
-    ]);
+    ].filter(Boolean));
   }
 
   /**
@@ -2735,6 +3141,7 @@
       D.Containers.Div({ attrs: { class: 'section-card profile-card' } }, [
         D.Media.Img({ attrs: { class: 'profile-avatar', src: avatar, alt: resolveUserName(user) } }, []),
         D.Text.H3({ attrs: { class: 'profile-name' } }, [resolveUserName(user)]),
+        renderTrustBadge(user),
         D.Text.P({ attrs: { class: 'profile-handle' } }, ['@' + (user.username || '')]),
         D.Text.P({ attrs: { class: 'profile-bio' } }, [
           getLocalizedField(user, 'bio', t('profile.bio.placeholder'))
@@ -2747,7 +3154,12 @@
         })),
         D.Containers.Div({ attrs: { class: 'profile-actions' } }, [
           D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('profile.cta.compose')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-message' } }, [t('profile.cta.message')])
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'profile-message' } }, [t('profile.cta.message')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'profile-follow' } }, [t('profile.cta.follow', 'متابعة')]),
+          user.phone
+            ? D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': user.phone } }, [t('contact.call', 'اتصال مباشر')])
+            : null
         ]),
         renderProfileSwitcher(db)
       ]),
@@ -2807,6 +3219,7 @@
           D.Media.Img({ attrs: { class: 'feed-avatar', src: avatar, alt: userName } }, []),
         D.Containers.Div({ attrs: { class: 'feed-user' } }, [
           D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
+          renderTrustBadge(user),
           D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
             resolvePostPresentationLabel(post),
             ' · ',
@@ -2834,7 +3247,24 @@
           }, ['🔁 ', t('post.action.share')]),
           D.Forms.Button({
             attrs: { class: 'chip', 'data-m-gkey': 'post-subscribe', 'data-post-id': post.post_id }
-          }, ['🔔 ', t('post.action.subscribe')])
+          }, ['🔔 ', t('post.action.subscribe')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-contact',
+              'data-kind': post.attachment_kind || 'post',
+              'data-target-id': post.post_id,
+              'data-user-id': user && user.user_id ? user.user_id : ''
+            }
+          }, [t('contact.message', 'مراسلة')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-report',
+              'data-target-type': 'post',
+              'data-target-id': post.post_id
+            }
+          }, [t('safety.report', 'إبلاغ')])
         ]),
         D.Text.H4({}, [t('post.overlay.comments')]),
         D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList),
@@ -2859,6 +3289,236 @@
             }, [t('comment.submit', 'إرسال')])
           ]);
         })()
+      ])
+    ]);
+  }
+
+  function renderDetailOverlay(db) {
+    var overlay = db.state.detailOverlay;
+    if (!overlay || !overlay.open) return null;
+    var kind = overlay.kind;
+    var target = resolveAttachmentPreview(db, kind, overlay.targetId);
+    if (!target) return null;
+    var seller = findById(db.data.users || [], 'user_id', target.user_id || target.owner_id || target.seller_id);
+    var gallery = toArray(target.images || target.media || target.gallery || target.media_urls);
+    if (!gallery.length) {
+      var primary = resolvePrimaryImage(target);
+      if (primary) gallery = [primary];
+    }
+    var activeIndex = Math.min(Math.max(overlay.activeIndex || 0, 0), Math.max(gallery.length - 1, 0));
+    var activeImage = gallery[activeIndex] || resolvePrimaryImage(target);
+    var title = getLocalizedField(target, 'title', target.title || target.name || '');
+    var price = target.price != null ? formatCurrencyValue(target.price, target.currency || t('currency.egp')) : (target.price_min != null || target.price_max != null) ? formatPriceRange(target.price_min, target.price_max) : '';
+    var description = getLocalizedField(target, 'description', target.body || target.summary || '');
+    var location = resolveCityName(target);
+    var contactPhone = target.contact_phone || target.phone || target.contact || '';
+    var sellerName = resolveUserName(seller) || t('seller.anon', 'بائع مجهول');
+    var sellerAvatar = (seller && seller.avatar_url) || 'https://i.pravatar.cc/120?img=15';
+    var sellerBadge = renderTrustBadge(seller);
+
+    var galleryThumbs = gallery.slice(0, 6).map(function(url, idx) {
+      var isActive = idx === activeIndex;
+      return D.Forms.Button({
+        attrs: {
+          class: 'detail-thumb' + (isActive ? ' active' : ''),
+          'data-m-gkey': 'detail-gallery-thumb',
+          'data-index': idx
+        }
+      }, [
+        D.Media.Img({ attrs: { src: url, alt: title } }, [])
+      ]);
+    });
+
+    var headerBadge = kind === 'product'
+      ? t('nav.commerce', 'منتج / خدمة')
+      : kind === 'service'
+        ? t('composer.type.service')
+        : kind === 'wiki'
+          ? t('composer.type.article')
+          : t('composer.type.classified', 'إعلان مستعمل');
+
+    var actionRow = [];
+    if (kind === 'classified' && contactPhone) {
+      actionRow.push(renderAttachmentAction('classified', t('classifieds.call', 'اتصل الآن'), '', { 'data-phone': contactPhone }));
+    }
+    actionRow.push(renderAttachmentAction(kind, t('attachment.share', 'مشاركة'), overlay.targetId));
+    actionRow.push(D.Forms.Button({
+      attrs: {
+        class: 'attachment-cta',
+        'data-m-gkey': 'open-contact',
+        'data-kind': kind,
+        'data-target-id': overlay.targetId,
+        'data-phone': contactPhone,
+        'data-user-id': seller && seller.user_id ? seller.user_id : ''
+      }
+    }, [t('contact.message', 'مراسلة البائع')]));
+    actionRow.push(D.Forms.Button({
+      attrs: {
+        class: 'chip ghost',
+        'data-m-gkey': 'open-report',
+        'data-target-type': kind,
+        'data-target-id': overlay.targetId
+      }
+    }, [t('safety.report', 'إبلاغ/حظر')]));
+
+    return D.Containers.Div({ attrs: { class: 'detail-overlay', 'data-m-gkey': 'detail-close' } }, [
+      D.Containers.Div({ attrs: { class: 'detail-panel', 'data-m-gkey': 'detail-overlay-inner' } }, [
+        D.Containers.Div({ attrs: { class: 'detail-header' } }, [
+          D.Text.Span({ attrs: { class: 'chip' } }, [headerBadge]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'detail-close' } }, ['✕'])
+        ]),
+        D.Containers.Div({ attrs: { class: 'detail-media' } }, [
+          activeImage ? D.Media.Img({ attrs: { src: activeImage, alt: title, class: 'detail-hero' } }, []) : null,
+          galleryThumbs.length ? D.Containers.Div({ attrs: { class: 'detail-gallery' } }, galleryThumbs) : null
+        ].filter(Boolean)),
+        D.Containers.Div({ attrs: { class: 'detail-body' } }, [
+          D.Text.H3({ attrs: { class: 'detail-title' } }, [title || headerBadge]),
+          price ? D.Text.Span({ attrs: { class: 'detail-price' } }, [price]) : null,
+          location ? D.Text.Span({ attrs: { class: 'detail-location' } }, [location]) : null,
+          description ? D.Text.P({ attrs: { class: 'detail-description' } }, [description]) : null,
+          D.Containers.Div({ attrs: { class: 'detail-seller' } }, [
+            D.Media.Img({ attrs: { class: 'seller-avatar', src: sellerAvatar, alt: sellerName } }, []),
+            D.Containers.Div({ attrs: { class: 'seller-meta' } }, [
+              D.Text.Span({ attrs: { class: 'seller-name' } }, [sellerName]),
+              sellerBadge
+            ].filter(Boolean)),
+            D.Containers.Div({ attrs: { class: 'seller-actions' } }, [
+              D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'open-contact',
+                  'data-kind': kind,
+                  'data-target-id': overlay.targetId,
+                  'data-phone': contactPhone,
+                  'data-user-id': seller && seller.user_id ? seller.user_id : ''
+                }
+              }, [t('contact.message', 'مراسلة')]),
+              contactPhone
+                ? D.Forms.Button({ attrs: { class: 'chip', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': contactPhone } }, [t('contact.call', 'اتصال مباشر')])
+                : null
+            ].filter(Boolean))
+          ].filter(Boolean)),
+          actionRow.length ? D.Containers.Div({ attrs: { class: 'detail-actions' } }, actionRow) : null,
+          D.Containers.Div({ attrs: { class: 'safety-block' } }, [
+            D.Text.Span({ attrs: { class: 'chip ghost' } }, ['🛡️ ', t('safety.title', 'ضمان الأمان')]),
+            D.Text.P({ attrs: { class: 'safety-copy' } }, [t('safety.copy', 'لا تشارك بياناتك الحساسة وأبلغ عن أي محتوى مخالف أو مشبوه.')])
+          ])
+        ].filter(Boolean))
+      ])
+    ]);
+  }
+
+  function renderContactOverlay(db) {
+    var overlay = db.state.contactOverlay;
+    if (!overlay || !overlay.open) return null;
+    var seller = findById(db.data.users || [], 'user_id', overlay.userId);
+    var sellerName = resolveUserName(seller) || t('seller.anon', 'مستخدم');
+    var defaultText = overlay.preset || t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.');
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'contact-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'contact-modal' } }, [
+        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+          D.Text.H4({}, [t('contact.title', 'مراسلة') + ' ' + sellerName]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'contact-close' } }, ['✕'])
+        ]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('contact.hint', 'سنرسل رسالتك داخل التطبيق ويمكن متابعة الرد من الإشعارات.')]),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            value: overlay.message || defaultText,
+            'data-m-gkey': 'contact-message'
+          }
+        }, []),
+        overlay.phone
+          ? D.Text.Small({ attrs: { class: 'contact-meta' } }, [t('contact.phone', 'هاتف للتواصل: '), overlay.phone])
+          : null,
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'contact-send' } }, [t('contact.send', 'إرسال')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'contact-close' } }, [t('action.cancel', 'إلغاء')])
+        ])
+      ])
+    ]);
+  }
+
+  function renderReportOverlay(db) {
+    var overlay = db.state.reportOverlay;
+    if (!overlay || !overlay.open) return null;
+    var reasons = [
+      { value: 'spam', label: t('report.spam', 'محتوى مزعج / سبام') },
+      { value: 'fraud', label: t('report.fraud', 'احتيال أو طلب أموال') },
+      { value: 'illegal', label: t('report.illegal', 'محتوى مخالف للقوانين') },
+      { value: 'other', label: t('report.other', 'أخرى') }
+    ];
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'report-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'report-modal' } }, [
+        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+          D.Text.H4({}, [t('report.title', 'إبلاغ/حظر')]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'report-close' } }, ['✕'])
+        ]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('report.hint', 'سنراجع البلاغ سريعاً لحماية المجتمع.')]),
+        D.Inputs.Select({ attrs: { class: 'composer-select', 'data-m-gkey': 'report-reason', value: overlay.reason || '' } },
+          [D.Inputs.Option({ attrs: { value: '' } }, [t('report.choose', 'اختر سبب البلاغ')])].concat(
+            reasons.map(function(entry) {
+              return D.Inputs.Option({ attrs: { value: entry.value } }, [entry.label]);
+            })
+          )
+        ),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            placeholder: t('report.notes', 'أضف تفاصيل (اختياري)'),
+            value: overlay.notes || '',
+            'data-m-gkey': 'report-notes'
+          }
+        }, []),
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'report-submit' } }, [t('report.submit', 'إرسال البلاغ')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'report-close' } }, [t('action.cancel', 'إلغاء')])
+        ])
+      ])
+    ]);
+  }
+
+  function renderProfileEditor(db) {
+    var editor = db.state.profileEditor;
+    var user = getActiveUser(db);
+    if (!editor || !editor.open || !user) return null;
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'profile-edit-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-modal', 'data-m-gkey': 'profile-edit-modal' } }, [
+        D.Text.H3({}, [t('profile.edit', 'تعديل الملف الشخصي')]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('profile.edit.hint', 'حسّن الثقة عبر صورة وسيرة واضحة')]),
+        D.Inputs.Input({
+          attrs: {
+            type: 'text',
+            class: 'composer-input',
+            placeholder: t('profile.edit.name', 'الاسم الظاهر'),
+            value: editor.fullName || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'fullName'
+          }
+        }, []),
+        D.Inputs.Input({
+          attrs: {
+            type: 'url',
+            class: 'composer-input',
+            placeholder: t('profile.edit.avatar', 'رابط الصورة الشخصية'),
+            value: editor.avatarUrl || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'avatarUrl'
+          }
+        }, []),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            placeholder: t('profile.edit.bio', 'نبذة عنك أو عن نشاطك'),
+            value: editor.bio || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'bio'
+          }
+        }, []),
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'profile-edit-save' } }, [t('profile.save', 'حفظ التعديلات')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-close' } }, ['✕'])
+        ])
       ])
     ]);
   }
@@ -3031,30 +3691,30 @@
     return D.Containers.Nav({ attrs: { class: 'bottom-nav' } }, [
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-home',
-          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
+          'data-m-gkey': 'nav-profile',
+          class: 'nav-item' + (currentSection === 'profile' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-marketplace',
-          class: 'nav-item' + (currentSection === 'marketplace' ? ' active' : '')
+          'data-m-gkey': 'nav-classifieds',
+          class: 'nav-item' + (currentSection === 'classifieds' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛒']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.marketplace')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['📢']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.classifieds', 'إعلان مستعمل')])
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-services',
-          class: 'nav-item' + (currentSection === 'services' ? ' active' : '')
+          'data-m-gkey': 'nav-commerce',
+          class: 'nav-item' + (currentSection === 'commerce' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🔧']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.services')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛍️']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.commerce', 'منتج / خدمة')])
       ]),
       D.Forms.Button({
         attrs: {
@@ -3067,12 +3727,12 @@
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-profile',
-          class: 'nav-item' + (currentSection === 'profile' ? ' active' : '')
+          'data-m-gkey': 'nav-home',
+          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
       ])
     ]);
   }
@@ -3093,11 +3753,11 @@
     var sectionView;
 
     switch (currentSection) {
-      case 'marketplace':
-        sectionView = renderMarketplace(db);
+      case 'commerce':
+        sectionView = renderCommerce(db);
         break;
-      case 'services':
-        sectionView = renderServices(db);
+      case 'classifieds':
+        sectionView = renderClassifiedsPage(db);
         break;
       case 'knowledge':
         sectionView = renderKnowledge(db);
@@ -3118,7 +3778,11 @@
         renderNotificationsPanel(db),
         D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
         renderBottomNav(db),
+        renderDetailOverlay(db),
+        renderContactOverlay(db),
+        renderReportOverlay(db),
         renderPostOverlay(db),
+        renderProfileEditor(db),
         renderAuthModal(db)
       ].filter(Boolean))
     ]);
@@ -3141,15 +3805,30 @@
       }
     },
 
-    'nav.marketplace': {
+    'nav.commerce': {
       on: ['click'],
-      gkeys: ['nav-marketplace'],
+      gkeys: ['nav-commerce', 'nav-marketplace', 'nav-services'],
       handler: function(event, ctx) {
         ctx.setState(function(db) {
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'nav.classifieds': {
+      on: ['click'],
+      gkeys: ['nav-classifieds'],
+      handler: function(event, ctx) {
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'classifieds' }),
             data: db.data
           };
         });
@@ -3166,22 +3845,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'nav.services': {
-      on: ['click'],
-      gkeys: ['nav-services'],
-      handler: function(event, ctx) {
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3201,36 +3865,15 @@
         var link = target.getAttribute('data-link') || '';
         var phone = target.getAttribute('data-phone') || '';
         if (kind === 'product') {
-          showNotice(ctx, t('composer.notice.product', 'تم فتح المتجر لاستعراض المنتج.'));
-          ctx.setState(function(db) {
-            return {
-              env: db.env,
-              meta: db.meta,
-              state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
-              data: db.data
-            };
-          });
+          setDetailOverlay(ctx, { open: true, kind: 'product', targetId: targetId, activeIndex: 0 });
         } else if (kind === 'service') {
-          showNotice(ctx, t('composer.notice.service', 'انتقلنا إلى قسم الخدمات لعرض التفاصيل.'));
-          ctx.setState(function(db) {
-            return {
-              env: db.env,
-              meta: db.meta,
-              state: Object.assign({}, db.state, { currentSection: 'services' }),
-              data: db.data
-            };
-          });
+          setDetailOverlay(ctx, { open: true, kind: 'service', targetId: targetId, activeIndex: 0 });
         } else if (kind === 'wiki') {
-          ctx.setState(function(db) {
-            return {
-              env: db.env,
-              meta: db.meta,
-              state: Object.assign({}, db.state, { currentSection: 'knowledge' }),
-              data: db.data
-            };
-          });
+          setDetailOverlay(ctx, { open: true, kind: 'wiki', targetId: targetId, activeIndex: 0 });
         } else if (kind === 'classified') {
-          if (phone) {
+          if (targetId) {
+            setDetailOverlay(ctx, { open: true, kind: 'classified', targetId: targetId, activeIndex: 0 });
+          } else if (phone) {
             try {
               global.open('tel:' + phone.replace(/[^0-9+]/g, ''), '_self');
             } catch (_err) {
@@ -3253,6 +3896,144 @@
       }
     },
 
+    'open.contact': {
+      on: ['click'],
+      gkeys: ['open-contact'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var kind = (target.getAttribute('data-kind') || '').toLowerCase();
+        var targetId = target.getAttribute('data-target-id') || '';
+        var phone = target.getAttribute('data-phone') || '';
+        var userId = target.getAttribute('data-user-id') || '';
+        setContactOverlay(ctx, {
+          open: true,
+          kind: kind,
+          targetId: targetId,
+          phone: phone,
+          userId: userId,
+          message: '',
+          preset: t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.')
+        });
+      }
+    },
+
+    'contact.close': {
+      on: ['click'],
+      gkeys: ['contact-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        setContactOverlay(ctx, { open: false, targetId: null, kind: null, message: '' });
+      }
+    },
+
+    'contact.message': {
+      on: ['input'],
+      gkeys: ['contact-message'],
+      handler: function(event, ctx) {
+        var value = event.target && event.target.value ? event.target.value : '';
+        setContactOverlay(ctx, { message: value });
+      }
+    },
+
+    'contact.send': {
+      on: ['click'],
+      gkeys: ['contact-send'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { contactOverlay: Object.assign({}, db.state.contactOverlay, { open: false }) }),
+            data: db.data
+          };
+        });
+        showNotice(ctx, t('contact.sent', 'تم إرسال الرسالة وسيتم الرد عبر التنبيهات.'));
+      }
+    },
+
+    'open.report': {
+      on: ['click'],
+      gkeys: ['open-report'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var targetType = target.getAttribute('data-target-type') || 'post';
+        var targetId = target.getAttribute('data-target-id') || '';
+        setReportOverlay(ctx, { open: true, targetType: targetType, targetId: targetId });
+      }
+    },
+
+    'report.close': {
+      on: ['click'],
+      gkeys: ['report-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        setReportOverlay(ctx, { open: false, targetId: null, targetType: null, reason: '', notes: '' });
+      }
+    },
+
+    'report.reason': {
+      on: ['change'],
+      gkeys: ['report-reason'],
+      handler: function(event, ctx) {
+        var value = event.target && event.target.value ? event.target.value : '';
+        setReportOverlay(ctx, { reason: value });
+      }
+    },
+
+    'report.notes': {
+      on: ['input'],
+      gkeys: ['report-notes'],
+      handler: function(event, ctx) {
+        var value = event.target && event.target.value ? event.target.value : '';
+        setReportOverlay(ctx, { notes: value });
+      }
+    },
+
+    'report.submit': {
+      on: ['click'],
+      gkeys: ['report-submit'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var overlay = ctx.database && ctx.database.state && ctx.database.state.reportOverlay;
+        if (!overlay || !overlay.reason) {
+          showNotice(ctx, t('report.require.reason', 'اختر سبب البلاغ أولاً'));
+          return;
+        }
+        showNotice(ctx, t('report.submitted', 'تم تسجيل البلاغ. شكراً لحماية المجتمع.'));
+        setReportOverlay(ctx, { open: false, notes: '', reason: '' });
+      }
+    },
+
+    'detail.close': {
+      on: ['click'],
+      gkeys: ['detail-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        setDetailOverlay(ctx, { open: false, targetId: null, kind: null, activeIndex: 0 });
+      }
+    },
+
+    'detail.inner': {
+      on: ['click'],
+      gkeys: ['detail-overlay-inner'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+
+    'detail.gallery.thumb': {
+      on: ['click'],
+      gkeys: ['detail-gallery-thumb'],
+      handler: function(event, ctx) {
+        var indexAttr = event.currentTarget && event.currentTarget.getAttribute('data-index');
+        var nextIndex = indexAttr ? Number(indexAttr) : 0;
+        setDetailOverlay(ctx, { activeIndex: nextIndex });
+      }
+    },
+
     'open.service.form': {
       on: ['click'],
       gkeys: ['open-service-form'],
@@ -3263,7 +4044,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3294,6 +4075,22 @@
             env: db.env,
             meta: db.meta,
             state: Object.assign({}, db.state, { currentSection: 'profile' }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'home.tab': {
+      on: ['click'],
+      gkeys: ['home-tab'],
+      handler: function(event, ctx) {
+        var value = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { homeTab: value || 'timeline' }),
             data: db.data
           };
         });
@@ -3802,6 +4599,14 @@
         applyComposerState(ctx, { targetId: value });
       }
     },
+    'composer.target.clear': {
+      on: ['click'],
+      gkeys: ['composer-target-clear'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        applyComposerState(ctx, { targetId: '' });
+      }
+    },
     'composer.classified.title': {
       on: ['input'],
       gkeys: ['composer-classified-title'],
@@ -3884,7 +4689,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3900,7 +4705,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -4031,11 +4836,114 @@
         showNotice(ctx, t('profile.message.unavailable', 'قريباً سيتم دعم المراسلة داخل التطبيق'));
       }
     },
-    'profile.message': {
+    'profile.follow': {
       on: ['click'],
-      gkeys: ['profile-message'],
-      handler: function() {
-        console.info('[SBN PWA] message action tapped');
+      gkeys: ['profile-follow'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('profile.following', 'تمت المتابعة، سنعرض تحديثات هذا الحساب لك.'));
+      }
+    },
+    'profile.edit.open': {
+      on: ['click'],
+      gkeys: ['profile-edit-open'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var user = getActiveUser(db);
+          var nextEditor = {
+            open: true,
+            fullName: resolveUserName(user),
+            bio: getLocalizedField(user, 'bio', ''),
+            avatarUrl: (user && user.avatar_url) || ''
+          };
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { profileEditor: nextEditor }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'profile.edit.close': {
+      on: ['click'],
+      gkeys: ['profile-edit-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { profileEditor: Object.assign({}, db.state.profileEditor, { open: false }) }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'profile.edit.modal': {
+      on: ['click'],
+      gkeys: ['profile-edit-modal'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+    'profile.edit.input': {
+      on: ['input'],
+      gkeys: ['profile-edit-input'],
+      handler: function(event, ctx) {
+        var field = event.currentTarget && event.currentTarget.getAttribute('data-field');
+        var value = event.target ? event.target.value : '';
+        if (!field) return;
+        ctx.setState(function(db) {
+          var editor = Object.assign({}, db.state.profileEditor, {});
+          editor[field] = value;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { profileEditor: editor }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'profile.edit.save': {
+      on: ['click'],
+      gkeys: ['profile-edit-save'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var editor = db.state.profileEditor || {};
+          var users = Array.isArray(db.data.users) ? db.data.users.slice() : [];
+          var activeId = db.state.activeUserId;
+          var updatedUsers = users.map(function(u) {
+            if (!u || u.user_id !== activeId) return u;
+            var next = Object.assign({}, u, {
+              avatar_url: editor.avatarUrl || u.avatar_url,
+              bio: editor.bio || u.bio
+            });
+            if (editor.fullName) {
+              next.full_name = editor.fullName;
+            }
+            return next;
+          });
+          var nextOnboarding = Object.assign({}, db.state.onboarding, {
+            completed: Object.assign({}, (db.state.onboarding && db.state.onboarding.completed) || {}, {
+              avatar: Boolean(editor.avatarUrl),
+              bio: Boolean(editor.bio)
+            })
+          });
+          persistOnboardingProgress(nextOnboarding);
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              profileEditor: Object.assign({}, editor, { open: false }),
+              onboarding: nextOnboarding
+            }),
+            data: Object.assign({}, db.data, { users: updatedUsers })
+          };
+        });
       }
     },
 
@@ -4090,6 +4998,29 @@
         var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
         bumpPostStat(postId, 'likes_count');
         showNotice(ctx, t('post.action.like') + ' ✓');
+      }
+    },
+
+    'onboarding.complete': {
+      on: ['click'],
+      gkeys: ['onboarding-complete'],
+      handler: function(event, ctx) {
+        var taskKey = event.currentTarget && event.currentTarget.getAttribute('data-task');
+        if (!taskKey) return;
+        updateOnboardingState(ctx, function(current) {
+          var nextCompleted = Object.assign({}, current.completed || {}, {});
+          nextCompleted[taskKey] = true;
+          return Object.assign({}, current, { completed: nextCompleted });
+        });
+      }
+    },
+
+    'onboarding.dismiss': {
+      on: ['click'],
+      gkeys: ['onboarding-dismiss'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        updateOnboardingState(ctx, { dismissed: true });
       }
     },
 
