@@ -459,537 +459,6 @@
         "created_at": "2023-01-01T00:00:00Z"
       }
     ],
-    "sbn_categories": [
-      {
-        "category_id": "cat_001",
-        "parent_id": null,
-        "category_type": "product",
-        "slug": "electronics",
-        "icon_url": "https://api.iconify.design/mdi:cellphone.svg",
-        "cover_url": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800",
-        "sort_order": 1,
-        "is_active": true,
-        "items_count": 1245,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_002",
-        "parent_id": "cat_001",
-        "category_type": "product",
-        "slug": "smartphones",
-        "icon_url": "https://api.iconify.design/mdi:cellphone-iphone.svg",
-        "cover_url": "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800",
-        "sort_order": 1,
-        "is_active": true,
-        "items_count": 567,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_003",
-        "parent_id": null,
-        "category_type": "product",
-        "slug": "fashion",
-        "icon_url": "https://api.iconify.design/mdi:tshirt-crew.svg",
-        "cover_url": "https://images.unsplash.com/photo-1558769132-cb1aea6c5a00?w=800",
-        "sort_order": 2,
-        "is_active": true,
-        "items_count": 3420,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_004",
-        "parent_id": "cat_003",
-        "category_type": "product",
-        "slug": "womens-clothing",
-        "icon_url": "https://api.iconify.design/mdi:dress.svg",
-        "cover_url": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800",
-        "sort_order": 1,
-        "is_active": true,
-        "items_count": 1890,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_005",
-        "parent_id": "cat_003",
-        "category_type": "product",
-        "slug": "bags-accessories",
-        "icon_url": "https://api.iconify.design/mdi:bag-personal.svg",
-        "cover_url": "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=800",
-        "sort_order": 2,
-        "is_active": true,
-        "items_count": 890,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_006",
-        "parent_id": null,
-        "category_type": "product",
-        "slug": "home-garden",
-        "icon_url": "https://api.iconify.design/mdi:home.svg",
-        "cover_url": "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800",
-        "sort_order": 3,
-        "is_active": true,
-        "items_count": 2340,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_007",
-        "parent_id": null,
-        "category_type": "product",
-        "slug": "beauty-personal-care",
-        "icon_url": "https://api.iconify.design/mdi:lipstick.svg",
-        "cover_url": "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=800",
-        "sort_order": 4,
-        "is_active": true,
-        "items_count": 1678,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_008",
-        "parent_id": null,
-        "category_type": "product",
-        "slug": "food-beverages",
-        "icon_url": "https://api.iconify.design/mdi:food.svg",
-        "cover_url": "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800",
-        "sort_order": 5,
-        "is_active": true,
-        "items_count": 967,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_101",
-        "parent_id": null,
-        "category_type": "service",
-        "slug": "design-creative",
-        "icon_url": "https://api.iconify.design/mdi:palette.svg",
-        "cover_url": "https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800",
-        "sort_order": 1,
-        "is_active": true,
-        "items_count": 456,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_102",
-        "parent_id": "cat_101",
-        "category_type": "service",
-        "slug": "photography",
-        "icon_url": "https://api.iconify.design/mdi:camera.svg",
-        "cover_url": "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800",
-        "sort_order": 1,
-        "is_active": true,
-        "items_count": 178,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_103",
-        "parent_id": null,
-        "category_type": "service",
-        "slug": "education-training",
-        "icon_url": "https://api.iconify.design/mdi:school.svg",
-        "cover_url": "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800",
-        "sort_order": 2,
-        "is_active": true,
-        "items_count": 324,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_104",
-        "parent_id": null,
-        "category_type": "service",
-        "slug": "beauty-health",
-        "icon_url": "https://api.iconify.design/mdi:spa.svg",
-        "cover_url": "https://images.unsplash.com/photo-1560750588-73207b1ef5b8?w=800",
-        "sort_order": 3,
-        "is_active": true,
-        "items_count": 267,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_105",
-        "parent_id": null,
-        "category_type": "service",
-        "slug": "catering-events",
-        "icon_url": "https://api.iconify.design/mdi:chef-hat.svg",
-        "cover_url": "https://images.unsplash.com/photo-1555244162-803834f70033?w=800",
-        "sort_order": 4,
-        "is_active": true,
-        "items_count": 189,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_201",
-        "parent_id": null,
-        "category_type": "knowledge",
-        "slug": "beauty-care-wiki",
-        "icon_url": "https://api.iconify.design/mdi:face-woman.svg",
-        "cover_url": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800",
-        "sort_order": 1,
-        "is_active": true,
-        "items_count": 234,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_202",
-        "parent_id": null,
-        "category_type": "knowledge",
-        "slug": "cooking-kitchen-wiki",
-        "icon_url": "https://api.iconify.design/mdi:pot-steam.svg",
-        "cover_url": "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=800",
-        "sort_order": 2,
-        "is_active": true,
-        "items_count": 456,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_203",
-        "parent_id": null,
-        "category_type": "knowledge",
-        "slug": "handmade-crafts-wiki",
-        "icon_url": "https://api.iconify.design/mdi:artstation.svg",
-        "cover_url": "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=800",
-        "sort_order": 3,
-        "is_active": true,
-        "items_count": 178,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      },
-      {
-        "category_id": "cat_204",
-        "parent_id": null,
-        "category_type": "knowledge",
-        "slug": "entrepreneurship-wiki",
-        "icon_url": "https://api.iconify.design/mdi:lightbulb-on.svg",
-        "cover_url": "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=800",
-        "sort_order": 4,
-        "is_active": true,
-        "items_count": 312,
-        "created_at": "2023-01-01T00:00:00Z",
-        "updated_at": "2025-11-20T00:00:00Z"
-      }
-    ],
-    "sbn_categories_lang": [
-      {
-        "id": "cat_001_lang_ar",
-        "category_id": "cat_001",
-        "lang": "ar",
-        "name": "إلكترونيات القاهرة",
-        "description": "أحدث الأجهزة التي يعتمد عليها شباب وسط البلد ورواد الأعمال في المكاتب المشتركة.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_001_lang_en",
-        "category_id": "cat_001",
-        "lang": "en",
-        "name": "Cairo Electronics",
-        "description": "Devices trusted by downtown founders and co-working crews.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_002_lang_ar",
-        "category_id": "cat_002",
-        "lang": "ar",
-        "name": "هواتف الشوارع",
-        "description": "اختيارات من هليوبوليس والإسكندرية مع ضمان محلي وصيانة سريعة.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_002_lang_en",
-        "category_id": "cat_002",
-        "lang": "en",
-        "name": "Street Smartphones",
-        "description": "Local Heliopolis and Alex picks with on-ground warranty.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_003_lang_ar",
-        "category_id": "cat_003",
-        "lang": "ar",
-        "name": "أزياء حية",
-        "description": "علامات مصرية صغيرة تمزج التراث مع موضة الشارع.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_003_lang_en",
-        "category_id": "cat_003",
-        "lang": "en",
-        "name": "Living Fashion",
-        "description": "Independent Egyptian labels blending heritage with street style.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_004_lang_ar",
-        "category_id": "cat_004",
-        "lang": "ar",
-        "name": "أطقم نسائية",
-        "description": "تصاميم جاهزة للخروج من وسط البلد إلى الزمالك دون تبديل.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_004_lang_en",
-        "category_id": "cat_004",
-        "lang": "en",
-        "name": "Women Sets",
-        "description": "Ready-to-go looks from Downtown to Zamalek.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_005_lang_ar",
-        "category_id": "cat_005",
-        "lang": "ar",
-        "name": "حقائب وملحقات حرفية",
-        "description": "منتجات جلدية وقماشية من صناع الفسطاط وبولاكلي.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_005_lang_en",
-        "category_id": "cat_005",
-        "lang": "en",
-        "name": "Handcrafted Bags & Accessories",
-        "description": "Leather and textile goods from Old Cairo artisans.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_006_lang_ar",
-        "category_id": "cat_006",
-        "lang": "ar",
-        "name": "البيت المصري",
-        "description": "ديكور وأدوات مطابخ من أسواق درب البرابرة والعتبة.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_006_lang_en",
-        "category_id": "cat_006",
-        "lang": "en",
-        "name": "Egyptian Home",
-        "description": "Décor and kitchen ware sourced from Darb Al Barabra and Attaba.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_007_lang_ar",
-        "category_id": "cat_007",
-        "lang": "ar",
-        "name": "جمال طبيعي",
-        "description": "منتجات عناية بخامات من وادي النطرون وسيناء.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_007_lang_en",
-        "category_id": "cat_007",
-        "lang": "en",
-        "name": "Natural Beauty",
-        "description": "Care products crafted with Wadi El Natrun and Sinai botanicals.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_008_lang_ar",
-        "category_id": "cat_008",
-        "lang": "ar",
-        "name": "مأكولات بلدي",
-        "description": "مخبوزات ووجبات فطار صحية بلمسة مصرية حديثة.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_008_lang_en",
-        "category_id": "cat_008",
-        "lang": "en",
-        "name": "Baladi Foods",
-        "description": "Healthy breakfast trays and modern takes on classics.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_101_lang_ar",
-        "category_id": "cat_101",
-        "lang": "ar",
-        "name": "تصميم وإبداع",
-        "description": "خدمات تصميم جرافيك وتصوير لحملات محلية.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_101_lang_en",
-        "category_id": "cat_101",
-        "lang": "en",
-        "name": "Design & Creative",
-        "description": "Creative services powering local launches.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_102_lang_ar",
-        "category_id": "cat_102",
-        "lang": "ar",
-        "name": "تصوير على النيل",
-        "description": "جلسات تصوير للأفراح والمشاريع على الكورنيش والأحياء التاريخية.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_102_lang_en",
-        "category_id": "cat_102",
-        "lang": "en",
-        "name": "Nile-side Photography",
-        "description": "Sessions for weddings and launches across Nile banks.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_103_lang_ar",
-        "category_id": "cat_103",
-        "lang": "ar",
-        "name": "تعليم وتطوير",
-        "description": "دورات لايف تركز على مهارات السوق المصري.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_103_lang_en",
-        "category_id": "cat_103",
-        "lang": "en",
-        "name": "Learning & Development",
-        "description": "Live cohorts focused on Egyptian market skills.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_104_lang_ar",
-        "category_id": "cat_104",
-        "lang": "ar",
-        "name": "عناية وصحة",
-        "description": "جلسات عناية بالبشرة والعافية مع خبراء مستقلين.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_104_lang_en",
-        "category_id": "cat_104",
-        "lang": "en",
-        "name": "Care & Wellness",
-        "description": "Independent skincare and wellness clinics.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_105_lang_ar",
-        "category_id": "cat_105",
-        "lang": "ar",
-        "name": "طعام المناسبات",
-        "description": "شيفات منزلية يوفروا قوائم جاهزة للاجتماعات والشركات.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_105_lang_en",
-        "category_id": "cat_105",
-        "lang": "en",
-        "name": "Gathering Catering",
-        "description": "Home chefs curating menus for teams and pop-ups.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_201_lang_ar",
-        "category_id": "cat_201",
-        "lang": "ar",
-        "name": "موسوعة الجمال المصري",
-        "description": "مقالات بحثية عن العناية بالبشرة والشعر في مناخ القاهرة.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_201_lang_en",
-        "category_id": "cat_201",
-        "lang": "en",
-        "name": "Egyptian Beauty Wiki",
-        "description": "Research-backed skincare for Cairo weather.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_202_lang_ar",
-        "category_id": "cat_202",
-        "lang": "ar",
-        "name": "دفتر وصفات بلدي",
-        "description": "أفكار للمطبخ المصري الصحي وطرق تقديم جديدة.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_202_lang_en",
-        "category_id": "cat_202",
-        "lang": "en",
-        "name": "Baladi Recipe Book",
-        "description": "Healthy Egyptian dishes with modern plating.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_203_lang_ar",
-        "category_id": "cat_203",
-        "lang": "ar",
-        "name": "حرف متجددة",
-        "description": "تقنيات تصنيع حديثة لمنتجات جلد وخشب محلية.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_203_lang_en",
-        "category_id": "cat_203",
-        "lang": "en",
-        "name": "Renewed Crafts",
-        "description": "Modern techniques for local leather and wood goods.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_204_lang_ar",
-        "category_id": "cat_204",
-        "lang": "ar",
-        "name": "ريادة بالمصري",
-        "description": "أدلة تشغيل للمشاريع الصغيرة في الأحياء الشعبية.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      },
-      {
-        "id": "cat_204_lang_en",
-        "category_id": "cat_204",
-        "lang": "en",
-        "name": "Egyptian Entrepreneurship",
-        "description": "Playbooks for micro businesses across neighborhoods.",
-        "is_auto": false,
-        "created_at": "2025-11-23T10:00:00Z"
-      }
-    ],
     "sbn_products": [
       {
         "product_id": "prod_001",
@@ -1800,11 +1269,125 @@
         "created_at": "2025-11-23T10:00:00Z"
       }
     ],
+    "sbn_classifieds": [
+      {
+        "classified_id": "cls_001",
+        "seller_id": "usr_001",
+        "category_id": "cat_cls_01a",
+        "title": "فستان سهرة تركواز بطرحة",
+        "description": "فستان سواريه تركواز مقاس متوسط، مبطن بتطريز يدوي مع طرحة من نفس اللون. نظيف جداً واستُخدم مرة واحدة فقط.",
+        "price": 2500,
+        "currency": "EGP",
+        "images": "[\"https://cdn.salla.sa/nVrVy/0bb2fa3b-91aa-4b44-86da-ce1681ec145e-800x1000-CYWmLzFiexrSd82g8Uy29G2LIWLyLJF6fhMZkxN2.jpg\", \"https://cdn.salla.sa/nVrVy/0bb2fa3b-91aa-4b44-86da-ce1681ec145e-800x1000-CYWmLzFiexrSd82g8Uy29G2LIWLyLJF6fhMZkxN2.jpg\"]",
+        "contact_phone": "+201001112233",
+        "contact_whatsapp": "+201001112233",
+        "location_city": "القاهرة",
+        "location_district": "التجمع الخامس",
+        "status": "active",
+        "expires_at": "2026-01-15T00:00:00Z",
+        "views_count": 120,
+        "leads_count": 14,
+        "created_at": "2025-11-20T09:00:00Z",
+        "updated_at": "2025-11-20T09:00:00Z",
+        "published_at": "2025-11-20T09:00:00Z"
+      },
+      {
+        "classified_id": "cls_002",
+        "seller_id": "usr_002",
+        "category_id": "cat_cls_03a",
+        "title": "خلاط عطارة ألماني",
+        "description": "خلاط صناعي 2 لتر، قدرة 1500 وات، مناسب للعصائر والسوائل الثقيلة. مع ضمان محلي حتى 2026.",
+        "price": 3200,
+        "currency": "EGP",
+        "images": "[\"https://m.media-amazon.com/images/I/51gG9MoSQTL._AC_.jpg\", \"https://m.media-amazon.com/images/I/51gG9MoSQTL._AC_.jpg\"]",
+        "contact_phone": "+201221234567",
+        "contact_whatsapp": "+201221234567",
+        "location_city": "مدينة نصر",
+        "location_district": "زهراء مدينة نصر",
+        "status": "active",
+        "expires_at": "2025-12-20T00:00:00Z",
+        "views_count": 86,
+        "leads_count": 9,
+        "created_at": "2025-11-19T11:30:00Z",
+        "updated_at": "2025-11-19T11:30:00Z",
+        "published_at": "2025-11-19T11:30:00Z"
+      },
+      {
+        "classified_id": "cls_003",
+        "seller_id": "usr_003",
+        "category_id": "cat_cls_05a",
+        "title": "جهاز ليزر منزلي للأماكن الحساسة",
+        "description": "ليزر منزلي إصدار 2024 مع 4 رؤوس مختلفة وحقيبة سفر أصلية. تم الشراء من وكيل معتمد وتشغيله أقل من 10 مرات.",
+        "price": 7800,
+        "currency": "EGP",
+        "images": "[\"https://m.media-amazon.com/images/I/51PWxV3qimL._AC_SX679_.jpg\", \"https://m.media-amazon.com/images/I/51PWxV3qimL._AC_SX679_.jpg\"]",
+        "contact_phone": "+201551007070",
+        "contact_whatsapp": "+201551007070",
+        "location_city": "الإسكندرية",
+        "location_district": "سموحة",
+        "status": "active",
+        "expires_at": "2026-02-01T00:00:00Z",
+        "views_count": 64,
+        "leads_count": 5,
+        "created_at": "2025-11-18T15:45:00Z",
+        "updated_at": "2025-11-18T15:45:00Z",
+        "published_at": "2025-11-18T15:45:00Z"
+      }
+    ],
+    "sbn_classifieds_lang": [
+      {
+        "id": "cls_001_ar",
+        "classified_id": "cls_001",
+        "lang": "ar",
+        "title": "فستان سهرة تركواز",
+        "description": "فستان مائل للتركواز مع طرحة وتطريز يدوي، جاهز للتسليم ومعه غطاء تخزين.",
+        "created_at": "2025-11-20T09:00:00Z"
+      },
+      {
+        "id": "cls_001_en",
+        "classified_id": "cls_001",
+        "lang": "en",
+        "title": "Turquoise Evening Gown",
+        "description": "Lightly used turquoise gown, matching veil, artisan embroidery, includes garment bag.",
+        "created_at": "2025-11-20T09:00:00Z"
+      },
+      {
+        "id": "cls_002_ar",
+        "classified_id": "cls_002",
+        "lang": "ar",
+        "title": "خلاط عطارة ألماني",
+        "description": "خلاط صناعي قدرة عالية، استعمال شهر واحد مع ضمان ساري.",
+        "created_at": "2025-11-19T11:30:00Z"
+      },
+      {
+        "id": "cls_002_en",
+        "classified_id": "cls_002",
+        "lang": "en",
+        "title": "German Heavy-Duty Blender",
+        "description": "1.5 kW kitchen blender, purchased 2024, includes valid warranty card.",
+        "created_at": "2025-11-19T11:30:00Z"
+      },
+      {
+        "id": "cls_003_ar",
+        "classified_id": "cls_003",
+        "lang": "ar",
+        "title": "ليزر منزلي بحالة شبه جديدة",
+        "description": "جهاز ليزر منزلي مع رؤوس احتياطية وحقيبة، تشغيل محدود، مناسب للبشرة الحساسة.",
+        "created_at": "2025-11-18T15:45:00Z"
+      },
+      {
+        "id": "cls_003_en",
+        "classified_id": "cls_003",
+        "lang": "en",
+        "title": "At-home Laser Device",
+        "description": "Latest model home laser kit with travel case and extra caps; used under 10 sessions.",
+        "created_at": "2025-11-18T15:45:00Z"
+      }
+    ],
     "sbn_posts": [
       {
         "post_id": "post_001",
         "user_id": "usr_001",
-        "post_type": "product_share",
         "media_urls": "[\"https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800\"]",
         "shared_product_id": "prod_002",
         "visibility": "public",
@@ -1814,12 +1397,18 @@
         "comments_count": 123,
         "shares_count": 45,
         "created_at": "2025-11-18T14:30:00Z",
-        "updated_at": "2025-11-18T14:30:00Z"
+        "updated_at": "2025-11-18T14:30:00Z",
+        "media_mode": "plain",
+        "attachment_kind": "product",
+        "media_metadata": {
+          "og_title": "Gateau Cairo Drop",
+          "og_image": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600",
+          "cta": "order"
+        }
       },
       {
         "post_id": "post_002",
         "user_id": "usr_002",
-        "post_type": "video",
         "media_urls": "[\"https://images.unsplash.com/photo-1558769132-cb1aea6c5a00?w=800\", \"https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800\"]",
         "visibility": "public",
         "is_pinned": true,
@@ -1828,12 +1417,19 @@
         "comments_count": 345,
         "shares_count": 178,
         "created_at": "2025-11-17T10:15:00Z",
-        "updated_at": "2025-11-17T10:15:00Z"
+        "updated_at": "2025-11-17T10:15:00Z",
+        "media_mode": "reel",
+        "attachment_kind": "none",
+        "media_metadata": {
+          "duration": 28,
+          "aspect_ratio": "9:16",
+          "thumbnail_url": "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=400",
+          "max_duration": 30
+        }
       },
       {
         "post_id": "post_003",
         "user_id": "usr_003",
-        "post_type": "article_share",
         "shared_article_id": "wiki_001",
         "visibility": "public",
         "is_pinned": false,
@@ -1842,12 +1438,14 @@
         "comments_count": 234,
         "shares_count": 456,
         "created_at": "2025-11-16T09:00:00Z",
-        "updated_at": "2025-11-16T09:00:00Z"
+        "updated_at": "2025-11-16T09:00:00Z",
+        "media_mode": "plain",
+        "attachment_kind": "wiki",
+        "media_metadata": null
       },
       {
         "post_id": "post_004",
         "user_id": "usr_004",
-        "post_type": "image",
         "media_urls": "[\"https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=800\", \"https://images.unsplash.com/photo-1590874103328-eac38a683ce7?w=800\"]",
         "visibility": "public",
         "is_pinned": false,
@@ -1856,12 +1454,14 @@
         "comments_count": 89,
         "shares_count": 67,
         "created_at": "2025-11-15T08:30:00Z",
-        "updated_at": "2025-11-15T08:30:00Z"
+        "updated_at": "2025-11-15T08:30:00Z",
+        "media_mode": "plain",
+        "attachment_kind": "none",
+        "media_metadata": null
       },
       {
         "post_id": "post_005",
         "user_id": "usr_008",
-        "post_type": "product_share",
         "visibility": "public",
         "is_pinned": false,
         "views_count": 0,
@@ -1870,13 +1470,15 @@
         "shares_count": 0,
         "created_at": "2025-11-23T12:00:00Z",
         "updated_at": "2025-11-23T12:00:00Z",
-        "shared_product_id": "prod_006",
-        "media_urls": "[\"https://images.unsplash.com/photo-1522312346375-d1a52e2b99b3?w=600\"]"
+        "media_urls": "[\"https://images.unsplash.com/photo-1522312346375-d1a52e2b99b3?w=600\"]",
+        "media_mode": "plain",
+        "attachment_kind": "classified",
+        "shared_classified_id": "cls_001",
+        "media_metadata": null
       },
       {
         "post_id": "post_006",
         "user_id": "usr_002",
-        "post_type": "product_share",
         "visibility": "public",
         "is_pinned": false,
         "views_count": 0,
@@ -1885,13 +1487,15 @@
         "shares_count": 0,
         "created_at": "2025-11-23T12:00:00Z",
         "updated_at": "2025-11-23T12:00:00Z",
-        "shared_product_id": "prod_007",
-        "media_urls": "[\"https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=600\"]"
+        "media_urls": "[\"https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=600\"]",
+        "media_mode": "plain",
+        "attachment_kind": "classified",
+        "shared_classified_id": "cls_002",
+        "media_metadata": null
       },
       {
         "post_id": "post_007",
         "user_id": "usr_005",
-        "post_type": "product_share",
         "visibility": "public",
         "is_pinned": false,
         "views_count": 0,
@@ -1900,13 +1504,15 @@
         "shares_count": 0,
         "created_at": "2025-11-23T12:00:00Z",
         "updated_at": "2025-11-23T12:00:00Z",
-        "shared_product_id": "prod_008",
-        "media_urls": "[\"https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?w=600\"]"
+        "media_urls": "[\"https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?w=600\"]",
+        "media_mode": "plain",
+        "attachment_kind": "classified",
+        "shared_classified_id": "cls_003",
+        "media_metadata": null
       },
       {
         "post_id": "post_008",
         "user_id": "usr_001",
-        "post_type": "plain",
         "visibility": "public",
         "is_pinned": false,
         "views_count": 0,
@@ -1914,7 +1520,32 @@
         "comments_count": 0,
         "shares_count": 0,
         "created_at": "2025-11-23T12:00:00Z",
-        "updated_at": "2025-11-23T12:00:00Z"
+        "updated_at": "2025-11-23T12:00:00Z",
+        "media_mode": "plain",
+        "attachment_kind": "none",
+        "media_metadata": null
+      },
+      {
+        "post_id": "post_009",
+        "user_id": "usr_006",
+        "media_urls": "[\"https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?w=900\"]",
+        "link_url": "https://mostamalhawa.eg/campaigns/reels-studio",
+        "visibility": "public",
+        "is_pinned": false,
+        "views_count": 1023,
+        "likes_count": 210,
+        "comments_count": 32,
+        "shares_count": 18,
+        "created_at": "2025-11-21T11:20:00Z",
+        "updated_at": "2025-11-21T11:20:00Z",
+        "media_mode": "plain",
+        "attachment_kind": "ad",
+        "media_metadata": {
+          "og_title": "أستوديو الريلز الذكي",
+          "og_image": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=900",
+          "og_description": "حجزي سشن ريلز جاهز بالإضاءة والصوت خلال 30 دقيقة فقط",
+          "cta": "احجزي الآن"
+        }
       }
     ],
     "sbn_posts_lang": [
@@ -2045,6 +1676,22 @@
         "content": "Hawaa Pre-loved keeps beautiful pieces circulating. Share your gently used kitchen tools and give them a new home.",
         "is_auto": false,
         "created_at": "2025-11-23T12:00:00Z"
+      },
+      {
+        "post_id": "post_009",
+        "lang": "ar",
+        "content": "أطلقنا باقة ريلز مدتها 30 ثانية للمتاجر المنزلية—تصوير، مونتاج، وتحميل مباشر على حسابك.",
+        "is_auto": false,
+        "created_at": "2025-11-21T11:20:00Z",
+        "id": "post_009_lang_ar"
+      },
+      {
+        "post_id": "post_009",
+        "lang": "en",
+        "content": "New 30-second reels bundle for home brands—studio lights, editing, and direct upload in one hour.",
+        "is_auto": false,
+        "created_at": "2025-11-21T11:20:00Z",
+        "id": "post_009_lang_en"
       }
     ],
     "sbn_comments": [
@@ -5553,6 +5200,1280 @@
         "category": "ui",
         "created_at": "2025-11-23T12:40:00Z",
         "updated_at": "2025-11-23T12:40:00Z"
+      }
+    ],
+    "sbn_classified_categories": [
+      {
+        "category_id": "cat_cls_01",
+        "parent_id": null,
+        "category_type": "classified",
+        "slug": "classifieds-fashion",
+        "icon_url": "mdi:tshirt-crew",
+        "cover_url": "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=900",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 220,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_02",
+        "parent_id": null,
+        "category_type": "classified",
+        "slug": "classifieds-moms",
+        "icon_url": "mdi:baby-carriage",
+        "cover_url": "https://images.unsplash.com/photo-1503341455253-b2e723bb3dbb?w=900",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 140,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_03",
+        "parent_id": null,
+        "category_type": "classified",
+        "slug": "classifieds-kitchen",
+        "icon_url": "mdi:chef-hat",
+        "cover_url": "https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?w=900",
+        "sort_order": 3,
+        "is_active": true,
+        "items_count": 160,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_04",
+        "parent_id": null,
+        "category_type": "classified",
+        "slug": "classifieds-furniture",
+        "icon_url": "mdi:sofa",
+        "cover_url": "https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=900",
+        "sort_order": 4,
+        "is_active": true,
+        "items_count": 90,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_05",
+        "parent_id": null,
+        "category_type": "classified",
+        "slug": "classifieds-beauty-tech",
+        "icon_url": "mdi:beauty-salon",
+        "cover_url": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=900",
+        "sort_order": 5,
+        "is_active": true,
+        "items_count": 110,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_01a",
+        "parent_id": "cat_cls_01",
+        "category_type": "classified",
+        "slug": "evening-dresses",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=evening-dresses",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 80,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_01b",
+        "parent_id": "cat_cls_01",
+        "category_type": "classified",
+        "slug": "bags-shoes",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=bags-shoes",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 70,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_02a",
+        "parent_id": "cat_cls_02",
+        "category_type": "classified",
+        "slug": "strollers-seats",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=strollers-seats",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 50,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_02b",
+        "parent_id": "cat_cls_02",
+        "category_type": "classified",
+        "slug": "baby-fashion",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=baby-fashion",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 45,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_03a",
+        "parent_id": "cat_cls_03",
+        "category_type": "classified",
+        "slug": "appliances",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=appliances",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 60,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_03b",
+        "parent_id": "cat_cls_03",
+        "category_type": "classified",
+        "slug": "tableware",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=tableware",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 40,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_04a",
+        "parent_id": "cat_cls_04",
+        "category_type": "classified",
+        "slug": "decor-lighting",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=decor-lighting",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 35,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_04b",
+        "parent_id": "cat_cls_04",
+        "category_type": "classified",
+        "slug": "carpets-curtains",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=carpets-curtains",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 32,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_05a",
+        "parent_id": "cat_cls_05",
+        "category_type": "classified",
+        "slug": "beauty-devices",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=beauty-devices",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 45,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_cls_05b",
+        "parent_id": "cat_cls_05",
+        "category_type": "classified",
+        "slug": "mobiles-accessories",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=mobiles-accessories",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 55,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      }
+    ],
+    "sbn_classified_categories_lang": [
+      {
+        "id": "cat_cls_01_ar",
+        "category_id": "cat_cls_01",
+        "lang": "ar",
+        "name": "ملابس المناسبات",
+        "description": "فساتين زفاف وسهرة جاهزة للإيجار أو البيع",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_01_en",
+        "category_id": "cat_cls_01",
+        "lang": "en",
+        "name": "Occasion Wear",
+        "description": "Bridal and evening looks ready for second life",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_02_ar",
+        "category_id": "cat_cls_02",
+        "lang": "ar",
+        "name": "أمهات وأطفال",
+        "description": "مستلزمات حديثي الولادة ومرحلة الحبو",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_02_en",
+        "category_id": "cat_cls_02",
+        "lang": "en",
+        "name": "Moms & Babies",
+        "description": "Strollers, seats, and newborn essentials",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_03_ar",
+        "category_id": "cat_cls_03",
+        "lang": "ar",
+        "name": "مطبخ وأجهزة",
+        "description": "أدوات كهربائية ورفايع منزلية استخدام خفيف",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_03_en",
+        "category_id": "cat_cls_03",
+        "lang": "en",
+        "name": "Kitchen & Appliances",
+        "description": "Home gadgets and cookware in great condition",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_04_ar",
+        "category_id": "cat_cls_04",
+        "lang": "ar",
+        "name": "أثاث وديكور",
+        "description": "قطع أثاث وإضاءات تناسب الطراز المعاصر والشرقي",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_04_en",
+        "category_id": "cat_cls_04",
+        "lang": "en",
+        "name": "Furniture & Decor",
+        "description": "Statement lighting, carpets, and vintage finds",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_05_ar",
+        "category_id": "cat_cls_05",
+        "lang": "ar",
+        "name": "عناية وإلكترونيات",
+        "description": "أجهزة شعر وموبايلات وإكسسوارات ذكية",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_05_en",
+        "category_id": "cat_cls_05",
+        "lang": "en",
+        "name": "Beauty & Electronics",
+        "description": "Personal care devices and smart accessories",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_01a_ar",
+        "category_id": "cat_cls_01a",
+        "lang": "ar",
+        "name": "فساتين سواريه",
+        "description": "فساتين خطوبة وحفلات مستعملة بحالة ممتازة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_01a_en",
+        "category_id": "cat_cls_01a",
+        "lang": "en",
+        "name": "Evening Dresses",
+        "description": "Pre-loved gowns and abayas",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_01b_ar",
+        "category_id": "cat_cls_01b",
+        "lang": "ar",
+        "name": "حقائب وأحذية",
+        "description": "شنط ماركات وأحذية كعب بالكاد استُعملت",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_01b_en",
+        "category_id": "cat_cls_01b",
+        "lang": "en",
+        "name": "Bags & Shoes",
+        "description": "Designer-inspired bags and heels",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_02a_ar",
+        "category_id": "cat_cls_02a",
+        "lang": "ar",
+        "name": "عربات وكراسي",
+        "description": "عربات مواليد وكراسي هزازة آمنة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_02a_en",
+        "category_id": "cat_cls_02a",
+        "lang": "en",
+        "name": "Strollers & Seats",
+        "description": "Trusted strollers and bouncers",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_02b_ar",
+        "category_id": "cat_cls_02b",
+        "lang": "ar",
+        "name": "ملابس أطفال",
+        "description": "أطقم مواليد، بيجامات، وملابس خروج أنيقة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_02b_en",
+        "category_id": "cat_cls_02b",
+        "lang": "en",
+        "name": "Baby Fashion",
+        "description": "Cute outfits and comfy sleepwear",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_03a_ar",
+        "category_id": "cat_cls_03a",
+        "lang": "ar",
+        "name": "أجهزة صغيرة",
+        "description": "خلاطات، قلايات هواء، وأجهزة قهوة شبه جديدة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_03a_en",
+        "category_id": "cat_cls_03a",
+        "lang": "en",
+        "name": "Small Appliances",
+        "description": "Mixers, air fryers, and coffee makers",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_03b_ar",
+        "category_id": "cat_cls_03b",
+        "lang": "ar",
+        "name": "أطقم سفرة",
+        "description": "أدوات تقديم ومستلزمات عزومات أنيقة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_03b_en",
+        "category_id": "cat_cls_03b",
+        "lang": "en",
+        "name": "Tableware Sets",
+        "description": "Serving trays and dinnerware",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_04a_ar",
+        "category_id": "cat_cls_04a",
+        "lang": "ar",
+        "name": "إضاءة وديكور",
+        "description": "وحدات إضاءة، مرايا، وإكسسوارات حائط",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_04a_en",
+        "category_id": "cat_cls_04a",
+        "lang": "en",
+        "name": "Lighting & Decor",
+        "description": "Lamps, mirrors, and accents",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_04b_ar",
+        "category_id": "cat_cls_04b",
+        "lang": "ar",
+        "name": "سجاد وستائر",
+        "description": "سجاد تركي وستائر جاهزة التفصيل",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_04b_en",
+        "category_id": "cat_cls_04b",
+        "lang": "en",
+        "name": "Rugs & Curtains",
+        "description": "Luxury carpets and drapes",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_05a_ar",
+        "category_id": "cat_cls_05a",
+        "lang": "ar",
+        "name": "أجهزة العناية",
+        "description": "سيشوار وبروتين منزلي وأجهزة ليزر",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_05a_en",
+        "category_id": "cat_cls_05a",
+        "lang": "en",
+        "name": "Beauty Devices",
+        "description": "Hair tools and laser gadgets",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_05b_ar",
+        "category_id": "cat_cls_05b",
+        "lang": "ar",
+        "name": "موبايلات وإكسسوارات",
+        "description": "هواتف وإكسسوارات أصلية بحالة ممتازة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_cls_05b_en",
+        "category_id": "cat_cls_05b",
+        "lang": "en",
+        "name": "Mobiles & Accessories",
+        "description": "Phones, watches, and add-ons",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      }
+    ],
+    "sbn_marketplace_categories": [
+      {
+        "category_id": "cat_mkt_01",
+        "parent_id": null,
+        "category_type": "marketplace",
+        "slug": "marketplace-home-cuisine",
+        "icon_url": "mdi:pot-steam",
+        "cover_url": "https://images.unsplash.com/photo-1481391032119-d89fee407e44?w=900",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 60,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_mkt_02",
+        "parent_id": null,
+        "category_type": "marketplace",
+        "slug": "marketplace-handmade",
+        "icon_url": "mdi:needle",
+        "cover_url": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=900",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 45,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_mkt_01a",
+        "parent_id": "cat_mkt_01",
+        "category_type": "marketplace",
+        "slug": "home-meals",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=home-meals",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 25,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_mkt_01b",
+        "parent_id": "cat_mkt_01",
+        "category_type": "marketplace",
+        "slug": "desserts-bakery",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=desserts-bakery",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 20,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_mkt_01c",
+        "parent_id": "cat_mkt_01",
+        "category_type": "marketplace",
+        "slug": "freezer-prep",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=freezer-prep",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 3,
+        "is_active": true,
+        "items_count": 15,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_mkt_02a",
+        "parent_id": "cat_mkt_02",
+        "category_type": "marketplace",
+        "slug": "crochet-knits",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=crochet-knits",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 18,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_mkt_02b",
+        "parent_id": "cat_mkt_02",
+        "category_type": "marketplace",
+        "slug": "accessories",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=accessories",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 14,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_mkt_02c",
+        "parent_id": "cat_mkt_02",
+        "category_type": "marketplace",
+        "slug": "home-decor",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=home-decor",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 3,
+        "is_active": true,
+        "items_count": 13,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      }
+    ],
+    "sbn_marketplace_categories_lang": [
+      {
+        "id": "cat_mkt_01_ar",
+        "category_id": "cat_mkt_01",
+        "lang": "ar",
+        "name": "مطبخ حواء",
+        "description": "وجبات بيتية جاهزة ومفرزنات عالية الجودة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_01_en",
+        "category_id": "cat_mkt_01",
+        "lang": "en",
+        "name": "Home Kitchen",
+        "description": "Artisanal meals, desserts, and freezer prep",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_02_ar",
+        "category_id": "cat_mkt_02",
+        "lang": "ar",
+        "name": "صنع يدوي",
+        "description": "منتجات حرفية مميزة بدقة وتشطيب احترافي",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_02_en",
+        "category_id": "cat_mkt_02",
+        "lang": "en",
+        "name": "Handmade Boutique",
+        "description": "Crochet, accessories, and decor pieces",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_01a_ar",
+        "category_id": "cat_mkt_01a",
+        "lang": "ar",
+        "name": "وجبات يومية",
+        "description": "أطباق يومية وصواني جاهزة للتسخين",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_01a_en",
+        "category_id": "cat_mkt_01a",
+        "lang": "en",
+        "name": "Daily Meals",
+        "description": "Ready-to-heat trays and family portions",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_01b_ar",
+        "category_id": "cat_mkt_01b",
+        "lang": "ar",
+        "name": "حلويات وتورت",
+        "description": "جاتوهات، تورت أعياد، وبوكسات ضيافة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_01b_en",
+        "category_id": "cat_mkt_01b",
+        "lang": "en",
+        "name": "Desserts & Cakes",
+        "description": "Celebration cakes and dessert boxes",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_01c_ar",
+        "category_id": "cat_mkt_01c",
+        "lang": "ar",
+        "name": "مفرزنات وتجهيز",
+        "description": "خضار مفرز، عجائن، وسلطات جاهزة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_01c_en",
+        "category_id": "cat_mkt_01c",
+        "lang": "en",
+        "name": "Freezer Prep",
+        "description": "Prepped veggies, doughs, and jars",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_02a_ar",
+        "category_id": "cat_mkt_02a",
+        "lang": "ar",
+        "name": "كروشيه وتطريز",
+        "description": "حقائب، ملابس أطفال، وإكسسوارات منزلية",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_02a_en",
+        "category_id": "cat_mkt_02a",
+        "lang": "en",
+        "name": "Crochet & Embroidery",
+        "description": "Handcrafted textiles and gifts",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_02b_ar",
+        "category_id": "cat_mkt_02b",
+        "lang": "ar",
+        "name": "إكسسوارات حريمي",
+        "description": "حُلي نحاسية وقطع مطلية بالذهب",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_02b_en",
+        "category_id": "cat_mkt_02b",
+        "lang": "en",
+        "name": "Women Accessories",
+        "description": "Statement earrings, necklaces, anklets",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_02c_ar",
+        "category_id": "cat_mkt_02c",
+        "lang": "ar",
+        "name": "ديكور هاند ميد",
+        "description": "لوحات حائط، ماكرميه، وشموع صويا",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_mkt_02c_en",
+        "category_id": "cat_mkt_02c",
+        "lang": "en",
+        "name": "Handmade Decor",
+        "description": "Macrame art, frames, and soy candles",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      }
+    ],
+    "sbn_service_categories": [
+      {
+        "category_id": "cat_srv_01",
+        "parent_id": null,
+        "category_type": "service",
+        "slug": "services-education",
+        "icon_url": "mdi:school",
+        "cover_url": "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=900",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 70,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_02",
+        "parent_id": null,
+        "category_type": "service",
+        "slug": "services-care",
+        "icon_url": "mdi:hand-heart",
+        "cover_url": "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?w=900",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 55,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_03",
+        "parent_id": null,
+        "category_type": "service",
+        "slug": "services-beauty",
+        "icon_url": "mdi:spa",
+        "cover_url": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=900",
+        "sort_order": 3,
+        "is_active": true,
+        "items_count": 80,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_04",
+        "parent_id": null,
+        "category_type": "service",
+        "slug": "services-coaching",
+        "icon_url": "mdi:account-tie-voice",
+        "cover_url": "https://images.unsplash.com/photo-1494597564530-871f2b93ac55?w=900",
+        "sort_order": 4,
+        "is_active": true,
+        "items_count": 40,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_05",
+        "parent_id": null,
+        "category_type": "service",
+        "slug": "services-health-fitness",
+        "icon_url": "mdi:heart-pulse",
+        "cover_url": "https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=900",
+        "sort_order": 5,
+        "is_active": true,
+        "items_count": 50,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_01a",
+        "parent_id": "cat_srv_01",
+        "category_type": "service",
+        "slug": "language-tutors",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=language-tutors",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 25,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_01b",
+        "parent_id": "cat_srv_01",
+        "category_type": "service",
+        "slug": "kids-foundation",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=kids-foundation",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 24,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_02a",
+        "parent_id": "cat_srv_02",
+        "category_type": "service",
+        "slug": "nursing-care",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=nursing-care",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 20,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_02b",
+        "parent_id": "cat_srv_02",
+        "category_type": "service",
+        "slug": "physio",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=physio",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 18,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_03a",
+        "parent_id": "cat_srv_03",
+        "category_type": "service",
+        "slug": "makeup-artists",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=makeup-artists",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 35,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_03b",
+        "parent_id": "cat_srv_03",
+        "category_type": "service",
+        "slug": "hair-stylists",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=hair-stylists",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 30,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_04a",
+        "parent_id": "cat_srv_04",
+        "category_type": "service",
+        "slug": "family-coaching",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=family-coaching",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 18,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_04b",
+        "parent_id": "cat_srv_04",
+        "category_type": "service",
+        "slug": "career-coaching",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=career-coaching",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 15,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_05a",
+        "parent_id": "cat_srv_05",
+        "category_type": "service",
+        "slug": "nutrition-plans",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=nutrition-plans",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 22,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_srv_05b",
+        "parent_id": "cat_srv_05",
+        "category_type": "service",
+        "slug": "fitness-trainers",
+        "icon_url": "https://dummyimage.com/600x400/eee/333&text=fitness-trainers",
+        "cover_url": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 21,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      }
+    ],
+    "sbn_service_categories_lang": [
+      {
+        "id": "cat_srv_01_ar",
+        "category_id": "cat_srv_01",
+        "lang": "ar",
+        "name": "تعليم وتدريس",
+        "description": "دروس لغات، تأسيس، ومراجعات مناهج",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_01_en",
+        "category_id": "cat_srv_01",
+        "lang": "en",
+        "name": "Education & Tutoring",
+        "description": "Languages, early learning, and revisions",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_02_ar",
+        "category_id": "cat_srv_02",
+        "lang": "ar",
+        "name": "رعاية وتمريض",
+        "description": "جليسات مسنين وتمريض منزلي موثوق",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_02_en",
+        "category_id": "cat_srv_02",
+        "lang": "en",
+        "name": "Care & Nursing",
+        "description": "Trusted caregivers and nurses",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_03_ar",
+        "category_id": "cat_srv_03",
+        "lang": "ar",
+        "name": "تجميل منزلي",
+        "description": "ميكب أرتيست وعناية بالشعر والبشرة بالمنزل",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_03_en",
+        "category_id": "cat_srv_03",
+        "lang": "en",
+        "name": "Home Beauty",
+        "description": "Makeup artists and skin experts",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_04_ar",
+        "category_id": "cat_srv_04",
+        "lang": "ar",
+        "name": "استشارات وكوتشينج",
+        "description": "دعم نفسي، علاقات، وتطوير مهني",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_04_en",
+        "category_id": "cat_srv_04",
+        "lang": "en",
+        "name": "Consulting & Coaching",
+        "description": "Relationship and career coaches",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_05_ar",
+        "category_id": "cat_srv_05",
+        "lang": "ar",
+        "name": "صحة ولياقة",
+        "description": "تغذية علاجية ومدربات لياقة ويوغا",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_05_en",
+        "category_id": "cat_srv_05",
+        "lang": "en",
+        "name": "Health & Fitness",
+        "description": "Nutritionists and fitness trainers",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_01a_ar",
+        "category_id": "cat_srv_01a",
+        "lang": "ar",
+        "name": "مدرّسي لغات",
+        "description": "مدرسات لغة إنجليزية وفرنسية عن بعد أو حضوري",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_01a_en",
+        "category_id": "cat_srv_01a",
+        "lang": "en",
+        "name": "Language Tutors",
+        "description": "Certified English and French tutors",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_01b_ar",
+        "category_id": "cat_srv_01b",
+        "lang": "ar",
+        "name": "تأسيس أطفال",
+        "description": "برامج تأسيس وتهيئة للقراءة والحساب",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_01b_en",
+        "category_id": "cat_srv_01b",
+        "lang": "en",
+        "name": "Kids Foundation",
+        "description": "Early literacy and numeracy programs",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_02a_ar",
+        "category_id": "cat_srv_02a",
+        "lang": "ar",
+        "name": "تمريض منزلي",
+        "description": "تمريض للحالات الحرجة وزيارات متابعة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_02a_en",
+        "category_id": "cat_srv_02a",
+        "lang": "en",
+        "name": "Home Nursing",
+        "description": "Licensed nurses for home visits",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_02b_ar",
+        "category_id": "cat_srv_02b",
+        "lang": "ar",
+        "name": "علاج طبيعي",
+        "description": "جلسات علاج طبيعي وتأهيل رياضي",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_02b_en",
+        "category_id": "cat_srv_02b",
+        "lang": "en",
+        "name": "Physiotherapy",
+        "description": "Rehab and mobility experts",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_03a_ar",
+        "category_id": "cat_srv_03a",
+        "lang": "ar",
+        "name": "ميكب أرتيست",
+        "description": "خدمات مكياج كامل وحفلات بالمنزل",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_03a_en",
+        "category_id": "cat_srv_03a",
+        "lang": "en",
+        "name": "Makeup Artists",
+        "description": "On-demand glam squads",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_03b_ar",
+        "category_id": "cat_srv_03b",
+        "lang": "ar",
+        "name": "تصفيف شعر",
+        "description": "عناية بالشعر، بروتين، وتسريحات مناسبات",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_03b_en",
+        "category_id": "cat_srv_03b",
+        "lang": "en",
+        "name": "Hair Stylists",
+        "description": "At-home haircare and styling",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_04a_ar",
+        "category_id": "cat_srv_04a",
+        "lang": "ar",
+        "name": "كوتشينج علاقات",
+        "description": "جلسات إرشاد أسري وعلاقات زوجية",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_04a_en",
+        "category_id": "cat_srv_04a",
+        "lang": "en",
+        "name": "Relationship Coaching",
+        "description": "Family and couples support",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_04b_ar",
+        "category_id": "cat_srv_04b",
+        "lang": "ar",
+        "name": "تطوير مهني",
+        "description": "إرشاد مهني، كتابة سيرة ذاتية، وتحضير مقابلات",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_04b_en",
+        "category_id": "cat_srv_04b",
+        "lang": "en",
+        "name": "Career Coaching",
+        "description": "Career planning and interview prep",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_05a_ar",
+        "category_id": "cat_srv_05a",
+        "lang": "ar",
+        "name": "خطط تغذية",
+        "description": "متابعة تغذية علاجية للحالات الخاصة",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_05a_en",
+        "category_id": "cat_srv_05a",
+        "lang": "en",
+        "name": "Nutrition Plans",
+        "description": "Clinical diet and wellness plans",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_05b_ar",
+        "category_id": "cat_srv_05b",
+        "lang": "ar",
+        "name": "مدربات لياقة",
+        "description": "جلسات رياضية ويوغا منزلية",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_srv_05b_en",
+        "category_id": "cat_srv_05b",
+        "lang": "en",
+        "name": "Fitness Trainers",
+        "description": "Personal training and yoga flows",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      }
+    ],
+    "sbn_knowledge_categories": [
+      {
+        "category_id": "cat_wiki_01",
+        "parent_id": null,
+        "category_type": "knowledge",
+        "slug": "knowledge-beauty",
+        "icon_url": "mdi:lipstick",
+        "cover_url": "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=800",
+        "sort_order": 1,
+        "is_active": true,
+        "items_count": 40,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      },
+      {
+        "category_id": "cat_wiki_02",
+        "parent_id": null,
+        "category_type": "knowledge",
+        "slug": "knowledge-crafts",
+        "icon_url": "mdi:scissors-cutting",
+        "cover_url": "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=800",
+        "sort_order": 2,
+        "is_active": true,
+        "items_count": 35,
+        "created_at": "2023-01-01T00:00:00Z",
+        "updated_at": "2025-11-20T00:00:00Z"
+      }
+    ],
+    "sbn_knowledge_categories_lang": [
+      {
+        "id": "cat_wiki_01_ar",
+        "category_id": "cat_wiki_01",
+        "lang": "ar",
+        "name": "ويكي الجمال والعناية",
+        "description": "أدلة شاملة للعناية بالبشرة والشعر",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_wiki_01_en",
+        "category_id": "cat_wiki_01",
+        "lang": "en",
+        "name": "Beauty & Care Wiki",
+        "description": "Guides for skincare and rituals",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_wiki_02_ar",
+        "category_id": "cat_wiki_02",
+        "lang": "ar",
+        "name": "ويكي الحرف والأعمال",
+        "description": "دروس مصورة للحرف وصناعة المشاريع",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      },
+      {
+        "id": "cat_wiki_02_en",
+        "category_id": "cat_wiki_02",
+        "lang": "en",
+        "name": "Crafts & Business Wiki",
+        "description": "How-to articles for makers",
+        "is_auto": false,
+        "created_at": "2023-01-01T00:00:00Z"
+      }
+    ],
+    "sbn_notifications": [
+      {
+        "notification_id": "not_001",
+        "user_id": "usr_001",
+        "title": "🔥 طلب جديد على خدمتك",
+        "body": "عميلة مهتمة بحجز باقة تصميم منزلي. راجع الرسائل الآن.",
+        "status": "new",
+        "created_at": "2025-11-23T08:00:00Z"
+      },
+      {
+        "notification_id": "not_002",
+        "user_id": "usr_001",
+        "title": "💬 تعليق على إعلان المستعمل",
+        "body": "ميس أحمد سألت عن حالة الفستان الأزرق.",
+        "status": "new",
+        "created_at": "2025-11-23T09:10:00Z"
       }
     ]
   }

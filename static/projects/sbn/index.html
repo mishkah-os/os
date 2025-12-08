@@ -71,6 +71,19 @@
       width: 100%;
     }
 
+    select,
+    textarea,
+    input {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    option {
+      background: var(--bg-body);
+      color: var(--text-primary);
+    }
+
     .screen-bg {
       min-height: 100vh;
       background: radial-gradient(circle at top, rgba(99, 102, 241, 0.3), transparent 60%);
@@ -396,6 +409,7 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      cursor: pointer;
     }
 
     .feed-header {
@@ -758,6 +772,177 @@
       z-index: 9999;
       color: #fff;
       backdrop-filter: blur(6px);
+    }
+
+    .attachment-cta {
+      margin-top: 12px;
+      width: 100%;
+      text-align: center;
+      font-weight: 600;
+      border: 1px dashed var(--border);
+    }
+
+    .comment-form {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .comment-input {
+      border-radius: 12px;
+      padding: 10px;
+      min-height: 60px;
+      resize: vertical;
+    }
+
+    .pwa-install-banner {
+      border-radius: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .pwa-text {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .quick-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .quick-actions .chips-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .hero-cta.small {
+      padding: 10px 16px;
+      font-size: 0.85rem;
+    }
+
+    .composer-card.locked {
+      text-align: center;
+      gap: 12px;
+      opacity: 0.95;
+    }
+
+    .auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 8, 22, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+      padding: 20px;
+    }
+
+    .auth-panel {
+      width: min(420px, 100%);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .auth-close-btn {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      border: none;
+      background: transparent;
+      font-size: 1rem;
+      color: var(--text-secondary);
+    }
+
+    .auth-input {
+      width: 100%;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+
+    .auth-links {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .link-btn {
+      border: none;
+      background: none;
+      color: var(--primary-light);
+      font-size: 0.9rem;
+      text-align: start;
+    }
+
+    .auth-note {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .auth-error {
+      font-size: 0.85rem;
+      color: #f87171;
+    }
+
+    .link-fallback {
+      color: var(--primary-light);
+      text-decoration: underline;
+      font-size: 0.85rem;
+    }
+
+    .notification-panel {
+      animation: fadeIn 0.3s ease;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .notification-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .notification-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      background: var(--bg-card);
+    }
+
+    .notification-title {
+      font-weight: 600;
+    }
+
+    .notification-body {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .notification-empty {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
     }
 
     .spinner {

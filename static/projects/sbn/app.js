@@ -102,6 +102,21 @@
       console.log('[SBN PWA][label]', key, dict[key]);
       return dict[key];
     };
+    global.SBN_PWA_SESSION = function() {
+      var db = currentDatabase();
+      var activeUserId = db && db.state ? db.state.activeUserId : null;
+      var activeUser = getActiveUser(db);
+      var usersCount = Array.isArray(db && db.data && db.data.users)
+        ? db.data.users.length
+        : 0;
+      var payload = {
+        activeUserId: activeUserId,
+        activeUser: activeUser,
+        usersCount: usersCount
+      };
+      console.log('[SBN PWA][session]', payload);
+      return payload;
+    };
   }
   exposeConsoleHelpers();
   // Support for unified mishkah.js with auto-loading
@@ -144,6 +159,19 @@
 
   var BASE_I18N = {};
   var realtime = null;
+  var COMPOSER_MEDIA_INPUT_ID = 'composer-media-input';
+  var MAX_COMPOSER_UPLOADS = 6;
+  var deferredInstallPrompt = null;
+  var installPromptInitialized = false;
+  var SESSION_PWA_KEY = 'sbn:pwa:dismissed';
+  var SESSION_STORAGE_KEY = 'sbn:pwa:session';
+  var notificationsUnsubscribe = null;
+  var DEMO_ACCOUNT = {
+    email: 'demo@mostamal.eg',
+    password: 'demo123',
+    otp: '123456',
+    userId: 'usr_001'
+  };
 
   function registerRealtimeStoreInstance(rt) {
     if (!rt || !rt.store) return;
@@ -156,18 +184,93 @@
     global.__MISHKAH_LAST_STORE__ = rt.store;
   }
 
+  function clearNotificationWatch() {
+    if (typeof notificationsUnsubscribe === 'function') {
+      try {
+        notificationsUnsubscribe();
+      } catch (err) {
+        console.warn('[SBN PWA] failed to unsubscribe notifications watch', err);
+      }
+    }
+    notificationsUnsubscribe = null;
+  }
+
+  function getNotificationPayloadRows(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== 'object') return [];
+    if (Array.isArray(payload.rows)) return payload.rows;
+    if (Array.isArray(payload.data)) return payload.data;
+    if (payload.data && Array.isArray(payload.data.rows)) return payload.data.rows;
+    var record = payload.record || payload.next || payload.current || payload.value;
+    if (record) return [record];
+    return [];
+  }
+
+  function syncNotificationsFromRealtime(rows) {
+    if (app && app.database) {
+      app.setState(function(db) {
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: db.state,
+          data: Object.assign({}, db.data, {
+            notifications: mergeNotificationRows(db.data.notifications || [], rows)
+          })
+        };
+      });
+    } else {
+      initialDatabase.data.notifications = mergeNotificationRows(initialDatabase.data.notifications || [], rows);
+    }
+  }
+
+  function setupNotificationWatch() {
+    if (!realtime || !realtime.store || typeof realtime.store.watch !== 'function') {
+      clearNotificationWatch();
+      return;
+    }
+    clearNotificationWatch();
+    try {
+      var unsub = realtime.store.watch('sbn_notifications', function(payload) {
+        var entries = getNotificationPayloadRows(payload);
+        if (!entries.length) return;
+        syncNotificationsFromRealtime(entries);
+      });
+      if (typeof unsub === 'function') {
+        notificationsUnsubscribe = unsub;
+      }
+      debugLog('[SBN PWA][rt] notification watch active');
+    } catch (err) {
+      console.warn('[SBN PWA] Failed to watch sbn_notifications', err);
+      debugLog('[SBN PWA][rt] notification watch failed', err);
+    }
+  }
+
   // ================== TABLE MAPPINGS ==================
   var TABLE_TO_DATA_KEY = {
     'sbn_ui_labels': 'uiLabels',
     'sbn_products': 'products',
     'sbn_services': 'services',
     'sbn_wiki_articles': 'articles',
-    'sbn_categories': 'categories',
     'sbn_users': 'users',
     'sbn_posts': 'posts',
     'sbn_comments': 'comments',
     'sbn_hashtags': 'hashtags',
-    'sbn_reviews': 'reviews'
+    'sbn_reviews': 'reviews',
+    'sbn_classified_categories': 'classifiedCategories',
+    'sbn_marketplace_categories': 'marketplaceCategories',
+    'sbn_service_categories': 'serviceCategories',
+    'sbn_knowledge_categories': 'knowledgeCategories',
+    'sbn_notifications': 'notifications'
+  };
+  var CATEGORY_TABLES = [
+    'sbn_classified_categories',
+    'sbn_marketplace_categories',
+    'sbn_service_categories',
+    'sbn_knowledge_categories'
+  ];
+  var pendingCategoryFetches = {};
+  var COMPOSER_CATEGORY_SOURCES = {
+    classified: 'classifiedCategories'
   };
 
   // ================== HELPERS ==================
@@ -349,6 +452,48 @@
     }
   }
 
+  function loadPersistedSession() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(SESSION_STORAGE_KEY);
+      if (!raw) return null;
+      var payload = JSON.parse(raw);
+      if (payload && payload.userId) {
+        return payload;
+      }
+      return null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistSession(session) {
+    if (!global.localStorage) return;
+    try {
+      if (!session || !session.userId) {
+        global.localStorage.removeItem(SESSION_STORAGE_KEY);
+        return;
+      }
+      var payload = {
+        userId: session.userId,
+        email: session.email || '',
+        updatedAt: Date.now()
+      };
+      global.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  function clearPersistedSession() {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
   /**
    * Apply theme to document
    */
@@ -372,12 +517,116 @@
     global.document.documentElement.setAttribute('dir', resolvedDir);
   }
 
+  function isPwaPromptSuppressed() {
+    try {
+      return global.sessionStorage && global.sessionStorage.getItem(SESSION_PWA_KEY) === '1';
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function suppressPwaPromptForSession() {
+    try {
+      if (global.sessionStorage) {
+        global.sessionStorage.setItem(SESSION_PWA_KEY, '1');
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+  }
+
+  function isStandaloneMode() {
+    if (!global || !global.window) return false;
+    var matchesDisplayMode = false;
+    try {
+      if (global.matchMedia) {
+        var media = global.matchMedia('(display-mode: standalone)');
+        matchesDisplayMode = media && media.matches;
+      }
+    } catch (_err) {
+      matchesDisplayMode = false;
+    }
+    var navigatorStandalone = global.navigator && global.navigator.standalone;
+    return Boolean(matchesDisplayMode || navigatorStandalone);
+  }
+
+  function setPwaPromptState(visible) {
+    if (visible && isPwaPromptSuppressed()) {
+      visible = false;
+    }
+    if (app) {
+      app.setState(function(db) {
+        if (db.state.showPwaPrompt === visible) return db;
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: Object.assign({}, db.state, { showPwaPrompt: visible }),
+          data: db.data
+        };
+      });
+    } else {
+      initialDatabase.state.showPwaPrompt = visible;
+    }
+  }
+
+  function setupPwaInstallPrompt() {
+    if (installPromptInitialized || !global || !global.window) return;
+    installPromptInitialized = true;
+    var markVisibility = function() {
+      if (!isStandaloneMode() && !isPwaPromptSuppressed()) {
+        setPwaPromptState(true);
+      } else {
+        setPwaPromptState(false);
+      }
+    };
+    global.window.addEventListener('beforeinstallprompt', function(event) {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      markVisibility();
+    });
+    markVisibility();
+    if (global.window.matchMedia) {
+      try {
+        var media = global.window.matchMedia('(display-mode: standalone)');
+        var handler = function(evt) {
+          if (evt.matches) {
+            deferredInstallPrompt = null;
+            setPwaPromptState(false);
+          }
+        };
+        if (typeof media.addEventListener === 'function') {
+          media.addEventListener('change', handler);
+        } else if (typeof media.addListener === 'function') {
+          media.addListener(handler);
+        }
+      } catch (_err) {
+        /* noop */
+      }
+    }
+  }
+
+  function renderPwaInstallBanner(db) {
+    if (!db.state.showPwaPrompt || isStandaloneMode()) return null;
+    return D.Containers.Div({ attrs: { class: 'pwa-install-banner' } }, [
+      D.Text.Span({ attrs: { class: 'pwa-text' } }, [
+        t('pwa.install.message', 'ثبّت تطبيق مستعمل حواء لفتح الشبكة بسرعة على هاتفك.')
+      ]),
+      D.Forms.Button({
+        attrs: { class: 'hero-cta', 'data-m-gkey': 'pwa-install' }
+      }, [t('pwa.install.action', 'تثبيت الآن')]),
+      D.Forms.Button({
+        attrs: { class: 'chip', 'data-m-gkey': 'pwa-dismiss' }
+      }, [t('pwa.install.later', 'لاحقاً')])
+    ]);
+  }
+
   // ================== INITIAL STATE ==================
   var persisted = loadPersistedPrefs();
+  var persistedSession = loadPersistedSession();
 
   var initialDatabase = {
     env: {
-      theme: persisted.theme || 'light',
+      theme: persisted.theme || 'dark',
       lang: persisted.lang || 'ar',
       dir: persisted.dir || (persisted.lang === 'ar' ? 'rtl' : 'ltr'),
       i18n: BASE_I18N
@@ -391,17 +640,27 @@
       error: null,
       notice: null,
       currentSection: 'timeline',
-      activeUserId: 'usr_001',
+      activeUserId: persistedSession && persistedSession.userId ? persistedSession.userId : null,
       postOverlay: {
         open: false,
         postId: null
       },
       composer: {
         open: false,
-        type: 'plain',
+        mediaMode: 'plain',
+        attachmentKind: 'classified',
         text: '',
         targetId: '',
-        media: '',
+        mediaList: [],
+        reelDuration: null,
+        linkUrl: '',
+        uploadingMedia: false,
+        uploadError: null,
+        categoryId: '',
+        subcategoryId: '',
+        classifiedTitle: '',
+        classifiedPrice: '',
+        contactPhone: '',
         posting: false,
         error: null
       },
@@ -409,6 +668,19 @@
         search: '',
         category: '',
         condition: ''
+      },
+      commentDraft: '',
+      showPwaPrompt: false,
+      notificationsOpen: false,
+      auth: {
+        open: false,
+        step: 'login',
+        fullName: '',
+        email: (persistedSession && persistedSession.email) || 'demo@mostamal.eg',
+        password: '',
+        otp: '',
+        error: null,
+        pendingUser: null
       }
     },
     data: {
@@ -416,12 +688,17 @@
       products: [],
       services: [],
       articles: [],
-      categories: [],
+      classifiedCategories: [],
+      marketplaceCategories: [],
+      serviceCategories: [],
+      knowledgeCategories: [],
       users: [],
       posts: [],
       comments: [],
       hashtags: [],
-      reviews: []
+      reviews: [],
+      classifieds: [],
+      notifications: []
     }
   };
 
@@ -530,12 +807,113 @@
     return fallback || '';
   }
 
+  function getCategoryDisplayName(cat) {
+    if (!cat) return '';
+    return getLocalizedField(cat, 'name', cat.title || cat.slug || t('category.untitled'));
+  }
+
+  function getCategoryDescription(cat) {
+    if (!cat) return '';
+    return getLocalizedField(cat, 'description', cat.description || '');
+  }
+
+  function buildCategoryHierarchy(categories) {
+    var filtered = (categories || []).slice();
+    var nodes = {};
+    filtered.forEach(function(cat) {
+      if (!cat || !cat.category_id) return;
+      nodes[cat.category_id] = {
+        data: cat,
+        children: []
+      };
+    });
+    var roots = [];
+    Object.keys(nodes).forEach(function(id) {
+      var node = nodes[id];
+      var parentId = node.data.parent_id;
+      if (parentId && nodes[parentId]) {
+        nodes[parentId].children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+    var sortFn = function(a, b) {
+      var ao = (a.data && a.data.sort_order) || 0;
+      var bo = (b.data && b.data.sort_order) || 0;
+      if (ao !== bo) return ao - bo;
+      var an = getCategoryDisplayName(a.data);
+      var bn = getCategoryDisplayName(b.data);
+      return an.localeCompare(bn);
+    };
+    roots.sort(sortFn);
+    roots.forEach(function(root) {
+      root.children.sort(sortFn);
+    });
+    return roots;
+  }
+
+  function getLeafCategories(categories, options) {
+    var opts = options || {};
+    var onlyLeaves = !!opts.onlyLeaves;
+    var limit = typeof opts.limit === 'number' ? opts.limit : null;
+    var filtered = (categories || []).filter(function(cat) {
+      if (onlyLeaves && (cat.parent_id == null || cat.parent_id === '')) return false;
+      return true;
+    });
+    filtered.sort(function(a, b) {
+      var ao = a.sort_order || 0;
+      var bo = b.sort_order || 0;
+      if (ao !== bo) return ao - bo;
+      var an = getCategoryDisplayName(a);
+      var bn = getCategoryDisplayName(b);
+      return an.localeCompare(bn);
+    });
+    if (limit != null) {
+      filtered = filtered.slice(0, limit);
+    }
+    return filtered;
+  }
+
   function resolveUserName(user) {
     return getLocalizedField(user, 'full_name', user && user.username ? user.username : t('user.unknown'));
   }
 
   function resolveHashtagLabel(tag) {
     return getLocalizedField(tag, 'name', tag && tag.normalized_name ? '#' + tag.normalized_name : '');
+  }
+
+  function normalizeNotificationRows(rows) {
+    return coerceTableRows(rows)
+      .map(function(entry) {
+        if (!entry) return null;
+        var clone = Object.assign({}, entry);
+        if (!clone.notification_id && clone.id) {
+          clone.notification_id = clone.id;
+        }
+        return clone;
+      })
+      .filter(Boolean)
+      .sort(function(a, b) {
+        return parseDateValue(b.created_at) - parseDateValue(a.created_at);
+      });
+  }
+
+  function mergeNotificationRows(existingRows, incomingRows) {
+    var registry = {};
+    normalizeNotificationRows(existingRows).forEach(function(entry) {
+      var key = entry.notification_id || entry.id;
+      if (!key) return;
+      registry[key] = entry;
+    });
+    normalizeNotificationRows(incomingRows).forEach(function(entry) {
+      var key = entry.notification_id || entry.id;
+      if (!key) return;
+      registry[key] = entry;
+    });
+    return Object.keys(registry).map(function(key) { return registry[key]; })
+      .sort(function(a, b) {
+        return parseDateValue(b.created_at) - parseDateValue(a.created_at);
+      });
   }
 
   /**
@@ -547,7 +925,9 @@
 
     app.setState(function (db) {
       var newData = {};
-      var normalizedRows = coerceTableRows(rows);
+      var normalizedRows = tableName === 'sbn_notifications'
+        ? mergeNotificationRows(db.data.notifications || [], rows)
+        : coerceTableRows(rows);
       debugLog('[SBN PWA][data]', tableName, 'incoming sample:', Array.isArray(normalizedRows) ? normalizedRows.slice(0, 3) : normalizedRows, 'count:', Array.isArray(normalizedRows) ? normalizedRows.length : 0);
       newData[dataKey] = normalizedRows;
 
@@ -576,6 +956,288 @@
     });
 
     markAppReady();
+
+    if (isCategoryTable(tableName)) {
+      refreshLocalizedCategory(tableName, getCurrentLang());
+    }
+  }
+
+  function updateClassifiedsSnapshot(list) {
+    if (!app) return;
+    app.setState(function(db) {
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, {
+          classifieds: Array.isArray(list) ? list : []
+        })
+      };
+    });
+  }
+
+  function getApiOrigin() {
+    return global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
+  }
+
+  function loadClassifiedsSnapshot(lang) {
+    var origin = global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
+    if (!origin) return Promise.resolve([]);
+    var url = origin + '/api/classifieds?lang=' + encodeURIComponent(lang || getCurrentLang());
+    debugLog('[SBN PWA][rest] fetching classifieds from', url);
+    return fetch(url, { cache: 'no-store' })
+      .then(function(response) {
+        if (!response.ok) throw new Error('classifieds-fetch-failed');
+        return response.json();
+      })
+      .then(function(payload) {
+        var classifieds = payload && Array.isArray(payload.classifieds) ? payload.classifieds : [];
+        return classifieds;
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][rest] classifieds fetch failed', error);
+        return [];
+      });
+  }
+
+  function refreshClassifiedsSnapshot(lang) {
+    loadClassifiedsSnapshot(lang)
+      .then(function(records) {
+        updateClassifiedsSnapshot(records);
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][rest] classifieds refresh error', error);
+      });
+  }
+
+  function isCategoryTable(name) {
+    return CATEGORY_TABLES.indexOf(name) !== -1;
+  }
+
+  function fetchModuleTableRows(tableName, options) {
+    var origin = getApiOrigin();
+    if (!origin) return Promise.resolve([]);
+    var payload = {
+      branchId: BRANCH_ID,
+      moduleId: MODULE_ID,
+      table: tableName,
+      lang: (options && options.lang) || getCurrentLang(),
+      fallbackLang: (options && options.fallbackLang) || 'ar'
+    };
+    return fetch(origin + '/api/query/module', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        if (!response.ok) throw new Error('module-query-failed');
+        return response.json();
+      })
+      .then(function(body) {
+        var rows = body && Array.isArray(body.rows) ? body.rows : [];
+        debugLog('[SBN PWA][module-query]', tableName, 'rows:', rows.length);
+        return rows;
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][module-query]', tableName, 'failed', error);
+        return [];
+      });
+  }
+
+  function applyLocalizedCategoryRows(tableName, rows, lang) {
+    if (!app) return;
+    var key = TABLE_TO_DATA_KEY[tableName];
+    if (!key) return;
+    var targetLang = lang || getCurrentLang();
+    var normalizedRows = coerceTableRows(rows).map(function(entry) {
+      if (!entry || !entry.i18n || !entry.i18n.lang) return entry;
+      var bucket = entry.i18n.lang[targetLang];
+      if (!bucket) return entry;
+      return Object.assign({}, entry, bucket);
+    });
+    app.setState(function(db) {
+      var patch = {};
+      patch[key] = normalizedRows;
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, patch)
+      };
+    });
+  }
+
+  function refreshLocalizedCategory(tableName, lang) {
+    if (!isCategoryTable(tableName)) return Promise.resolve([]);
+    if (pendingCategoryFetches[tableName]) return pendingCategoryFetches[tableName];
+    var effectiveLang = lang || getCurrentLang();
+    var promise = fetchModuleTableRows(tableName, { lang: effectiveLang })
+      .then(function(rows) {
+        applyLocalizedCategoryRows(tableName, rows, effectiveLang);
+        return rows;
+      })
+      .finally(function() {
+        delete pendingCategoryFetches[tableName];
+      });
+    pendingCategoryFetches[tableName] = promise;
+    return promise;
+  }
+
+  function refreshLocalizedCategories(lang) {
+    return Promise.all(
+      CATEGORY_TABLES.map(function(tableName) {
+        return refreshLocalizedCategory(tableName, lang || getCurrentLang());
+      })
+    );
+  }
+
+  function uploadMediaFiles(files, options) {
+    if (!files || !files.length) return Promise.resolve([]);
+    var origin = global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
+    if (!origin) return Promise.reject(new Error('origin-unresolved'));
+    var form = new global.FormData();
+    var composer = getComposerState();
+    var opts = options || {};
+    Array.prototype.slice.call(files, 0, MAX_COMPOSER_UPLOADS).forEach(function(file) {
+      if (file) {
+        form.append('file', file, file.name || 'upload.jpg');
+      }
+    });
+    var mediaMode = opts.mediaMode || (composer && composer.mediaMode) || 'plain';
+    form.append('media_mode', mediaMode);
+    if (mediaMode === 'reel') {
+      var duration = opts.reelDuration;
+      if (duration == null && composer && composer.reelDuration != null) {
+        duration = composer.reelDuration;
+      }
+      if (duration != null) {
+        form.append('reel_duration', String(duration));
+      }
+    }
+    return fetch(origin + '/api/uploads', {
+      method: 'POST',
+      body: form
+    })
+      .then(function(response) {
+        if (!response.ok) throw new Error('upload-failed');
+        return response.json();
+      })
+      .then(function(payload) {
+        return Array.isArray(payload.files) ? payload.files : [];
+      });
+  }
+
+  function validateReelDuration(file) {
+    return new Promise(function(resolve, reject) {
+      if (!file) {
+        reject(new Error('reel-invalid'));
+        return;
+      }
+      if (!global.document || !global.URL || typeof global.URL.createObjectURL !== 'function') {
+        resolve(null);
+        return;
+      }
+      try {
+        var video = global.document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = function() {
+          try {
+            global.URL.revokeObjectURL(video.src);
+          } catch (_err) {
+            /* noop */
+          }
+          resolve(video.duration || null);
+        };
+        video.onerror = function() {
+          reject(new Error('reel-invalid'));
+        };
+        video.src = global.URL.createObjectURL(file);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  function handleComposerMediaFiles(ctx, fileList) {
+    if (!fileList || !fileList.length) return;
+    var composer = getComposerState();
+    var isReel = composer.mediaMode === 'reel';
+    var files = Array.prototype.slice.call(fileList, 0, isReel ? 1 : MAX_COMPOSER_UPLOADS);
+    var initialMediaMode = composer.mediaMode || 'plain';
+    var reelDuration = null;
+    var validation = Promise.resolve();
+    if (isReel) {
+      var reelFile = files[0];
+      if (!reelFile || typeof reelFile.type !== 'string' || reelFile.type.toLowerCase().indexOf('video') !== 0) {
+        applyComposerState(ctx, { uploadError: t('composer.reel.videoOnly', 'يرجى اختيار ملف فيديو صالح') });
+        if (global.document) {
+          var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
+          if (input) input.value = '';
+        }
+        return;
+      }
+      validation = validateReelDuration(reelFile).then(function(duration) {
+        if (duration && duration > 30.5) {
+          var err = new Error('reel-too-long');
+          err.duration = duration;
+          throw err;
+        }
+        reelDuration = duration || null;
+        applyComposerState(ctx, { reelDuration: reelDuration });
+      });
+    }
+    applyComposerState(ctx, { uploadingMedia: true, uploadError: null });
+    validation
+      .then(function() {
+        return uploadMediaFiles(files, { mediaMode: initialMediaMode, reelDuration: reelDuration });
+      })
+      .then(function(files) {
+        var urls = files
+          .map(function(file) {
+            return file && file.url ? file.url : null;
+          })
+          .filter(Boolean);
+        if (!urls.length) {
+          applyComposerState(ctx, { uploadingMedia: false, uploadError: t('composer.media.error', 'تعذر رفع الملفات') });
+          return;
+        }
+        applyComposerState(ctx, function(current) {
+          var existing = Array.isArray(current.mediaList) ? current.mediaList.slice() : [];
+          var next = isReel ? urls.slice(urls.length - 1) : existing.concat(urls).slice(-MAX_COMPOSER_UPLOADS);
+          return { mediaList: next, uploadingMedia: false, uploadError: null };
+        });
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][upload] failed', error);
+        var message = t('composer.media.error', 'تعذر رفع الملفات');
+        if (error && error.message === 'reel-too-long') {
+          message = t('composer.reel.tooLong', 'يجب ألا يتجاوز الفيديو 30 ثانية. الرجاء قص الفيديو وإعادة المحاولة.');
+        } else if (error && error.message === 'reel-invalid') {
+          message = t('composer.reel.invalid', 'تعذر قراءة ملف الفيديو، يرجى المحاولة بملف آخر.');
+        }
+        applyComposerState(ctx, { uploadingMedia: false, uploadError: message, reelDuration: null });
+      })
+      .finally(function() {
+        if (global.document) {
+          var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
+          if (input) input.value = '';
+        }
+      });
+  }
+
+  function removeComposerMedia(ctx, targetUrl) {
+    if (!targetUrl) return;
+    applyComposerState(ctx, function(current) {
+      var existing = Array.isArray(current.mediaList) ? current.mediaList : [];
+      var nextList = existing.filter(function(entry) {
+        return entry !== targetUrl;
+      });
+      var nextState = { mediaList: nextList };
+      if (!nextList.length) {
+        nextState.reelDuration = null;
+      }
+      return nextState;
+    });
   }
 
   // ================== VIEW HELPERS ==================
@@ -671,6 +1333,10 @@
    * Render top header
    */
   function renderHeader(db) {
+    var activeUser = getActiveUser(db);
+    var notifCount = (db.data.notifications || []).filter(function(entry) {
+      return entry && entry.status !== 'read';
+    }).length;
     return D.Containers.Header({ attrs: { class: 'app-header' } }, [
       D.Containers.Div({ attrs: { class: 'brand' } }, [
         D.Text.Span({ attrs: { class: 'brand-title' } }, [t('app.name')]),
@@ -696,6 +1362,26 @@
             }
           },
           [db.env.lang === 'ar' ? t('settings.language.code.en') : t('settings.language.code.ar')]
+        ),
+        D.Forms.Button(
+          {
+            attrs: {
+              'data-m-gkey': 'open-notifications',
+              class: 'icon-btn',
+              title: t('nav.notifications', 'الإشعارات')
+            }
+          },
+          [notifCount > 0 ? ('🔔 ' + notifCount) : '🔔']
+        ),
+        D.Forms.Button(
+          {
+            attrs: {
+              'data-m-gkey': activeUser ? 'auth-logout' : 'auth-open',
+              class: activeUser ? 'hero-ghost' : 'hero-cta small',
+              title: activeUser ? t('auth.logout', 'تسجيل الخروج') : t('auth.login', 'تسجيل الدخول')
+            }
+          },
+          [activeUser ? t('auth.logout', 'تسجيل الخروج') : t('auth.login', 'تسجيل الدخول')]
         )
       ])
     ]);
@@ -706,6 +1392,20 @@
     var activeUser = getActiveUser(db);
     var userName = resolveUserName(activeUser);
     var avatar = (activeUser && activeUser.avatar_url) || 'https://i.pravatar.cc/120?img=12';
+    if (!activeUser) {
+      return D.Containers.Div({ attrs: { class: 'composer-card locked' } }, [
+        D.Text.H3({}, [t('composer.locked.title', 'ابدأ بمشاركة أعمالك')]),
+        D.Text.P({ attrs: { class: 'composer-meta' } }, [
+          t('composer.locked.body', 'سجّل الدخول أو أنشئ حساباً جديداً لتتمكن من نشر الإعلانات والريلز.')
+        ]),
+        D.Forms.Button({
+          attrs: { class: 'hero-cta', 'data-m-gkey': 'auth-open' }
+        }, [t('auth.login', 'تسجيل الدخول')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'open-register' }
+        }, [t('auth.register', 'إنشاء حساب')])
+      ]);
+    }
     if (!composer.open) {
       return D.Containers.Div({ attrs: { class: 'composer-card collapsed' } }, [
         D.Media.Img({ attrs: { class: 'composer-avatar', src: avatar, alt: userName } }, []),
@@ -715,16 +1415,24 @@
       ]);
     }
 
-    var typeOptions = [
-      { value: 'plain', label: t('composer.type.plain') },
-      { value: 'product_share', label: t('composer.type.product') },
-      { value: 'service_share', label: t('composer.type.service') },
-      { value: 'article_share', label: t('composer.type.article') },
-      { value: 'reel', label: t('composer.type.reel') }
+    var mediaModeOptions = [
+      { value: 'plain', label: t('composer.media.plain', 'منشور نصي / صور') },
+      { value: 'reel', label: t('composer.media.reel', 'ريل فيديو (حد أقصى 30 ثانية)') }
     ];
-    var attachments = getAttachmentOptions(db, composer.type);
-    var showTarget = attachments.length > 0;
-    var showMedia = composer.type === 'reel';
+    var attachmentOptions = [
+      { value: 'classified', label: t('composer.type.classified', 'إعلان مستعمل') },
+      { value: 'product', label: t('composer.type.product') },
+      { value: 'service', label: t('composer.type.service') },
+      { value: 'wiki', label: t('composer.type.article') },
+      { value: 'ad', label: t('composer.type.ad', 'إعلان ممول') },
+      { value: 'none', label: t('composer.attachment.none', 'بدون مرفق') }
+    ];
+    var requiresTarget = ['product', 'service', 'wiki'].indexOf(composer.attachmentKind) !== -1;
+    var attachments = requiresTarget ? getAttachmentOptions(db, composer.attachmentKind) : [];
+    var showTarget = requiresTarget;
+    var isClassified = composer.attachmentKind === 'classified';
+    var composerCategories = getComposerCategoryGroupsByType(db, composer.attachmentKind);
+    var showAdLink = composer.attachmentKind === 'ad';
 
     return D.Containers.Div({ attrs: { class: 'composer-card expanded' } }, [
       D.Containers.Div({ attrs: { class: 'composer-header' } }, [
@@ -738,39 +1446,154 @@
         }, ['✕'])
       ]),
       D.Inputs.Select({
-        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-type', value: composer.type || 'plain' }
-      }, typeOptions.map(function(option) {
+        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-media-mode', value: composer.mediaMode || 'plain' }
+      }, mediaModeOptions.map(function(option) {
         return D.Inputs.Option({
-          attrs: { value: option.value, selected: composer.type === option.value }
+          attrs: { value: option.value, selected: composer.mediaMode === option.value }
         }, [option.label]);
       })),
-      showTarget
-        ? D.Inputs.Select({
-            attrs: {
-              class: 'composer-select',
-              'data-m-gkey': 'composer-target',
-              value: composer.targetId || ''
-            }
-          }, [
-            D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.default')])
-          ].concat(
-            attachments.map(function(option) {
-              return D.Inputs.Option({
-                attrs: { value: option.value, selected: composer.targetId === option.value }
-              }, [option.label]);
-            })
-          ))
+      D.Inputs.Select({
+        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-attachment', value: composer.attachmentKind || 'none' }
+      }, attachmentOptions.map(function(option) {
+        return D.Inputs.Option({
+          attrs: { value: option.value, selected: composer.attachmentKind === option.value }
+        }, [option.label]);
+      })),
+      composer.mediaMode === 'reel'
+        ? D.Text.Small({ attrs: { class: 'composer-hint' } }, [t('composer.reel.hint', 'يتم قبول فيديو رأسي حتى 30 ثانية، وسيتم ضغطه تلقائياً.')])
         : null,
-      showMedia
+      isClassified
+        ? D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                class: 'composer-input',
+                placeholder: t('composer.classified.title', 'عنوان الإعلان'),
+                value: composer.classifiedTitle || '',
+                'data-m-gkey': 'composer-classified-title'
+              }
+            }, []),
+            D.Inputs.Input({
+              attrs: {
+                type: 'number',
+                class: 'composer-input',
+                placeholder: t('composer.classified.price', 'السعر (اختياري)'),
+                value: composer.classifiedPrice || '',
+                'data-m-gkey': 'composer-classified-price'
+              }
+            }, []),
+            D.Inputs.Input({
+              attrs: {
+                type: 'tel',
+                class: 'composer-input',
+                placeholder: t('composer.classified.phone', 'هاتف التواصل'),
+                value: composer.contactPhone || '',
+                'data-m-gkey': 'composer-classified-phone'
+              }
+            }, [])
+          ].filter(Boolean))
+        : null,
+      composerCategories.length
+        ? D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
+            D.Inputs.Select({
+              attrs: {
+                class: 'composer-select',
+                'data-m-gkey': 'composer-category',
+                value: composer.categoryId || ''
+              }
+            }, [
+              D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.category', 'اختر التصنيف الرئيسي')])
+            ].concat(composerCategories.map(function(group) {
+              return D.Inputs.Option({ attrs: { value: group.id } }, [group.label]);
+            }))),
+            (function() {
+              var activeGroup = composerCategories.find(function(group) {
+                return group.id === composer.categoryId;
+              });
+              if (!activeGroup || !activeGroup.children.length) return null;
+              return D.Inputs.Select({
+                attrs: {
+                  class: 'composer-select',
+                  'data-m-gkey': 'composer-subcategory',
+                  value: composer.subcategoryId || ''
+                }
+              }, [
+                D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.subcategory', 'اختر التصنيف الفرعي')])
+              ].concat(activeGroup.children.map(function(child) {
+                return D.Inputs.Option({ attrs: { value: child.id } }, [child.label]);
+              })));
+            })()
+          ].filter(Boolean))
+        : null,
+      showTarget && !isClassified
+        ? renderComposerAttachmentSelect(db, composer, attachments)
+        : null,
+      showAdLink
         ? D.Inputs.Input({
             attrs: {
-              type: 'text',
+              type: 'url',
               class: 'composer-input',
-              placeholder: t('composer.media.placeholder'),
-              value: composer.media || '',
-              'data-m-gkey': 'composer-media'
+              placeholder: t('composer.ad.link', 'رابط الصفحة أو المتجر'),
+              value: composer.linkUrl || '',
+              'data-m-gkey': 'composer-link-url'
             }
           }, [])
+        : null,
+      (function() {
+        var uploadLabel = composer.mediaMode === 'reel'
+          ? t('composer.media.upload.reel', 'رفع فيديو')
+          : t('composer.media.upload', 'رفع صور');
+        var allowPicker = composer.mediaMode === 'reel' ||
+          composer.mediaMode === 'plain' ||
+          composer.attachmentKind === 'classified' ||
+          composer.attachmentKind === 'ad';
+        if (!allowPicker) return null;
+        return D.Containers.Div({ attrs: { class: 'composer-media-row' } }, [
+          D.Inputs.Input({
+            attrs: {
+              id: COMPOSER_MEDIA_INPUT_ID,
+              type: 'file',
+              class: 'composer-media-input',
+              multiple: composer.mediaMode === 'reel' ? null : 'multiple',
+              accept: composer.mediaMode === 'reel' ? 'video/*' : 'image/*',
+              'data-m-gkey': 'composer-media-file',
+              style: 'display:none;'
+            }
+          }, []),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip',
+              'data-m-gkey': 'composer-media-pick',
+              disabled: composer.uploadingMedia ? 'disabled' : null
+            }
+          }, [composer.uploadingMedia ? t('composer.media.uploading', 'جارٍ رفع الوسائط...') : uploadLabel]),
+          composer.uploadError
+            ? D.Text.Span({ attrs: { class: 'composer-error' } }, [composer.uploadError])
+            : null
+        ]);
+      })(),
+      composer.mediaMode === 'reel' && composer.reelDuration
+        ? D.Text.Small({ attrs: { class: 'composer-hint' } }, [
+            t('composer.reel.durationLabel', 'المدة الحالية: ') + Math.round(composer.reelDuration) + 's'
+          ])
+        : null,
+      composer.mediaList && composer.mediaList.length
+        ? D.Containers.Div({ attrs: { class: 'composer-media-list' } }, [
+            composer.mediaList.map(function(url) {
+              return D.Containers.Div({ attrs: { class: 'composer-media-item', key: url } }, [
+                composer.mediaMode === 'reel'
+                  ? D.Media.Video({ attrs: { src: url, class: 'composer-media-thumb', controls: true, playsinline: 'playsinline' } }, [])
+                  : D.Media.Img({ attrs: { src: url, alt: 'media', class: 'composer-media-thumb' } }, []),
+                D.Forms.Button({
+                  attrs: {
+                    class: 'composer-media-remove',
+                    'data-m-gkey': 'composer-media-remove',
+                    'data-url': url
+                  }
+                }, ['✕'])
+              ]);
+            })
+          ])
         : null,
       D.Inputs.Textarea({
         attrs: {
@@ -818,6 +1641,48 @@
     ]);
   }
 
+  function renderCategoryClusterRoot(db, node) {
+    if (!node || !node.data) return null;
+    var cat = node.data;
+    var description = getCategoryDescription(cat);
+    var children = (node.children || []).map(function(child) {
+      return child.data;
+    });
+    return D.Containers.Div({ attrs: { class: 'category-cluster', key: cat.category_id } }, [
+      D.Text.H4({ attrs: { class: 'cluster-title' } }, [getCategoryDisplayName(cat)]),
+      description ? D.Text.Span({ attrs: { class: 'cluster-description' } }, [description]) : null,
+      children.length
+        ? D.Containers.Div({ attrs: { class: 'chips-row' } },
+            renderCategoryChips(db, children, 'category', 'category-chip', { skipAll: true })
+          )
+        : null
+    ].filter(Boolean));
+  }
+
+  function renderCategoryShowcase(db) {
+    var configs = [
+      { key: 'classified', title: 'categories.classifieds', fallback: 'مستعمل حواء', data: db.data.classifiedCategories || [] },
+      { key: 'marketplace', title: 'categories.marketplace', fallback: 'متجر حواء', data: db.data.marketplaceCategories || [] },
+      { key: 'service', title: 'categories.services', fallback: 'خدمات حواء', data: db.data.serviceCategories || [] }
+    ];
+    var columns = configs.map(function(cfg) {
+      if (!cfg.data.length) return null;
+      var roots = buildCategoryHierarchy(cfg.data);
+      if (!roots.length) return null;
+      return D.Containers.Div({ attrs: { class: 'category-tree-column', key: cfg.key } }, [
+        D.Text.H4({ attrs: { class: 'category-tree-heading' } }, [t(cfg.title, cfg.fallback)]),
+        roots.slice(0, 3).map(function(root) {
+          return renderCategoryClusterRoot(db, root);
+        }).filter(Boolean)
+      ]);
+    }).filter(Boolean);
+    if (!columns.length) return null;
+    return D.Containers.Div({ attrs: { class: 'section-card category-tree-card' } }, [
+      renderSectionHeader('home.categories', null, 'home.categories.meta', null),
+      D.Containers.Div({ attrs: { class: 'category-tree-grid' } }, columns)
+    ]);
+  }
+
   function renderNotice(db) {
     if (!db.state.notice) return null;
     return D.Containers.Div({ attrs: { class: 'notice-toast' } }, [db.state.notice]);
@@ -837,11 +1702,30 @@
     }));
   }
 
-  function renderSectionHeader(titleKey, _unused, metaKey, _unusedMeta) {
+  function renderQuickActions() {
+    return D.Containers.Div({ attrs: { class: 'section-card quick-actions' } }, [
+      D.Text.H4({}, [t('home.quickActions', 'الوصول السريع')]),
+      D.Containers.Div({ attrs: { class: 'chips-row' } }, [
+        D.Forms.Button({
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-marketplace' }
+        }, ['🛒 ', t('nav.marketplace')]),
+        D.Forms.Button({
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-services' }
+        }, ['🔧 ', t('nav.services')]),
+        D.Forms.Button({
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-knowledge' }
+        }, ['📚 ', t('nav.knowledge')])
+      ])
+    ]);
+  }
+
+  function renderSectionHeader(titleKey, titleFallback, metaKey, metaFallback) {
+    var heading = t(titleKey, titleFallback || titleKey);
+    var metaText = metaKey ? t(metaKey, metaFallback || '') : '';
     return D.Containers.Div({ attrs: { class: 'section-heading' } }, [
-      D.Text.H3({}, [t(titleKey)]),
-      metaKey
-        ? D.Text.Span({ attrs: { class: 'section-meta' } }, [t(metaKey)])
+      D.Text.H3({}, [heading]),
+      metaText
+        ? D.Text.Span({ attrs: { class: 'section-meta' } }, [metaText])
         : D.Text.Span({ attrs: { class: 'section-meta' } }, [])
     ]);
   }
@@ -856,24 +1740,28 @@
   function getActiveUser(db) {
     var users = db.data.users || [];
     var activeId = db.state.activeUserId;
-    if (!activeId && users.length) {
-      activeId = users[0].user_id;
-    }
-    return findById(users, 'user_id', activeId) || (users.length ? users[0] : null);
+    if (!activeId) return null;
+    return findById(users, 'user_id', activeId) || null;
   }
 
-  function getAttachmentOptions(db, type) {
-    if (type === 'product_share') {
+  function getAttachmentOptions(db, kind) {
+    if (kind === 'product') {
       return (db.data.products || []).map(function(product) {
-        return { value: product.product_id, label: resolveProductTitle(product) };
+        var title = resolveProductTitle(product);
+        var price = product.price != null ? formatCurrencyValue(product.price, product.currency) : '';
+        var label = price ? title + ' · ' + price : title;
+        return { value: product.product_id, label: label };
       });
     }
-    if (type === 'service_share') {
+    if (kind === 'service') {
       return (db.data.services || []).map(function(service) {
-        return { value: service.service_id, label: getLocalizedField(service, 'title', t('services.default')) };
+        var title = getLocalizedField(service, 'title', t('services.default'));
+        var city = resolveCityName(service) || '';
+        var label = city ? title + ' · ' + city : title;
+        return { value: service.service_id, label: label };
       });
     }
-    if (type === 'article_share') {
+    if (kind === 'wiki') {
       return (db.data.articles || []).map(function(article) {
         return { value: article.article_id, label: getLocalizedField(article, 'title', t('knowledge.card.title')) };
       });
@@ -894,14 +1782,104 @@
     });
   }
 
+  function getComposerState() {
+    if (app && app.database && app.database.state && app.database.state.composer) {
+      return app.database.state.composer;
+    }
+    return initialDatabase.state.composer;
+  }
+
+  function createComposerState(overrides) {
+    var snapshot = JSON.parse(JSON.stringify(initialDatabase.state.composer));
+    if (overrides && typeof overrides === 'object') {
+      Object.assign(snapshot, overrides);
+    }
+    return snapshot;
+  }
+
+  function openAuthModal(step) {
+    var mode = step || 'login';
+    if (app) {
+      app.setState(function(db) {
+        var nextAuth = Object.assign({}, db.state.auth || initialDatabase.state.auth, {
+          open: true,
+          step: mode,
+          error: null
+        });
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: Object.assign({}, db.state, { auth: nextAuth }),
+          data: db.data
+        };
+      });
+    } else {
+      initialDatabase.state.auth = Object.assign({}, initialDatabase.state.auth, {
+        open: true,
+        step: mode,
+        error: null
+      });
+    }
+  }
+
+  function closeAuthModal() {
+    if (app) {
+      app.setState(function(db) {
+        var nextAuth = Object.assign({}, db.state.auth || initialDatabase.state.auth, {
+          open: false,
+          error: null,
+          step: 'login',
+          password: '',
+          otp: ''
+        });
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: Object.assign({}, db.state, { auth: nextAuth }),
+          data: db.data
+        };
+      });
+    } else {
+      initialDatabase.state.auth.open = false;
+    }
+  }
+
+  function updateAuthState(updates) {
+    if (app) {
+      app.setState(function(db) {
+        var currentAuth = db.state.auth || initialDatabase.state.auth;
+        var nextAuth = typeof updates === 'function'
+          ? updates(currentAuth)
+          : Object.assign({}, currentAuth, updates);
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: Object.assign({}, db.state, { auth: nextAuth }),
+          data: db.data
+        };
+      });
+    } else {
+      var next = typeof updates === 'function'
+        ? updates(initialDatabase.state.auth)
+        : Object.assign({}, initialDatabase.state.auth, updates);
+      initialDatabase.state.auth = next;
+    }
+  }
+
   function setPostOverlay(ctx, updates) {
     ctx.setState(function(db) {
       var currentOverlay = db.state.postOverlay || initialDatabase.state.postOverlay;
       var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { postOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        nextState.commentDraft = '';
+      } else if (!nextOverlay || nextOverlay.open === false) {
+        nextState.commentDraft = '';
+      }
       return {
         env: db.env,
         meta: db.meta,
-        state: Object.assign({}, db.state, { postOverlay: nextOverlay }),
+        state: nextState,
         data: db.data
       };
     });
@@ -933,8 +1911,12 @@
   function handleComposerSubmit(ctx) {
     var currentDb = app ? app.database : null;
     if (!currentDb) return;
-    var composer = currentDb.state.composer || initialDatabase.state.composer;
+    var composer = getComposerState();
     if (composer.posting) return;
+    if (composer.attachmentKind === 'classified') {
+      submitClassified(ctx, composer);
+      return;
+    }
     var user = getActiveUser(currentDb);
     if (!user) {
       applyComposerState(ctx, { error: t('composer.error.user') });
@@ -944,12 +1926,25 @@
       applyComposerState(ctx, { error: t('composer.error.offline'), posting: false });
       return;
     }
-    if ((!composer.text || !composer.text.trim()) && composer.type === 'plain') {
+    var hasMedia = Array.isArray(composer.mediaList) && composer.mediaList.length > 0;
+    var needsText = composer.mediaMode === 'plain' && composer.attachmentKind === 'none';
+    if (needsText && (!composer.text || !composer.text.trim()) && !hasMedia) {
       applyComposerState(ctx, { error: t('composer.error.empty'), posting: false });
       return;
     }
-    if (composer.type !== 'plain' && composer.type !== 'reel' && !composer.targetId) {
+    var requiresTarget = ['product', 'service', 'wiki'].indexOf(composer.attachmentKind) !== -1;
+    if (requiresTarget && !composer.targetId) {
       applyComposerState(ctx, { error: t('composer.error.target'), posting: false });
+      return;
+    }
+    if (composer.attachmentKind === 'ad') {
+      if (!composer.linkUrl || !composer.linkUrl.trim()) {
+        applyComposerState(ctx, { error: t('composer.ad.link.required', 'يرجى إضافة رابط الإعلان قبل النشر'), posting: false });
+        return;
+      }
+    }
+    if (composer.mediaMode === 'reel' && (!Array.isArray(composer.mediaList) || !composer.mediaList.length)) {
+      applyComposerState(ctx, { error: t('composer.reel.required', 'يرجى رفع فيديو للريل قبل النشر'), posting: false });
       return;
     }
     applyComposerState(ctx, { posting: true, error: null });
@@ -961,7 +1956,8 @@
     var record = {
       post_id: postId,
       user_id: user.user_id,
-      post_type: composer.type || 'plain',
+      media_mode: composer.mediaMode || 'plain',
+      attachment_kind: composer.attachmentKind || 'none',
       visibility: 'public',
       is_pinned: false,
       likes_count: 0,
@@ -971,15 +1967,39 @@
       created_at: now,
       updated_at: now
     };
-    if (composer.type === 'product_share') {
+    if (composer.attachmentKind === 'product') {
       record.shared_product_id = composer.targetId;
-    } else if (composer.type === 'service_share') {
+    } else if (composer.attachmentKind === 'service') {
       record.shared_service_id = composer.targetId;
-    } else if (composer.type === 'article_share') {
+    } else if (composer.attachmentKind === 'wiki') {
       record.shared_article_id = composer.targetId;
+    } else if (composer.attachmentKind === 'classified' && composer.targetId) {
+      record.shared_classified_id = composer.targetId;
     }
-    if (composer.media) {
-      record.media_urls = JSON.stringify([composer.media.trim()]);
+    var mergedMedia = Array.isArray(composer.mediaList) ? composer.mediaList.slice() : [];
+    if (composer.attachmentKind === 'ad') {
+      record.link_url = composer.linkUrl.trim();
+      record.link_image = mergedMedia.length ? mergedMedia[0] : null;
+    } else {
+      record.link_url = null;
+      record.link_image = null;
+    }
+    if (composer.mediaMode === 'reel') {
+      record.media_metadata = {
+        duration: composer.reelDuration || null,
+        aspect_ratio: '9:16',
+        max_duration: 30
+      };
+    } else if (composer.attachmentKind === 'ad') {
+      record.media_metadata = {
+        og_image: mergedMedia[0] || null,
+        og_title: composer.text ? composer.text.slice(0, 120) : null
+      };
+    } else {
+      record.media_metadata = null;
+    }
+    if (mergedMedia.length) {
+      record.media_urls = JSON.stringify(mergedMedia);
     }
     var langRecord = {
       id: postId + '_lang_' + lang,
@@ -995,15 +2015,7 @@
     ])
       .then(function() {
         ctx.setState(function(db) {
-          var resetComposer = {
-            open: false,
-            type: 'plain',
-            text: '',
-            targetId: '',
-            media: '',
-            posting: false,
-            error: null
-          };
+          var resetComposer = createComposerState({ open: false });
           return {
             env: db.env,
             meta: db.meta,
@@ -1016,6 +2028,64 @@
       .catch(function(error) {
         console.error('[SBN PWA] composer failed', error);
         applyComposerState(ctx, { posting: false, error: t('composer.error.failed') });
+      });
+  }
+
+  function submitClassified(ctx, composer) {
+    var origin = getApiOrigin();
+    if (!origin) {
+      applyComposerState(ctx, { error: t('composer.error.network') });
+      return;
+    }
+    var db = app ? app.database : null;
+    if (!db) return;
+    var sellerId = db.state.activeUserId;
+    if (!sellerId) {
+      applyComposerState(ctx, { error: t('composer.error.user') });
+      return;
+    }
+    var categoryId = composer.subcategoryId || composer.categoryId || '';
+    if (!categoryId) {
+      applyComposerState(ctx, { error: t('composer.classified.category.error', 'اختر التصنيف المناسب') });
+      return;
+    }
+    if (!composer.classifiedTitle || !composer.classifiedTitle.trim()) {
+      applyComposerState(ctx, { error: t('composer.classified.title.error', 'ادخل عنوان الإعلان') });
+      return;
+    }
+    var images = Array.isArray(composer.mediaList) ? composer.mediaList.slice() : [];
+    var payload = {
+      seller_id: sellerId,
+      category_id: categoryId,
+      title: composer.classifiedTitle.trim(),
+      description: composer.text || '',
+      price: composer.classifiedPrice ? Number(composer.classifiedPrice) : null,
+      currency: 'EGP',
+      contact_phone: composer.contactPhone || '',
+      images: images
+    };
+    applyComposerState(ctx, { posting: true, error: null });
+    fetch(origin + '/api/classifieds', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        if (!response.ok) throw new Error('classified-create-failed');
+        return response.json();
+      })
+      .then(function() {
+        setTimeout(function() {
+          refreshClassifiedsSnapshot(getCurrentLang());
+        }, 0);
+        applyComposerState(ctx, function() {
+          return createComposerState({ open: false });
+        });
+        showNotice(ctx, t('composer.classified.success', 'تم إضافة الإعلان بنجاح'));
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][classified]', error);
+        applyComposerState(ctx, { posting: false, error: t('composer.classified.error', 'تعذر إنشاء الإعلان') });
       });
   }
 
@@ -1046,45 +2116,76 @@
     ]);
   }
 
+  function renderAnchorElement(attrs, children) {
+    if (D.Elements && typeof D.Elements.A === 'function') {
+      return D.Elements.A({ attrs: attrs }, children);
+    }
+    var label = (children && children.length) ? children : [attrs && attrs.href ? attrs.href : ''];
+    return D.Text.Span({ attrs: { class: 'link-fallback' } }, label);
+  }
+
+  function resolvePostPresentationLabel(post) {
+    if (!post || typeof post !== 'object') {
+      return t('post.type.plain');
+    }
+    var mediaMode = (post.media_mode || '').toLowerCase();
+    var attachmentKind = (post.attachment_kind || '').toLowerCase();
+    if (mediaMode === 'reel') {
+      return t('post.type.reel', 'ريل فيديو');
+    }
+    if (attachmentKind === 'product') {
+      return t('post.type.product_share', 'مشاركة منتج');
+    }
+    if (attachmentKind === 'service') {
+      return t('post.type.service_share', 'مشاركة خدمة');
+    }
+    if (attachmentKind === 'wiki') {
+      return t('post.type.article_share', 'مشاركة معرفة');
+    }
+    if (attachmentKind === 'classified') {
+      return t('post.type.classified', 'إعلان مستعمل');
+    }
+    if (attachmentKind === 'ad') {
+      return t('post.type.ad', 'إعلان ممول');
+    }
+    return t('post.type.plain', 'منشور');
+  }
+
   function renderPostCard(db, post) {
     var users = db.data.users || [];
-    var products = db.data.products || [];
-    var services = db.data.services || [];
-    var articles = db.data.articles || [];
     var user = findById(users, 'user_id', post.user_id);
     var userName = resolveUserName(user);
     var avatar = (user && user.avatar_url) || 'https://i.pravatar.cc/120?img=60';
+    var postText = getLocalizedField(post, 'content', '');
     var mediaList = toArray(post.media_urls);
-    var attachment = null;
-
-    if (post.post_type === 'product_share' && post.shared_product_id) {
-      var product = findById(products, 'product_id', post.shared_product_id);
-      if (product) attachment = renderProductCard(db, product, { compact: true });
-    } else if (post.post_type === 'article_share' && post.shared_article_id) {
-      var article = findById(articles, 'article_id', post.shared_article_id);
-      if (article) {
-        attachment = D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
-          D.Text.Span({ attrs: { class: 'chip' } }, [t('knowledge.title')]),
-          D.Text.P({}, [getLocalizedField(article, 'title', t('knowledge.card.title'))])
-        ]);
-      }
-    } else if (post.post_type === 'service_share' && post.shared_service_id) {
-      var service = findById(services, 'service_id', post.shared_service_id);
-      if (service) {
-        attachment = D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
-          D.Text.Span({ attrs: { class: 'chip' } }, [t('nav.services')]),
-          D.Text.P({}, [getLocalizedField(service, 'title', t('services.default'))])
-        ]);
+    var mediaMeta = post.media_metadata;
+    if (mediaMeta && typeof mediaMeta === 'string') {
+      try {
+        mediaMeta = JSON.parse(mediaMeta);
+      } catch (_err) {
+        mediaMeta = null;
       }
     }
-
+    var attachment = renderPostAttachment(db, post);
     var mediaStrip = null;
-    if (mediaList.length) {
+    var isReel = (post.media_mode || '').toLowerCase() === 'reel';
+    if (isReel && mediaList.length) {
+      var reelPoster = mediaMeta && mediaMeta.thumbnail_url;
+      mediaStrip = D.Media.Video({
+        attrs: {
+          class: 'feed-reel',
+          src: mediaList[0],
+          controls: true,
+          loop: true,
+          playsinline: 'playsinline',
+          poster: reelPoster || null
+        }
+      }, []);
+    } else if (mediaList.length) {
       mediaStrip = D.Containers.Div({ attrs: { class: 'feed-media' } }, mediaList.slice(0, 3).map(function(url, idx) {
         return D.Media.Img({ attrs: { src: url, class: 'media-thumb', key: post.post_id + '-media-' + idx } }, []);
       }));
     }
-
     return D.Containers.Div({
       attrs: {
         class: 'feed-card',
@@ -1098,7 +2199,7 @@
         D.Containers.Div({ attrs: { class: 'feed-user' } }, [
           D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
           D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
-            t('post.type.' + (post.post_type || 'plain')) || (post.post_type || 'post'),
+            resolvePostPresentationLabel(post),
             ' · ',
             new Date(post.created_at).toLocaleDateString()
           ])
@@ -1107,9 +2208,7 @@
           ? D.Text.Span({ attrs: { class: 'chip' } }, [t('post.pinned')])
           : null
       ].filter(Boolean)),
-      D.Text.P({ attrs: { class: 'feed-content' } }, [
-        getLocalizedField(post, 'content', '')
-      ]),
+      postText ? D.Text.P({ attrs: { class: 'feed-content' } }, [postText]) : null,
       attachment,
       mediaStrip,
       D.Containers.Div({ attrs: { class: 'feed-stats' } }, [
@@ -1121,18 +2220,104 @@
     ]);
   }
 
-  function renderCategoryChips(db, categories, field, gkey) {
+  function renderPostAttachment(db, post) {
+    if (!post) return null;
+    var products = db.data.products || [];
+    var services = db.data.services || [];
+    var articles = db.data.articles || [];
+    var classifieds = db.data.classifieds || [];
+    var mediaMeta = post.media_metadata;
+    if (mediaMeta && typeof mediaMeta === 'string') {
+      try {
+        mediaMeta = JSON.parse(mediaMeta);
+      } catch (_err) {
+        mediaMeta = null;
+      }
+    }
+    var attachmentKind = (post.attachment_kind || '').toLowerCase();
+    if (attachmentKind === 'product' && post.shared_product_id) {
+      var product = findById(products, 'product_id', post.shared_product_id);
+      if (product) return renderProductCard(db, product, { compact: true });
+    }
+    if (attachmentKind === 'service' && post.shared_service_id) {
+      var service = findById(services, 'service_id', post.shared_service_id);
+      if (service) return renderServiceCard(db, service);
+    }
+    if (attachmentKind === 'wiki' && post.shared_article_id) {
+      var article = findById(articles, 'article_id', post.shared_article_id);
+      if (article) {
+        return renderArticleItem(db, article);
+      }
+    }
+    if (attachmentKind === 'classified' && post.shared_classified_id) {
+      var classified = findById(classifieds, 'id', post.shared_classified_id) || findById(classifieds, 'classified_id', post.shared_classified_id);
+      if (classified) {
+        return renderClassifiedCard(db, classified);
+      }
+    }
+    if (attachmentKind === 'ad' && post.link_url) {
+      var adTitle = mediaMeta && (mediaMeta.og_title || mediaMeta.title);
+      var adImage = (mediaMeta && mediaMeta.og_image) || post.link_image || (mediaMeta && mediaMeta.thumbnail_url);
+      var adDescription = mediaMeta && (mediaMeta.og_description || mediaMeta.description);
+      return D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
+        D.Text.Span({ attrs: { class: 'chip' } }, [t('post.type.ad', 'إعلان')]),
+        adImage
+          ? D.Media.Img({ attrs: { src: adImage, alt: adTitle || post.link_url, class: 'ad-preview-img' } }, [])
+          : null,
+        adTitle ? D.Text.H4({}, [adTitle]) : null,
+        adDescription ? D.Text.P({}, [adDescription]) : null,
+        D.Text.P({}, [
+          renderAnchorElement({
+            href: post.link_url,
+            target: '_blank',
+            rel: 'noopener noreferrer'
+          }, [post.link_url])
+        ]),
+        renderAttachmentAction('ad', t('post.type.ad.visit', 'زيارة الإعلان'), '', { 'data-link': post.link_url })
+      ]);
+    }
+    return null;
+  }
+
+  function bumpPostStat(postId, field) {
+    if (!app || !postId) return;
+    app.setState(function(db) {
+      var posts = db.data.posts || [];
+      var updated = false;
+      var nextPosts = posts.map(function(post) {
+        if (post && post.post_id === postId) {
+          updated = true;
+          var nextValue = (post[field] || 0) + 1;
+          var clone = Object.assign({}, post);
+          clone[field] = nextValue;
+          return clone;
+        }
+        return post;
+      });
+      if (!updated) return db;
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, { posts: nextPosts })
+      };
+    });
+  }
+
+  function renderCategoryChips(db, categories, field, gkey, options) {
     var selected = db.state.filters[field] || '';
-    var chips = [
-      D.Forms.Button({
+    var opts = options || {};
+    var chips = [];
+    if (!opts.skipAll) {
+      chips.push(D.Forms.Button({
         attrs: {
           class: 'chip' + (selected === '' ? ' chip-active' : ''),
           'data-m-gkey': gkey,
           'data-value': ''
         }
-      }, [t('filter.all')])
-    ];
-    chips = chips.concat(categories.map(function(cat) {
+      }, [t('filter.all')]));
+    }
+    chips = chips.concat((categories || []).map(function(cat) {
       return D.Forms.Button({
         attrs: {
           class: 'chip' + (selected === cat.category_id ? ' chip-active' : ''),
@@ -1142,6 +2327,148 @@
       }, [getLocalizedField(cat, 'name', cat.slug || '')]);
     }));
     return chips;
+  }
+
+  function formatCurrencyValue(amount, currency) {
+    if (amount === undefined || amount === null || amount === '') return '';
+    var cur = currency || t('currency.egp');
+    return String(amount) + ' ' + cur;
+  }
+
+  function pickClassifiedImage(item) {
+    var images = Array.isArray(item?.images) ? item.images : [];
+    return images.length ? images[0] : 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=600';
+  }
+
+  function renderClassifiedCard(db, item) {
+    if (!item) return null;
+    var classifiedId = item.id || item.classified_id;
+    var priceLabel = item.price != null ? formatCurrencyValue(item.price, item.currency) : t('classifieds.price.ask', 'سعر عند التواصل');
+    var expires = item.expires_at ? new Date(item.expires_at).toLocaleDateString() : '';
+    return D.Containers.Div({ attrs: { class: 'classified-card', key: item.id } }, [
+      D.Media.Img({ attrs: { src: pickClassifiedImage(item), alt: item.title || '', class: 'classified-cover' } }, []),
+      D.Containers.Div({ attrs: { class: 'classified-body' } }, [
+        D.Text.H4({ attrs: { class: 'classified-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
+        D.Text.P({ attrs: { class: 'classified-meta' } }, [
+          priceLabel,
+          item.location_city ? ' · ' + item.location_city : ''
+        ]),
+        item.description
+          ? D.Text.P({ attrs: { class: 'classified-description' } }, [item.description])
+          : null,
+        D.Containers.Div({ attrs: { class: 'classified-footer' } }, [
+          expires ? D.Text.Span({ attrs: { class: 'chip' } }, [t('classifieds.expiry', 'ينتهي'), ': ', expires]) : null,
+          item.contact_phone
+            ? D.Text.Span({ attrs: { class: 'chip' } }, ['☎️ ', item.contact_phone])
+            : null
+        ].filter(Boolean)),
+        renderAttachmentAction('classified', t('classifieds.cta.contact', 'تواصل الآن'), classifiedId, {
+          'data-phone': item.contact_phone || ''
+        })
+      ])
+    ]);
+  }
+
+  function renderClassifiedsSection(db) {
+    var classifieds = db.data.classifieds || [];
+    if (!classifieds.length) return null;
+    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
+      renderSectionHeader('classifieds.section', 'مستعمل حواء', 'classifieds.section.meta', 'أحدث الإعلانات المبوبة'),
+      D.Containers.Div({ attrs: { class: 'classified-grid' } },
+        classifieds.slice(0, 6).map(function(item) {
+          return renderClassifiedCard(db, item);
+        })
+      )
+    ]);
+  }
+
+  function getComposerCategoryGroups(categories) {
+    var hierarchy = buildCategoryHierarchy(categories || []);
+    return hierarchy.map(function(node) {
+      return {
+        id: node.data.category_id,
+        label: getCategoryDisplayName(node.data),
+        children: (node.children || []).map(function(child) {
+          return {
+            id: child.data.category_id,
+            label: getCategoryDisplayName(child.data)
+          };
+        })
+      };
+    });
+  }
+
+  function getComposerCategoryGroupsByType(db, kind) {
+    var sourceKey = COMPOSER_CATEGORY_SOURCES[kind];
+    if (!sourceKey) return [];
+    return getComposerCategoryGroups(db.data[sourceKey] || []);
+  }
+
+  function renderComposerAttachmentSelect(db, composer, attachments) {
+    var addGkey = null;
+    var addLabel = '';
+    if (composer.attachmentKind === 'product') {
+      addGkey = 'composer-add-product';
+      addLabel = t('composer.add.product', '＋ إضافة منتج');
+    } else if (composer.attachmentKind === 'service') {
+      addGkey = 'composer-add-service';
+      addLabel = t('composer.add.service', '＋ إضافة خدمة');
+    } else if (composer.attachmentKind === 'wiki') {
+      addGkey = 'composer-add-article';
+      addLabel = t('composer.add.article', '＋ إضافة معرفة');
+    }
+    if (!attachments.length) {
+      return D.Containers.Div({ attrs: { class: 'composer-empty-target' } }, [
+        D.Text.P({}, [t('composer.target.empty', 'لا توجد عناصر جاهزة للمشاركة بعد.')]),
+        addGkey
+          ? D.Forms.Button({
+              attrs: { class: 'chip ghost', 'data-m-gkey': addGkey }
+            }, [addLabel])
+          : null
+      ].filter(Boolean));
+    }
+    return D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
+      D.Inputs.Select({
+        attrs: {
+          class: 'composer-select',
+          'data-m-gkey': 'composer-target',
+          value: composer.targetId || ''
+        }
+      }, [
+        D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.default')])
+      ].concat(
+        attachments.map(function(option) {
+          return D.Inputs.Option({
+            attrs: { value: option.value, selected: composer.targetId === option.value }
+          }, [option.label]);
+        })
+      )),
+      addGkey
+        ? D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': addGkey
+            }
+          }, [addLabel])
+        : null
+    ].filter(Boolean));
+  }
+
+  function renderAttachmentAction(kind, label, targetId, extra) {
+    var attrs = {
+      class: 'attachment-cta chip ghost',
+      'data-m-gkey': 'attachment-action',
+      'data-kind': kind || ''
+    };
+    if (targetId) {
+      attrs['data-target-id'] = targetId;
+    }
+    if (extra && typeof extra === 'object') {
+      Object.keys(extra).forEach(function(key) {
+        attrs[key] = extra[key];
+      });
+    }
+    return D.Forms.Button({ attrs: attrs }, [label]);
   }
 
   /**
@@ -1179,7 +2506,8 @@
               : t('product.condition.unknown')
           ]),
           D.Text.Span({}, [city])
-        ])
+        ]),
+        renderAttachmentAction('product', t('product.view', 'عرض المنتج'), product.product_id)
       ])
     ]);
   }
@@ -1191,20 +2519,17 @@
     var products = db.data.products || [];
     var services = db.data.services || [];
     var articles = getWikiArticles(db).slice(0, 3);
-    var categories = (db.data.categories || []).slice(0, 6);
+    var categoryShowcase = renderCategoryShowcase(db);
 
     var sections = [
       renderComposer(db),
+      renderQuickActions(),
+      renderClassifiedsSection(db),
       renderSocialFeed(db),
       renderHero(db),
       renderTrendingHashtags(db),
       renderMetricGrid(db),
-      D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('home.categories', null, 'home.categories.meta', null),
-        D.Containers.Div({ attrs: { class: 'chips-row' } },
-          renderCategoryChips(db, categories, 'category', 'category-chip')
-        )
-      ]),
+      categoryShowcase,
       D.Containers.Div({ attrs: { class: 'section-card' } }, [
         renderSectionHeader('home.featured', null, 'home.featured.meta', null),
         products.length
@@ -1239,9 +2564,7 @@
    */
   function renderMarketplace(db) {
     var products = getFilteredProducts(db);
-    var categories = (db.data.categories || []).filter(function(cat) {
-      return cat.type === 'product';
-    }).slice(0, 8);
+    var categories = getLeafCategories(db.data.marketplaceCategories || [], { onlyLeaves: true, limit: 12 });
 
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('nav.marketplace', null, 'home.featured.meta', null),
@@ -1254,6 +2577,12 @@
           value: db.state.filters.search || ''
         }
       }, []),
+      D.Forms.Button({
+        attrs: {
+          class: 'chip primary',
+          'data-m-gkey': 'open-product-form'
+        }
+      }, [t('marketplace.add.product', '＋ إضافة منتج')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
         renderCategoryChips(db, categories, 'category', 'category-chip')
       ),
@@ -1311,7 +2640,8 @@
       D.Containers.Div({ attrs: { class: 'service-meta' } }, [
         D.Text.Span({ attrs: { class: 'service-price' } }, [priceLabel]),
         D.Text.Span({ attrs: { class: 'service-location' } }, [serviceCity])
-      ])
+      ]),
+      renderAttachmentAction('service', t('services.cta.book', 'احجز الخدمة'), service.service_id)
     ]);
   }
 
@@ -1320,9 +2650,7 @@
    */
   function renderServices(db) {
     var services = getFilteredServices(db);
-    var categories = (db.data.categories || []).filter(function(cat) {
-      return cat.type === 'service';
-    }).slice(0, 8);
+    var categories = getLeafCategories(db.data.serviceCategories || [], { onlyLeaves: true, limit: 12 });
 
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('nav.services', null, null, null),
@@ -1335,6 +2663,12 @@
           value: db.state.filters.search || ''
         }
       }, []),
+      D.Forms.Button({
+        attrs: {
+          class: 'chip primary',
+          'data-m-gkey': 'open-service-form'
+        }
+      }, [t('services.add', '＋ إضافة خدمة')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
         renderCategoryChips(db, categories, 'category', 'category-chip')
       ),
@@ -1363,13 +2697,7 @@
       D.Text.P({ attrs: { class: 'article-summary' } }, [getLocalizedField(article, 'excerpt', excerpt) || t('wiki.noSummary')]),
       D.Containers.Div({ attrs: { class: 'article-meta' } }, [
         D.Text.Span({}, [String(views) + ' ' + t('wiki.views')]),
-        D.Forms.Button({
-          attrs: {
-            'data-m-gkey': 'view-article',
-            'data-article-id': article.article_id,
-            class: 'chip'
-          }
-        }, [t('btn.read')])
+        renderAttachmentAction('wiki', t('btn.read', 'اقرأ الآن'), article.article_id)
       ])
     ]);
   }
@@ -1469,6 +2797,7 @@
         })
       : [D.Text.P({ attrs: { class: 'comment-empty' } }, [t('post.overlay.empty')])];
     var langContent = getLocalizedField(post, 'content', '');
+    var attachment = renderPostAttachment(db, post);
 
     return D.Containers.Div({
       attrs: { class: 'post-overlay', 'data-m-gkey': 'post-close' }
@@ -1476,17 +2805,20 @@
       D.Containers.Div({ attrs: { class: 'post-overlay-panel', 'data-m-gkey': 'post-overlay-inner' } }, [
         D.Containers.Div({ attrs: { class: 'feed-header' } }, [
           D.Media.Img({ attrs: { class: 'feed-avatar', src: avatar, alt: userName } }, []),
-          D.Containers.Div({ attrs: { class: 'feed-user' } }, [
-            D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
-            D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
-              t('post.type.' + (post.post_type || 'plain'), post.post_type || 'post'),
-              ' · ',
-              new Date(post.created_at).toLocaleString()
-            ])
-          ]),
+        D.Containers.Div({ attrs: { class: 'feed-user' } }, [
+          D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
+          D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
+            resolvePostPresentationLabel(post),
+            ' · ',
+            new Date(post.created_at).toLocaleString()
+          ])
+        ]),
           D.Forms.Button({ attrs: { class: 'composer-close', 'data-m-gkey': 'post-close' } }, ['✕'])
         ]),
-        D.Text.P({ attrs: { class: 'feed-content' } }, [langContent]),
+        langContent
+          ? D.Text.P({ attrs: { class: 'feed-content' } }, [langContent])
+          : null,
+        attachment,
         D.Containers.Div({ attrs: { class: 'feed-stats overlay-stats' } }, [
           D.Text.Span({}, ['👁️ ', String(post.views_count || 0)]),
           D.Text.Span({}, ['💬 ', String(post.comments_count || 0)]),
@@ -1505,10 +2837,190 @@
           }, ['🔔 ', t('post.action.subscribe')])
         ]),
         D.Text.H4({}, [t('post.overlay.comments')]),
-        D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList)
+        D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList),
+        (function() {
+          var canComment = Boolean(getActiveUser(db));
+          if (!canComment) {
+            return D.Forms.Button({
+              attrs: { class: 'hero-cta', 'data-m-gkey': 'auth-open' }
+            }, [t('comment.login', 'سجّل الدخول للتعليق')]);
+          }
+          return D.Containers.Div({ attrs: { class: 'comment-form' } }, [
+            D.Inputs.Textarea({
+              attrs: {
+                class: 'comment-input',
+                placeholder: t('comment.placeholder', 'أضف تعليقك...'),
+                value: db.state.commentDraft || '',
+                'data-m-gkey': 'comment-input'
+              }
+            }, []),
+            D.Forms.Button({
+              attrs: { class: 'hero-cta', 'data-m-gkey': 'comment-submit', 'data-post-id': post.post_id }
+            }, [t('comment.submit', 'إرسال')])
+          ]);
+        })()
       ])
     ]);
   }
+
+  function renderNotificationsPanel(db) {
+    if (!db.state.notificationsOpen) return null;
+    var notifications = db.data.notifications || [];
+    return D.Containers.Div({ attrs: { class: 'section-card notification-panel' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('nav.notifications', 'الإشعارات')]),
+        D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-notifications' } }, ['✕'])
+      ]),
+      notifications.length
+        ? D.Containers.Div({ attrs: { class: 'notification-list' } },
+            notifications.slice(0, 5).map(function(item) {
+              return D.Containers.Div({ attrs: { class: 'notification-item', key: item.notification_id || item.id } }, [
+                D.Text.Span({ attrs: { class: 'notification-title' } }, [getLocalizedField(item, 'title', t('nav.notifications'))]),
+                D.Text.P({ attrs: { class: 'notification-body' } }, [getLocalizedField(item, 'body', item.description || '')])
+              ]);
+            })
+          )
+        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.empty', 'لا توجد إشعارات حالياً')])
+    ]);
+  }
+
+  function markNotificationsAsRead() {
+    if (!app || !app.database) return;
+    var db = app.database;
+    var pending = (db.data.notifications || []).filter(function(item) {
+      return item && item.status !== 'read';
+    });
+    if (!pending.length) return;
+    var updated = (db.data.notifications || []).map(function(item) {
+      if (!item) return item;
+      if (item.status === 'read') return item;
+      var clone = Object.assign({}, item, { status: 'read' });
+      return clone;
+    });
+    app.setState(function(prev) {
+      return {
+        env: prev.env,
+        meta: prev.meta,
+        state: prev.state,
+        data: Object.assign({}, prev.data, { notifications: updated })
+      };
+    });
+    if (realtime && realtime.store && typeof realtime.store.merge === 'function') {
+      pending.forEach(function(item) {
+        var id = item.notification_id || item.id;
+        if (!id) return;
+        realtime.store
+          .merge('sbn_notifications', { notification_id: id, status: 'read' }, { source: 'pwa-notifications' })
+          .catch(function(error) {
+            console.warn('[SBN PWA] failed to mark notification read', error);
+          });
+      });
+    }
+  }
+
+  function renderAuthModal(db) {
+   var auth = (db && db.state && db.state.auth) || initialDatabase.state.auth;
+   if (!auth || !auth.open) return null;
+   var step = auth.step || 'login';
+   var title = t('auth.login.title', 'مرحبا بك');
+   var subtitle = t('auth.login.subtitle', 'سجّل دخولك للمتابعة');
+   var fields = [];
+  var demoHint = null;
+   if (step === 'register') {
+     title = t('auth.register.title', 'إنشاء حساب جديد');
+     subtitle = t('auth.register.subtitle', 'شارك أعمالك وخدماتك فوراً');
+     fields = [
+       { name: 'fullName', type: 'text', label: t('auth.fullName', 'الاسم الكامل'), value: auth.fullName || '' },
+       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' },
+       { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
+     ];
+   } else if (step === 'otp') {
+     title = t('auth.otp.title', 'أدخل رمز التحقق');
+     subtitle = t('auth.otp.subtitle', 'استخدم الرمز 123456 لإكمال التفعيل');
+     fields = [
+       { name: 'otp', type: 'text', label: t('auth.otp', 'رمز التحقق'), value: auth.otp || '' }
+     ];
+   } else if (step === 'forgot') {
+     title = t('auth.forgot.title', 'استعادة كلمة المرور');
+     subtitle = t('auth.forgot.subtitle', 'سوف نرسل لك رمز تفعيل لتغيير كلمة المرور');
+     fields = [
+       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' }
+     ];
+   } else {
+     fields = [
+       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' },
+       { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
+     ];
+     demoHint = D.Text.Small({ attrs: { class: 'auth-note' } }, [
+       t('auth.demo.hint', 'بيانات العرض: demo@mostamal.eg / demo123')
+     ]);
+   }
+  var autocompleteMap = {
+    email: 'email',
+    password: step === 'login' ? 'current-password' : 'new-password',
+    fullName: 'name',
+    otp: 'one-time-code'
+  };
+  var fieldElements = fields.map(function(field) {
+    var autocomplete = autocompleteMap[field.name] || (field.type === 'password' ? 'current-password' : 'off');
+    return D.Inputs.Input({
+      attrs: {
+        type: field.type,
+        value: field.value,
+        placeholder: field.label,
+        class: 'auth-input',
+        name: field.name,
+        autocomplete: autocomplete,
+        'data-m-gkey': 'auth-input-' + field.name
+      }
+    }, []);
+  });
+   var primaryLabel = {
+     login: t('auth.login', 'تسجيل الدخول'),
+     register: t('auth.register', 'إنشاء حساب'),
+     otp: t('auth.verify', 'تأكيد الرمز'),
+     forgot: t('auth.send', 'إرسال الرمز')
+   }[step] || t('auth.login', 'تسجيل الدخول');
+   var links = [];
+   if (step === 'login') {
+     links = [
+       D.Forms.Button({
+         attrs: { class: 'link-btn', 'data-m-gkey': 'auth-switch', 'data-step': 'forgot' }
+       }, [t('auth.forgot.link', 'نسيت كلمة المرور؟')]),
+       D.Forms.Button({
+         attrs: { class: 'link-btn', 'data-m-gkey': 'auth-switch', 'data-step': 'register' }
+       }, [t('auth.register.link', 'مستخدم جديد؟ أنشئ حساباً')])
+     ];
+   } else if (step === 'register' || step === 'otp' || step === 'forgot') {
+     links = [
+       D.Forms.Button({
+         attrs: { class: 'link-btn', 'data-m-gkey': 'auth-switch', 'data-step': 'login' }
+       }, [t('auth.login.back', 'لديك حساب بالفعل؟')])
+     ];
+   }
+   var errorNode = auth.error
+     ? D.Text.P({ attrs: { class: 'auth-error' } }, [auth.error])
+     : null;
+  return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'auth-overlay' } }, [
+    D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'auth-modal' } }, [
+      D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'auth-close' } }, ['✕']),
+      D.Text.H3({ attrs: { class: 'auth-title' } }, [title]),
+      D.Text.P({ attrs: { class: 'auth-subtitle' } }, [subtitle]),
+      demoHint,
+      errorNode,
+      D.Forms.Form({
+        attrs: { class: 'auth-form', 'data-m-gkey': 'auth-submit', novalidate: 'novalidate' }
+      }, [
+        D.Containers.Div({ attrs: { class: 'auth-fields' } }, fieldElements),
+        D.Forms.Button({
+          attrs: { class: 'hero-cta', type: 'submit' }
+        }, [primaryLabel]),
+        D.Containers.Div({ attrs: { class: 'auth-links' } }, links.filter(Boolean))
+      ])
+    ])
+  ]);
+}
+
 
   /**
    * Render bottom navigation
@@ -1600,11 +3112,14 @@
 
     return D.Containers.Div({ attrs: { class: 'screen-bg' } }, [
       D.Containers.Div({ attrs: { class: 'app-shell' } }, [
+        renderPwaInstallBanner(db),
         renderNotice(db),
         renderHeader(db),
+        renderNotificationsPanel(db),
         D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
         renderBottomNav(db),
-        renderPostOverlay(db)
+        renderPostOverlay(db),
+        renderAuthModal(db)
       ].filter(Boolean))
     ]);
   }
@@ -1641,10 +3156,109 @@
       }
     },
 
+    'open.product.form': {
+      on: ['click'],
+      gkeys: ['open-product-form'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('marketplace.add.product.notice', 'انتقل للمتجر لإضافة منتج جديد ثم شاركه'));
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            data: db.data
+          };
+        });
+      }
+    },
+
     'nav.services': {
       on: ['click'],
       gkeys: ['nav-services'],
       handler: function(event, ctx) {
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'attachment.action': {
+      on: ['click'],
+      gkeys: ['attachment-action'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        event.stopPropagation();
+        var target = event.currentTarget || event.target;
+        if (!target) return;
+        var kind = (target.getAttribute('data-kind') || '').toLowerCase();
+        var targetId = target.getAttribute('data-target-id') || '';
+        var link = target.getAttribute('data-link') || '';
+        var phone = target.getAttribute('data-phone') || '';
+        if (kind === 'product') {
+          showNotice(ctx, t('composer.notice.product', 'تم فتح المتجر لاستعراض المنتج.'));
+          ctx.setState(function(db) {
+            return {
+              env: db.env,
+              meta: db.meta,
+              state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+              data: db.data
+            };
+          });
+        } else if (kind === 'service') {
+          showNotice(ctx, t('composer.notice.service', 'انتقلنا إلى قسم الخدمات لعرض التفاصيل.'));
+          ctx.setState(function(db) {
+            return {
+              env: db.env,
+              meta: db.meta,
+              state: Object.assign({}, db.state, { currentSection: 'services' }),
+              data: db.data
+            };
+          });
+        } else if (kind === 'wiki') {
+          ctx.setState(function(db) {
+            return {
+              env: db.env,
+              meta: db.meta,
+              state: Object.assign({}, db.state, { currentSection: 'knowledge' }),
+              data: db.data
+            };
+          });
+        } else if (kind === 'classified') {
+          if (phone) {
+            try {
+              global.open('tel:' + phone.replace(/[^0-9+]/g, ''), '_self');
+            } catch (_err) {
+              showNotice(ctx, phone);
+            }
+          } else {
+            showNotice(ctx, t('classifieds.contact.empty', 'يمكنك التواصل من خلال التعليقات أو الرسائل.'));
+          }
+        } else if (kind === 'ad') {
+          if (link) {
+            try {
+              global.open(link, '_blank', 'noopener');
+            } catch (_err) {
+              showNotice(ctx, link);
+            }
+          } else {
+            showNotice(ctx, t('post.type.ad', 'إعلان ممول'));
+          }
+        }
+      }
+    },
+
+    'open.service.form': {
+      on: ['click'],
+      gkeys: ['open-service-form'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('services.add.notice', 'انتقل لقسم الخدمات لإضافة عرض جديد ثم شاركه هنا'));
         ctx.setState(function(db) {
           return {
             env: db.env,
@@ -1683,6 +3297,293 @@
             data: db.data
           };
         });
+      }
+    },
+    'open-notifications': {
+      on: ['click'],
+      gkeys: ['open-notifications'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var shouldOpen = !(app && app.database && app.database.state && app.database.state.notificationsOpen);
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { notificationsOpen: !db.state.notificationsOpen }),
+            data: db.data
+          };
+        });
+        if (shouldOpen) {
+          setTimeout(markNotificationsAsRead, 0);
+        }
+      }
+    },
+    'close-notifications': {
+      on: ['click'],
+      gkeys: ['close-notifications'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        event.stopPropagation();
+        ctx.setState(function(db) {
+          if (!db.state.notificationsOpen) return db;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { notificationsOpen: false }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'auth.open': {
+      on: ['click'],
+      gkeys: ['auth-open'],
+      handler: function(event) {
+        event.preventDefault();
+        openAuthModal('login');
+      }
+    },
+
+    'open-register': {
+      on: ['click'],
+      gkeys: ['open-register'],
+      handler: function(event) {
+        event.preventDefault();
+        openAuthModal('register');
+      }
+    },
+
+    'auth.close': {
+      on: ['click'],
+      gkeys: ['auth-close'],
+      handler: function(event) {
+        if (event && typeof event.preventDefault === 'function') {
+          event.preventDefault();
+        }
+        if (event && typeof event.stopPropagation === 'function') {
+          event.stopPropagation();
+        }
+        closeAuthModal();
+      }
+    },
+
+    'auth.overlay': {
+      on: ['click'],
+      gkeys: ['auth-overlay'],
+      handler: function(event) {
+        if (event && typeof event.stopPropagation === 'function') {
+          event.stopPropagation();
+        }
+        if (event && event.target !== event.currentTarget) {
+          return;
+        }
+        event.preventDefault();
+        closeAuthModal();
+      }
+    },
+
+    'auth.modal': {
+      on: ['click', 'mousedown', 'touchstart'],
+      gkeys: ['auth-modal'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+
+    'auth.switch': {
+      on: ['click'],
+      gkeys: ['auth-switch'],
+      handler: function(event) {
+        event.preventDefault();
+        var step = event.currentTarget && event.currentTarget.getAttribute('data-step');
+        if (!step) return;
+        updateAuthState(function(current) {
+          return Object.assign({}, current, {
+            step: step,
+            error: null,
+            otp: '',
+            fullName: step === 'register' ? current.fullName : '',
+            pendingUser: step === 'otp' ? current.pendingUser : null,
+            password: step === 'login' ? '' : current.password
+          });
+        });
+      }
+    },
+
+    'auth-input-email': {
+      on: ['input'],
+      gkeys: ['auth-input-email'],
+      handler: function(event) {
+        updateAuthState({ email: event.target.value });
+      }
+    },
+
+    'auth-input-password': {
+      on: ['input'],
+      gkeys: ['auth-input-password'],
+      handler: function(event) {
+        var value = (event && event.target && event.target.value) || (event && event.currentTarget && event.currentTarget.value) || '';
+        console.log('[SBN PWA][auth] password input', { length: value.length });
+        updateAuthState({ password: value });
+      }
+    },
+
+    'auth-input-fullName': {
+      on: ['input'],
+      gkeys: ['auth-input-fullName'],
+      handler: function(event) {
+        updateAuthState({ fullName: event.target.value });
+      }
+    },
+
+    'auth-input-otp': {
+      on: ['input'],
+      gkeys: ['auth-input-otp'],
+      handler: function(event) {
+        updateAuthState({ otp: event.target.value });
+      }
+    },
+
+    'auth.submit': {
+      on: ['submit'],
+      gkeys: ['auth-submit'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        if (event && typeof event.stopPropagation === 'function') {
+          event.stopPropagation();
+        }
+        var db = app ? app.database : null;
+        var auth = (db && db.state && db.state.auth) || initialDatabase.state.auth;
+        var formEl = event && event.target;
+        var step = auth.step || 'login';
+        var email = (auth.email || '').trim().toLowerCase();
+        var password = auth.password || '';
+        if (!password && formEl && typeof formEl.querySelector === 'function') {
+          var passwordInput = formEl.querySelector('input[name=\"password\"]');
+          if (passwordInput && passwordInput.value) {
+            password = passwordInput.value;
+            updateAuthState({ password: password });
+          }
+        }
+        if (step === 'login') {
+          console.log('[SBN PWA][auth] login attempt', {
+            email: email,
+            matchesDemoEmail: email === DEMO_ACCOUNT.email,
+            passwordMatch: password === DEMO_ACCOUNT.password,
+            hasPassword: Boolean(password)
+          });
+          if (email === DEMO_ACCOUNT.email && password === DEMO_ACCOUNT.password) {
+            ctx.setState(function(prev) {
+              var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '' });
+              return {
+                env: prev.env,
+                meta: prev.meta,
+                state: Object.assign({}, prev.state, { activeUserId: DEMO_ACCOUNT.userId, auth: nextAuth }),
+                data: prev.data
+              };
+            });
+            persistSession({ userId: DEMO_ACCOUNT.userId, email: email });
+            showNotice(ctx, t('auth.success.login', 'تم تسجيل الدخول بنجاح'));
+          } else {
+            updateAuthState({ error: t('auth.error.credentials', 'بيانات الدخول غير صحيحة') });
+          }
+          return;
+        }
+        if (step === 'register') {
+          if (!auth.fullName || !auth.fullName.trim() || !email || !auth.password) {
+            updateAuthState({ error: t('auth.error.fields', 'يرجى تعبئة جميع الحقول') });
+            return;
+          }
+          var pendingUser = {
+            user_id: generateId('usr'),
+            full_name: auth.fullName.trim(),
+            username: auth.fullName.trim().split(/\s+/).join('_'),
+            email: email,
+            avatar_url: 'https://i.pravatar.cc/120?img=28'
+          };
+          updateAuthState({ pendingUser: pendingUser, step: 'otp', error: null, otp: '' });
+          showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
+          return;
+        }
+        if (step === 'forgot') {
+          if (!email) {
+            updateAuthState({ error: t('auth.error.email', 'أدخل بريدك الإلكتروني') });
+            return;
+          }
+          updateAuthState({ pendingUser: { user_id: DEMO_ACCOUNT.userId }, step: 'otp', error: null, otp: '' });
+          showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
+          return;
+        }
+        if (step === 'otp') {
+          if ((auth.otp || '').trim() !== DEMO_ACCOUNT.otp) {
+            updateAuthState({ error: t('auth.error.otp', 'رمز التحقق غير صحيح') });
+            return;
+          }
+          var pendingUser = auth.pendingUser || { user_id: DEMO_ACCOUNT.userId, email: auth.email || DEMO_ACCOUNT.email };
+          var resolvedUserId = pendingUser.user_id || DEMO_ACCOUNT.userId;
+          ctx.setState(function(prev) {
+            var pending = (prev.state.auth && prev.state.auth.pendingUser) || pendingUser;
+            var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, otp: '', password: '', pendingUser: null });
+            var nextData = prev.data;
+            var newUserId = pending && pending.user_id ? pending.user_id : DEMO_ACCOUNT.userId;
+            if (pending) {
+              var users = Array.isArray(prev.data.users) ? prev.data.users.slice() : [];
+              if (!users.some(function(user) { return user && user.user_id === pending.user_id; })) {
+                var newUser = {
+                  user_id: pending.user_id,
+                  username: pending.username || pending.full_name.replace(/\s+/g, '_').toLowerCase(),
+                  full_name: pending.full_name,
+                  email: pending.email,
+                  avatar_url: pending.avatar_url || 'https://i.pravatar.cc/120?img=11',
+                  followers_count: 0,
+                  following_count: 0,
+                  posts_count: 0,
+                  status: 'active'
+                };
+                users.push(newUser);
+                nextData = Object.assign({}, prev.data, { users: users });
+              }
+            }
+            return {
+              env: prev.env,
+              meta: prev.meta,
+              state: Object.assign({}, prev.state, { activeUserId: newUserId, auth: nextAuth }),
+              data: nextData
+            };
+          });
+          persistSession({ userId: resolvedUserId, email: pendingUser.email || auth.email || DEMO_ACCOUNT.email });
+          showNotice(ctx, t('auth.success.register', 'تم التفعيل بنجاح'));
+          return;
+        }
+      }
+    },
+
+    'auth.logout': {
+      on: ['click'],
+      gkeys: ['auth-logout'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { activeUserId: null, composer: createComposerState({ open: false }) }),
+            data: db.data
+          };
+        });
+        clearPersistedSession();
+        showNotice(ctx, t('auth.logout.success', 'تم تسجيل الخروج'));
+      }
+    },
+
+    'pwa-dismiss': {
+      on: ['click'],
+      gkeys: ['pwa-dismiss'],
+      handler: function(event) {
+        event.preventDefault();
+        suppressPwaPromptForSession();
+        setPwaPromptState(false);
       }
     },
 
@@ -1818,6 +3719,12 @@
       on: ['click'],
       gkeys: ['composer-open'],
       handler: function(event, ctx) {
+        var db = app ? app.database : null;
+        var user = db ? getActiveUser(db) : null;
+        if (!user) {
+          openAuthModal('login');
+          return;
+        }
         applyComposerState(ctx, function(current) {
           return Object.assign({}, current, { open: true, error: null });
         });
@@ -1827,7 +3734,9 @@
       on: ['click'],
       gkeys: ['composer-close'],
       handler: function(event, ctx) {
-        applyComposerState(ctx, { open: false, posting: false });
+        applyComposerState(ctx, function() {
+          return createComposerState({ open: false });
+        });
       }
     },
     'composer.text': {
@@ -1838,12 +3747,51 @@
         applyComposerState(ctx, { text: value });
       }
     },
-    'composer.type': {
+    'composer.mediaMode': {
       on: ['change'],
-      gkeys: ['composer-type'],
+      gkeys: ['composer-media-mode'],
       handler: function(event, ctx) {
         var value = event.target.value || 'plain';
-        applyComposerState(ctx, { type: value, targetId: '' });
+        applyComposerState(ctx, function(current) {
+          var next = Object.assign({}, current, { mediaMode: value });
+          if (value === 'reel') {
+            next.mediaList = [];
+            next.media = '';
+            next.reelDuration = null;
+          } else if (current.mediaMode === 'reel' && value !== 'reel') {
+            next.mediaList = [];
+            next.media = '';
+            next.reelDuration = null;
+          }
+          return next;
+        });
+      }
+    },
+    'composer.attachment': {
+      on: ['change'],
+      gkeys: ['composer-attachment'],
+      handler: function(event, ctx) {
+        var value = event.target.value || 'none';
+        applyComposerState(ctx, function(current) {
+          var next = Object.assign({}, current, { attachmentKind: value, targetId: '' });
+          if (value !== 'classified') {
+            next.categoryId = '';
+            next.subcategoryId = '';
+            next.classifiedTitle = '';
+            next.classifiedPrice = '';
+            next.contactPhone = '';
+          } else {
+            next.mediaMode = 'plain';
+            next.reelDuration = null;
+          }
+          if (value === 'none' || value === 'ad') {
+            next.targetId = '';
+          }
+          if (value !== 'ad') {
+            next.linkUrl = '';
+          }
+          return next;
+        });
       }
     },
     'composer.target': {
@@ -1854,11 +3802,142 @@
         applyComposerState(ctx, { targetId: value });
       }
     },
-    'composer.media': {
+    'composer.classified.title': {
       on: ['input'],
-      gkeys: ['composer-media'],
+      gkeys: ['composer-classified-title'],
       handler: function(event, ctx) {
-        applyComposerState(ctx, { media: event.target.value });
+        applyComposerState(ctx, { classifiedTitle: event.target.value });
+      }
+    },
+    'composer.classified.price': {
+      on: ['input'],
+      gkeys: ['composer-classified-price'],
+      handler: function(event, ctx) {
+        applyComposerState(ctx, { classifiedPrice: event.target.value });
+      }
+    },
+    'composer.classified.phone': {
+      on: ['input'],
+      gkeys: ['composer-classified-phone'],
+      handler: function(event, ctx) {
+        applyComposerState(ctx, { contactPhone: event.target.value });
+      }
+    },
+    'composer.category': {
+      on: ['change'],
+      gkeys: ['composer-category'],
+      handler: function(event, ctx) {
+        var value = event.target.value || '';
+        applyComposerState(ctx, { categoryId: value, subcategoryId: '' });
+      }
+    },
+    'composer.subcategory': {
+      on: ['change'],
+      gkeys: ['composer-subcategory'],
+      handler: function(event, ctx) {
+        var value = event.target.value || '';
+        applyComposerState(ctx, { subcategoryId: value });
+      }
+    },
+    'composer.link': {
+      on: ['input'],
+      gkeys: ['composer-link-url'],
+      handler: function(event, ctx) {
+        var value = event.target.value || '';
+        applyComposerState(ctx, { linkUrl: value });
+      }
+    },
+    'composer.media.pick': {
+      on: ['click'],
+      gkeys: ['composer-media-pick'],
+      handler: function(event) {
+        event.preventDefault();
+        if (!global.document) return;
+        var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
+        if (input) input.click();
+      }
+    },
+    'composer.media.file': {
+      on: ['change'],
+      gkeys: ['composer-media-file'],
+      handler: function(event, ctx) {
+        var files = event.target && event.target.files ? event.target.files : null;
+        if (!files || !files.length) return;
+        handleComposerMediaFiles(ctx, files);
+      }
+    },
+    'composer.media.remove': {
+      on: ['click'],
+      gkeys: ['composer-media-remove'],
+      handler: function(event, ctx) {
+        var url = event.currentTarget && event.currentTarget.getAttribute('data-url');
+        removeComposerMedia(ctx, url);
+      }
+    },
+    'composer.add.product': {
+      on: ['click'],
+      gkeys: ['composer-add-product'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('composer.add.product.notice', 'انتقل إلى المتجر لإضافة منتج جديد ثم شاركه هنا'));
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'composer.add.service': {
+      on: ['click'],
+      gkeys: ['composer-add-service'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('composer.add.service.notice', 'انتقل إلى قسم الخدمات لإضافة عرض جديد ثم شاركه'));
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'composer.add.article': {
+      on: ['click'],
+      gkeys: ['composer-add-article'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('composer.add.article.notice', 'يمكنك إضافة مقالة جديدة من قسم المعرفة'));
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'knowledge' }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'pwa.install': {
+      on: ['click'],
+      gkeys: ['pwa-install'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        if (deferredInstallPrompt && typeof deferredInstallPrompt.prompt === 'function') {
+          deferredInstallPrompt.prompt().catch(function(error) {
+            console.warn('[SBN PWA] install prompt failed', error);
+          }).finally(function() {
+            deferredInstallPrompt = null;
+            suppressPwaPromptForSession();
+            setPwaPromptState(false);
+          });
+        } else {
+          showNotice(ctx, t('pwa.install.instructions', 'من فضلك استخدم خيار \"تثبيت التطبيق\" من متصفحك.'));
+        }
       }
     },
     'composer.submit': {
@@ -1866,6 +3945,67 @@
       gkeys: ['composer-submit'],
       handler: function(event, ctx) {
         handleComposerSubmit(ctx);
+      }
+    },
+    'comment.text': {
+      on: ['input'],
+      gkeys: ['comment-input'],
+      handler: function(event, ctx) {
+        var value = event.target.value || '';
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { commentDraft: value }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'comment.submit': {
+      on: ['click'],
+      gkeys: ['comment-submit'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        if (!postId) return;
+        var db = app ? app.database : null;
+        var draft = (db && db.state && db.state.commentDraft) || '';
+        var trimmed = draft.trim();
+        if (!trimmed) {
+          showNotice(ctx, t('comment.error.empty', 'اكتب تعليقاً أولاً'));
+          return;
+        }
+        var now = new Date().toISOString();
+        var commentId = generateId('cmt');
+        var activeUserId = (db && db.state && db.state.activeUserId) || null;
+        if (!activeUserId) {
+          openAuthModal('login');
+          return;
+        }
+        var newComment = {
+          comment_id: commentId,
+          post_id: postId,
+          user_id: activeUserId,
+          content: trimmed,
+          created_at: now
+        };
+        if (realtime && realtime.store && typeof realtime.store.insert === 'function') {
+          realtime.store.insert('sbn_comments', Object.assign({}, newComment), { source: 'pwa-comment' }).catch(function(error) {
+            console.warn('[SBN PWA] comment insert failed', error);
+          });
+        }
+        ctx.setState(function(prev) {
+          var comments = Array.isArray(prev.data.comments) ? prev.data.comments.slice() : [];
+          comments.push(Object.assign({}, newComment));
+          return {
+            env: prev.env,
+            meta: prev.meta,
+            state: Object.assign({}, prev.state, { commentDraft: '' }),
+            data: Object.assign({}, prev.data, { comments: comments })
+          };
+        });
+        bumpPostStat(postId, 'comments_count');
       }
     },
     'profile.select': {
@@ -1881,6 +4021,14 @@
             data: db.data
           };
         });
+      }
+    },
+    'profile.message': {
+      on: ['click'],
+      gkeys: ['profile-message'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('profile.message.unavailable', 'قريباً سيتم دعم المراسلة داخل التطبيق'));
       }
     },
     'profile.message': {
@@ -1939,6 +4087,8 @@
       gkeys: ['post-like'],
       handler: function(event, ctx) {
         event.stopPropagation();
+        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        bumpPostStat(postId, 'likes_count');
         showNotice(ctx, t('post.action.like') + ' ✓');
       }
     },
@@ -1948,6 +4098,8 @@
       gkeys: ['post-share'],
       handler: function(event, ctx) {
         event.stopPropagation();
+        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        bumpPostStat(postId, 'shares_count');
         showNotice(ctx, t('post.action.share') + ' ✓');
       }
     },
@@ -1957,6 +4109,8 @@
       gkeys: ['post-subscribe'],
       handler: function(event, ctx) {
         event.stopPropagation();
+        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        bumpPostStat(postId, 'saves_count');
         showNotice(ctx, t('post.action.subscribe') + ' ✓');
       }
     }
@@ -1974,6 +4128,7 @@
         console.warn('[SBN PWA] Failed to dispose realtime store', err);
       }
     }
+    clearNotificationWatch();
     realtime = null;
   }
 
@@ -2049,6 +4204,7 @@
             });
           });
           debugLog('[SBN PWA][rt] watchers registered');
+          setupNotificationWatch();
 
           // Watch connection status
           realtime.status(function(status) {
@@ -2126,6 +4282,10 @@
       })
       .catch(function(error) {
         debugLog('[SBN PWA][rest] snapshot fetch failed', error);
+      })
+      .finally(function() {
+        refreshLocalizedCategories(lang || getCurrentLang());
+        refreshClassifiedsSnapshot(lang || getCurrentLang());
       });
   }
 
@@ -2165,6 +4325,7 @@
 
       // Mount to DOM
       app.mount('#app');
+      setupPwaInstallPrompt();
 
       console.log('[SBN PWA] App mounted successfully');
 

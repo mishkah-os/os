@@ -1,10 +1,13 @@
 import { createServer } from 'http';
 import { readFile, writeFile, access, mkdir, readdir, rename, rm, stat } from 'fs/promises';
+import { pipeline } from 'stream/promises';
+import { createWriteStream, readFileSync } from 'fs';
 import { constants as FS_CONSTANTS } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
 import { Pool } from 'pg';
+import Busboy from 'busboy';
 
 import logger from './logger.js';
 import {
@@ -31,6 +34,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const STATIC_DIR = path.join(ROOT_DIR, 'static');
+const UPLOADS_DIR = path.join(STATIC_DIR, 'uploads');
+const UPLOADS_URL_PREFIX = '/uploads';
+const MAX_UPLOAD_FILES = Number(process.env.UPLOAD_MAX_FILES || 5);
+const MAX_UPLOAD_FILE_SIZE = Number(process.env.UPLOAD_MAX_FILE_SIZE || 10 * 1024 * 1024); // 10MB default
 
 const DEV_MODE = String(process.env.WS2_DEV_MODE || process.env.NODE_ENV || '').toLowerCase() === 'development';
 
@@ -64,6 +71,33 @@ const PROM_EXPORTER_PREFERRED = METRICS_ENABLED && !['0', 'false', 'no', 'off'].
   String(process.env.WS2_PROMETHEUS_DISABLED || process.env.WS2_DISABLE_PROMETHEUS || '').toLowerCase()
 );
 const HYBRID_CACHE_TTL_MS = Math.max(250, Number(process.env.HYBRID_CACHE_TTL_MS) || 1500);
+const DEFAULT_BRANCH_ID = process.env.DEFAULT_BRANCH_ID || 'sbn';
+const DEFAULT_MODULE_ID = process.env.DEFAULT_MODULE_ID || 'mostamal';
+const SECRET_FIELDS_PATH = path.join(ROOT_DIR, 'data', 'security', 'secret_fields.json');
+
+function loadSecurityPolicy() {
+  try {
+    const payload = readFileSync(SECRET_FIELDS_PATH, 'utf8');
+    const parsed = JSON.parse(payload);
+    return {
+      secretFields: parsed && typeof parsed === 'object' ? parsed.secretFields || {} : {},
+      lockedTables: Array.isArray(parsed?.lockedTables) ? parsed.lockedTables : []
+    };
+  } catch (_err) {
+    return { secretFields: {}, lockedTables: [] };
+  }
+}
+
+const SECURITY_POLICY = loadSecurityPolicy();
+const SECRET_FIELD_MAP = new Map();
+Object.entries(SECURITY_POLICY.secretFields || {}).forEach(([table, fields]) => {
+  if (!table) return;
+  if (!Array.isArray(fields) || !fields.length) return;
+  SECRET_FIELD_MAP.set(String(table).toLowerCase(), new Set(fields.map((field) => String(field))));
+});
+const LOCKED_TABLE_SET = new Set(
+  Array.isArray(SECURITY_POLICY.lockedTables) ? SECURITY_POLICY.lockedTables.map((name) => String(name).toLowerCase()) : []
+);
 
 const metricsState = {
   enabled: METRICS_ENABLED,
@@ -72,6 +106,64 @@ const metricsState = {
   ajax: { requests: 0, totalDurationMs: 0 },
   http: { requests: 0 }
 };
+
+function normalizeTableName(tableName) {
+  if (typeof tableName !== 'string') return '';
+  return tableName.trim().toLowerCase();
+}
+
+function isTableLocked(tableName) {
+  return LOCKED_TABLE_SET.has(normalizeTableName(tableName));
+}
+
+function getSecretFieldSet(tableName) {
+  return SECRET_FIELD_MAP.get(normalizeTableName(tableName)) || null;
+}
+
+function sanitizeRecordForClient(tableName, record) {
+  if (!record || typeof record !== 'object') return record;
+  if (isTableLocked(tableName)) {
+    return null;
+  }
+  const secretSet = getSecretFieldSet(tableName);
+  if (!secretSet || secretSet.size === 0) {
+    return { ...record };
+  }
+  const sanitized = {};
+  for (const key of Object.keys(record)) {
+    if (secretSet.has(String(key))) continue;
+    sanitized[key] = record[key];
+  }
+  return sanitized;
+}
+
+function sanitizeTableRows(tableName, rows) {
+  if (isTableLocked(tableName)) {
+    return [];
+  }
+  if (!Array.isArray(rows)) return rows;
+  return rows
+    .map((row) => sanitizeRecordForClient(tableName, row))
+    .filter((row) => row && typeof row === 'object');
+}
+
+function sanitizeTablesPayload(tables) {
+  if (!tables || typeof tables !== 'object') return tables;
+  const filtered = {};
+  for (const [tableName, rows] of Object.entries(tables)) {
+    filtered[tableName] = sanitizeTableRows(tableName, rows);
+  }
+  return filtered;
+}
+
+function sanitizeModuleSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return snapshot;
+  const tables = sanitizeTablesPayload(snapshot.tables || {});
+  return {
+    ...snapshot,
+    tables
+  };
+}
 
 if (PROM_EXPORTER_PREFERRED) {
   (async () => {
@@ -221,6 +313,302 @@ function normalizeIdentifier(value) {
     .replace(/[^a-z0-9_-]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '');
+}
+
+function sanitizeUploadExtension(filename) {
+  if (!filename || typeof filename !== 'string') return '';
+  const ext = path.extname(filename).toLowerCase();
+  if (!ext) return '';
+  return ext.replace(/[^a-z0-9.]/g, '');
+}
+
+function getUploadPublicUrl(filename) {
+  return `${UPLOADS_URL_PREFIX}/${filename}`;
+}
+
+async function handleMultipartUpload(req) {
+  return new Promise((resolve, reject) => {
+    const files = [];
+    const fields = {};
+    const pendingWrites = [];
+    try {
+      const busboy = Busboy({
+        headers: req.headers,
+        limits: {
+          files: MAX_UPLOAD_FILES,
+          fileSize: MAX_UPLOAD_FILE_SIZE
+        }
+      });
+
+      busboy.on('field', (name, value) => {
+        if (!name) return;
+        fields[name] = value;
+      });
+
+      busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+        if (!filename) {
+          file.resume();
+          return;
+        }
+        const safeExt = sanitizeUploadExtension(filename);
+        const uniqueName = `${createId('upload')}${safeExt || ''}`;
+        const destination = path.join(UPLOADS_DIR, uniqueName);
+        let bytesWritten = 0;
+        const writeStream = createWriteStream(destination);
+
+        file.on('data', (chunk) => {
+          bytesWritten += chunk.length;
+        });
+
+        const writePromise = pipeline(file, writeStream)
+          .then(() => {
+            files.push({
+              id: uniqueName,
+              field: fieldname,
+              originalName: filename,
+              mimeType: mimetype,
+              encoding,
+              size: bytesWritten,
+              url: getUploadPublicUrl(uniqueName),
+              _localPath: destination
+            });
+          })
+          .catch((error) => {
+            reject(error);
+          });
+
+        pendingWrites.push(writePromise);
+      });
+
+      busboy.on('filesLimit', () => {
+        reject(new Error('files-limit-exceeded'));
+      });
+
+      busboy.on('error', (error) => {
+        reject(error);
+      });
+
+      busboy.on('finish', () => {
+        Promise.all(pendingWrites)
+          .then(() => resolve({ files, fields }))
+          .catch(reject);
+      });
+
+      req.pipe(busboy);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+function resolveBranchId(url) {
+  return url.searchParams.get('branch') || DEFAULT_BRANCH_ID;
+}
+
+function resolveLangParam(url) {
+  return (url.searchParams.get('lang') || 'ar').toLowerCase();
+}
+
+function normalizeImageList(value) {
+  if (!value) return '[]';
+  let arr = [];
+  if (Array.isArray(value)) {
+    arr = value;
+  } else if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      arr = Array.isArray(parsed) ? parsed : value.split(',').map((part) => part.trim());
+    } catch (_err) {
+      arr = value.split(',').map((part) => part.trim());
+    }
+  }
+  const sanitized = arr
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter(Boolean)
+    .slice(0, 12);
+  return JSON.stringify(sanitized);
+}
+
+function parseImageList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const arr = JSON.parse(value);
+      return Array.isArray(arr) ? arr : [];
+    } catch (_err) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function buildClassifiedLangIndex(entries) {
+  const index = {};
+  (entries || []).forEach((entry) => {
+    if (!entry || !entry.classified_id || !entry.lang) return;
+    if (!index[entry.classified_id]) {
+      index[entry.classified_id] = {};
+    }
+    index[entry.classified_id][entry.lang.toLowerCase()] = entry;
+  });
+  return index;
+}
+
+function selectClassifiedTranslation(record, langIndex, lang) {
+  const bucket = langIndex[record.classified_id] || {};
+  return bucket[lang] || bucket['ar'] || bucket['en'] || null;
+}
+
+function mapClassifiedRecord(record, langIndex, lang) {
+  const translation = selectClassifiedTranslation(record, langIndex, lang);
+  const images = parseImageList(record.images);
+  return {
+    id: record.classified_id,
+    seller_id: record.seller_id,
+    category_id: record.category_id,
+    title: translation?.title || record.title,
+    description: translation?.description || record.description || '',
+    price: record.price != null ? Number(record.price) : null,
+    currency: record.currency || 'EGP',
+    images,
+    contact_phone: record.contact_phone || '',
+    contact_whatsapp: record.contact_whatsapp || '',
+    location_city: record.location_city || '',
+    location_district: record.location_district || '',
+    status: record.status || 'active',
+    expires_at: record.expires_at || null,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    published_at: record.published_at,
+    views_count: record.views_count || 0,
+    leads_count: record.leads_count || 0
+  };
+}
+
+function normalizeFilterClauses(filterInput) {
+  if (!filterInput) return [];
+  if (Array.isArray(filterInput)) {
+    return filterInput.filter((entry) => entry && typeof entry === 'object');
+  }
+  if (typeof filterInput === 'object') {
+    return [filterInput];
+  }
+  return [];
+}
+
+function normalizeOperator(value) {
+  if (!value || typeof value !== 'string') return '=';
+  return value.trim().toLowerCase();
+}
+
+function evaluateFilterCondition(fieldValue, clause) {
+  if (clause && typeof clause === 'object' && clause.operator !== undefined) {
+    const operator = normalizeOperator(clause.operator);
+    const expected = clause.value;
+    switch (operator) {
+      case '=':
+      case 'eq':
+        return fieldValue === expected;
+      case '!=':
+      case '<>':
+      case 'ne':
+        return fieldValue !== expected;
+      case '>':
+      case 'gt':
+        return Number(fieldValue) > Number(expected);
+      case '>=':
+      case 'gte':
+        return Number(fieldValue) >= Number(expected);
+      case '<':
+      case 'lt':
+        return Number(fieldValue) < Number(expected);
+      case '<=':
+      case 'lte':
+        return Number(fieldValue) <= Number(expected);
+      case 'in': {
+        const list = Array.isArray(expected) ? expected : [expected];
+        return list.some((entry) => entry === fieldValue);
+      }
+      case 'not in':
+      case 'nin': {
+        const list = Array.isArray(expected) ? expected : [expected];
+        return !list.some((entry) => entry === fieldValue);
+      }
+      case 'like': {
+        if (typeof fieldValue !== 'string' || typeof expected !== 'string') return false;
+        const regex = new RegExp(expected.replace(/[%_]/g, '.*'), 'i');
+        return regex.test(fieldValue);
+      }
+      default:
+        return false;
+    }
+  }
+  return fieldValue === clause;
+}
+
+function applyModuleFilters(rows, filterInput) {
+  const clauses = normalizeFilterClauses(filterInput);
+  if (!clauses.length) return rows;
+  return rows.filter((row) =>
+    clauses.every((clause) =>
+      Object.entries(clause).every(([field, condition]) => evaluateFilterCondition(row?.[field], condition))
+    )
+  );
+}
+
+function applyModuleOrdering(rows, orderInput) {
+  if (!orderInput) return rows;
+  const descriptors = Array.isArray(orderInput) ? orderInput : [orderInput];
+  const normalized = descriptors
+    .map((entry) => {
+      if (typeof entry === 'string') {
+        return { field: entry, direction: 'asc' };
+      }
+      if (Array.isArray(entry) && entry.length) {
+        return { field: entry[0], direction: entry[1] || 'asc' };
+      }
+      if (entry && typeof entry === 'object' && entry.field) {
+        return { field: entry.field, direction: entry.direction || entry.dir || 'asc' };
+      }
+      return null;
+    })
+    .filter((item) => item && item.field);
+  if (!normalized.length) return rows;
+  const copy = rows.slice();
+  copy.sort((a, b) => {
+    for (const descriptor of normalized) {
+      const direction = String(descriptor.direction || 'asc').toLowerCase() === 'desc' ? -1 : 1;
+      const av = a?.[descriptor.field];
+      const bv = b?.[descriptor.field];
+      if (av == null && bv == null) continue;
+      if (av == null) return 1 * direction;
+      if (bv == null) return -1 * direction;
+      if (av === bv) continue;
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return av > bv ? direction : -direction;
+      }
+      const aStr = String(av).toLowerCase();
+      const bStr = String(bv).toLowerCase();
+      if (aStr === bStr) continue;
+      return aStr > bStr ? direction : -direction;
+    }
+    return 0;
+  });
+  return copy;
+}
+
+function resolveExpiryDate(input) {
+  if (input && typeof input === 'string' && input.trim()) return input;
+  const days = Number(process.env.CLASSIFIEDS_DEFAULT_EXPIRY_DAYS || 30);
+  const future = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  return future.toISOString();
+}
+
+function ensureArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null) return [];
+  return [value];
 }
 
 function parseModuleList(input) {
@@ -1915,10 +2303,6 @@ async function applyModuleMutation(branchId, moduleId, table, action, record, op
   );
 }
 
-function ensureArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
 function normalizePaymentRecord(orderId, shiftId, payment, fallbackTimestamp) {
   if (!payment) return null;
   const id = payment.id || createId(`pay-${orderId}`);
@@ -3577,6 +3961,7 @@ for (const schemaPath of schemaPaths) {
     throw error;
   }
 }
+await mkdir(UPLOADS_DIR, { recursive: true }).catch(() => {});
 const modulesConfig = (await readJsonSafe(MODULES_CONFIG_PATH, { modules: {} })) || { modules: {} };
 await hydrateModuleTablesFromSchema();
 const branchConfig = (await readJsonSafe(BRANCHES_CONFIG_PATH, { branches: {}, patterns: [], defaults: [] })) || { branches: {}, patterns: [], defaults: [] };
@@ -3933,7 +4318,8 @@ async function buildBranchSnapshot(branchId) {
   for (const moduleId of modules) {
     const key = moduleKey(branchId, moduleId);
     if (moduleStores.has(key)) {
-      snapshot[moduleId] = moduleStores.get(key).getSnapshot();
+      const moduleSnapshot = moduleStores.get(key).getSnapshot();
+      snapshot[moduleId] = sanitizeModuleSnapshot(moduleSnapshot);
     }
   }
   return {
@@ -4917,7 +5303,7 @@ async function handleBranchesApi(req, res, url) {
 
   // Read lang from query string (e.g., ?lang=en)
   const lang = url.searchParams.get('lang') || null;
-  const snapshot = store.getSnapshot({ lang });
+  const snapshot = sanitizeModuleSnapshot(store.getSnapshot({ lang }));
 
   if (segments.length === 5) {
     if (req.method === 'GET') {
@@ -5737,13 +6123,14 @@ async function handleBranchesApi(req, res, url) {
         lang: effectiveLang,
         fallbackLang
       });
+      const sanitizedRows = sanitizeTableRows(tableName, localizedRows);
       jsonResponse(res, 200, {
         branchId,
         moduleId,
         table: tableName,
-        count: limited.length,
+        count: sanitizedRows.length,
         cursor,
-        rows: localizedRows,
+        rows: sanitizedRows,
         meta: {
           limit: limit || null,
           order,
@@ -6392,6 +6779,11 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
 
   const eventContext = getModuleEventStoreContext(branchId, moduleId);
   const recordForLog = effectiveAction === 'module:delete' ? removedRecord : recordResult;
+  const recordForClient =
+    effectiveAction === 'module:delete'
+      ? sanitizeRecordForClient(tableName, removedRecord)
+      : sanitizeRecordForClient(tableName, recordResult);
+  const removedRecordForClient = sanitizeRecordForClient(tableName, removedRecord);
   const logEntry = await appendModuleEvent(eventContext, {
     id: payload.eventId || payload.id || null,
     action: effectiveAction,
@@ -6414,8 +6806,8 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
     created: saveResult ? saveResult.created : effectiveAction === 'module:insert',
     deleted: effectiveAction === 'module:delete'
   };
-  if (options.includeRecord === true || payload.includeRecord === true) {
-    entry.record = deepClone(recordForLog);
+  if ((options.includeRecord === true || payload.includeRecord === true) && recordForClient) {
+    entry.record = recordForClient;
   }
 
   const notice = {
@@ -6464,7 +6856,7 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
   };
 
   if (options.includeSnapshot || payload.includeSnapshot) {
-    event.snapshot = store.getSnapshot();
+    event.snapshot = sanitizeModuleSnapshot(store.getSnapshot());
   }
 
   if (client) {
@@ -6476,7 +6868,15 @@ async function handleModuleEvent(branchId, moduleId, payload = {}, client = null
   }
   await broadcastTableNotice(branchId, moduleId, tableName, notice);
 
-  return { ack, event, logEntry, recordRef, notice, record: recordResult, removed: removedRecord };
+  return {
+    ack,
+    event,
+    logEntry,
+    recordRef,
+    notice,
+    record: recordForClient,
+    removed: removedRecordForClient
+  };
 }
 
 function registerClient(client) {
@@ -6558,7 +6958,7 @@ async function sendSnapshot(client, meta = {}) {
   const snapshot = {};
   const lang = client.lang || null;
   for (const store of modules) {
-    snapshot[store.moduleId] = store.getSnapshot({ lang });
+    snapshot[store.moduleId] = sanitizeModuleSnapshot(store.getSnapshot({ lang }));
   }
   const activeFlags = getActiveFullSyncFlags(client.branchId);
   const flagPayload = activeFlags.map((entry) => serializeFullSyncFlag(entry));
@@ -6807,6 +7207,57 @@ const httpServer = createServer(async (req, res) => {
     }
     return;
   }
+
+  if (url.pathname === '/api/uploads' && req.method === 'POST') {
+    const contentType = (req.headers['content-type'] || '').toLowerCase();
+    if (!contentType.includes('multipart/form-data')) {
+      jsonResponse(res, 415, { error: 'unsupported-media-type', message: 'multipart/form-data required' });
+      return;
+    }
+    try {
+      const { files, fields } = await handleMultipartUpload(req);
+      if (!files || !files.length) {
+        jsonResponse(res, 400, { error: 'no-files-uploaded' });
+        return;
+      }
+      const cleanupUploadedFiles = async () => {
+        await Promise.all(
+          files.map((file) =>
+            file && file._localPath ? rm(file._localPath).catch(() => {}) : Promise.resolve()
+          )
+        );
+      };
+      const metaMode = typeof fields?.media_mode === 'string' ? fields.media_mode.trim().toLowerCase() : '';
+      if (metaMode === 'reel') {
+        const duration = Number(fields?.reel_duration);
+        if (!Number.isFinite(duration) || duration > 30.5) {
+          await cleanupUploadedFiles();
+          jsonResponse(res, 400, { error: 'reel-too-long', maxSeconds: 30 });
+          return;
+        }
+      }
+      const publicFiles = files.map((file) => {
+        const clone = { ...file };
+        delete clone._localPath;
+        return clone;
+      });
+      jsonResponse(res, 201, {
+        files: publicFiles,
+        count: files.length,
+        maxFiles: MAX_UPLOAD_FILES
+      });
+    } catch (error) {
+      const status =
+        error && error.message === 'files-limit-exceeded'
+          ? 413
+          : error && error.message && error.message.includes('file-too-large')
+            ? 413
+            : 500;
+      logger.warn({ err: error }, 'Upload request failed');
+      jsonResponse(res, status, { error: 'upload-failed', message: error.message || 'upload failed' });
+    }
+    return;
+  }
   if (await serveStaticAsset(req, res, url)) return;
   if (req.method === 'GET' && url.pathname === '/healthz') {
     jsonResponse(res, 200, { status: 'ok', serverId: SERVER_ID, now: nowIso() });
@@ -6993,6 +7444,316 @@ const httpServer = createServer(async (req, res) => {
       await writeJson(resolvedFallbackPath, schemaPayload);
     }
     jsonResponse(res, 201, { moduleId, label, tables, schemaFallbackPath });
+    return;
+  }
+  if (url.pathname === '/api/classifieds' && req.method === 'GET') {
+    const branchId = resolveBranchId(url);
+    const lang = resolveLangParam(url);
+    const statusFilter = (url.searchParams.get('status') || '').toLowerCase();
+    const categoryFilter = url.searchParams.get('category') || '';
+    try {
+      const store = await ensureModuleStore(branchId, DEFAULT_MODULE_ID);
+      const records = store.listTable('sbn_classifieds') || [];
+      const translations = store.listTable('sbn_classifieds_lang') || [];
+      const langIndex = buildClassifiedLangIndex(translations);
+      const filtered = records
+        .filter((record) => {
+          if (!record) return false;
+          if (statusFilter && String(record.status || '').toLowerCase() !== statusFilter) return false;
+          if (categoryFilter && record.category_id !== categoryFilter) return false;
+          return true;
+        })
+        .sort((a, b) => {
+          const aTime = Date.parse(b.updated_at || b.created_at || 0);
+          const bTime = Date.parse(a.updated_at || a.created_at || 0);
+          return aTime - bTime;
+        })
+        .slice(0, 60)
+        .map((record) => mapClassifiedRecord(record, langIndex, lang));
+      jsonResponse(res, 200, { classifieds: filtered, count: filtered.length });
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to list classifieds');
+      jsonResponse(res, 500, { error: 'classifieds-unavailable', message: error.message });
+    }
+    return;
+  }
+  if (url.pathname === '/api/classifieds' && req.method === 'POST') {
+    let body = {};
+    try {
+      body = (await readBody(req)) || {};
+    } catch (error) {
+      jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+      return;
+    }
+    const branchId = resolveBranchId(url);
+    const sellerId = typeof body.seller_id === 'string' && body.seller_id.trim()
+      ? body.seller_id.trim()
+      : typeof body.user_id === 'string' && body.user_id.trim()
+        ? body.user_id.trim()
+        : '';
+    const categoryId = typeof body.category_id === 'string' && body.category_id.trim() ? body.category_id.trim() : '';
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    if (!sellerId) {
+      jsonResponse(res, 400, { error: 'missing-seller' });
+      return;
+    }
+    if (!categoryId) {
+      jsonResponse(res, 400, { error: 'missing-category' });
+      return;
+    }
+    if (!title) {
+      jsonResponse(res, 400, { error: 'missing-title' });
+      return;
+    }
+    const now = nowIso();
+    const currency = typeof body.currency === 'string' && body.currency.trim() ? body.currency.trim().toUpperCase() : 'EGP';
+    const priceValue = body.price !== undefined && body.price !== null ? Number(body.price) : null;
+    const record = {
+      classified_id: createId('cls'),
+      seller_id: sellerId,
+      category_id: categoryId,
+      title,
+      description: typeof body.description === 'string' ? body.description : '',
+      price: priceValue,
+      currency,
+      images: normalizeImageList(body.images),
+      contact_phone: typeof body.contact_phone === 'string' ? body.contact_phone : typeof body.phone === 'string' ? body.phone : '',
+      contact_whatsapp:
+        typeof body.contact_whatsapp === 'string'
+          ? body.contact_whatsapp
+          : typeof body.whatsapp === 'string'
+            ? body.whatsapp
+            : '',
+      location_city: typeof body.location_city === 'string' ? body.location_city : '',
+      location_district: typeof body.location_district === 'string' ? body.location_district : '',
+      status: typeof body.status === 'string' && body.status.trim() ? body.status.trim() : 'active',
+      expires_at: resolveExpiryDate(body.expires_at),
+      views_count: 0,
+      leads_count: 0,
+      created_at: now,
+      updated_at: now,
+      published_at: now
+    };
+    try {
+      const store = await ensureModuleStore(branchId, DEFAULT_MODULE_ID);
+      const created = store.insert('sbn_classifieds', record, { source: 'api:classifieds' });
+      const translations = [];
+      const providedTranslations =
+        body.translations && typeof body.translations === 'object' ? body.translations : { [resolveLangParam(url)]: { title, description: body.description } };
+      Object.entries(providedTranslations).forEach(([langKey, payload]) => {
+        const normalizedLang = String(langKey || '').trim().toLowerCase();
+        if (!normalizedLang) return;
+        translations.push({
+          id: createId('cls_lang'),
+          classified_id: created.classified_id,
+          lang: normalizedLang,
+          title: typeof payload?.title === 'string' && payload.title.trim() ? payload.title.trim() : created.title,
+          description:
+            typeof payload?.description === 'string' && payload.description.trim()
+              ? payload.description
+              : created.description || '',
+          created_at: now
+        });
+      });
+      if (!translations.length) {
+        translations.push({
+          id: createId('cls_lang'),
+          classified_id: created.classified_id,
+          lang: 'ar',
+          title: created.title,
+          description: created.description || '',
+          created_at: now
+        });
+      }
+      translations.forEach((entry) => {
+        store.insert('sbn_classifieds_lang', entry, { source: 'api:classifieds' });
+      });
+      const langIndex = buildClassifiedLangIndex(translations);
+      const response = mapClassifiedRecord(created, langIndex, resolveLangParam(url));
+      jsonResponse(res, 201, { classified: response });
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to create classified');
+      jsonResponse(res, 500, { error: 'classified-create-failed', message: error.message });
+    }
+    return;
+  }
+  const classifiedMatch = url.pathname.match(/^\/api\/classifieds\/([^/]+)$/);
+  if (classifiedMatch && req.method === 'GET') {
+    const branchId = resolveBranchId(url);
+    const lang = resolveLangParam(url);
+    const classifiedId = decodeURIComponent(classifiedMatch[1]);
+    try {
+      const store = await ensureModuleStore(branchId, DEFAULT_MODULE_ID);
+      const record = (store.listTable('sbn_classifieds') || []).find((entry) => entry.classified_id === classifiedId);
+      if (!record) {
+        jsonResponse(res, 404, { error: 'classified-not-found' });
+        return;
+      }
+      const langIndex = buildClassifiedLangIndex(
+        (store.listTable('sbn_classifieds_lang') || []).filter((entry) => entry.classified_id === classifiedId)
+      );
+      const response = mapClassifiedRecord(record, langIndex, lang);
+      jsonResponse(res, 200, { classified: response });
+    } catch (error) {
+      logger.warn({ err: error, classifiedId }, 'Failed to fetch classified');
+      jsonResponse(res, 500, { error: 'classified-fetch-failed', message: error.message });
+    }
+    return;
+  }
+  if (url.pathname === '/api/services' && req.method === 'GET') {
+    const branchId = resolveBranchId(url);
+    const lang = resolveLangParam(url);
+    const statusFilter = (url.searchParams.get('status') || '').toLowerCase();
+    const categoryFilter = url.searchParams.get('category') || '';
+    const typeFilter = (url.searchParams.get('type') || '').toLowerCase();
+    try {
+      const store = await ensureModuleStore(branchId, DEFAULT_MODULE_ID);
+      const records = store.listTable('sbn_services') || [];
+      const translations = store.listTable('sbn_services_lang') || [];
+      const langIndex = buildServiceLangIndex(translations);
+      const filtered = records
+        .filter((record) => {
+          if (!record) return false;
+          if (statusFilter && String(record.status || '').toLowerCase() !== statusFilter) return false;
+          if (categoryFilter && record.category_id !== categoryFilter) return false;
+          if (typeFilter && String(record.service_type || '').toLowerCase() !== typeFilter) return false;
+          return true;
+        })
+        .sort((a, b) => Date.parse(b.updated_at || b.created_at || 0) - Date.parse(a.updated_at || a.created_at || 0))
+        .slice(0, 50)
+        .map((record) => mapServiceRecord(record, langIndex, lang));
+      jsonResponse(res, 200, { services: filtered, count: filtered.length });
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to list services');
+      jsonResponse(res, 500, { error: 'services-unavailable', message: error.message });
+    }
+    return;
+  }
+  if (url.pathname === '/api/services' && req.method === 'POST') {
+    let body = {};
+    try {
+      body = (await readBody(req)) || {};
+    } catch (error) {
+      jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+      return;
+    }
+    const branchId = resolveBranchId(url);
+    const providerId = typeof body.provider_id === 'string' && body.provider_id.trim()
+      ? body.provider_id.trim()
+      : typeof body.user_id === 'string' && body.user_id.trim()
+        ? body.user_id.trim()
+        : '';
+    const categoryId = typeof body.category_id === 'string' && body.category_id.trim() ? body.category_id.trim() : '';
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    if (!providerId) {
+      jsonResponse(res, 400, { error: 'missing-provider' });
+      return;
+    }
+    if (!categoryId) {
+      jsonResponse(res, 400, { error: 'missing-category' });
+      return;
+    }
+    if (!title) {
+      jsonResponse(res, 400, { error: 'missing-title' });
+      return;
+    }
+    const now = nowIso();
+    const currency = typeof body.currency === 'string' && body.currency.trim() ? body.currency.trim().toUpperCase() : 'EGP';
+    const priceMin = body.price_min !== undefined && body.price_min !== null ? Number(body.price_min) : null;
+    const priceMax = body.price_max !== undefined && body.price_max !== null ? Number(body.price_max) : null;
+    const durationMin = body.duration_min !== undefined && body.duration_min !== null ? Number(body.duration_min) : null;
+    const durationMax = body.duration_max !== undefined && body.duration_max !== null ? Number(body.duration_max) : null;
+    const record = {
+      service_id: createId('srv'),
+      provider_id: providerId,
+      category_id: categoryId,
+      service_type: typeof body.service_type === 'string' && body.service_type.trim() ? body.service_type.trim() : 'project_based',
+      price_min: priceMin,
+      price_max: priceMax,
+      currency,
+      duration_min: durationMin,
+      duration_max: durationMax,
+      images: normalizeImageList(body.images),
+      video_url: typeof body.video_url === 'string' ? body.video_url : '',
+      portfolio_urls: normalizeJsonArray(body.portfolio_urls, 12),
+      location_city: typeof body.location_city === 'string' ? body.location_city : '',
+      is_remote: Boolean(body.is_remote),
+      is_onsite: body.is_onsite === undefined ? true : Boolean(body.is_onsite),
+      availability: typeof body.availability === 'string' ? body.availability : body.availability ? JSON.stringify(body.availability) : null,
+      rating_avg: 0,
+      rating_count: 0,
+      orders_completed: 0,
+      views_count: 0,
+      likes_count: 0,
+      saves_count: 0,
+      status: typeof body.status === 'string' && body.status.trim() ? body.status.trim() : 'active',
+      featured_until: body.featured_until || null,
+      created_at: now,
+      updated_at: now,
+      published_at: now
+    };
+    try {
+      const store = await ensureModuleStore(branchId, DEFAULT_MODULE_ID);
+      const created = store.insert('sbn_services', record, { source: 'api:services' });
+      const translations = [];
+      const providedTranslations =
+        body.translations && typeof body.translations === 'object' ? body.translations : { [resolveLangParam(url)]: { title, description: body.description } };
+      Object.entries(providedTranslations).forEach(([langKey, payload]) => {
+        const normalizedLang = String(langKey || '').trim().toLowerCase();
+        if (!normalizedLang) return;
+        translations.push({
+          id: createId('srv_lang'),
+          service_id: created.service_id,
+          lang: normalizedLang,
+          title: typeof payload?.title === 'string' && payload.title.trim() ? payload.title.trim() : created.title,
+          description:
+            typeof payload?.description === 'string' && payload.description.trim()
+              ? payload.description
+              : body.description || '',
+          created_at: now
+        });
+      });
+      if (!translations.length) {
+        translations.push({
+          id: createId('srv_lang'),
+          service_id: created.service_id,
+          lang: 'ar',
+          title: title,
+          description: typeof body.description === 'string' ? body.description : '',
+          created_at: now
+        });
+      }
+      translations.forEach((entry) => store.insert('sbn_services_lang', entry, { source: 'api:services' }));
+      const langIndex = buildServiceLangIndex(translations);
+      const response = mapServiceRecord(created, langIndex, resolveLangParam(url));
+      jsonResponse(res, 201, { service: response });
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to create service');
+      jsonResponse(res, 500, { error: 'service-create-failed', message: error.message });
+    }
+    return;
+  }
+  const serviceMatch = url.pathname.match(/^\/api\/services\/([^/]+)$/);
+  if (serviceMatch && req.method === 'GET') {
+    const branchId = resolveBranchId(url);
+    const lang = resolveLangParam(url);
+    const serviceId = decodeURIComponent(serviceMatch[1]);
+    try {
+      const store = await ensureModuleStore(branchId, DEFAULT_MODULE_ID);
+      const record = (store.listTable('sbn_services') || []).find((entry) => entry.service_id === serviceId);
+      if (!record) {
+        jsonResponse(res, 404, { error: 'service-not-found' });
+        return;
+      }
+      const langIndex = buildServiceLangIndex(
+        (store.listTable('sbn_services_lang') || []).filter((entry) => entry.service_id === serviceId)
+      );
+      const response = mapServiceRecord(record, langIndex, lang);
+      jsonResponse(res, 200, { service: response });
+    } catch (error) {
+      logger.warn({ err: error, serviceId }, 'Failed to fetch service');
+      jsonResponse(res, 500, { error: 'service-fetch-failed', message: error.message });
+    }
     return;
   }
   if (url.pathname.startsWith('/api/pos-sync') || url.pathname.startsWith('/api/sync')) {
@@ -7268,6 +8029,68 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/query/module' && req.method === 'POST') {
+    const startTime = Date.now();
+    let body = {};
+    try {
+      body = (await readBody(req)) || {};
+    } catch (error) {
+      jsonResponse(res, 400, { error: 'invalid-json', message: error.message });
+      return;
+    }
+    const branchId = body.branchId || body.branch_id || resolveBranchId(url);
+    const moduleId = body.moduleId || body.module_id || DEFAULT_MODULE_ID;
+    const tableName = body.table || body.tableName || body.targetTable || null;
+    if (!tableName) {
+      jsonResponse(res, 400, { error: 'missing-table' });
+      return;
+    }
+    try {
+      const store = await ensureModuleStore(branchId, moduleId);
+      if (!store.tables.includes(tableName)) {
+        jsonResponse(res, 404, { error: 'table-not-found', branchId, moduleId, table: tableName });
+        return;
+      }
+      let rows = store.listTable(tableName) || [];
+      rows = applyModuleFilters(rows, body.where || body.filter);
+      rows = applyModuleOrdering(rows, body.orderBy || body.sortBy);
+      const offset = Number(body.offset);
+      const limit = Number(body.limit);
+      if (Number.isFinite(offset) && offset > 0) {
+        rows = rows.slice(offset);
+      }
+      let limited = rows;
+      if (Number.isFinite(limit) && limit >= 0) {
+        limited = rows.slice(0, limit);
+      }
+      const lang = body.lang || body.locale || null;
+      const fallbackLang = body.fallbackLang || body.fallback || 'ar';
+      const localized = attachTranslationsToRows(store, tableName, limited, {
+        lang,
+        fallbackLang
+      });
+      const duration = Date.now() - startTime;
+      jsonResponse(res, 200, {
+        branchId,
+        moduleId,
+        table: tableName,
+        count: localized.length,
+        rows: localized,
+        meta: {
+          queryTime: duration,
+          limit: Number.isFinite(limit) ? limit : null,
+          offset: Number.isFinite(offset) ? offset : null,
+          lang: lang || null,
+          fallbackLang
+        }
+      });
+    } catch (error) {
+      logger.warn({ err: error, branchId, moduleId, table: tableName }, 'Module query failed');
+      jsonResponse(res, 500, { error: 'module-query-failed', message: error.message });
+    }
+    return;
+  }
+
   // Raw SQL Execute API (Admin only - for debugging)
   if (url.pathname === '/api/query/raw' && req.method === 'POST') {
     const startTime = Date.now();
@@ -7386,3 +8209,75 @@ wss.on('connection', (ws, req) => {
 httpServer.listen(PORT, HOST, () => {
   logger.info({ host: HOST, port: PORT, serverId: SERVER_ID }, 'Schema-driven WS server ready');
 });
+function normalizeJsonArray(value, limit) {
+  if (!value) return '[]';
+  var arr = [];
+  if (Array.isArray(value)) arr = value;
+  else if (typeof value === 'string') {
+    try {
+      var parsed = JSON.parse(value);
+      arr = Array.isArray(parsed) ? parsed : value.split(',').map((part) => part.trim());
+    } catch (_err) {
+      arr = value.split(',').map((part) => part.trim());
+    }
+  }
+  var sanitized = arr
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    .filter(Boolean);
+  if (typeof limit === 'number') {
+    sanitized = sanitized.slice(0, limit);
+  }
+  return JSON.stringify(sanitized);
+}
+
+function buildServiceLangIndex(entries) {
+  var index = {};
+  (entries || []).forEach((entry) => {
+    if (!entry || !entry.service_id || !entry.lang) return;
+    if (!index[entry.service_id]) index[entry.service_id] = {};
+    index[entry.service_id][entry.lang.toLowerCase()] = entry;
+  });
+  return index;
+}
+
+function selectServiceTranslation(record, langIndex, lang) {
+  var bucket = langIndex[record.service_id] || {};
+  return bucket[lang] || bucket['ar'] || bucket['en'] || null;
+}
+
+function mapServiceRecord(record, langIndex, lang) {
+  var translation = selectServiceTranslation(record, langIndex, lang);
+  var images = parseImageList(record.images);
+  var portfolio = parseImageList(record.portfolio_urls);
+  return {
+    id: record.service_id,
+    provider_id: record.provider_id,
+    category_id: record.category_id,
+    title: translation?.title || record.title || '',
+    description: translation?.description || record.description || '',
+    service_type: record.service_type || 'project_based',
+    price_min: record.price_min != null ? Number(record.price_min) : null,
+    price_max: record.price_max != null ? Number(record.price_max) : null,
+    currency: record.currency || 'EGP',
+    duration_min: record.duration_min != null ? Number(record.duration_min) : null,
+    duration_max: record.duration_max != null ? Number(record.duration_max) : null,
+    images,
+    portfolio_urls: portfolio,
+    video_url: record.video_url || '',
+    location_city: record.location_city || '',
+    is_remote: !!record.is_remote,
+    is_onsite: !!record.is_onsite,
+    availability: record.availability || null,
+    rating_avg: record.rating_avg != null ? Number(record.rating_avg) : 0,
+    rating_count: record.rating_count || 0,
+    orders_completed: record.orders_completed || 0,
+    views_count: record.views_count || 0,
+    likes_count: record.likes_count || 0,
+    saves_count: record.saves_count || 0,
+    status: record.status || 'active',
+    featured_until: record.featured_until || null,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    published_at: record.published_at
+  };
+}

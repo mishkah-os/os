@@ -7,7 +7,9 @@
       "seedPath": "seeds/initial.json",
       "livePath": "live/data.json",
       "historyPath": "history",
-      "tables": ["scratchpad_entry"],
+      "tables": [
+        "scratchpad_entry"
+      ],
       "description": "Lightweight scratchpad module powered by schema engine."
     },
     "pos": {
@@ -136,7 +138,6 @@
       "historyPath": "history",
       "tables": [
         "sbn_ui_labels",
-        "sbn_categories",
         "sbn_users",
         "sbn_products",
         "sbn_services",
@@ -144,7 +145,15 @@
         "sbn_transactions",
         "sbn_reviews",
         "sbn_messages",
-        "sbn_notifications"
+        "sbn_notifications",
+        "sbn_classified_categories",
+        "sbn_classified_categories_lang",
+        "sbn_marketplace_categories",
+        "sbn_marketplace_categories_lang",
+        "sbn_service_categories",
+        "sbn_service_categories_lang",
+        "sbn_knowledge_categories",
+        "sbn_knowledge_categories_lang"
       ],
       "description": "Social Business Network - Marketplace, Services, and Knowledge sharing platform."
     }
