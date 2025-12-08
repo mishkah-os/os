@@ -748,11 +748,13 @@
       filters: {
         search: '',
         category: '',
-        condition: ''
+        condition: '',
+        hashtag: ''
       },
       commentDraft: '',
       showPwaPrompt: false,
       notificationsOpen: false,
+      profileTab: 'posts',
       auth: {
         open: false,
         step: 'login',
@@ -869,9 +871,29 @@
     return ts;
   }
 
+  function matchesHashtag(entity, tag) {
+    if (!tag) return true;
+    var tags = [];
+    if (entity && entity.hashtags) tags = tags.concat(entity.hashtags);
+    if (entity && entity.tags) tags = tags.concat(entity.tags);
+    if (entity && entity.text) {
+      var extracted = entity.text
+        .split(/\s+/)
+        .filter(function (word) { return word.indexOf('#') === 0; })
+        .map(function (word) { return word.replace(/^#/, ''); });
+      tags = tags.concat(extracted);
+    }
+    return tags.some(function (t) { return (t || '').toLowerCase() === String(tag).toLowerCase(); });
+  }
+
   function getSortedPosts(db) {
     var posts = db.data.posts || [];
+    var filters = db.state.filters || {};
     return posts
+      .filter(function(post) {
+        if (filters.hashtag && !matchesHashtag(post, filters.hashtag)) return false;
+        return true;
+      })
       .slice()
       .sort(function (a, b) {
         return parseDateValue(b.created_at || b.createdAt) - parseDateValue(a.created_at || a.createdAt);
@@ -1385,6 +1407,36 @@
         if (!nameMatch && !descMatch) return false;
       }
       if (service.status !== 'active') return false;
+      return true;
+    });
+  }
+
+  function getFilteredClassifieds(db) {
+    var classifieds = db.data.classifieds || [];
+    var filters = db.state.filters || {};
+    return classifieds.filter(function(item) {
+      if (filters.category && item.category_id && item.category_id !== filters.category) return false;
+      if (filters.search) {
+        var searchLower = filters.search.toLowerCase();
+        var titleText = (item.title || '').toLowerCase();
+        var descText = (item.description || item.body || '').toLowerCase();
+        if (titleText.indexOf(searchLower) === -1 && descText.indexOf(searchLower) === -1) return false;
+      }
+      if (filters.hashtag && !matchesHashtag(item, filters.hashtag)) return false;
+      return true;
+    });
+  }
+
+  function getFilteredArticles(db) {
+    var filters = db.state.filters || {};
+    return getWikiArticles(db).filter(function(article) {
+      if (filters.search) {
+        var searchLower = filters.search.toLowerCase();
+        var titleMatch = getLocalizedField(article, 'title', '').toLowerCase().indexOf(searchLower) !== -1;
+        var bodyMatch = getLocalizedField(article, 'excerpt', (article.summary || '')).toLowerCase().indexOf(searchLower) !== -1;
+        if (!titleMatch && !bodyMatch) return false;
+      }
+      if (filters.hashtag && !matchesHashtag(article, filters.hashtag)) return false;
       return true;
     });
   }
@@ -2385,13 +2437,64 @@
       return (b.usage_count || 0) - (a.usage_count || 0);
     }).slice(0, 6);
     if (!tags.length) return null;
+    var selected = db.state.filters && db.state.filters.hashtag ? db.state.filters.hashtag : '';
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('home.hashtags', null, null, null),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
-        tags.map(function(tag) {
-          return D.Containers.Div({ attrs: { class: 'chip' } }, [resolveHashtagLabel(tag)]);
-        })
+        [
+          D.Forms.Button({
+            attrs: {
+              class: 'chip' + (selected === '' ? ' chip-active' : ''),
+              'data-m-gkey': 'hashtag-chip',
+              'data-tag': ''
+            }
+          }, [t('filter.all')])
+        ].concat(tags.map(function(tag) {
+          var label = resolveHashtagLabel(tag);
+          var normalized = (tag && (tag.slug || tag.tag || tag.name)) || label.replace('#', '');
+          var active = selected && normalized && normalized.toLowerCase() === selected.toLowerCase();
+          return D.Forms.Button({
+            attrs: {
+              class: 'chip' + (active ? ' chip-active' : ''),
+              'data-m-gkey': 'hashtag-chip',
+              'data-tag': normalized || ''
+            }
+          }, [label]);
+        }))
       )
+    ]);
+  }
+
+  function renderActiveFilters(db) {
+    var filters = db.state.filters || {};
+    var chips = [];
+    if (filters.search) {
+      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [t('filter.search', 'بحث: '), filters.search]));
+    }
+    if (filters.category) {
+      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [
+        t('filter.category', 'تصنيف: '),
+        findCategoryLabelById(db, filters.category) || filters.category
+      ]));
+    }
+    if (filters.condition) {
+      var conditionKey = filters.condition === 'new' ? 'product.condition.new' : 'product.condition.used';
+      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [t(conditionKey)]));
+    }
+    if (filters.hashtag) {
+      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, ['#' + filters.hashtag]));
+    }
+
+    if (!chips.length) return null;
+    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
+      D.Containers.Div({ attrs: { class: 'chips-row' } }, chips.concat([
+        D.Forms.Button({
+          attrs: {
+            class: 'chip ghost',
+            'data-m-gkey': 'reset-filters'
+          }
+        }, [t('filter.reset', 'مسح التصفية')])
+      ]))
     ]);
   }
 
@@ -2609,6 +2712,17 @@
     return chips;
   }
 
+  function findCategoryLabelById(db, categoryId) {
+    if (!categoryId) return '';
+    var allCategories = []
+      .concat(db.data.classifiedCategories || [])
+      .concat(db.data.marketplaceCategories || [])
+      .concat(db.data.serviceCategories || [])
+      .concat(db.data.knowledgeCategories || []);
+    var found = findById(allCategories, 'category_id', categoryId);
+    return found ? getCategoryDisplayName(found) : '';
+  }
+
   function formatCurrencyValue(amount, currency) {
     if (amount === undefined || amount === null || amount === '') return '';
     var cur = currency || t('currency.egp');
@@ -2679,15 +2793,30 @@
   }
 
   function renderClassifiedsSection(db) {
-    var classifieds = db.data.classifieds || [];
-    if (!classifieds.length) return null;
+    var classifieds = getFilteredClassifieds(db);
+    var categories = getLeafCategories(db.data.classifiedCategories || [], { onlyLeaves: true, limit: 10 });
+    var hasResults = classifieds.length > 0;
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('classifieds.section', 'مستعمل حواء', 'classifieds.section.meta', 'أحدث الإعلانات المبوبة'),
-      D.Containers.Div({ attrs: { class: 'classified-grid' } },
-        classifieds.slice(0, 6).map(function(item) {
-          return renderClassifiedCard(db, item);
-        })
-      )
+      D.Inputs.Input({
+        attrs: {
+          type: 'text',
+          placeholder: t('classifieds.search.placeholder', 'ابحث في الإعلانات'),
+          'data-m-gkey': 'search-input',
+          class: 'search-input',
+          value: db.state.filters.search || ''
+        }
+      }, []),
+      D.Containers.Div({ attrs: { class: 'chips-row' } },
+        renderCategoryChips(db, categories, 'category', 'category-chip')
+      ),
+      hasResults
+        ? D.Containers.Div({ attrs: { class: 'classified-grid' } },
+            classifieds.slice(0, 6).map(function(item) {
+              return renderClassifiedCard(db, item);
+            })
+          )
+        : D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات مستعملة حالياً')])
     ]);
   }
 
@@ -2847,7 +2976,7 @@
   function renderTimeline(db) {
     var products = db.data.products || [];
     var services = db.data.services || [];
-    var articles = getWikiArticles(db).slice(0, 3);
+    var articles = getFilteredArticles(db).slice(0, 3);
     var categoryShowcase = renderCategoryShowcase(db);
     var tab = db.state.homeTab || 'timeline';
 
@@ -2876,7 +3005,8 @@
       renderHero(db),
       renderQuickActions(),
       renderOnboardingCard(db),
-      renderHomeTabs()
+      renderHomeTabs(),
+      renderActiveFilters(db)
     ];
 
     if (tab === 'timeline') {
@@ -2931,6 +3061,15 @@
         renderComposer(db),
         D.Containers.Div({ attrs: { class: 'section-card' } }, [
           renderSectionHeader('knowledge.title', null, null, null),
+          D.Inputs.Input({
+            attrs: {
+              type: 'text',
+              placeholder: t('placeholder.search.articles', 'ابحث في المقالات'),
+              'data-m-gkey': 'search-input',
+              class: 'search-input',
+              value: db.state.filters.search || ''
+            }
+          }, []),
           articles.length
             ? articles.map(function(article) { return renderArticleItem(db, article); })
             : D.Text.P({}, [t('knowledge.empty')])
@@ -2942,7 +3081,7 @@
   }
 
   function renderClassifiedsPage(db) {
-    var classifieds = db.data.classifieds || [];
+    var classifieds = getFilteredClassifieds(db);
     var rows = classifieds.length
       ? classifieds.map(function(item) { return renderClassifiedCard(db, item); })
       : [D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات مستعملة حالياً')])];
@@ -3133,9 +3272,45 @@
       { label: t('profile.following'), value: String(user.following_count || 0) },
       { label: t('profile.posts'), value: String(user.posts_count || 0) }
     ];
-    var posts = (db.data.posts || []).filter(function(post) {
+    var profileTab = db.state.profileTab || 'posts';
+    var posts = getSortedPosts(db).filter(function(post) {
       return post && post.user_id === user.user_id;
     });
+    var classifieds = getFilteredClassifieds(db).filter(function(item) { return item.user_id === user.user_id; });
+    var products = getFilteredProducts(db).filter(function(item) { return item.user_id === user.user_id; });
+    var services = getFilteredServices(db).filter(function(item) { return item.user_id === user.user_id; });
+    var articles = getFilteredArticles(db).filter(function(item) { return item.author_id === user.user_id; });
+
+    var tabOptions = [
+      { key: 'posts', label: t('profile.timeline', 'بوستات') },
+      { key: 'classifieds', label: t('nav.classifieds', 'إعلانات') },
+      { key: 'commerce', label: t('nav.commerce', 'منتج/خدمة') },
+      { key: 'knowledge', label: t('nav.knowledge', 'معرفة') }
+    ];
+
+    function renderProfileTabContent() {
+      if (profileTab === 'classifieds') {
+        return classifieds.length
+          ? classifieds.map(function(item) { return renderClassifiedCard(db, item); })
+          : D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات حالياً')]);
+      }
+      if (profileTab === 'commerce') {
+        var commerceList = products.concat(services);
+        return commerceList.length
+          ? commerceList.map(function(entry) {
+              return entry.product_id ? renderProductCard(db, entry) : renderServiceCard(db, entry);
+            })
+          : D.Text.P({}, [t('marketplace.empty')]);
+      }
+      if (profileTab === 'knowledge') {
+        return articles.length
+          ? articles.map(function(article) { return renderArticleItem(db, article); })
+          : D.Text.P({}, [t('knowledge.empty')]);
+      }
+      return posts.length
+        ? posts.map(function(post) { return renderPostCard(db, post); })
+        : D.Text.P({}, [t('profile.timeline.empty')]);
+    }
 
     return D.Containers.Div({ attrs: { class: 'app-section' } }, [
       D.Containers.Div({ attrs: { class: 'section-card profile-card' } }, [
@@ -3164,10 +3339,19 @@
         renderProfileSwitcher(db)
       ]),
       D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('profile.timeline', null, null, null),
-        posts.length
-          ? posts.map(function(post) { return renderPostCard(db, post); })
-          : D.Text.P({}, [t('profile.timeline.empty')])
+        D.Containers.Div({ attrs: { class: 'tab-switcher' } }, [
+          D.Containers.Div({ attrs: { class: 'tab-row' } }, tabOptions.map(function(tab) {
+            var active = tab.key === profileTab;
+            return D.Forms.Button({
+              attrs: {
+                class: 'tab-btn' + (active ? ' active' : ''),
+                'data-m-gkey': 'profile-tab',
+                'data-value': tab.key
+              }
+            }, [tab.label]);
+          }))
+        ]),
+        renderProfileTabContent()
       ])
     ]);
   }
@@ -4477,6 +4661,41 @@
         });
       }
     },
+
+    'filter.hashtag.chip': {
+      on: ['click'],
+      gkeys: ['hashtag-chip'],
+      handler: function(event, ctx) {
+        var tagValue = event.currentTarget && event.currentTarget.getAttribute('data-tag') || '';
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: Object.assign({}, db.state.filters, { hashtag: tagValue })
+            }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'filter.reset': {
+      on: ['click'],
+      gkeys: ['reset-filters'],
+      handler: function(event, ctx) {
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: { search: '', category: '', condition: '', hashtag: '' }
+            }),
+            data: db.data
+          };
+        });
+      }
+    },
     'filter.condition': {
       on: ['change'],
       gkeys: ['condition-filter'],
@@ -4811,6 +5030,21 @@
           };
         });
         bumpPostStat(postId, 'comments_count');
+      }
+    },
+    'profile.tab': {
+      on: ['click'],
+      gkeys: ['profile-tab'],
+      handler: function(event, ctx) {
+        var value = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { profileTab: value || 'posts' }),
+            data: db.data
+          };
+        });
       }
     },
     'profile.select': {
