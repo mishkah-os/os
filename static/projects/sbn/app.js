@@ -1632,11 +1632,11 @@
       ]),
       D.Containers.Div({ attrs: { class: 'hero-actions' } }, [
         D.Forms.Button({
-          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-marketplace' }
+          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-commerce' }
         }, [t('home.action.explore')]),
         D.Forms.Button({
-          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-services' }
-        }, ['＋'])
+          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-classifieds' }
+        }, [t('nav.classifieds', 'إعلان مستعمل')])
       ])
     ]);
   }
@@ -1707,11 +1707,11 @@
       D.Text.H4({}, [t('home.quickActions', 'الوصول السريع')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } }, [
         D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-marketplace' }
-        }, ['🛒 ', t('nav.marketplace')]),
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-commerce' }
+        }, ['🛍️ ', t('nav.commerce', 'منتج / خدمة')]),
         D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-services' }
-        }, ['🔧 ', t('nav.services')]),
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-classifieds' }
+        }, ['📢 ', t('nav.classifieds', 'إعلان مستعمل')]),
         D.Forms.Button({
           attrs: { class: 'chip primary', 'data-m-gkey': 'nav-knowledge' }
         }, ['📚 ', t('nav.knowledge')])
@@ -2522,11 +2522,11 @@
     var categoryShowcase = renderCategoryShowcase(db);
 
     var sections = [
-      renderComposer(db),
-      renderQuickActions(),
-      renderClassifiedsSection(db),
-      renderSocialFeed(db),
       renderHero(db),
+      renderQuickActions(),
+      renderComposer(db),
+      renderSocialFeed(db),
+      renderClassifiedsSection(db),
       renderTrendingHashtags(db),
       renderMetricGrid(db),
       categoryShowcase,
@@ -2557,6 +2557,26 @@
     ].filter(Boolean);
 
     return D.Containers.Div({ attrs: { class: 'app-section' } }, sections);
+  }
+
+  function renderClassifiedsPage(db) {
+    var classifieds = db.data.classifieds || [];
+    var rows = classifieds.length
+      ? classifieds.map(function(item) { return renderClassifiedCard(db, item); })
+      : [D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات مستعملة حالياً')])];
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('classifieds.section', 'مستعمل حواء', 'classifieds.section.meta', 'أحدث الإعلانات'),
+        D.Containers.Div({ attrs: { class: 'classified-grid' } }, rows)
+      ])
+    ]);
+  }
+
+  function renderCommerce(db) {
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      renderMarketplace(db),
+      renderServices(db)
+    ]);
   }
 
   /**
@@ -2686,6 +2706,7 @@
   function renderArticleItem(db, article) {
     var excerpt = article.excerpt || article.summary || article.description || '';
     var views = article.views_count != null ? article.views_count : (article.view_count || 0);
+    var cover = resolvePrimaryImage(article);
     return D.Containers.Div({
       attrs: {
         class: 'article-card',
@@ -2693,13 +2714,16 @@
         'data-m-key': 'article-' + article.article_id
       }
     }, [
+      cover
+        ? D.Media.Img({ attrs: { class: 'article-cover', src: cover, alt: getLocalizedField(article, 'title', '') } }, [])
+        : null,
       D.Text.H4({ attrs: { class: 'article-title' } }, [getLocalizedField(article, 'title', t('knowledge.card.title'))]),
       D.Text.P({ attrs: { class: 'article-summary' } }, [getLocalizedField(article, 'excerpt', excerpt) || t('wiki.noSummary')]),
       D.Containers.Div({ attrs: { class: 'article-meta' } }, [
         D.Text.Span({}, [String(views) + ' ' + t('wiki.views')]),
         renderAttachmentAction('wiki', t('btn.read', 'اقرأ الآن'), article.article_id)
       ])
-    ]);
+    ].filter(Boolean));
   }
 
   /**
@@ -3031,30 +3055,30 @@
     return D.Containers.Nav({ attrs: { class: 'bottom-nav' } }, [
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-home',
-          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
+          'data-m-gkey': 'nav-profile',
+          class: 'nav-item' + (currentSection === 'profile' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-marketplace',
-          class: 'nav-item' + (currentSection === 'marketplace' ? ' active' : '')
+          'data-m-gkey': 'nav-classifieds',
+          class: 'nav-item' + (currentSection === 'classifieds' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛒']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.marketplace')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['📢']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.classifieds', 'إعلان مستعمل')])
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-services',
-          class: 'nav-item' + (currentSection === 'services' ? ' active' : '')
+          'data-m-gkey': 'nav-commerce',
+          class: 'nav-item' + (currentSection === 'commerce' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🔧']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.services')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛍️']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.commerce', 'منتج / خدمة')])
       ]),
       D.Forms.Button({
         attrs: {
@@ -3067,12 +3091,12 @@
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-profile',
-          class: 'nav-item' + (currentSection === 'profile' ? ' active' : '')
+          'data-m-gkey': 'nav-home',
+          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
       ])
     ]);
   }
@@ -3093,11 +3117,11 @@
     var sectionView;
 
     switch (currentSection) {
-      case 'marketplace':
-        sectionView = renderMarketplace(db);
+      case 'commerce':
+        sectionView = renderCommerce(db);
         break;
-      case 'services':
-        sectionView = renderServices(db);
+      case 'classifieds':
+        sectionView = renderClassifiedsPage(db);
         break;
       case 'knowledge':
         sectionView = renderKnowledge(db);
@@ -3141,15 +3165,30 @@
       }
     },
 
-    'nav.marketplace': {
+    'nav.commerce': {
       on: ['click'],
-      gkeys: ['nav-marketplace'],
+      gkeys: ['nav-commerce', 'nav-marketplace', 'nav-services'],
       handler: function(event, ctx) {
         ctx.setState(function(db) {
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'nav.classifieds': {
+      on: ['click'],
+      gkeys: ['nav-classifieds'],
+      handler: function(event, ctx) {
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'classifieds' }),
             data: db.data
           };
         });
@@ -3166,22 +3205,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'nav.services': {
-      on: ['click'],
-      gkeys: ['nav-services'],
-      handler: function(event, ctx) {
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3206,7 +3230,7 @@
             return {
               env: db.env,
               meta: db.meta,
-              state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+              state: Object.assign({}, db.state, { currentSection: 'commerce' }),
               data: db.data
             };
           });
@@ -3216,7 +3240,7 @@
             return {
               env: db.env,
               meta: db.meta,
-              state: Object.assign({}, db.state, { currentSection: 'services' }),
+              state: Object.assign({}, db.state, { currentSection: 'commerce' }),
               data: db.data
             };
           });
@@ -3263,7 +3287,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3884,7 +3908,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3900,7 +3924,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
