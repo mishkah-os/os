@@ -102,6 +102,21 @@
       console.log('[SBN PWA][label]', key, dict[key]);
       return dict[key];
     };
+    global.SBN_PWA_SESSION = function() {
+      var db = currentDatabase();
+      var activeUserId = db && db.state ? db.state.activeUserId : null;
+      var activeUser = getActiveUser(db);
+      var usersCount = Array.isArray(db && db.data && db.data.users)
+        ? db.data.users.length
+        : 0;
+      var payload = {
+        activeUserId: activeUserId,
+        activeUser: activeUser,
+        usersCount: usersCount
+      };
+      console.log('[SBN PWA][session]', payload);
+      return payload;
+    };
   }
   exposeConsoleHelpers();
   // Support for unified mishkah.js with auto-loading
@@ -178,18 +193,93 @@
     global.__MISHKAH_LAST_STORE__ = rt.store;
   }
 
+  function clearNotificationWatch() {
+    if (typeof notificationsUnsubscribe === 'function') {
+      try {
+        notificationsUnsubscribe();
+      } catch (err) {
+        console.warn('[SBN PWA] failed to unsubscribe notifications watch', err);
+      }
+    }
+    notificationsUnsubscribe = null;
+  }
+
+  function getNotificationPayloadRows(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (!payload || typeof payload !== 'object') return [];
+    if (Array.isArray(payload.rows)) return payload.rows;
+    if (Array.isArray(payload.data)) return payload.data;
+    if (payload.data && Array.isArray(payload.data.rows)) return payload.data.rows;
+    var record = payload.record || payload.next || payload.current || payload.value;
+    if (record) return [record];
+    return [];
+  }
+
+  function syncNotificationsFromRealtime(rows) {
+    if (app && app.database) {
+      app.setState(function(db) {
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: db.state,
+          data: Object.assign({}, db.data, {
+            notifications: mergeNotificationRows(db.data.notifications || [], rows)
+          })
+        };
+      });
+    } else {
+      initialDatabase.data.notifications = mergeNotificationRows(initialDatabase.data.notifications || [], rows);
+    }
+  }
+
+  function setupNotificationWatch() {
+    if (!realtime || !realtime.store || typeof realtime.store.watch !== 'function') {
+      clearNotificationWatch();
+      return;
+    }
+    clearNotificationWatch();
+    try {
+      var unsub = realtime.store.watch('sbn_notifications', function(payload) {
+        var entries = getNotificationPayloadRows(payload);
+        if (!entries.length) return;
+        syncNotificationsFromRealtime(entries);
+      });
+      if (typeof unsub === 'function') {
+        notificationsUnsubscribe = unsub;
+      }
+      debugLog('[SBN PWA][rt] notification watch active');
+    } catch (err) {
+      console.warn('[SBN PWA] Failed to watch sbn_notifications', err);
+      debugLog('[SBN PWA][rt] notification watch failed', err);
+    }
+  }
+
   // ================== TABLE MAPPINGS ==================
   var TABLE_TO_DATA_KEY = {
     'sbn_ui_labels': 'uiLabels',
     'sbn_products': 'products',
     'sbn_services': 'services',
     'sbn_wiki_articles': 'articles',
-    'sbn_categories': 'categories',
     'sbn_users': 'users',
     'sbn_posts': 'posts',
     'sbn_comments': 'comments',
     'sbn_hashtags': 'hashtags',
-    'sbn_reviews': 'reviews'
+    'sbn_reviews': 'reviews',
+    'sbn_classified_categories': 'classifiedCategories',
+    'sbn_marketplace_categories': 'marketplaceCategories',
+    'sbn_service_categories': 'serviceCategories',
+    'sbn_knowledge_categories': 'knowledgeCategories',
+    'sbn_notifications': 'notifications'
+  };
+  var CATEGORY_TABLES = [
+    'sbn_classified_categories',
+    'sbn_marketplace_categories',
+    'sbn_service_categories',
+    'sbn_knowledge_categories'
+  ];
+  var pendingCategoryFetches = {};
+  var COMPOSER_CATEGORY_SOURCES = {
+    classified: 'classifiedCategories'
   };
 
   // ================== HELPERS ==================
@@ -538,6 +628,109 @@
     global.document.documentElement.setAttribute('dir', resolvedDir);
   }
 
+  function isPwaPromptSuppressed() {
+    try {
+      return global.sessionStorage && global.sessionStorage.getItem(SESSION_PWA_KEY) === '1';
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function suppressPwaPromptForSession() {
+    try {
+      if (global.sessionStorage) {
+        global.sessionStorage.setItem(SESSION_PWA_KEY, '1');
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+  }
+
+  function isStandaloneMode() {
+    if (!global || !global.window) return false;
+    var matchesDisplayMode = false;
+    try {
+      if (global.matchMedia) {
+        var media = global.matchMedia('(display-mode: standalone)');
+        matchesDisplayMode = media && media.matches;
+      }
+    } catch (_err) {
+      matchesDisplayMode = false;
+    }
+    var navigatorStandalone = global.navigator && global.navigator.standalone;
+    return Boolean(matchesDisplayMode || navigatorStandalone);
+  }
+
+  function setPwaPromptState(visible) {
+    if (visible && isPwaPromptSuppressed()) {
+      visible = false;
+    }
+    if (app) {
+      app.setState(function(db) {
+        if (db.state.showPwaPrompt === visible) return db;
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: Object.assign({}, db.state, { showPwaPrompt: visible }),
+          data: db.data
+        };
+      });
+    } else {
+      initialDatabase.state.showPwaPrompt = visible;
+    }
+  }
+
+  function setupPwaInstallPrompt() {
+    if (installPromptInitialized || !global || !global.window) return;
+    installPromptInitialized = true;
+    var markVisibility = function() {
+      if (!isStandaloneMode() && !isPwaPromptSuppressed()) {
+        setPwaPromptState(true);
+      } else {
+        setPwaPromptState(false);
+      }
+    };
+    global.window.addEventListener('beforeinstallprompt', function(event) {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      markVisibility();
+    });
+    markVisibility();
+    if (global.window.matchMedia) {
+      try {
+        var media = global.window.matchMedia('(display-mode: standalone)');
+        var handler = function(evt) {
+          if (evt.matches) {
+            deferredInstallPrompt = null;
+            setPwaPromptState(false);
+          }
+        };
+        if (typeof media.addEventListener === 'function') {
+          media.addEventListener('change', handler);
+        } else if (typeof media.addListener === 'function') {
+          media.addListener(handler);
+        }
+      } catch (_err) {
+        /* noop */
+      }
+    }
+  }
+
+  function renderPwaInstallBanner(db) {
+    if (!db.state.showPwaPrompt || isStandaloneMode()) return null;
+    return D.Containers.Div({ attrs: { class: 'pwa-install-banner' } }, [
+      D.Text.Span({ attrs: { class: 'pwa-text' } }, [
+        t('pwa.install.message', 'ثبّت تطبيق مستعمل حواء لفتح الشبكة بسرعة على هاتفك.')
+      ]),
+      D.Forms.Button({
+        attrs: { class: 'hero-cta', 'data-m-gkey': 'pwa-install' }
+      }, [t('pwa.install.action', 'تثبيت الآن')]),
+      D.Forms.Button({
+        attrs: { class: 'chip', 'data-m-gkey': 'pwa-dismiss' }
+      }, [t('pwa.install.later', 'لاحقاً')])
+    ]);
+  }
+
   // ================== INITIAL STATE ==================
   var persisted = loadPersistedPrefs();
   var persistedSession = loadPersistedSession();
@@ -549,7 +742,7 @@
 
   var initialDatabase = {
     env: {
-      theme: persisted.theme || 'light',
+      theme: persisted.theme || 'dark',
       lang: persisted.lang || 'ar',
       dir: persisted.dir || (persisted.lang === 'ar' ? 'rtl' : 'ltr'),
       i18n: BASE_I18N
@@ -563,7 +756,7 @@
       error: null,
       notice: null,
       currentSection: 'timeline',
-      activeUserId: 'usr_001',
+      activeUserId: persistedSession && persistedSession.userId ? persistedSession.userId : null,
       postOverlay: {
         open: false,
         postId: null
@@ -577,7 +770,8 @@
       homeTab: 'timeline',
       composer: Object.assign({
         open: false,
-        type: 'plain',
+        mediaMode: 'plain',
+        attachmentKind: 'classified',
         text: '',
         targetId: '',
         mediaList: [],
@@ -688,7 +882,10 @@
       products: [],
       services: [],
       articles: [],
-      categories: [],
+      classifiedCategories: [],
+      marketplaceCategories: [],
+      serviceCategories: [],
+      knowledgeCategories: [],
       users: [],
       posts: [],
       comments: [],
@@ -913,12 +1110,113 @@
     return fallback || '';
   }
 
+  function getCategoryDisplayName(cat) {
+    if (!cat) return '';
+    return getLocalizedField(cat, 'name', cat.title || cat.slug || t('category.untitled'));
+  }
+
+  function getCategoryDescription(cat) {
+    if (!cat) return '';
+    return getLocalizedField(cat, 'description', cat.description || '');
+  }
+
+  function buildCategoryHierarchy(categories) {
+    var filtered = (categories || []).slice();
+    var nodes = {};
+    filtered.forEach(function(cat) {
+      if (!cat || !cat.category_id) return;
+      nodes[cat.category_id] = {
+        data: cat,
+        children: []
+      };
+    });
+    var roots = [];
+    Object.keys(nodes).forEach(function(id) {
+      var node = nodes[id];
+      var parentId = node.data.parent_id;
+      if (parentId && nodes[parentId]) {
+        nodes[parentId].children.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+    var sortFn = function(a, b) {
+      var ao = (a.data && a.data.sort_order) || 0;
+      var bo = (b.data && b.data.sort_order) || 0;
+      if (ao !== bo) return ao - bo;
+      var an = getCategoryDisplayName(a.data);
+      var bn = getCategoryDisplayName(b.data);
+      return an.localeCompare(bn);
+    };
+    roots.sort(sortFn);
+    roots.forEach(function(root) {
+      root.children.sort(sortFn);
+    });
+    return roots;
+  }
+
+  function getLeafCategories(categories, options) {
+    var opts = options || {};
+    var onlyLeaves = !!opts.onlyLeaves;
+    var limit = typeof opts.limit === 'number' ? opts.limit : null;
+    var filtered = (categories || []).filter(function(cat) {
+      if (onlyLeaves && (cat.parent_id == null || cat.parent_id === '')) return false;
+      return true;
+    });
+    filtered.sort(function(a, b) {
+      var ao = a.sort_order || 0;
+      var bo = b.sort_order || 0;
+      if (ao !== bo) return ao - bo;
+      var an = getCategoryDisplayName(a);
+      var bn = getCategoryDisplayName(b);
+      return an.localeCompare(bn);
+    });
+    if (limit != null) {
+      filtered = filtered.slice(0, limit);
+    }
+    return filtered;
+  }
+
   function resolveUserName(user) {
     return getLocalizedField(user, 'full_name', user && user.username ? user.username : t('user.unknown'));
   }
 
   function resolveHashtagLabel(tag) {
     return getLocalizedField(tag, 'name', tag && tag.normalized_name ? '#' + tag.normalized_name : '');
+  }
+
+  function normalizeNotificationRows(rows) {
+    return coerceTableRows(rows)
+      .map(function(entry) {
+        if (!entry) return null;
+        var clone = Object.assign({}, entry);
+        if (!clone.notification_id && clone.id) {
+          clone.notification_id = clone.id;
+        }
+        return clone;
+      })
+      .filter(Boolean)
+      .sort(function(a, b) {
+        return parseDateValue(b.created_at) - parseDateValue(a.created_at);
+      });
+  }
+
+  function mergeNotificationRows(existingRows, incomingRows) {
+    var registry = {};
+    normalizeNotificationRows(existingRows).forEach(function(entry) {
+      var key = entry.notification_id || entry.id;
+      if (!key) return;
+      registry[key] = entry;
+    });
+    normalizeNotificationRows(incomingRows).forEach(function(entry) {
+      var key = entry.notification_id || entry.id;
+      if (!key) return;
+      registry[key] = entry;
+    });
+    return Object.keys(registry).map(function(key) { return registry[key]; })
+      .sort(function(a, b) {
+        return parseDateValue(b.created_at) - parseDateValue(a.created_at);
+      });
   }
 
   /**
@@ -930,7 +1228,9 @@
 
     app.setState(function (db) {
       var newData = {};
-      var normalizedRows = coerceTableRows(rows);
+      var normalizedRows = tableName === 'sbn_notifications'
+        ? mergeNotificationRows(db.data.notifications || [], rows)
+        : coerceTableRows(rows);
       debugLog('[SBN PWA][data]', tableName, 'incoming sample:', Array.isArray(normalizedRows) ? normalizedRows.slice(0, 3) : normalizedRows, 'count:', Array.isArray(normalizedRows) ? normalizedRows.length : 0);
       newData[dataKey] = normalizedRows;
 
@@ -959,6 +1259,288 @@
     });
 
     markAppReady();
+
+    if (isCategoryTable(tableName)) {
+      refreshLocalizedCategory(tableName, getCurrentLang());
+    }
+  }
+
+  function updateClassifiedsSnapshot(list) {
+    if (!app) return;
+    app.setState(function(db) {
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, {
+          classifieds: Array.isArray(list) ? list : []
+        })
+      };
+    });
+  }
+
+  function getApiOrigin() {
+    return global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
+  }
+
+  function loadClassifiedsSnapshot(lang) {
+    var origin = global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
+    if (!origin) return Promise.resolve([]);
+    var url = origin + '/api/classifieds?lang=' + encodeURIComponent(lang || getCurrentLang());
+    debugLog('[SBN PWA][rest] fetching classifieds from', url);
+    return fetch(url, { cache: 'no-store' })
+      .then(function(response) {
+        if (!response.ok) throw new Error('classifieds-fetch-failed');
+        return response.json();
+      })
+      .then(function(payload) {
+        var classifieds = payload && Array.isArray(payload.classifieds) ? payload.classifieds : [];
+        return classifieds;
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][rest] classifieds fetch failed', error);
+        return [];
+      });
+  }
+
+  function refreshClassifiedsSnapshot(lang) {
+    loadClassifiedsSnapshot(lang)
+      .then(function(records) {
+        updateClassifiedsSnapshot(records);
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][rest] classifieds refresh error', error);
+      });
+  }
+
+  function isCategoryTable(name) {
+    return CATEGORY_TABLES.indexOf(name) !== -1;
+  }
+
+  function fetchModuleTableRows(tableName, options) {
+    var origin = getApiOrigin();
+    if (!origin) return Promise.resolve([]);
+    var payload = {
+      branchId: BRANCH_ID,
+      moduleId: MODULE_ID,
+      table: tableName,
+      lang: (options && options.lang) || getCurrentLang(),
+      fallbackLang: (options && options.fallbackLang) || 'ar'
+    };
+    return fetch(origin + '/api/query/module', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(function(response) {
+        if (!response.ok) throw new Error('module-query-failed');
+        return response.json();
+      })
+      .then(function(body) {
+        var rows = body && Array.isArray(body.rows) ? body.rows : [];
+        debugLog('[SBN PWA][module-query]', tableName, 'rows:', rows.length);
+        return rows;
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][module-query]', tableName, 'failed', error);
+        return [];
+      });
+  }
+
+  function applyLocalizedCategoryRows(tableName, rows, lang) {
+    if (!app) return;
+    var key = TABLE_TO_DATA_KEY[tableName];
+    if (!key) return;
+    var targetLang = lang || getCurrentLang();
+    var normalizedRows = coerceTableRows(rows).map(function(entry) {
+      if (!entry || !entry.i18n || !entry.i18n.lang) return entry;
+      var bucket = entry.i18n.lang[targetLang];
+      if (!bucket) return entry;
+      return Object.assign({}, entry, bucket);
+    });
+    app.setState(function(db) {
+      var patch = {};
+      patch[key] = normalizedRows;
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, patch)
+      };
+    });
+  }
+
+  function refreshLocalizedCategory(tableName, lang) {
+    if (!isCategoryTable(tableName)) return Promise.resolve([]);
+    if (pendingCategoryFetches[tableName]) return pendingCategoryFetches[tableName];
+    var effectiveLang = lang || getCurrentLang();
+    var promise = fetchModuleTableRows(tableName, { lang: effectiveLang })
+      .then(function(rows) {
+        applyLocalizedCategoryRows(tableName, rows, effectiveLang);
+        return rows;
+      })
+      .finally(function() {
+        delete pendingCategoryFetches[tableName];
+      });
+    pendingCategoryFetches[tableName] = promise;
+    return promise;
+  }
+
+  function refreshLocalizedCategories(lang) {
+    return Promise.all(
+      CATEGORY_TABLES.map(function(tableName) {
+        return refreshLocalizedCategory(tableName, lang || getCurrentLang());
+      })
+    );
+  }
+
+  function uploadMediaFiles(files, options) {
+    if (!files || !files.length) return Promise.resolve([]);
+    var origin = global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
+    if (!origin) return Promise.reject(new Error('origin-unresolved'));
+    var form = new global.FormData();
+    var composer = getComposerState();
+    var opts = options || {};
+    Array.prototype.slice.call(files, 0, MAX_COMPOSER_UPLOADS).forEach(function(file) {
+      if (file) {
+        form.append('file', file, file.name || 'upload.jpg');
+      }
+    });
+    var mediaMode = opts.mediaMode || (composer && composer.mediaMode) || 'plain';
+    form.append('media_mode', mediaMode);
+    if (mediaMode === 'reel') {
+      var duration = opts.reelDuration;
+      if (duration == null && composer && composer.reelDuration != null) {
+        duration = composer.reelDuration;
+      }
+      if (duration != null) {
+        form.append('reel_duration', String(duration));
+      }
+    }
+    return fetch(origin + '/api/uploads', {
+      method: 'POST',
+      body: form
+    })
+      .then(function(response) {
+        if (!response.ok) throw new Error('upload-failed');
+        return response.json();
+      })
+      .then(function(payload) {
+        return Array.isArray(payload.files) ? payload.files : [];
+      });
+  }
+
+  function validateReelDuration(file) {
+    return new Promise(function(resolve, reject) {
+      if (!file) {
+        reject(new Error('reel-invalid'));
+        return;
+      }
+      if (!global.document || !global.URL || typeof global.URL.createObjectURL !== 'function') {
+        resolve(null);
+        return;
+      }
+      try {
+        var video = global.document.createElement('video');
+        video.preload = 'metadata';
+        video.onloadedmetadata = function() {
+          try {
+            global.URL.revokeObjectURL(video.src);
+          } catch (_err) {
+            /* noop */
+          }
+          resolve(video.duration || null);
+        };
+        video.onerror = function() {
+          reject(new Error('reel-invalid'));
+        };
+        video.src = global.URL.createObjectURL(file);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  function handleComposerMediaFiles(ctx, fileList) {
+    if (!fileList || !fileList.length) return;
+    var composer = getComposerState();
+    var isReel = composer.mediaMode === 'reel';
+    var files = Array.prototype.slice.call(fileList, 0, isReel ? 1 : MAX_COMPOSER_UPLOADS);
+    var initialMediaMode = composer.mediaMode || 'plain';
+    var reelDuration = null;
+    var validation = Promise.resolve();
+    if (isReel) {
+      var reelFile = files[0];
+      if (!reelFile || typeof reelFile.type !== 'string' || reelFile.type.toLowerCase().indexOf('video') !== 0) {
+        applyComposerState(ctx, { uploadError: t('composer.reel.videoOnly', 'يرجى اختيار ملف فيديو صالح') });
+        if (global.document) {
+          var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
+          if (input) input.value = '';
+        }
+        return;
+      }
+      validation = validateReelDuration(reelFile).then(function(duration) {
+        if (duration && duration > 30.5) {
+          var err = new Error('reel-too-long');
+          err.duration = duration;
+          throw err;
+        }
+        reelDuration = duration || null;
+        applyComposerState(ctx, { reelDuration: reelDuration });
+      });
+    }
+    applyComposerState(ctx, { uploadingMedia: true, uploadError: null });
+    validation
+      .then(function() {
+        return uploadMediaFiles(files, { mediaMode: initialMediaMode, reelDuration: reelDuration });
+      })
+      .then(function(files) {
+        var urls = files
+          .map(function(file) {
+            return file && file.url ? file.url : null;
+          })
+          .filter(Boolean);
+        if (!urls.length) {
+          applyComposerState(ctx, { uploadingMedia: false, uploadError: t('composer.media.error', 'تعذر رفع الملفات') });
+          return;
+        }
+        applyComposerState(ctx, function(current) {
+          var existing = Array.isArray(current.mediaList) ? current.mediaList.slice() : [];
+          var next = isReel ? urls.slice(urls.length - 1) : existing.concat(urls).slice(-MAX_COMPOSER_UPLOADS);
+          return { mediaList: next, uploadingMedia: false, uploadError: null };
+        });
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][upload] failed', error);
+        var message = t('composer.media.error', 'تعذر رفع الملفات');
+        if (error && error.message === 'reel-too-long') {
+          message = t('composer.reel.tooLong', 'يجب ألا يتجاوز الفيديو 30 ثانية. الرجاء قص الفيديو وإعادة المحاولة.');
+        } else if (error && error.message === 'reel-invalid') {
+          message = t('composer.reel.invalid', 'تعذر قراءة ملف الفيديو، يرجى المحاولة بملف آخر.');
+        }
+        applyComposerState(ctx, { uploadingMedia: false, uploadError: message, reelDuration: null });
+      })
+      .finally(function() {
+        if (global.document) {
+          var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
+          if (input) input.value = '';
+        }
+      });
+  }
+
+  function removeComposerMedia(ctx, targetUrl) {
+    if (!targetUrl) return;
+    applyComposerState(ctx, function(current) {
+      var existing = Array.isArray(current.mediaList) ? current.mediaList : [];
+      var nextList = existing.filter(function(entry) {
+        return entry !== targetUrl;
+      });
+      var nextState = { mediaList: nextList };
+      if (!nextList.length) {
+        nextState.reelDuration = null;
+      }
+      return nextState;
+    });
   }
 
   // ================== VIEW HELPERS ==================
@@ -1084,6 +1666,10 @@
    * Render top header
    */
   function renderHeader(db) {
+    var activeUser = getActiveUser(db);
+    var notifCount = (db.data.notifications || []).filter(function(entry) {
+      return entry && entry.status !== 'read';
+    }).length;
     return D.Containers.Header({ attrs: { class: 'app-header' } }, [
       D.Containers.Div({ attrs: { class: 'brand' } }, [
         D.Text.Span({ attrs: { class: 'brand-title' } }, [t('app.name')]),
@@ -1149,6 +1735,20 @@
     var activeUser = getActiveUser(db);
     var userName = resolveUserName(activeUser);
     var avatar = (activeUser && activeUser.avatar_url) || 'https://i.pravatar.cc/120?img=12';
+    if (!activeUser) {
+      return D.Containers.Div({ attrs: { class: 'composer-card locked' } }, [
+        D.Text.H3({}, [t('composer.locked.title', 'ابدأ بمشاركة أعمالك')]),
+        D.Text.P({ attrs: { class: 'composer-meta' } }, [
+          t('composer.locked.body', 'سجّل الدخول أو أنشئ حساباً جديداً لتتمكن من نشر الإعلانات والريلز.')
+        ]),
+        D.Forms.Button({
+          attrs: { class: 'hero-cta', 'data-m-gkey': 'auth-open' }
+        }, [t('auth.login', 'تسجيل الدخول')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'open-register' }
+        }, [t('auth.register', 'إنشاء حساب')])
+      ]);
+    }
     if (!composer.open) {
       return D.Containers.Div({ attrs: { class: 'composer-card collapsed' } }, [
         D.Media.Img({ attrs: { class: 'composer-avatar', src: avatar, alt: userName } }, []),
@@ -1158,16 +1758,24 @@
       ]);
     }
 
-    var typeOptions = [
-      { value: 'plain', label: t('composer.type.plain') },
-      { value: 'product_share', label: t('composer.type.product') },
-      { value: 'service_share', label: t('composer.type.service') },
-      { value: 'article_share', label: t('composer.type.article') },
-      { value: 'reel', label: t('composer.type.reel') }
+    var mediaModeOptions = [
+      { value: 'plain', label: t('composer.media.plain', 'منشور نصي / صور') },
+      { value: 'reel', label: t('composer.media.reel', 'ريل فيديو (حد أقصى 30 ثانية)') }
     ];
-    var attachments = getAttachmentOptions(db, composer.type);
-    var showTarget = attachments.length > 0;
-    var showMedia = composer.type === 'reel';
+    var attachmentOptions = [
+      { value: 'classified', label: t('composer.type.classified', 'إعلان مستعمل') },
+      { value: 'product', label: t('composer.type.product') },
+      { value: 'service', label: t('composer.type.service') },
+      { value: 'wiki', label: t('composer.type.article') },
+      { value: 'ad', label: t('composer.type.ad', 'إعلان ممول') },
+      { value: 'none', label: t('composer.attachment.none', 'بدون مرفق') }
+    ];
+    var requiresTarget = ['product', 'service', 'wiki'].indexOf(composer.attachmentKind) !== -1;
+    var attachments = requiresTarget ? getAttachmentOptions(db, composer.attachmentKind) : [];
+    var showTarget = requiresTarget;
+    var isClassified = composer.attachmentKind === 'classified';
+    var composerCategories = getComposerCategoryGroupsByType(db, composer.attachmentKind);
+    var showAdLink = composer.attachmentKind === 'ad';
 
     return D.Containers.Div({ attrs: { class: 'composer-card expanded' } }, [
       D.Containers.Div({ attrs: { class: 'composer-header' } }, [
@@ -1181,37 +1789,96 @@
         }, ['✕'])
       ]),
       D.Inputs.Select({
-        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-type', value: composer.type || 'plain' }
-      }, typeOptions.map(function(option) {
+        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-media-mode', value: composer.mediaMode || 'plain' }
+      }, mediaModeOptions.map(function(option) {
         return D.Inputs.Option({
-          attrs: { value: option.value, selected: composer.type === option.value }
+          attrs: { value: option.value, selected: composer.mediaMode === option.value }
         }, [option.label]);
       })),
-      showTarget
-        ? D.Inputs.Select({
-            attrs: {
-              class: 'composer-select',
-              'data-m-gkey': 'composer-target',
-              value: composer.targetId || ''
-            }
-          }, [
-            D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.default')])
-          ].concat(
-            attachments.map(function(option) {
-              return D.Inputs.Option({
-                attrs: { value: option.value, selected: composer.targetId === option.value }
-              }, [option.label]);
-            })
-          ))
+      D.Inputs.Select({
+        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-attachment', value: composer.attachmentKind || 'none' }
+      }, attachmentOptions.map(function(option) {
+        return D.Inputs.Option({
+          attrs: { value: option.value, selected: composer.attachmentKind === option.value }
+        }, [option.label]);
+      })),
+      composer.mediaMode === 'reel'
+        ? D.Text.Small({ attrs: { class: 'composer-hint' } }, [t('composer.reel.hint', 'يتم قبول فيديو رأسي حتى 30 ثانية، وسيتم ضغطه تلقائياً.')])
         : null,
-      showMedia
+      isClassified
+        ? D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
+            D.Inputs.Input({
+              attrs: {
+                type: 'text',
+                class: 'composer-input',
+                placeholder: t('composer.classified.title', 'عنوان الإعلان'),
+                value: composer.classifiedTitle || '',
+                'data-m-gkey': 'composer-classified-title'
+              }
+            }, []),
+            D.Inputs.Input({
+              attrs: {
+                type: 'number',
+                class: 'composer-input',
+                placeholder: t('composer.classified.price', 'السعر (اختياري)'),
+                value: composer.classifiedPrice || '',
+                'data-m-gkey': 'composer-classified-price'
+              }
+            }, []),
+            D.Inputs.Input({
+              attrs: {
+                type: 'tel',
+                class: 'composer-input',
+                placeholder: t('composer.classified.phone', 'هاتف التواصل'),
+                value: composer.contactPhone || '',
+                'data-m-gkey': 'composer-classified-phone'
+              }
+            }, [])
+          ].filter(Boolean))
+        : null,
+      composerCategories.length
+        ? D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
+            D.Inputs.Select({
+              attrs: {
+                class: 'composer-select',
+                'data-m-gkey': 'composer-category',
+                value: composer.categoryId || ''
+              }
+            }, [
+              D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.category', 'اختر التصنيف الرئيسي')])
+            ].concat(composerCategories.map(function(group) {
+              return D.Inputs.Option({ attrs: { value: group.id } }, [group.label]);
+            }))),
+            (function() {
+              var activeGroup = composerCategories.find(function(group) {
+                return group.id === composer.categoryId;
+              });
+              if (!activeGroup || !activeGroup.children.length) return null;
+              return D.Inputs.Select({
+                attrs: {
+                  class: 'composer-select',
+                  'data-m-gkey': 'composer-subcategory',
+                  value: composer.subcategoryId || ''
+                }
+              }, [
+                D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.subcategory', 'اختر التصنيف الفرعي')])
+              ].concat(activeGroup.children.map(function(child) {
+                return D.Inputs.Option({ attrs: { value: child.id } }, [child.label]);
+              })));
+            })()
+          ].filter(Boolean))
+        : null,
+      showTarget && !isClassified
+        ? renderComposerAttachmentSelect(db, composer, attachments)
+        : null,
+      showAdLink
         ? D.Inputs.Input({
             attrs: {
-              type: 'text',
+              type: 'url',
               class: 'composer-input',
-              placeholder: t('composer.media.placeholder'),
-              value: composer.media || '',
-              'data-m-gkey': 'composer-media'
+              placeholder: t('composer.ad.link', 'رابط الصفحة أو المتجر'),
+              value: composer.linkUrl || '',
+              'data-m-gkey': 'composer-link-url'
             }
           }, [])
         : null,
@@ -1503,337 +2170,45 @@
     ]);
   }
 
-  function getOnboardingTasks(db) {
-    var user = getActiveUser(db);
-    var completed = (db.state.onboarding && db.state.onboarding.completed) || {};
-    var userPosts = (db.data.posts || []).filter(function(post) { return user && post.user_id === user.user_id; });
-    var hasAttachmentShare = userPosts.some(function(post) {
-      return post && post.attachment_kind && post.attachment_kind !== 'none';
+  function renderCategoryClusterRoot(db, node) {
+    if (!node || !node.data) return null;
+    var cat = node.data;
+    var description = getCategoryDescription(cat);
+    var children = (node.children || []).map(function(child) {
+      return child.data;
     });
-    return [
-      {
-        key: 'avatar',
-        title: t('onboarding.avatar', 'أضف صورة شخصية'),
-        hint: t('onboarding.avatar.hint', 'يرفع الثقة مع المشترين'),
-        done: Boolean((user && user.avatar_url) || completed.avatar)
-      },
-      {
-        key: 'bio',
-        title: t('onboarding.bio', 'أكمل السيرة الذاتية'),
-        hint: t('onboarding.bio.hint', 'عرّف بنفسك أو نشاطك التجاري'),
-        done: Boolean((user && getLocalizedField(user, 'bio', '')) || completed.bio)
-      },
-      {
-        key: 'firstPost',
-        title: t('onboarding.firstPost', 'انشر أول بوست'),
-        hint: t('onboarding.firstPost.hint', 'شارك إعلان، منتج، خدمة أو مقال'),
-        done: Boolean(userPosts.length || completed.firstPost)
-      },
-      {
-        key: 'attachment',
-        title: t('onboarding.attachment', 'جرّب إضافة مرفق'),
-        hint: t('onboarding.attachment.hint', 'أضف إعلان مستعمل أو منتج/خدمة'),
-        done: Boolean(hasAttachmentShare || completed.attachment)
-      }
+    return D.Containers.Div({ attrs: { class: 'category-cluster', key: cat.category_id } }, [
+      D.Text.H4({ attrs: { class: 'cluster-title' } }, [getCategoryDisplayName(cat)]),
+      description ? D.Text.Span({ attrs: { class: 'cluster-description' } }, [description]) : null,
+      children.length
+        ? D.Containers.Div({ attrs: { class: 'chips-row' } },
+            renderCategoryChips(db, children, 'category', 'category-chip', { skipAll: true })
+          )
+        : null
+    ].filter(Boolean));
+  }
+
+  function renderCategoryShowcase(db) {
+    var configs = [
+      { key: 'classified', title: 'categories.classifieds', fallback: 'مستعمل حواء', data: db.data.classifiedCategories || [] },
+      { key: 'marketplace', title: 'categories.marketplace', fallback: 'متجر حواء', data: db.data.marketplaceCategories || [] },
+      { key: 'service', title: 'categories.services', fallback: 'خدمات حواء', data: db.data.serviceCategories || [] }
     ];
-  }
-
-  function getLaunchChecklist(db) {
-    var defaults = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
-    return [
-      {
-        key: 'composer',
-        title: t('launch.composer', 'تحقق من الكومبوزر والمرفقات'),
-        hint: t('launch.composer.hint', 'تأكد أن الحقول الإلزامية والدرَفت تعمل بلا أعطال.'),
-        done: Boolean(defaults.composer),
-        action: 'composer-open'
-      },
-      {
-        key: 'attachments',
-        title: t('launch.attachments', 'شاشات التفاصيل والجاليري'),
-        hint: t('launch.attachments.hint', 'جرّب فتح إعلان، منتج، خدمة، ومقال مع الجاليري.'),
-        done: Boolean(defaults.attachments),
-        action: 'open-attachment'
-      },
-      {
-        key: 'profile',
-        title: t('launch.profile', 'تعديل الملف والتبويبات'),
-        hint: t('launch.profile.hint', 'اختبر التبويبات (بوست، إعلان، تجارة، معرفة) وخيار التعديل.'),
-        done: Boolean(defaults.profile),
-        action: 'nav-profile'
-      },
-      {
-        key: 'discovery',
-        title: t('launch.discovery', 'الفلاتر والهاشتاغات'),
-        hint: t('launch.discovery.hint', 'تأكد من البحث، التصنيفات، وإعادة الضبط للهاشتاغ.'),
-        done: Boolean(defaults.discovery),
-        action: 'reset-filters'
-      },
-      {
-        key: 'safety',
-        title: t('launch.safety', 'الثقة والتبليغ والإشعارات'),
-        hint: t('launch.safety.hint', 'اختبر الاتصال، الإبلاغ، والشارات الموثقة والإشعارات.'),
-        done: Boolean(defaults.safety),
-        action: 'open-notifications'
-      }
-    ];
-  }
-
-  function renderOnboardingCard(db) {
-    var user = getActiveUser(db);
-    var onboarding = db.state.onboarding || initialDatabase.state.onboarding;
-    if (!user || onboarding.dismissed) return null;
-    var tasks = getOnboardingTasks(db);
-    var remaining = tasks.filter(function(task) { return !task.done; });
-    if (!remaining.length) return null;
-    var progress = Math.round(((tasks.length - remaining.length) / tasks.length) * 100);
-
-    return D.Containers.Div({ attrs: { class: 'section-card onboarding-card' } }, [
-      D.Containers.Div({ attrs: { class: 'onboarding-head' } }, [
-        D.Text.H4({}, [t('onboarding.title', 'ابدأ رحلتك على مستعمل حواء')]),
-        D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'onboarding-dismiss' } }, ['✕'])
-      ]),
-      D.Containers.Div({ attrs: { class: 'onboarding-progress' } }, [
-        D.Containers.Div({ attrs: { class: 'onboarding-progress-fill', style: 'width:' + progress + '%;' } }, [])
-      ]),
-      D.Containers.Div({ attrs: { class: 'onboarding-tasks' } },
-        tasks.map(function(task) {
-          var done = task.done;
-          return D.Containers.Div({ attrs: { class: 'onboarding-task' + (done ? ' done' : ''), key: task.key } }, [
-            D.Text.Span({ attrs: { class: 'onboarding-check' } }, [done ? '✓' : '•']),
-            D.Containers.Div({ attrs: { class: 'onboarding-copy' } }, [
-              D.Text.Span({ attrs: { class: 'onboarding-title' } }, [task.title]),
-              D.Text.Small({ attrs: { class: 'onboarding-hint' } }, [task.hint])
-            ]),
-            done
-              ? null
-              : D.Forms.Button({
-                  attrs: {
-                    class: 'chip primary',
-                    'data-m-gkey': 'onboarding-complete',
-                    'data-task': task.key
-                  }
-                }, [t('onboarding.action', 'تم')])
-          ].filter(Boolean));
-        })
-      ),
-      D.Containers.Div({ attrs: { class: 'onboarding-actions' } }, [
-        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('composer.start')]),
-        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')])
-      ])
-    ]);
-  }
-
-  function renderLaunchChecklist(db) {
-    var items = getLaunchChecklist(db);
-    var doneCount = items.filter(function(item) { return item.done; }).length;
-    var progress = Math.round((doneCount / items.length) * 100);
-
-    return D.Containers.Div({ attrs: { class: 'section-card launch-card' } }, [
-      D.Containers.Div({ attrs: { class: 'launch-head' } }, [
-        D.Text.H4({}, [t('launch.title', 'جاهزية الإطلاق')]),
-        D.Text.Small({ attrs: { class: 'launch-progress' } }, [progress + '%'])
-      ]),
-      D.Containers.Div({ attrs: { class: 'launch-bar' } }, [
-        D.Containers.Div({ attrs: { class: 'launch-bar-fill', style: 'width:' + progress + '%;' } }, [])
-      ]),
-      D.Containers.Div({ attrs: { class: 'launch-list' } },
-        items.map(function(item) {
-          return D.Containers.Div({ attrs: { class: 'launch-item' + (item.done ? ' done' : ''), key: item.key } }, [
-            D.Forms.Button({
-              attrs: {
-                class: 'launch-check',
-                'data-m-gkey': 'launch-toggle',
-                'data-key': item.key,
-                'aria-pressed': item.done ? 'true' : 'false'
-              }
-            }, [item.done ? '✓' : '•']),
-            D.Containers.Div({ attrs: { class: 'launch-copy' } }, [
-              D.Text.Span({ attrs: { class: 'launch-title' } }, [item.title]),
-              D.Text.Small({ attrs: { class: 'launch-hint' } }, [item.hint])
-            ]),
-            item.action
-              ? D.Forms.Button({
-                  attrs: {
-                    class: 'chip ghost',
-                    'data-m-gkey': item.action
-                  }
-                }, [t('launch.action.test', 'تجربة')])
-              : null
-          ].filter(Boolean));
-        })
-      ),
-      D.Containers.Div({ attrs: { class: 'launch-actions' } }, [
-        D.Forms.Button({ attrs: { class: 'hero-cta small', 'data-m-gkey': 'launch-complete-all' } }, [t('launch.complete', 'تمييز الكل كمكتمل')]),
-        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'reset-filters' } }, [t('filters.reset', 'مسح الفلاتر')])
-      ])
-    ]);
-  }
-
-  function getOnboardingTasks(db) {
-    var user = getActiveUser(db);
-    var completed = (db.state.onboarding && db.state.onboarding.completed) || {};
-    var userPosts = (db.data.posts || []).filter(function(post) { return user && post.user_id === user.user_id; });
-    var hasAttachmentShare = userPosts.some(function(post) {
-      return post && post.attachment_kind && post.attachment_kind !== 'none';
-    });
-    return [
-      {
-        key: 'avatar',
-        title: t('onboarding.avatar', 'أضف صورة شخصية'),
-        hint: t('onboarding.avatar.hint', 'يرفع الثقة مع المشترين'),
-        done: Boolean((user && user.avatar_url) || completed.avatar)
-      },
-      {
-        key: 'bio',
-        title: t('onboarding.bio', 'أكمل السيرة الذاتية'),
-        hint: t('onboarding.bio.hint', 'عرّف بنفسك أو نشاطك التجاري'),
-        done: Boolean((user && getLocalizedField(user, 'bio', '')) || completed.bio)
-      },
-      {
-        key: 'firstPost',
-        title: t('onboarding.firstPost', 'انشر أول بوست'),
-        hint: t('onboarding.firstPost.hint', 'شارك إعلان، منتج، خدمة أو مقال'),
-        done: Boolean(userPosts.length || completed.firstPost)
-      },
-      {
-        key: 'attachment',
-        title: t('onboarding.attachment', 'جرّب إضافة مرفق'),
-        hint: t('onboarding.attachment.hint', 'أضف إعلان مستعمل أو منتج/خدمة'),
-        done: Boolean(hasAttachmentShare || completed.attachment)
-      }
-    ];
-  }
-
-  function getLaunchChecklist(db) {
-    var defaults = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
-    return [
-      {
-        key: 'composer',
-        title: t('launch.composer', 'تحقق من الكومبوزر والمرفقات'),
-        hint: t('launch.composer.hint', 'تأكد أن الحقول الإلزامية والدرَفت تعمل بلا أعطال.'),
-        done: Boolean(defaults.composer),
-        action: 'composer-open'
-      },
-      {
-        key: 'attachments',
-        title: t('launch.attachments', 'شاشات التفاصيل والجاليري'),
-        hint: t('launch.attachments.hint', 'جرّب فتح إعلان، منتج، خدمة، ومقال مع الجاليري.'),
-        done: Boolean(defaults.attachments),
-        action: 'open-attachment'
-      },
-      {
-        key: 'profile',
-        title: t('launch.profile', 'تعديل الملف والتبويبات'),
-        hint: t('launch.profile.hint', 'اختبر التبويبات (بوست، إعلان، تجارة، معرفة) وخيار التعديل.'),
-        done: Boolean(defaults.profile),
-        action: 'nav-profile'
-      },
-      {
-        key: 'discovery',
-        title: t('launch.discovery', 'الفلاتر والهاشتاغات'),
-        hint: t('launch.discovery.hint', 'تأكد من البحث، التصنيفات، وإعادة الضبط للهاشتاغ.'),
-        done: Boolean(defaults.discovery),
-        action: 'reset-filters'
-      },
-      {
-        key: 'safety',
-        title: t('launch.safety', 'الثقة والتبليغ والإشعارات'),
-        hint: t('launch.safety.hint', 'اختبر الاتصال، الإبلاغ، والشارات الموثقة والإشعارات.'),
-        done: Boolean(defaults.safety),
-        action: 'open-notifications'
-      }
-    ];
-  }
-
-  function renderOnboardingCard(db) {
-    var user = getActiveUser(db);
-    var onboarding = db.state.onboarding || initialDatabase.state.onboarding;
-    if (!user || onboarding.dismissed) return null;
-    var tasks = getOnboardingTasks(db);
-    var remaining = tasks.filter(function(task) { return !task.done; });
-    if (!remaining.length) return null;
-    var progress = Math.round(((tasks.length - remaining.length) / tasks.length) * 100);
-
-    return D.Containers.Div({ attrs: { class: 'section-card onboarding-card' } }, [
-      D.Containers.Div({ attrs: { class: 'onboarding-head' } }, [
-        D.Text.H4({}, [t('onboarding.title', 'ابدأ رحلتك على مستعمل حواء')]),
-        D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'onboarding-dismiss' } }, ['✕'])
-      ]),
-      D.Containers.Div({ attrs: { class: 'onboarding-progress' } }, [
-        D.Containers.Div({ attrs: { class: 'onboarding-progress-fill', style: 'width:' + progress + '%;' } }, [])
-      ]),
-      D.Containers.Div({ attrs: { class: 'onboarding-tasks' } },
-        tasks.map(function(task) {
-          var done = task.done;
-          return D.Containers.Div({ attrs: { class: 'onboarding-task' + (done ? ' done' : ''), key: task.key } }, [
-            D.Text.Span({ attrs: { class: 'onboarding-check' } }, [done ? '✓' : '•']),
-            D.Containers.Div({ attrs: { class: 'onboarding-copy' } }, [
-              D.Text.Span({ attrs: { class: 'onboarding-title' } }, [task.title]),
-              D.Text.Small({ attrs: { class: 'onboarding-hint' } }, [task.hint])
-            ]),
-            done
-              ? null
-              : D.Forms.Button({
-                  attrs: {
-                    class: 'chip primary',
-                    'data-m-gkey': 'onboarding-complete',
-                    'data-task': task.key
-                  }
-                }, [t('onboarding.action', 'تم')])
-          ].filter(Boolean));
-        })
-      ),
-      D.Containers.Div({ attrs: { class: 'onboarding-actions' } }, [
-        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('composer.start')]),
-        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')])
-      ])
-    ]);
-  }
-
-  function renderLaunchChecklist(db) {
-    var items = getLaunchChecklist(db);
-    var doneCount = items.filter(function(item) { return item.done; }).length;
-    var progress = Math.round((doneCount / items.length) * 100);
-
-    return D.Containers.Div({ attrs: { class: 'section-card launch-card' } }, [
-      D.Containers.Div({ attrs: { class: 'launch-head' } }, [
-        D.Text.H4({}, [t('launch.title', 'جاهزية الإطلاق')]),
-        D.Text.Small({ attrs: { class: 'launch-progress' } }, [progress + '%'])
-      ]),
-      D.Containers.Div({ attrs: { class: 'launch-bar' } }, [
-        D.Containers.Div({ attrs: { class: 'launch-bar-fill', style: 'width:' + progress + '%;' } }, [])
-      ]),
-      D.Containers.Div({ attrs: { class: 'launch-list' } },
-        items.map(function(item) {
-          return D.Containers.Div({ attrs: { class: 'launch-item' + (item.done ? ' done' : ''), key: item.key } }, [
-            D.Forms.Button({
-              attrs: {
-                class: 'launch-check',
-                'data-m-gkey': 'launch-toggle',
-                'data-key': item.key,
-                'aria-pressed': item.done ? 'true' : 'false'
-              }
-            }, [item.done ? '✓' : '•']),
-            D.Containers.Div({ attrs: { class: 'launch-copy' } }, [
-              D.Text.Span({ attrs: { class: 'launch-title' } }, [item.title]),
-              D.Text.Small({ attrs: { class: 'launch-hint' } }, [item.hint])
-            ]),
-            item.action
-              ? D.Forms.Button({
-                  attrs: {
-                    class: 'chip ghost',
-                    'data-m-gkey': item.action
-                  }
-                }, [t('launch.action.test', 'تجربة')])
-              : null
-          ].filter(Boolean));
-        })
-      ),
-      D.Containers.Div({ attrs: { class: 'launch-actions' } }, [
-        D.Forms.Button({ attrs: { class: 'hero-cta small', 'data-m-gkey': 'launch-complete-all' } }, [t('launch.complete', 'تمييز الكل كمكتمل')]),
-        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'reset-filters' } }, [t('filters.reset', 'مسح الفلاتر')])
-      ])
+    var columns = configs.map(function(cfg) {
+      if (!cfg.data.length) return null;
+      var roots = buildCategoryHierarchy(cfg.data);
+      if (!roots.length) return null;
+      return D.Containers.Div({ attrs: { class: 'category-tree-column', key: cfg.key } }, [
+        D.Text.H4({ attrs: { class: 'category-tree-heading' } }, [t(cfg.title, cfg.fallback)]),
+        roots.slice(0, 3).map(function(root) {
+          return renderCategoryClusterRoot(db, root);
+        }).filter(Boolean)
+      ]);
+    }).filter(Boolean);
+    if (!columns.length) return null;
+    return D.Containers.Div({ attrs: { class: 'section-card category-tree-card' } }, [
+      renderSectionHeader('home.categories', null, 'home.categories.meta', null),
+      D.Containers.Div({ attrs: { class: 'category-tree-grid' } }, columns)
     ]);
   }
 
@@ -1877,9 +2252,9 @@
     var heading = t(titleKey, titleFallback || titleKey);
     var metaText = metaKey ? t(metaKey, metaFallback || '') : '';
     return D.Containers.Div({ attrs: { class: 'section-heading' } }, [
-      D.Text.H3({}, [t(titleKey)]),
-      metaKey
-        ? D.Text.Span({ attrs: { class: 'section-meta' } }, [t(metaKey)])
+      D.Text.H3({}, [heading]),
+      metaText
+        ? D.Text.Span({ attrs: { class: 'section-meta' } }, [metaText])
         : D.Text.Span({ attrs: { class: 'section-meta' } }, [])
     ]);
   }
@@ -2038,283 +2413,22 @@
 
   function getAttachmentOptions(db, kind) {
     if (kind === 'product') {
-      return findById(db.data.products || [], 'product_id', targetId);
+      return (db.data.products || []).map(function(product) {
+        var title = resolveProductTitle(product);
+        var price = product.price != null ? formatCurrencyValue(product.price, product.currency) : '';
+        var label = price ? title + ' · ' + price : title;
+        return { value: product.product_id, label: label };
+      });
     }
     if (kind === 'service') {
-      return findById(db.data.services || [], 'service_id', targetId);
+      return (db.data.services || []).map(function(service) {
+        var title = getLocalizedField(service, 'title', t('services.default'));
+        var city = resolveCityName(service) || '';
+        var label = city ? title + ' · ' + city : title;
+        return { value: service.service_id, label: label };
+      });
     }
     if (kind === 'wiki') {
-      return findById(db.data.articles || [], 'article_id', targetId);
-    }
-    if (kind === 'classified') {
-      return findById(db.data.classifieds || [], 'id', targetId) || findById(db.data.classifieds || [], 'classified_id', targetId);
-    }
-    return null;
-  }
-
-  function getActiveUser(db) {
-    var users = db.data.users || [];
-    var activeId = db.state.activeUserId;
-    if (!activeId && users.length) {
-      activeId = users[0].user_id;
-    }
-    return findById(users, 'user_id', activeId) || (users.length ? users[0] : null);
-  }
-
-  function isClassifiedOwner(db, item) {
-    if (!item) return false;
-    var activeUserId = db && db.state && db.state.activeUserId;
-    return Boolean(
-      activeUserId &&
-        (item.user_id === activeUserId || item.owner_id === activeUserId || item.seller_id === activeUserId)
-    );
-  }
-
-  function resolveClassifiedStatus(item) {
-    if (!item) return 'live';
-    var status = (item.status || item.state || '').toLowerCase();
-    if (status === 'archived' || status === 'closed' || status === 'pending' || status === 'draft') {
-      return status;
-    }
-    if (item.closed_at || item.closed) return 'closed';
-    if (item.archived_at || item.archived) return 'archived';
-    return 'live';
-  }
-
-  function buildClassifiedStats(classifieds) {
-    var defaults = { live: 0, pending: 0, closed: 0, archived: 0, draft: 0 };
-    return (classifieds || []).reduce(function(acc, item) {
-      var status = resolveClassifiedStatus(item);
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, defaults);
-  }
-
-  function resolveClassifiedLeads(db, classifieds) {
-    var overrides = (db.state.classifiedDashboard && db.state.classifiedDashboard.leadStatus) || {};
-    var threads = resolveInboxThreads(db) || [];
-    var notifications = db.data.notifications || [];
-    var leads = [];
-
-    threads.forEach(function(thread, idx) {
-      var targetId = thread.target_id || thread.classified_id || '';
-      var status = overrides[thread.thread_id] || (thread.unread ? 'open' : 'responded');
-      leads.push({
-        id: thread.thread_id || 'thread_' + idx,
-        targetId: targetId,
-        status: status,
-        title: thread.title || t('inbox.thread', 'رسالة واردة'),
-        snippet: thread.snippet || '',
-        updated_at: thread.updated_at,
-        type: thread.type || 'message'
-      });
-    });
-
-    notifications.forEach(function(note, idx) {
-      var targetType = (note.target_type || note.type || '').toLowerCase();
-      if (targetType && targetType.indexOf('classified') === -1) return;
-      var targetId = note.target_id || note.classified_id || '';
-      var status = overrides[note.notification_id || idx] || (note.status === 'read' ? 'responded' : 'open');
-      leads.push({
-        id: note.notification_id || 'note_' + idx,
-        targetId: targetId,
-        status: status,
-        title: getLocalizedField(note, 'title', t('classifieds.lead', 'طلب تواصل')), 
-        snippet: getLocalizedField(note, 'body', note.description || ''),
-        updated_at: note.created_at || note.updated_at,
-        type: note.type || 'comment'
-      });
-    });
-
-    return leads;
-  }
-
-  function updateClassifiedStatus(ctx, targetId, nextStatus) {
-    if (!targetId || !nextStatus) return;
-    ctx.setState(function(db) {
-      var classifieds = db.data.classifieds || [];
-      var target = classifieds.find(function(item) {
-        var id = item.id || item.classified_id;
-        return id === targetId;
-      });
-      if (!target || !isClassifiedOwner(db, target)) return db;
-      var nextRows = classifieds.map(function(item) {
-        var id = item.id || item.classified_id;
-        if (id !== targetId) return item;
-        var clone = Object.assign({}, item, { status: nextStatus });
-        if (nextStatus === 'archived') {
-          clone.archived_at = new Date().toISOString();
-        } else if (nextStatus === 'closed') {
-          clone.closed_at = new Date().toISOString();
-        } else if (nextStatus === 'live') {
-          delete clone.archived_at;
-          delete clone.closed_at;
-        }
-        return clone;
-      });
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: db.state,
-        data: Object.assign({}, db.data, { classifieds: nextRows })
-      };
-    });
-    showNotice(ctx, t('classifieds.status.updated', 'تم تحديث حالة الإعلان'));
-  }
-
-  function updateLeadStatus(ctx, leadId, status) {
-    if (!leadId || !status) return;
-    ctx.setState(function(db) {
-      var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
-      var currentStatus = current.leadStatus || {};
-      var nextStatus = Object.assign({}, currentStatus, (function() {
-        var out = {};
-        out[leadId] = status;
-        return out;
-      })());
-      var nextDashboard = Object.assign({}, current, { leadStatus: nextStatus });
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: Object.assign({}, db.state, { classifiedDashboard: nextDashboard }),
-        data: db.data
-      };
-    });
-  }
-
-  function isClassifiedOwner(db, item) {
-    if (!item) return false;
-    var activeUserId = db && db.state && db.state.activeUserId;
-    return Boolean(
-      activeUserId &&
-        (item.user_id === activeUserId || item.owner_id === activeUserId || item.seller_id === activeUserId)
-    );
-  }
-
-  function resolveClassifiedStatus(item) {
-    if (!item) return 'live';
-    var status = (item.status || item.state || '').toLowerCase();
-    if (status === 'archived' || status === 'closed' || status === 'pending' || status === 'draft') {
-      return status;
-    }
-    if (item.closed_at || item.closed) return 'closed';
-    if (item.archived_at || item.archived) return 'archived';
-    return 'live';
-  }
-
-  function buildClassifiedStats(classifieds) {
-    var defaults = { live: 0, pending: 0, closed: 0, archived: 0, draft: 0 };
-    return (classifieds || []).reduce(function(acc, item) {
-      var status = resolveClassifiedStatus(item);
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, defaults);
-  }
-
-  function resolveClassifiedLeads(db, classifieds) {
-    var overrides = (db.state.classifiedDashboard && db.state.classifiedDashboard.leadStatus) || {};
-    var threads = resolveInboxThreads(db) || [];
-    var notifications = db.data.notifications || [];
-    var leads = [];
-
-    threads.forEach(function(thread, idx) {
-      var targetId = thread.target_id || thread.classified_id || '';
-      var status = overrides[thread.thread_id] || (thread.unread ? 'open' : 'responded');
-      leads.push({
-        id: thread.thread_id || 'thread_' + idx,
-        targetId: targetId,
-        status: status,
-        title: thread.title || t('inbox.thread', 'رسالة واردة'),
-        snippet: thread.snippet || '',
-        updated_at: thread.updated_at,
-        type: thread.type || 'message'
-      });
-    });
-
-    notifications.forEach(function(note, idx) {
-      var targetType = (note.target_type || note.type || '').toLowerCase();
-      if (targetType && targetType.indexOf('classified') === -1) return;
-      var targetId = note.target_id || note.classified_id || '';
-      var status = overrides[note.notification_id || idx] || (note.status === 'read' ? 'responded' : 'open');
-      leads.push({
-        id: note.notification_id || 'note_' + idx,
-        targetId: targetId,
-        status: status,
-        title: getLocalizedField(note, 'title', t('classifieds.lead', 'طلب تواصل')), 
-        snippet: getLocalizedField(note, 'body', note.description || ''),
-        updated_at: note.created_at || note.updated_at,
-        type: note.type || 'comment'
-      });
-    });
-
-    return leads;
-  }
-
-  function updateClassifiedStatus(ctx, targetId, nextStatus) {
-    if (!targetId || !nextStatus) return;
-    ctx.setState(function(db) {
-      var classifieds = db.data.classifieds || [];
-      var target = classifieds.find(function(item) {
-        var id = item.id || item.classified_id;
-        return id === targetId;
-      });
-      if (!target || !isClassifiedOwner(db, target)) return db;
-      var nextRows = classifieds.map(function(item) {
-        var id = item.id || item.classified_id;
-        if (id !== targetId) return item;
-        var clone = Object.assign({}, item, { status: nextStatus });
-        if (nextStatus === 'archived') {
-          clone.archived_at = new Date().toISOString();
-        } else if (nextStatus === 'closed') {
-          clone.closed_at = new Date().toISOString();
-        } else if (nextStatus === 'live') {
-          delete clone.archived_at;
-          delete clone.closed_at;
-        }
-        return clone;
-      });
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: db.state,
-        data: Object.assign({}, db.data, { classifieds: nextRows })
-      };
-    });
-    showNotice(ctx, t('classifieds.status.updated', 'تم تحديث حالة الإعلان'));
-  }
-
-  function updateLeadStatus(ctx, leadId, status) {
-    if (!leadId || !status) return;
-    ctx.setState(function(db) {
-      var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
-      var currentStatus = current.leadStatus || {};
-      var nextStatus = Object.assign({}, currentStatus, (function() {
-        var out = {};
-        out[leadId] = status;
-        return out;
-      })());
-      var nextDashboard = Object.assign({}, current, { leadStatus: nextStatus });
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: Object.assign({}, db.state, { classifiedDashboard: nextDashboard }),
-        data: db.data
-      };
-    });
-  }
-
-  function getAttachmentOptions(db, kind) {
-    if (kind === 'product') {
-      return (db.data.products || []).map(function(product) {
-        return { value: product.product_id, label: resolveProductTitle(product) };
-      });
-    }
-    if (type === 'service_share') {
-      return (db.data.services || []).map(function(service) {
-        return { value: service.service_id, label: getLocalizedField(service, 'title', t('services.default')) };
-      });
-    }
-    if (type === 'article_share') {
       return (db.data.articles || []).map(function(article) {
         return { value: article.article_id, label: getLocalizedField(article, 'title', t('knowledge.card.title')) };
       });
@@ -2452,157 +2566,11 @@
     ctx.setState(function(db) {
       var currentOverlay = db.state.postOverlay || initialDatabase.state.postOverlay;
       var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: Object.assign({}, db.state, { postOverlay: nextOverlay }),
-        data: db.data
-      };
-    });
-  }
-
-  function setDetailOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      var nextState = Object.assign({}, db.state, { postOverlay: nextOverlay });
       if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setReaderOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.readerOverlay || initialDatabase.state.readerOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { readerOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setContactOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setReportOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setDetailOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setReaderOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.readerOverlay || initialDatabase.state.readerOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { readerOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setContactOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setReportOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
+        nextState.commentDraft = '';
+      } else if (!nextOverlay || nextOverlay.open === false) {
+        nextState.commentDraft = '';
       }
       return {
         env: db.env,
@@ -2715,8 +2683,12 @@
   function handleComposerSubmit(ctx) {
     var currentDb = app ? app.database : null;
     if (!currentDb) return;
-    var composer = currentDb.state.composer || initialDatabase.state.composer;
+    var composer = getComposerState();
     if (composer.posting) return;
+    if (composer.attachmentKind === 'classified') {
+      submitClassified(ctx, composer);
+      return;
+    }
     var user = getActiveUser(currentDb);
     if (!user) {
       applyComposerState(ctx, { error: t('composer.error.user') });
@@ -2726,12 +2698,25 @@
       applyComposerState(ctx, { error: t('composer.error.offline'), posting: false });
       return;
     }
-    if ((!composer.text || !composer.text.trim()) && composer.type === 'plain') {
+    var hasMedia = Array.isArray(composer.mediaList) && composer.mediaList.length > 0;
+    var needsText = composer.mediaMode === 'plain' && composer.attachmentKind === 'none';
+    if (needsText && (!composer.text || !composer.text.trim()) && !hasMedia) {
       applyComposerState(ctx, { error: t('composer.error.empty'), posting: false });
       return;
     }
-    if (composer.type !== 'plain' && composer.type !== 'reel' && !composer.targetId) {
+    var requiresTarget = ['product', 'service', 'wiki'].indexOf(composer.attachmentKind) !== -1;
+    if (requiresTarget && !composer.targetId) {
       applyComposerState(ctx, { error: t('composer.error.target'), posting: false });
+      return;
+    }
+    if (composer.attachmentKind === 'ad') {
+      if (!composer.linkUrl || !composer.linkUrl.trim()) {
+        applyComposerState(ctx, { error: t('composer.ad.link.required', 'يرجى إضافة رابط الإعلان قبل النشر'), posting: false });
+        return;
+      }
+    }
+    if (composer.mediaMode === 'reel' && (!Array.isArray(composer.mediaList) || !composer.mediaList.length)) {
+      applyComposerState(ctx, { error: t('composer.reel.required', 'يرجى رفع فيديو للريل قبل النشر'), posting: false });
       return;
     }
     applyComposerState(ctx, { posting: true, error: null });
@@ -2743,7 +2728,8 @@
     var record = {
       post_id: postId,
       user_id: user.user_id,
-      post_type: composer.type || 'plain',
+      media_mode: composer.mediaMode || 'plain',
+      attachment_kind: composer.attachmentKind || 'none',
       visibility: 'public',
       is_pinned: false,
       likes_count: 0,
@@ -2753,15 +2739,39 @@
       created_at: now,
       updated_at: now
     };
-    if (composer.type === 'product_share') {
+    if (composer.attachmentKind === 'product') {
       record.shared_product_id = composer.targetId;
-    } else if (composer.type === 'service_share') {
+    } else if (composer.attachmentKind === 'service') {
       record.shared_service_id = composer.targetId;
-    } else if (composer.type === 'article_share') {
+    } else if (composer.attachmentKind === 'wiki') {
       record.shared_article_id = composer.targetId;
+    } else if (composer.attachmentKind === 'classified' && composer.targetId) {
+      record.shared_classified_id = composer.targetId;
     }
-    if (composer.media) {
-      record.media_urls = JSON.stringify([composer.media.trim()]);
+    var mergedMedia = Array.isArray(composer.mediaList) ? composer.mediaList.slice() : [];
+    if (composer.attachmentKind === 'ad') {
+      record.link_url = composer.linkUrl.trim();
+      record.link_image = mergedMedia.length ? mergedMedia[0] : null;
+    } else {
+      record.link_url = null;
+      record.link_image = null;
+    }
+    if (composer.mediaMode === 'reel') {
+      record.media_metadata = {
+        duration: composer.reelDuration || null,
+        aspect_ratio: '9:16',
+        max_duration: 30
+      };
+    } else if (composer.attachmentKind === 'ad') {
+      record.media_metadata = {
+        og_image: mergedMedia[0] || null,
+        og_title: composer.text ? composer.text.slice(0, 120) : null
+      };
+    } else {
+      record.media_metadata = null;
+    }
+    if (mergedMedia.length) {
+      record.media_urls = JSON.stringify(mergedMedia);
     }
     var langRecord = {
       id: postId + '_lang_' + lang,
@@ -2984,10 +2994,10 @@
     ].join(' • ');
 
     var channelOptions = [
-      { key: 'messages', label: t('notifications.channel.messages', 'رسائل ودردشات'), hint: t('notifications.channel.messages.hint', 'تفعيل تنبيهات المحادثات والاستفسارات')),
-      { key: 'comments', label: t('notifications.channel.comments', 'تعليقات وردود'), hint: t('notifications.channel.comments.hint', 'تنبيهات التعليقات على البوستات والريلز')),
-      { key: 'saves', label: t('notifications.channel.saves', 'حفظ ومفضلة'), hint: t('notifications.channel.saves.hint', 'إشعارات الحفظ والتفضيل لمحتواك')),
-      { key: 'reports', label: t('notifications.channel.reports', 'إبلاغات الأمان'), hint: t('notifications.channel.reports.hint', 'تنبيهات التبليغ أو التحذير على محتوى مرتبط بك'))
+      { key: 'messages', label: t('notifications.channel.messages', 'رسائل ودردشات'), hint: t('notifications.channel.messages.hint', 'تفعيل تنبيهات المحادثات والاستفسارات')},
+      { key: 'comments', label: t('notifications.channel.comments', 'تعليقات وردود'), hint: t('notifications.channel.comments.hint', 'تنبيهات التعليقات على البوستات والريلز')},
+      { key: 'saves', label: t('notifications.channel.saves', 'حفظ ومفضلة'), hint: t('notifications.channel.saves.hint', 'إشعارات الحفظ والتفضيل لمحتواك')},
+      { key: 'reports', label: t('notifications.channel.reports', 'إبلاغات الأمان'), hint: t('notifications.channel.reports.hint', 'تنبيهات التبليغ أو التحذير على محتوى مرتبط بك')},
     ];
 
     return D.Containers.Div({ attrs: { class: 'section-card settings-card' } }, [
@@ -3147,43 +3157,39 @@
 
   function renderPostCard(db, post) {
     var users = db.data.users || [];
-    var products = db.data.products || [];
-    var services = db.data.services || [];
-    var articles = db.data.articles || [];
     var user = findById(users, 'user_id', post.user_id);
     var userName = resolveUserName(user);
     var avatar = (user && user.avatar_url) || 'https://i.pravatar.cc/120?img=60';
+    var postText = getLocalizedField(post, 'content', '');
     var mediaList = toArray(post.media_urls);
-    var attachment = null;
-
-    if (post.post_type === 'product_share' && post.shared_product_id) {
-      var product = findById(products, 'product_id', post.shared_product_id);
-      if (product) attachment = renderProductCard(db, product, { compact: true });
-    } else if (post.post_type === 'article_share' && post.shared_article_id) {
-      var article = findById(articles, 'article_id', post.shared_article_id);
-      if (article) {
-        attachment = D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
-          D.Text.Span({ attrs: { class: 'chip' } }, [t('knowledge.title')]),
-          D.Text.P({}, [getLocalizedField(article, 'title', t('knowledge.card.title'))])
-        ]);
-      }
-    } else if (post.post_type === 'service_share' && post.shared_service_id) {
-      var service = findById(services, 'service_id', post.shared_service_id);
-      if (service) {
-        attachment = D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
-          D.Text.Span({ attrs: { class: 'chip' } }, [t('nav.services')]),
-          D.Text.P({}, [getLocalizedField(service, 'title', t('services.default'))])
-        ]);
+    var mediaMeta = post.media_metadata;
+    if (mediaMeta && typeof mediaMeta === 'string') {
+      try {
+        mediaMeta = JSON.parse(mediaMeta);
+      } catch (_err) {
+        mediaMeta = null;
       }
     }
-
+    var attachment = renderPostAttachment(db, post);
     var mediaStrip = null;
-    if (mediaList.length) {
+    var isReel = (post.media_mode || '').toLowerCase() === 'reel';
+    if (isReel && mediaList.length) {
+      var reelPoster = mediaMeta && mediaMeta.thumbnail_url;
+      mediaStrip = D.Media.Video({
+        attrs: {
+          class: 'feed-reel',
+          src: mediaList[0],
+          controls: true,
+          loop: true,
+          playsinline: 'playsinline',
+          poster: reelPoster || null
+        }
+      }, []);
+    } else if (mediaList.length) {
       mediaStrip = D.Containers.Div({ attrs: { class: 'feed-media' } }, mediaList.slice(0, 3).map(function(url, idx) {
         return D.Media.Img({ attrs: { src: url, class: 'media-thumb', key: post.post_id + '-media-' + idx } }, []);
       }));
     }
-
     return D.Containers.Div({
       attrs: {
         class: 'feed-card',
@@ -3198,7 +3204,7 @@
           D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
           renderTrustBadge(user),
           D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
-            t('post.type.' + (post.post_type || 'plain')) || (post.post_type || 'post'),
+            resolvePostPresentationLabel(post),
             ' · ',
             new Date(post.created_at).toLocaleDateString()
           ])
@@ -3207,9 +3213,7 @@
           ? D.Text.Span({ attrs: { class: 'chip' } }, [t('post.pinned')])
           : null
       ].filter(Boolean)),
-      D.Text.P({ attrs: { class: 'feed-content' } }, [
-        getLocalizedField(post, 'content', '')
-      ]),
+      postText ? D.Text.P({ attrs: { class: 'feed-content' } }, [postText]) : null,
       attachment,
       mediaStrip,
       D.Containers.Div({ attrs: { class: 'feed-stats' } }, [
@@ -3221,18 +3225,104 @@
     ]);
   }
 
-  function renderCategoryChips(db, categories, field, gkey) {
+  function renderPostAttachment(db, post) {
+    if (!post) return null;
+    var products = db.data.products || [];
+    var services = db.data.services || [];
+    var articles = db.data.articles || [];
+    var classifieds = db.data.classifieds || [];
+    var mediaMeta = post.media_metadata;
+    if (mediaMeta && typeof mediaMeta === 'string') {
+      try {
+        mediaMeta = JSON.parse(mediaMeta);
+      } catch (_err) {
+        mediaMeta = null;
+      }
+    }
+    var attachmentKind = (post.attachment_kind || '').toLowerCase();
+    if (attachmentKind === 'product' && post.shared_product_id) {
+      var product = findById(products, 'product_id', post.shared_product_id);
+      if (product) return renderProductCard(db, product, { compact: true });
+    }
+    if (attachmentKind === 'service' && post.shared_service_id) {
+      var service = findById(services, 'service_id', post.shared_service_id);
+      if (service) return renderServiceCard(db, service);
+    }
+    if (attachmentKind === 'wiki' && post.shared_article_id) {
+      var article = findById(articles, 'article_id', post.shared_article_id);
+      if (article) {
+        return renderArticleItem(db, article);
+      }
+    }
+    if (attachmentKind === 'classified' && post.shared_classified_id) {
+      var classified = findById(classifieds, 'id', post.shared_classified_id) || findById(classifieds, 'classified_id', post.shared_classified_id);
+      if (classified) {
+        return renderClassifiedCard(db, classified);
+      }
+    }
+    if (attachmentKind === 'ad' && post.link_url) {
+      var adTitle = mediaMeta && (mediaMeta.og_title || mediaMeta.title);
+      var adImage = (mediaMeta && mediaMeta.og_image) || post.link_image || (mediaMeta && mediaMeta.thumbnail_url);
+      var adDescription = mediaMeta && (mediaMeta.og_description || mediaMeta.description);
+      return D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
+        D.Text.Span({ attrs: { class: 'chip' } }, [t('post.type.ad', 'إعلان')]),
+        adImage
+          ? D.Media.Img({ attrs: { src: adImage, alt: adTitle || post.link_url, class: 'ad-preview-img' } }, [])
+          : null,
+        adTitle ? D.Text.H4({}, [adTitle]) : null,
+        adDescription ? D.Text.P({}, [adDescription]) : null,
+        D.Text.P({}, [
+          renderAnchorElement({
+            href: post.link_url,
+            target: '_blank',
+            rel: 'noopener noreferrer'
+          }, [post.link_url])
+        ]),
+        renderAttachmentAction('ad', t('post.type.ad.visit', 'زيارة الإعلان'), '', { 'data-link': post.link_url })
+      ]);
+    }
+    return null;
+  }
+
+  function bumpPostStat(postId, field) {
+    if (!app || !postId) return;
+    app.setState(function(db) {
+      var posts = db.data.posts || [];
+      var updated = false;
+      var nextPosts = posts.map(function(post) {
+        if (post && post.post_id === postId) {
+          updated = true;
+          var nextValue = (post[field] || 0) + 1;
+          var clone = Object.assign({}, post);
+          clone[field] = nextValue;
+          return clone;
+        }
+        return post;
+      });
+      if (!updated) return db;
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, { posts: nextPosts })
+      };
+    });
+  }
+
+  function renderCategoryChips(db, categories, field, gkey, options) {
     var selected = db.state.filters[field] || '';
-    var chips = [
-      D.Forms.Button({
+    var opts = options || {};
+    var chips = [];
+    if (!opts.skipAll) {
+      chips.push(D.Forms.Button({
         attrs: {
           class: 'chip' + (selected === '' ? ' chip-active' : ''),
           'data-m-gkey': gkey,
           'data-value': ''
         }
-      }, [t('filter.all')])
-    ];
-    chips = chips.concat(categories.map(function(cat) {
+      }, [t('filter.all')]));
+    }
+    chips = chips.concat((categories || []).map(function(cat) {
       return D.Forms.Button({
         attrs: {
           class: 'chip' + (selected === cat.category_id ? ' chip-active' : ''),
@@ -3746,7 +3836,8 @@
               : t('product.condition.unknown')
           ]),
           D.Text.Span({}, [city])
-        ])
+        ]),
+        renderAttachmentAction('product', t('product.view', 'عرض المنتج'), product.product_id)
       ])
     ]);
   }
@@ -3880,99 +3971,12 @@
     ]);
   }
 
-    if (tab === 'timeline') {
-      sections = sections.concat([
-        renderComposer(db),
-        renderSocialFeed(db),
-        renderClassifiedsSection(db),
-        renderTrendingHashtags(db),
-        renderMetricGrid(db),
-        categoryShowcase,
-        D.Containers.Div({ attrs: { class: 'section-card' } }, [
-          renderSectionHeader('home.featured', null, 'home.featured.meta', null),
-          products.length
-            ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
-                products.slice(0, 5).map(function(product) {
-                  return renderProductCard(db, product, { compact: true });
-                })
-              )
-            : D.Text.P({}, [t('marketplace.empty')])
-        ]),
-        D.Containers.Div({ attrs: { class: 'section-card' } }, [
-          renderSectionHeader('home.services', null, null, null),
-          services.length
-            ? services.slice(0, 4).map(function(service) {
-                return renderServiceCard(db, service);
-              })
-            : D.Text.P({}, [t('services.empty')])
-        ]),
-        D.Containers.Div({ attrs: { class: 'section-card' } }, [
-          renderSectionHeader('knowledge.title', null, null, null),
-          articles.length
-            ? articles.map(function(article) { return renderArticleItem(db, article); })
-            : D.Text.P({}, [t('knowledge.empty')])
-        ])
-      ]);
-    } else if (tab === 'classifieds') {
-      sections = sections.concat([
-        renderComposer(db),
-        renderClassifiedsSection(db),
-        renderTrendingHashtags(db),
-        categoryShowcase
-      ]);
-    } else if (tab === 'commerce') {
-      sections = sections.concat([
-        renderComposer(db),
-        renderMarketplace(db),
-        renderServices(db),
-        categoryShowcase
-      ]);
-    } else if (tab === 'knowledge') {
-      sections = sections.concat([
-        renderComposer(db),
-        D.Containers.Div({ attrs: { class: 'section-card' } }, [
-          renderSectionHeader('knowledge.title', null, null, null),
-          D.Inputs.Input({
-            attrs: {
-              type: 'text',
-              placeholder: t('placeholder.search.articles', 'ابحث في المقالات'),
-              'data-m-gkey': 'search-input',
-              class: 'search-input',
-              value: db.state.filters.search || ''
-            }
-          }, []),
-          articles.length
-            ? articles.map(function(article) { return renderArticleItem(db, article); })
-            : D.Text.P({}, [t('knowledge.empty')])
-        ])
-      ]);
-    }
-
-    return D.Containers.Div({ attrs: { class: 'app-section' } }, sections.filter(Boolean));
-  }
-
-  function renderClassifiedsPage(db) {
-    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
-      renderClassifiedDashboard(db),
-      renderClassifiedsSection(db)
-    ].filter(Boolean));
-  }
-
-  function renderCommerce(db) {
-    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
-      renderMarketplace(db),
-      renderServices(db)
-    ]);
-  }
-
   /**
    * Render marketplace section
    */
   function renderMarketplace(db) {
     var products = getFilteredProducts(db);
-    var categories = (db.data.categories || []).filter(function(cat) {
-      return cat.type === 'product';
-    }).slice(0, 8);
+    var categories = getLeafCategories(db.data.marketplaceCategories || [], { onlyLeaves: true, limit: 12 });
 
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('nav.marketplace', null, 'home.featured.meta', null),
@@ -3985,6 +3989,12 @@
           value: db.state.filters.search || ''
         }
       }, []),
+      D.Forms.Button({
+        attrs: {
+          class: 'chip primary',
+          'data-m-gkey': 'open-product-form'
+        }
+      }, [t('marketplace.add.product', '＋ إضافة منتج')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
         renderCategoryChips(db, categories, 'category', 'category-chip')
       ),
@@ -4042,7 +4052,8 @@
       D.Containers.Div({ attrs: { class: 'service-meta' } }, [
         D.Text.Span({ attrs: { class: 'service-price' } }, [priceLabel]),
         D.Text.Span({ attrs: { class: 'service-location' } }, [serviceCity])
-      ])
+      ]),
+      renderAttachmentAction('service', t('services.cta.book', 'احجز الخدمة'), service.service_id)
     ]);
   }
 
@@ -4051,9 +4062,7 @@
    */
   function renderServices(db) {
     var services = getFilteredServices(db);
-    var categories = (db.data.categories || []).filter(function(cat) {
-      return cat.type === 'service';
-    }).slice(0, 8);
+    var categories = getLeafCategories(db.data.serviceCategories || [], { onlyLeaves: true, limit: 12 });
 
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('nav.services', null, null, null),
@@ -4066,6 +4075,12 @@
           value: db.state.filters.search || ''
         }
       }, []),
+      D.Forms.Button({
+        attrs: {
+          class: 'chip primary',
+          'data-m-gkey': 'open-service-form'
+        }
+      }, [t('services.add', '＋ إضافة خدمة')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
         renderCategoryChips(db, categories, 'category', 'category-chip')
       ),
@@ -4098,13 +4113,7 @@
       D.Text.P({ attrs: { class: 'article-summary' } }, [getLocalizedField(article, 'excerpt', excerpt) || t('wiki.noSummary')]),
       D.Containers.Div({ attrs: { class: 'article-meta' } }, [
         D.Text.Span({}, [String(views) + ' ' + t('wiki.views')]),
-        D.Forms.Button({
-          attrs: {
-            'data-m-gkey': 'view-article',
-            'data-article-id': article.article_id,
-            class: 'chip'
-          }
-        }, [t('btn.read')])
+        renderAttachmentAction('wiki', t('btn.read', 'اقرأ الآن'), article.article_id)
       ])
     ].filter(Boolean));
   }
@@ -4255,6 +4264,7 @@
         })
       : [D.Text.P({ attrs: { class: 'comment-empty' } }, [t('post.overlay.empty')])];
     var langContent = getLocalizedField(post, 'content', '');
+    var attachment = renderPostAttachment(db, post);
 
     return D.Containers.Div({
       attrs: { class: 'post-overlay', 'data-m-gkey': 'post-close' }
@@ -4273,7 +4283,10 @@
         ]),
           D.Forms.Button({ attrs: { class: 'composer-close', 'data-m-gkey': 'post-close' } }, ['✕'])
         ]),
-        D.Text.P({ attrs: { class: 'feed-content' } }, [langContent]),
+        langContent
+          ? D.Text.P({ attrs: { class: 'feed-content' } }, [langContent])
+          : null,
+        attachment,
         D.Containers.Div({ attrs: { class: 'feed-stats overlay-stats' } }, [
           D.Text.Span({}, ['👁️ ', String(post.views_count || 0)]),
           D.Text.Span({}, ['💬 ', String(post.comments_count || 0)]),
@@ -4309,601 +4322,28 @@
           }, [t('safety.report', 'إبلاغ')])
         ]),
         D.Text.H4({}, [t('post.overlay.comments')]),
-        D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList)
-      ])
-    ]);
-  }
-
-  function renderDetailOverlay(db) {
-    var overlay = db.state.detailOverlay;
-    if (!overlay || !overlay.open) return null;
-    var kind = overlay.kind;
-    var target = resolveAttachmentPreview(db, kind, overlay.targetId);
-    if (!target) return null;
-    var seller = findById(db.data.users || [], 'user_id', target.user_id || target.owner_id || target.seller_id);
-    var gallery = toArray(target.images || target.media || target.gallery || target.media_urls);
-    if (!gallery.length) {
-      var primary = resolvePrimaryImage(target);
-      if (primary) gallery = [primary];
-    }
-    var activeIndex = Math.min(Math.max(overlay.activeIndex || 0, 0), Math.max(gallery.length - 1, 0));
-    var activeImage = gallery[activeIndex] || resolvePrimaryImage(target);
-    var title = getLocalizedField(target, 'title', target.title || target.name || '');
-    var price = target.price != null ? formatCurrencyValue(target.price, target.currency || t('currency.egp')) : (target.price_min != null || target.price_max != null) ? formatPriceRange(target.price_min, target.price_max) : '';
-    var description = getLocalizedField(target, 'description', target.body || target.summary || '');
-    var location = resolveCityName(target);
-    var contactPhone = target.contact_phone || target.phone || target.contact || '';
-    var sellerName = resolveUserName(seller) || t('seller.anon', 'بائع مجهول');
-    var sellerAvatar = (seller && seller.avatar_url) || 'https://i.pravatar.cc/120?img=15';
-    var sellerBadge = renderTrustBadge(seller);
-
-    var galleryThumbs = gallery.slice(0, 6).map(function(url, idx) {
-      var isActive = idx === activeIndex;
-      return D.Forms.Button({
-        attrs: {
-          class: 'detail-thumb' + (isActive ? ' active' : ''),
-          'data-m-gkey': 'detail-gallery-thumb',
-          'data-index': idx
-        }
-      }, [
-        D.Media.Img({ attrs: { src: url, alt: title } }, [])
-      ]);
-    });
-
-    var headerBadge = kind === 'product'
-      ? t('nav.commerce', 'منتج / خدمة')
-      : kind === 'service'
-        ? t('composer.type.service')
-        : kind === 'wiki'
-          ? t('composer.type.article')
-          : t('composer.type.classified', 'إعلان مستعمل');
-
-    var actionRow = [];
-    if (kind === 'classified' && contactPhone) {
-      actionRow.push(renderAttachmentAction('classified', t('classifieds.call', 'اتصل الآن'), '', { 'data-phone': contactPhone }));
-    }
-    actionRow.push(renderAttachmentAction(kind, t('attachment.share', 'مشاركة'), overlay.targetId));
-    actionRow.push(D.Forms.Button({
-      attrs: {
-        class: 'attachment-cta',
-        'data-m-gkey': 'open-contact',
-        'data-kind': kind,
-        'data-target-id': overlay.targetId,
-        'data-phone': contactPhone,
-        'data-user-id': seller && seller.user_id ? seller.user_id : ''
-      }
-    }, [t('contact.message', 'مراسلة البائع')]));
-    actionRow.push(D.Forms.Button({
-      attrs: {
-        class: 'chip ghost',
-        'data-m-gkey': 'open-report',
-        'data-target-type': kind,
-        'data-target-id': overlay.targetId
-      }
-    }, [t('safety.report', 'إبلاغ/حظر')]));
-
-    return D.Containers.Div({ attrs: { class: 'detail-overlay', 'data-m-gkey': 'detail-close' } }, [
-      D.Containers.Div({ attrs: { class: 'detail-panel', 'data-m-gkey': 'detail-overlay-inner' } }, [
-        D.Containers.Div({ attrs: { class: 'detail-header' } }, [
-          D.Text.Span({ attrs: { class: 'chip' } }, [headerBadge]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'detail-close' } }, ['✕'])
-        ]),
-        D.Containers.Div({ attrs: { class: 'detail-media' } }, [
-          activeImage ? D.Media.Img({ attrs: { src: activeImage, alt: title, class: 'detail-hero' } }, []) : null,
-          galleryThumbs.length ? D.Containers.Div({ attrs: { class: 'detail-gallery' } }, galleryThumbs) : null
-        ].filter(Boolean)),
-        D.Containers.Div({ attrs: { class: 'detail-body' } }, [
-          D.Text.H3({ attrs: { class: 'detail-title' } }, [title || headerBadge]),
-          price ? D.Text.Span({ attrs: { class: 'detail-price' } }, [price]) : null,
-          location ? D.Text.Span({ attrs: { class: 'detail-location' } }, [location]) : null,
-          description ? D.Text.P({ attrs: { class: 'detail-description' } }, [description]) : null,
-          D.Containers.Div({ attrs: { class: 'detail-seller' } }, [
-            D.Media.Img({ attrs: { class: 'seller-avatar', src: sellerAvatar, alt: sellerName } }, []),
-            D.Containers.Div({ attrs: { class: 'seller-meta' } }, [
-              D.Text.Span({ attrs: { class: 'seller-name' } }, [sellerName]),
-              sellerBadge
-            ].filter(Boolean)),
-            D.Containers.Div({ attrs: { class: 'seller-actions' } }, [
-              D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost',
-                  'data-m-gkey': 'open-contact',
-                  'data-kind': kind,
-                  'data-target-id': overlay.targetId,
-                  'data-phone': contactPhone,
-                  'data-user-id': seller && seller.user_id ? seller.user_id : ''
-                }
-              }, [t('contact.message', 'مراسلة')]),
-              contactPhone
-                ? D.Forms.Button({ attrs: { class: 'chip', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': contactPhone } }, [t('contact.call', 'اتصال مباشر')])
-                : null
-            ].filter(Boolean))
-          ].filter(Boolean)),
-          actionRow.length ? D.Containers.Div({ attrs: { class: 'detail-actions' } }, actionRow) : null,
-          D.Containers.Div({ attrs: { class: 'safety-block' } }, [
-            D.Text.Span({ attrs: { class: 'chip ghost' } }, ['🛡️ ', t('safety.title', 'ضمان الأمان')]),
-            D.Text.P({ attrs: { class: 'safety-copy' } }, [t('safety.copy', 'لا تشارك بياناتك الحساسة وأبلغ عن أي محتوى مخالف أو مشبوه.')])
-          ])
-        ].filter(Boolean))
-      ])
-    ]);
-  }
-
-  function renderReaderOverlay(db) {
-    var overlay = db.state.readerOverlay;
-    if (!overlay || !overlay.open) return null;
-    var article = findById(db.data.articles || [], 'article_id', overlay.articleId);
-    if (!article) return null;
-
-    var cover = resolvePrimaryImage(article);
-    var title = getLocalizedField(article, 'title', t('knowledge.card.title'));
-    var body = getLocalizedField(article, 'content', article.body || article.summary || article.excerpt || '');
-    var words = body.split(/\s+/).filter(Boolean).length;
-    var readMinutes = Math.max(1, Math.ceil(words / 170));
-    var fontSize = overlay.fontSize || 'md';
-    var related = (db.data.articles || []).filter(function(item) { return item.article_id !== article.article_id; }).slice(0, 3);
-
-    var fontOptions = [
-      { value: 'sm', label: 'A-' },
-      { value: 'md', label: 'A' },
-      { value: 'lg', label: 'A+' }
-    ];
-
-    return D.Containers.Div({ attrs: { class: 'reader-overlay', 'data-m-gkey': 'reader-close' } }, [
-      D.Containers.Div({ attrs: { class: 'reader-panel', 'data-m-gkey': 'reader-inner' } }, [
-        D.Containers.Div({ attrs: { class: 'reader-head' } }, [
-          D.Text.H4({ attrs: { class: 'reader-title' } }, [title]),
-          D.Containers.Div({ attrs: { class: 'reader-tools' } }, [
-            D.Text.Small({ attrs: { class: 'reader-meta' } }, [readMinutes + ' ' + t('knowledge.read.time', 'دقيقة قراءة')]),
-            D.Containers.Div({ attrs: { class: 'reader-fonts' } }, fontOptions.map(function(opt) {
-              var active = opt.value === fontSize;
-              return D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost' + (active ? ' active' : ''),
-                  'data-m-gkey': 'reader-font',
-                  'data-size': opt.value
-                }
-              }, [opt.label]);
-            })),
-            D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'reader-close' } }, ['✕'])
-          ])
-        ]),
-        cover ? D.Media.Img({ attrs: { class: 'reader-cover', src: cover, alt: title } }, []) : null,
-        D.Containers.Div({ attrs: { class: 'reader-body reader-size-' + fontSize } },
-          body
-            ? body.split(/\n+/).filter(Boolean).map(function(paragraph, idx) {
-                return D.Text.P({ attrs: { key: 'p-' + idx, class: 'reader-paragraph' } }, [paragraph.trim()]);
-              })
-            : [D.Text.P({}, [t('knowledge.empty', 'لا يوجد محتوى بعد.')])]
-        ),
-        related.length
-          ? D.Containers.Div({ attrs: { class: 'reader-related' } }, [
-              D.Text.H5({}, [t('knowledge.related', 'مقالات ذات صلة')]),
-              D.Containers.Div({ attrs: { class: 'reader-related-list' } },
-                related.map(function(item) {
-                  return D.Forms.Button({
-                    attrs: {
-                      class: 'chip ghost',
-                      'data-m-gkey': 'reader-open-related',
-                      'data-article-id': item.article_id
-                    }
-                  }, [getLocalizedField(item, 'title', t('knowledge.card.title'))]);
-                })
-              )
-            ])
-          : null
-      ])
-    ]);
-  }
-
-  function renderContactOverlay(db) {
-    var overlay = db.state.contactOverlay;
-    if (!overlay || !overlay.open) return null;
-    var seller = findById(db.data.users || [], 'user_id', overlay.userId);
-    var sellerName = resolveUserName(seller) || t('seller.anon', 'مستخدم');
-    var defaultText = overlay.preset || t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.');
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'contact-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'contact-modal' } }, [
-        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-          D.Text.H4({}, [t('contact.title', 'مراسلة') + ' ' + sellerName]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'contact-close' } }, ['✕'])
-        ]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('contact.hint', 'سنرسل رسالتك داخل التطبيق ويمكن متابعة الرد من الإشعارات.')]),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            value: overlay.message || defaultText,
-            'data-m-gkey': 'contact-message'
+        D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList),
+        (function() {
+          var canComment = Boolean(getActiveUser(db));
+          if (!canComment) {
+            return D.Forms.Button({
+              attrs: { class: 'hero-cta', 'data-m-gkey': 'auth-open' }
+            }, [t('comment.login', 'سجّل الدخول للتعليق')]);
           }
-        }, []),
-        overlay.phone
-          ? D.Text.Small({ attrs: { class: 'contact-meta' } }, [t('contact.phone', 'هاتف للتواصل: '), overlay.phone])
-          : null,
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'contact-send' } }, [t('contact.send', 'إرسال')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'contact-close' } }, [t('action.cancel', 'إلغاء')])
-        ])
-      ])
-    ]);
-  }
-
-  function renderReportOverlay(db) {
-    var overlay = db.state.reportOverlay;
-    if (!overlay || !overlay.open) return null;
-    var reasons = [
-      { value: 'spam', label: t('report.spam', 'محتوى مزعج / سبام') },
-      { value: 'fraud', label: t('report.fraud', 'احتيال أو طلب أموال') },
-      { value: 'illegal', label: t('report.illegal', 'محتوى مخالف للقوانين') },
-      { value: 'other', label: t('report.other', 'أخرى') }
-    ];
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'report-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'report-modal' } }, [
-        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-          D.Text.H4({}, [t('report.title', 'إبلاغ/حظر')]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'report-close' } }, ['✕'])
-        ]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('report.hint', 'سنراجع البلاغ سريعاً لحماية المجتمع.')]),
-        D.Inputs.Select({ attrs: { class: 'composer-select', 'data-m-gkey': 'report-reason', value: overlay.reason || '' } },
-          [D.Inputs.Option({ attrs: { value: '' } }, [t('report.choose', 'اختر سبب البلاغ')])].concat(
-            reasons.map(function(entry) {
-              return D.Inputs.Option({ attrs: { value: entry.value } }, [entry.label]);
-            })
-          )
-        ),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            placeholder: t('report.notes', 'أضف تفاصيل (اختياري)'),
-            value: overlay.notes || '',
-            'data-m-gkey': 'report-notes'
-          }
-        }, []),
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'report-submit' } }, [t('report.submit', 'إرسال البلاغ')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'report-close' } }, [t('action.cancel', 'إلغاء')])
-        ])
-      ])
-    ]);
-  }
-
-  function renderProfileEditor(db) {
-    var editor = db.state.profileEditor;
-    var user = getActiveUser(db);
-    if (!editor || !editor.open || !user) return null;
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'profile-edit-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-modal', 'data-m-gkey': 'profile-edit-modal' } }, [
-        D.Text.H3({}, [t('profile.edit', 'تعديل الملف الشخصي')]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('profile.edit.hint', 'حسّن الثقة عبر صورة وسيرة واضحة')]),
-        D.Inputs.Input({
-          attrs: {
-            type: 'text',
-            class: 'composer-input',
-            placeholder: t('profile.edit.name', 'الاسم الظاهر'),
-            value: editor.fullName || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'fullName'
-          }
-        }, []),
-        D.Inputs.Input({
-          attrs: {
-            type: 'url',
-            class: 'composer-input',
-            placeholder: t('profile.edit.avatar', 'رابط الصورة الشخصية'),
-            value: editor.avatarUrl || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'avatarUrl'
-          }
-        }, []),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            placeholder: t('profile.edit.bio', 'نبذة عنك أو عن نشاطك'),
-            value: editor.bio || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'bio'
-          }
-        }, []),
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'profile-edit-save' } }, [t('profile.save', 'حفظ التعديلات')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-close' } }, ['✕'])
-        ])
-      ])
-    ]);
-  }
-
-  function renderDetailOverlay(db) {
-    var overlay = db.state.detailOverlay;
-    if (!overlay || !overlay.open) return null;
-    var kind = overlay.kind;
-    var target = resolveAttachmentPreview(db, kind, overlay.targetId);
-    if (!target) return null;
-    var seller = findById(db.data.users || [], 'user_id', target.user_id || target.owner_id || target.seller_id);
-    var gallery = toArray(target.images || target.media || target.gallery || target.media_urls);
-    if (!gallery.length) {
-      var primary = resolvePrimaryImage(target);
-      if (primary) gallery = [primary];
-    }
-    var activeIndex = Math.min(Math.max(overlay.activeIndex || 0, 0), Math.max(gallery.length - 1, 0));
-    var activeImage = gallery[activeIndex] || resolvePrimaryImage(target);
-    var title = getLocalizedField(target, 'title', target.title || target.name || '');
-    var price = target.price != null ? formatCurrencyValue(target.price, target.currency || t('currency.egp')) : (target.price_min != null || target.price_max != null) ? formatPriceRange(target.price_min, target.price_max) : '';
-    var description = getLocalizedField(target, 'description', target.body || target.summary || '');
-    var location = resolveCityName(target);
-    var contactPhone = target.contact_phone || target.phone || target.contact || '';
-    var sellerName = resolveUserName(seller) || t('seller.anon', 'بائع مجهول');
-    var sellerAvatar = (seller && seller.avatar_url) || 'https://i.pravatar.cc/120?img=15';
-    var sellerBadge = renderTrustBadge(seller);
-
-    var galleryThumbs = gallery.slice(0, 6).map(function(url, idx) {
-      var isActive = idx === activeIndex;
-      return D.Forms.Button({
-        attrs: {
-          class: 'detail-thumb' + (isActive ? ' active' : ''),
-          'data-m-gkey': 'detail-gallery-thumb',
-          'data-index': idx
-        }
-      }, [
-        D.Media.Img({ attrs: { src: url, alt: title } }, [])
-      ]);
-    });
-
-    var headerBadge = kind === 'product'
-      ? t('nav.commerce', 'منتج / خدمة')
-      : kind === 'service'
-        ? t('composer.type.service')
-        : kind === 'wiki'
-          ? t('composer.type.article')
-          : t('composer.type.classified', 'إعلان مستعمل');
-
-    var actionRow = [];
-    if (kind === 'classified' && contactPhone) {
-      actionRow.push(renderAttachmentAction('classified', t('classifieds.call', 'اتصل الآن'), '', { 'data-phone': contactPhone }));
-    }
-    actionRow.push(renderAttachmentAction(kind, t('attachment.share', 'مشاركة'), overlay.targetId));
-    actionRow.push(D.Forms.Button({
-      attrs: {
-        class: 'attachment-cta',
-        'data-m-gkey': 'open-contact',
-        'data-kind': kind,
-        'data-target-id': overlay.targetId,
-        'data-phone': contactPhone,
-        'data-user-id': seller && seller.user_id ? seller.user_id : ''
-      }
-    }, [t('contact.message', 'مراسلة البائع')]));
-    actionRow.push(D.Forms.Button({
-      attrs: {
-        class: 'chip ghost',
-        'data-m-gkey': 'open-report',
-        'data-target-type': kind,
-        'data-target-id': overlay.targetId
-      }
-    }, [t('safety.report', 'إبلاغ/حظر')]));
-
-    return D.Containers.Div({ attrs: { class: 'detail-overlay', 'data-m-gkey': 'detail-close' } }, [
-      D.Containers.Div({ attrs: { class: 'detail-panel', 'data-m-gkey': 'detail-overlay-inner' } }, [
-        D.Containers.Div({ attrs: { class: 'detail-header' } }, [
-          D.Text.Span({ attrs: { class: 'chip' } }, [headerBadge]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'detail-close' } }, ['✕'])
-        ]),
-        D.Containers.Div({ attrs: { class: 'detail-media' } }, [
-          activeImage ? D.Media.Img({ attrs: { src: activeImage, alt: title, class: 'detail-hero' } }, []) : null,
-          galleryThumbs.length ? D.Containers.Div({ attrs: { class: 'detail-gallery' } }, galleryThumbs) : null
-        ].filter(Boolean)),
-        D.Containers.Div({ attrs: { class: 'detail-body' } }, [
-          D.Text.H3({ attrs: { class: 'detail-title' } }, [title || headerBadge]),
-          price ? D.Text.Span({ attrs: { class: 'detail-price' } }, [price]) : null,
-          location ? D.Text.Span({ attrs: { class: 'detail-location' } }, [location]) : null,
-          description ? D.Text.P({ attrs: { class: 'detail-description' } }, [description]) : null,
-          D.Containers.Div({ attrs: { class: 'detail-seller' } }, [
-            D.Media.Img({ attrs: { class: 'seller-avatar', src: sellerAvatar, alt: sellerName } }, []),
-            D.Containers.Div({ attrs: { class: 'seller-meta' } }, [
-              D.Text.Span({ attrs: { class: 'seller-name' } }, [sellerName]),
-              sellerBadge
-            ].filter(Boolean)),
-            D.Containers.Div({ attrs: { class: 'seller-actions' } }, [
-              D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost',
-                  'data-m-gkey': 'open-contact',
-                  'data-kind': kind,
-                  'data-target-id': overlay.targetId,
-                  'data-phone': contactPhone,
-                  'data-user-id': seller && seller.user_id ? seller.user_id : ''
-                }
-              }, [t('contact.message', 'مراسلة')]),
-              contactPhone
-                ? D.Forms.Button({ attrs: { class: 'chip', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': contactPhone } }, [t('contact.call', 'اتصال مباشر')])
-                : null
-            ].filter(Boolean))
-          ].filter(Boolean)),
-          actionRow.length ? D.Containers.Div({ attrs: { class: 'detail-actions' } }, actionRow) : null,
-          D.Containers.Div({ attrs: { class: 'safety-block' } }, [
-            D.Text.Span({ attrs: { class: 'chip ghost' } }, ['🛡️ ', t('safety.title', 'ضمان الأمان')]),
-            D.Text.P({ attrs: { class: 'safety-copy' } }, [t('safety.copy', 'لا تشارك بياناتك الحساسة وأبلغ عن أي محتوى مخالف أو مشبوه.')])
-          ])
-        ].filter(Boolean))
-      ])
-    ]);
-  }
-
-  function renderReaderOverlay(db) {
-    var overlay = db.state.readerOverlay;
-    if (!overlay || !overlay.open) return null;
-    var article = findById(db.data.articles || [], 'article_id', overlay.articleId);
-    if (!article) return null;
-
-    var cover = resolvePrimaryImage(article);
-    var title = getLocalizedField(article, 'title', t('knowledge.card.title'));
-    var body = getLocalizedField(article, 'content', article.body || article.summary || article.excerpt || '');
-    var words = body.split(/\s+/).filter(Boolean).length;
-    var readMinutes = Math.max(1, Math.ceil(words / 170));
-    var fontSize = overlay.fontSize || 'md';
-    var related = (db.data.articles || []).filter(function(item) { return item.article_id !== article.article_id; }).slice(0, 3);
-
-    var fontOptions = [
-      { value: 'sm', label: 'A-' },
-      { value: 'md', label: 'A' },
-      { value: 'lg', label: 'A+' }
-    ];
-
-    return D.Containers.Div({ attrs: { class: 'reader-overlay', 'data-m-gkey': 'reader-close' } }, [
-      D.Containers.Div({ attrs: { class: 'reader-panel', 'data-m-gkey': 'reader-inner' } }, [
-        D.Containers.Div({ attrs: { class: 'reader-head' } }, [
-          D.Text.H4({ attrs: { class: 'reader-title' } }, [title]),
-          D.Containers.Div({ attrs: { class: 'reader-tools' } }, [
-            D.Text.Small({ attrs: { class: 'reader-meta' } }, [readMinutes + ' ' + t('knowledge.read.time', 'دقيقة قراءة')]),
-            D.Containers.Div({ attrs: { class: 'reader-fonts' } }, fontOptions.map(function(opt) {
-              var active = opt.value === fontSize;
-              return D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost' + (active ? ' active' : ''),
-                  'data-m-gkey': 'reader-font',
-                  'data-size': opt.value
-                }
-              }, [opt.label]);
-            })),
-            D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'reader-close' } }, ['✕'])
-          ])
-        ]),
-        cover ? D.Media.Img({ attrs: { class: 'reader-cover', src: cover, alt: title } }, []) : null,
-        D.Containers.Div({ attrs: { class: 'reader-body reader-size-' + fontSize } },
-          body
-            ? body.split(/\n+/).filter(Boolean).map(function(paragraph, idx) {
-                return D.Text.P({ attrs: { key: 'p-' + idx, class: 'reader-paragraph' } }, [paragraph.trim()]);
-              })
-            : [D.Text.P({}, [t('knowledge.empty', 'لا يوجد محتوى بعد.')])]
-        ),
-        related.length
-          ? D.Containers.Div({ attrs: { class: 'reader-related' } }, [
-              D.Text.H5({}, [t('knowledge.related', 'مقالات ذات صلة')]),
-              D.Containers.Div({ attrs: { class: 'reader-related-list' } },
-                related.map(function(item) {
-                  return D.Forms.Button({
-                    attrs: {
-                      class: 'chip ghost',
-                      'data-m-gkey': 'reader-open-related',
-                      'data-article-id': item.article_id
-                    }
-                  }, [getLocalizedField(item, 'title', t('knowledge.card.title'))]);
-                })
-              )
-            ])
-          : null
-      ])
-    ]);
-  }
-
-  function renderContactOverlay(db) {
-    var overlay = db.state.contactOverlay;
-    if (!overlay || !overlay.open) return null;
-    var seller = findById(db.data.users || [], 'user_id', overlay.userId);
-    var sellerName = resolveUserName(seller) || t('seller.anon', 'مستخدم');
-    var defaultText = overlay.preset || t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.');
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'contact-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'contact-modal' } }, [
-        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-          D.Text.H4({}, [t('contact.title', 'مراسلة') + ' ' + sellerName]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'contact-close' } }, ['✕'])
-        ]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('contact.hint', 'سنرسل رسالتك داخل التطبيق ويمكن متابعة الرد من الإشعارات.')]),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            value: overlay.message || defaultText,
-            'data-m-gkey': 'contact-message'
-          }
-        }, []),
-        overlay.phone
-          ? D.Text.Small({ attrs: { class: 'contact-meta' } }, [t('contact.phone', 'هاتف للتواصل: '), overlay.phone])
-          : null,
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'contact-send' } }, [t('contact.send', 'إرسال')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'contact-close' } }, [t('action.cancel', 'إلغاء')])
-        ])
-      ])
-    ]);
-  }
-
-  function renderReportOverlay(db) {
-    var overlay = db.state.reportOverlay;
-    if (!overlay || !overlay.open) return null;
-    var reasons = [
-      { value: 'spam', label: t('report.spam', 'محتوى مزعج / سبام') },
-      { value: 'fraud', label: t('report.fraud', 'احتيال أو طلب أموال') },
-      { value: 'illegal', label: t('report.illegal', 'محتوى مخالف للقوانين') },
-      { value: 'other', label: t('report.other', 'أخرى') }
-    ];
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'report-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'report-modal' } }, [
-        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-          D.Text.H4({}, [t('report.title', 'إبلاغ/حظر')]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'report-close' } }, ['✕'])
-        ]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('report.hint', 'سنراجع البلاغ سريعاً لحماية المجتمع.')]),
-        D.Inputs.Select({ attrs: { class: 'composer-select', 'data-m-gkey': 'report-reason', value: overlay.reason || '' } },
-          [D.Inputs.Option({ attrs: { value: '' } }, [t('report.choose', 'اختر سبب البلاغ')])].concat(
-            reasons.map(function(entry) {
-              return D.Inputs.Option({ attrs: { value: entry.value } }, [entry.label]);
-            })
-          )
-        ),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            placeholder: t('report.notes', 'أضف تفاصيل (اختياري)'),
-            value: overlay.notes || '',
-            'data-m-gkey': 'report-notes'
-          }
-        }, []),
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'report-submit' } }, [t('report.submit', 'إرسال البلاغ')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'report-close' } }, [t('action.cancel', 'إلغاء')])
-        ])
-      ])
-    ]);
-  }
-
-  function renderProfileEditor(db) {
-    var editor = db.state.profileEditor;
-    var user = getActiveUser(db);
-    if (!editor || !editor.open || !user) return null;
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'profile-edit-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-modal', 'data-m-gkey': 'profile-edit-modal' } }, [
-        D.Text.H3({}, [t('profile.edit', 'تعديل الملف الشخصي')]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('profile.edit.hint', 'حسّن الثقة عبر صورة وسيرة واضحة')]),
-        D.Inputs.Input({
-          attrs: {
-            type: 'text',
-            class: 'composer-input',
-            placeholder: t('profile.edit.name', 'الاسم الظاهر'),
-            value: editor.fullName || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'fullName'
-          }
-        }, []),
-        D.Inputs.Input({
-          attrs: {
-            type: 'url',
-            class: 'composer-input',
-            placeholder: t('profile.edit.avatar', 'رابط الصورة الشخصية'),
-            value: editor.avatarUrl || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'avatarUrl'
-          }
-        }, []),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            placeholder: t('profile.edit.bio', 'نبذة عنك أو عن نشاطك'),
-            value: editor.bio || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'bio'
-          }
-        }, []),
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'profile-edit-save' } }, [t('profile.save', 'حفظ التعديلات')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-close' } }, ['✕'])
-        ])
+          return D.Containers.Div({ attrs: { class: 'comment-form' } }, [
+            D.Inputs.Textarea({
+              attrs: {
+                class: 'comment-input',
+                placeholder: t('comment.placeholder', 'أضف تعليقك...'),
+                value: db.state.commentDraft || '',
+                'data-m-gkey': 'comment-input'
+              }
+            }, []),
+            D.Forms.Button({
+              attrs: { class: 'hero-cta', 'data-m-gkey': 'comment-submit', 'data-post-id': post.post_id }
+            }, [t('comment.submit', 'إرسال')])
+          ]);
+        })()
       ])
     ]);
   }
@@ -5510,6 +4950,7 @@
 
     return D.Containers.Div({ attrs: { class: 'screen-bg' } }, [
       D.Containers.Div({ attrs: { class: 'app-shell' } }, [
+        renderPwaInstallBanner(db),
         renderNotice(db),
         renderHeader(db),
         renderNotificationsPanel(db),
@@ -5564,8 +5005,6 @@
       gkeys: ['nav-classifieds'],
       handler: function(event, ctx) {
         ctx.setState(function(db) {
-          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
-          var next = Object.assign({}, current, { tab: tab });
           return {
             env: db.env,
             meta: db.meta,
@@ -5590,107 +5029,6 @@
             env: db.env,
             meta: db.meta,
             state: Object.assign({}, db.state, { classifiedDashboard: next }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'classified.lead.filter': {
-      on: ['click'],
-      gkeys: ['classified-lead-filter'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var filter = event.currentTarget && event.currentTarget.getAttribute('data-value');
-        ctx.setState(function(db) {
-          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
-          var next = Object.assign({}, current, { leadFilter: filter || 'open' });
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { classifiedDashboard: next }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'classified.lead.status': {
-      on: ['click'],
-      gkeys: ['classified-lead-status'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var leadId = target && target.getAttribute('data-lead-id');
-        var status = target && target.getAttribute('data-status');
-        updateLeadStatus(ctx, leadId, status);
-      }
-    },
-
-    'classified.status': {
-      on: ['click'],
-      gkeys: ['classified-status'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var status = target && target.getAttribute('data-status');
-        var id = target && target.getAttribute('data-target-id');
-        updateClassifiedStatus(ctx, id, status);
-      }
-    },
-
-    'open.product.form': {
-      on: ['click'],
-      gkeys: ['open-product-form'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('marketplace.add.product.notice', 'انتقل للمتجر لإضافة منتج جديد ثم شاركه'));
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'classified.lead.status': {
-      on: ['click'],
-      gkeys: ['classified-lead-status'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var leadId = target && target.getAttribute('data-lead-id');
-        var status = target && target.getAttribute('data-status');
-        updateLeadStatus(ctx, leadId, status);
-      }
-    },
-
-    'classified.status': {
-      on: ['click'],
-      gkeys: ['classified-status'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var status = target && target.getAttribute('data-status');
-        var id = target && target.getAttribute('data-target-id');
-        updateClassifiedStatus(ctx, id, status);
-      }
-    },
-
-    'open.product.form': {
-      on: ['click'],
-      gkeys: ['open-product-form'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('marketplace.add.product.notice', 'انتقل للمتجر لإضافة منتج جديد ثم شاركه'));
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -6760,6 +6098,12 @@
       on: ['click'],
       gkeys: ['composer-open'],
       handler: function(event, ctx) {
+        var db = app ? app.database : null;
+        var user = db ? getActiveUser(db) : null;
+        if (!user) {
+          openAuthModal('login');
+          return;
+        }
         applyComposerState(ctx, function(current) {
           return Object.assign({}, current, { open: true, error: null });
         });
@@ -6769,7 +6113,9 @@
       on: ['click'],
       gkeys: ['composer-close'],
       handler: function(event, ctx) {
-        applyComposerState(ctx, { open: false, posting: false });
+        applyComposerState(ctx, function() {
+          return createComposerState({ open: false });
+        });
       }
     },
     'composer.text': {
@@ -6780,9 +6126,9 @@
         applyComposerState(ctx, { text: value });
       }
     },
-    'composer.type': {
+    'composer.mediaMode': {
       on: ['change'],
-      gkeys: ['composer-type'],
+      gkeys: ['composer-media-mode'],
       handler: function(event, ctx) {
         var value = event.target.value || 'plain';
         applyComposerState(ctx, function(current) {
@@ -6882,7 +6228,34 @@
     },
     'composer.link': {
       on: ['input'],
-      gkeys: ['composer-media'],
+      gkeys: ['composer-link-url'],
+      handler: function(event, ctx) {
+        var value = event.target.value || '';
+        applyComposerState(ctx, { linkUrl: value });
+      }
+    },
+    'composer.media.pick': {
+      on: ['click'],
+      gkeys: ['composer-media-pick'],
+      handler: function(event) {
+        event.preventDefault();
+        if (!global.document) return;
+        var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
+        if (input) input.click();
+      }
+    },
+    'composer.media.file': {
+      on: ['change'],
+      gkeys: ['composer-media-file'],
+      handler: function(event, ctx) {
+        var files = event.target && event.target.files ? event.target.files : null;
+        if (!files || !files.length) return;
+        handleComposerMediaFiles(ctx, files);
+      }
+    },
+    'composer.media.remove': {
+      on: ['click'],
+      gkeys: ['composer-media-remove'],
       handler: function(event, ctx) {
         var url = event.currentTarget && event.currentTarget.getAttribute('data-url');
         removeComposerMedia(ctx, url);
@@ -7222,6 +6595,8 @@
       gkeys: ['post-like'],
       handler: function(event, ctx) {
         event.stopPropagation();
+        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        bumpPostStat(postId, 'likes_count');
         showNotice(ctx, t('post.action.like') + ' ✓');
       }
     },
@@ -7315,6 +6690,8 @@
       gkeys: ['post-share'],
       handler: function(event, ctx) {
         event.stopPropagation();
+        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        bumpPostStat(postId, 'shares_count');
         showNotice(ctx, t('post.action.share') + ' ✓');
       }
     },
@@ -7324,6 +6701,8 @@
       gkeys: ['post-subscribe'],
       handler: function(event, ctx) {
         event.stopPropagation();
+        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        bumpPostStat(postId, 'saves_count');
         showNotice(ctx, t('post.action.subscribe') + ' ✓');
       }
     }
@@ -7341,6 +6720,7 @@
         console.warn('[SBN PWA] Failed to dispose realtime store', err);
       }
     }
+    clearNotificationWatch();
     realtime = null;
   }
 
@@ -7446,6 +6826,7 @@
             });
           });
           debugLog('[SBN PWA][rt] watchers registered');
+          setupNotificationWatch();
 
           // Watch connection status
           realtime.status(function(status) {
@@ -7523,6 +6904,10 @@
       })
       .catch(function(error) {
         debugLog('[SBN PWA][rest] snapshot fetch failed', error);
+      })
+      .finally(function() {
+        refreshLocalizedCategories(lang || getCurrentLang());
+        refreshClassifiedsSnapshot(lang || getCurrentLang());
       });
   }
 
@@ -7562,6 +6947,7 @@
 
       // Mount to DOM
       app.mount('#app');
+      setupPwaInstallPrompt();
 
       console.log('[SBN PWA] App mounted successfully');
 
