@@ -209,7 +209,7 @@
       window.__POS_BRANCH_ID__ = BRANCH_ID;
 
       try {
-        createPosDb({ branchId: BRANCH_ID, role: 'finance-shell' })
+        createPosDb({ branchId: BRANCH_ID, role: 'finance-shell', smartFetch: false })
           .then(({ db, moduleEntry }) => {
             window.__POS_DB__ = db;
             window.__POS_MODULE_ENTRY__ = moduleEntry;
