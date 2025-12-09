@@ -2325,7 +2325,7 @@
       content,
       BottomNav(db),
       installBanner,
-      db.state.pwa && db.state.pwa.showGate && !isPWASkippedThisSession() ? InstallGate(db) : null,
+      db.state.pwa && db.state.pwa.showGate ? InstallGate(db) : null,
       SubscribeModal(db),
       db.state.auth && db.state.auth.showAuthModal ? AuthModal(db) : null,
       db.state.showBrokerRegModal ? BrokerRegistrationModal(db) : null,
