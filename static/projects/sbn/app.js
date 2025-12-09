@@ -102,21 +102,6 @@
       console.log('[SBN PWA][label]', key, dict[key]);
       return dict[key];
     };
-    global.SBN_PWA_SESSION = function() {
-      var db = currentDatabase();
-      var activeUserId = db && db.state ? db.state.activeUserId : null;
-      var activeUser = getActiveUser(db);
-      var usersCount = Array.isArray(db && db.data && db.data.users)
-        ? db.data.users.length
-        : 0;
-      var payload = {
-        activeUserId: activeUserId,
-        activeUser: activeUser,
-        usersCount: usersCount
-      };
-      console.log('[SBN PWA][session]', payload);
-      return payload;
-    };
   }
   exposeConsoleHelpers();
   // Support for unified mishkah.js with auto-loading
@@ -156,31 +141,9 @@
   var BRANCH_ID = 'sbn';
   var MODULE_ID = 'mostamal';
   var PREF_STORAGE_KEY = 'sbn:prefs:v1';
-  var NOTIFICATION_PREFS_KEY = 'sbn:notification:prefs:v1';
-  var COMPLIANCE_PREFS_KEY = 'sbn:compliance:prefs:v1';
-  var COMPOSER_DRAFT_KEY = 'sbn:composer:draft';
-  var ONBOARDING_STORAGE_KEY = 'sbn:onboarding:progress';
-  var LAUNCH_CHECKLIST_KEY = 'sbn:launch:checklist';
-  var OTP_COOLDOWN_MS = 10 * 60 * 1000;
-  var OTP_BLOCK_MS = 30 * 60 * 1000;
-  var STATIC_OTP = '123456';
 
   var BASE_I18N = {};
   var realtime = null;
-  var COMPOSER_MEDIA_INPUT_ID = 'composer-media-input';
-  var MAX_COMPOSER_UPLOADS = 6;
-  var deferredInstallPrompt = null;
-  var installPromptInitialized = false;
-  var SESSION_PWA_KEY = 'sbn:pwa:dismissed';
-  var SESSION_STORAGE_KEY = 'sbn:pwa:session';
-  var notificationsUnsubscribe = null;
-  var DEMO_ACCOUNT = {
-    email: 'demo@mostamal.eg',
-    phone: '+201000000000',
-    password: 'demo123',
-    otp: STATIC_OTP,
-    userId: 'usr_001'
-  };
 
   function registerRealtimeStoreInstance(rt) {
     if (!rt || !rt.store) return;
@@ -193,93 +156,18 @@
     global.__MISHKAH_LAST_STORE__ = rt.store;
   }
 
-  function clearNotificationWatch() {
-    if (typeof notificationsUnsubscribe === 'function') {
-      try {
-        notificationsUnsubscribe();
-      } catch (err) {
-        console.warn('[SBN PWA] failed to unsubscribe notifications watch', err);
-      }
-    }
-    notificationsUnsubscribe = null;
-  }
-
-  function getNotificationPayloadRows(payload) {
-    if (Array.isArray(payload)) return payload;
-    if (!payload || typeof payload !== 'object') return [];
-    if (Array.isArray(payload.rows)) return payload.rows;
-    if (Array.isArray(payload.data)) return payload.data;
-    if (payload.data && Array.isArray(payload.data.rows)) return payload.data.rows;
-    var record = payload.record || payload.next || payload.current || payload.value;
-    if (record) return [record];
-    return [];
-  }
-
-  function syncNotificationsFromRealtime(rows) {
-    if (app && app.database) {
-      app.setState(function(db) {
-        return {
-          env: db.env,
-          meta: db.meta,
-          state: db.state,
-          data: Object.assign({}, db.data, {
-            notifications: mergeNotificationRows(db.data.notifications || [], rows)
-          })
-        };
-      });
-    } else {
-      initialDatabase.data.notifications = mergeNotificationRows(initialDatabase.data.notifications || [], rows);
-    }
-  }
-
-  function setupNotificationWatch() {
-    if (!realtime || !realtime.store || typeof realtime.store.watch !== 'function') {
-      clearNotificationWatch();
-      return;
-    }
-    clearNotificationWatch();
-    try {
-      var unsub = realtime.store.watch('sbn_notifications', function(payload) {
-        var entries = getNotificationPayloadRows(payload);
-        if (!entries.length) return;
-        syncNotificationsFromRealtime(entries);
-      });
-      if (typeof unsub === 'function') {
-        notificationsUnsubscribe = unsub;
-      }
-      debugLog('[SBN PWA][rt] notification watch active');
-    } catch (err) {
-      console.warn('[SBN PWA] Failed to watch sbn_notifications', err);
-      debugLog('[SBN PWA][rt] notification watch failed', err);
-    }
-  }
-
   // ================== TABLE MAPPINGS ==================
   var TABLE_TO_DATA_KEY = {
     'sbn_ui_labels': 'uiLabels',
     'sbn_products': 'products',
     'sbn_services': 'services',
     'sbn_wiki_articles': 'articles',
+    'sbn_categories': 'categories',
     'sbn_users': 'users',
     'sbn_posts': 'posts',
     'sbn_comments': 'comments',
     'sbn_hashtags': 'hashtags',
-    'sbn_reviews': 'reviews',
-    'sbn_classified_categories': 'classifiedCategories',
-    'sbn_marketplace_categories': 'marketplaceCategories',
-    'sbn_service_categories': 'serviceCategories',
-    'sbn_knowledge_categories': 'knowledgeCategories',
-    'sbn_notifications': 'notifications'
-  };
-  var CATEGORY_TABLES = [
-    'sbn_classified_categories',
-    'sbn_marketplace_categories',
-    'sbn_service_categories',
-    'sbn_knowledge_categories'
-  ];
-  var pendingCategoryFetches = {};
-  var COMPOSER_CATEGORY_SOURCES = {
-    classified: 'classifiedCategories'
+    'sbn_reviews': 'reviews'
   };
 
   // ================== HELPERS ==================
@@ -461,150 +349,6 @@
     }
   }
 
-  function loadNotificationPrefs() {
-    if (!global.localStorage) return null;
-    try {
-      var raw = global.localStorage.getItem(NOTIFICATION_PREFS_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_err) {
-      return null;
-    }
-  }
-
-  function persistNotificationPrefs(prefs) {
-    if (!global.localStorage) return;
-    try {
-      global.localStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(prefs || {}));
-    } catch (_err) {
-      /* noop */
-    }
-  }
-
-  function loadCompliancePrefs() {
-    if (!global.localStorage) return null;
-    try {
-      var raw = global.localStorage.getItem(COMPLIANCE_PREFS_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_err) {
-      return null;
-    }
-  }
-
-  function persistCompliancePrefs(prefs) {
-    if (!global.localStorage) return;
-    try {
-      global.localStorage.setItem(COMPLIANCE_PREFS_KEY, JSON.stringify(prefs || {}));
-    } catch (_err) {
-      /* noop */
-    }
-  }
-
-  function loadComposerDraft() {
-    if (!global.localStorage) return null;
-    try {
-      var raw = global.localStorage.getItem(COMPOSER_DRAFT_KEY);
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch (_err) {
-      return null;
-    }
-  }
-
-  function persistComposerDraft(draft) {
-    if (!global.localStorage) return;
-    try {
-      if (!draft || draft.open === false) {
-        global.localStorage.removeItem(COMPOSER_DRAFT_KEY);
-        return;
-      }
-      var payload = JSON.stringify(draft);
-      global.localStorage.setItem(COMPOSER_DRAFT_KEY, payload);
-    } catch (_err) {
-      /* noop */
-    }
-  }
-
-  function loadOnboardingProgress() {
-    if (!global.localStorage) return null;
-    try {
-      var raw = global.localStorage.getItem(ONBOARDING_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_err) {
-      return null;
-    }
-  }
-
-  function persistOnboardingProgress(progress) {
-    if (!global.localStorage) return;
-    try {
-      global.localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(progress || {}));
-    } catch (_err) {
-      /* noop */
-    }
-  }
-
-  function loadLaunchChecklistState() {
-    if (!global.localStorage) return null;
-    try {
-      var raw = global.localStorage.getItem(LAUNCH_CHECKLIST_KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_err) {
-      return null;
-    }
-  }
-
-  function persistLaunchChecklistState(progress) {
-    if (!global.localStorage) return;
-    try {
-      global.localStorage.setItem(LAUNCH_CHECKLIST_KEY, JSON.stringify(progress || {}));
-    } catch (_err) {
-      /* noop */
-    }
-  }
-
-  function loadPersistedSession() {
-    if (!global.localStorage) return null;
-    try {
-      var raw = global.localStorage.getItem(SESSION_STORAGE_KEY);
-      if (!raw) return null;
-      var payload = JSON.parse(raw);
-      if (payload && payload.userId) {
-        return payload;
-      }
-      return null;
-    } catch (_err) {
-      return null;
-    }
-  }
-
-  function persistSession(session) {
-    if (!global.localStorage) return;
-    try {
-      if (!session || !session.userId) {
-        global.localStorage.removeItem(SESSION_STORAGE_KEY);
-        return;
-      }
-      var payload = {
-        userId: session.userId,
-        email: session.email || '',
-        phone: session.phone || '',
-        updatedAt: Date.now()
-      };
-      global.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
-    } catch (_err) {
-      /* noop */
-    }
-  }
-
-  function clearPersistedSession() {
-    if (!global.localStorage) return;
-    try {
-      global.localStorage.removeItem(SESSION_STORAGE_KEY);
-    } catch (_err) {
-      /* noop */
-    }
-  }
-
   /**
    * Apply theme to document
    */
@@ -628,121 +372,12 @@
     global.document.documentElement.setAttribute('dir', resolvedDir);
   }
 
-  function isPwaPromptSuppressed() {
-    try {
-      return global.sessionStorage && global.sessionStorage.getItem(SESSION_PWA_KEY) === '1';
-    } catch (_err) {
-      return false;
-    }
-  }
-
-  function suppressPwaPromptForSession() {
-    try {
-      if (global.sessionStorage) {
-        global.sessionStorage.setItem(SESSION_PWA_KEY, '1');
-      }
-    } catch (_err) {
-      /* ignore */
-    }
-  }
-
-  function isStandaloneMode() {
-    if (!global || !global.window) return false;
-    var matchesDisplayMode = false;
-    try {
-      if (global.matchMedia) {
-        var media = global.matchMedia('(display-mode: standalone)');
-        matchesDisplayMode = media && media.matches;
-      }
-    } catch (_err) {
-      matchesDisplayMode = false;
-    }
-    var navigatorStandalone = global.navigator && global.navigator.standalone;
-    return Boolean(matchesDisplayMode || navigatorStandalone);
-  }
-
-  function setPwaPromptState(visible) {
-    if (visible && isPwaPromptSuppressed()) {
-      visible = false;
-    }
-    if (app) {
-      app.setState(function(db) {
-        if (db.state.showPwaPrompt === visible) return db;
-        return {
-          env: db.env,
-          meta: db.meta,
-          state: Object.assign({}, db.state, { showPwaPrompt: visible }),
-          data: db.data
-        };
-      });
-    } else {
-      initialDatabase.state.showPwaPrompt = visible;
-    }
-  }
-
-  function setupPwaInstallPrompt() {
-    if (installPromptInitialized || !global || !global.window) return;
-    installPromptInitialized = true;
-    var markVisibility = function() {
-      if (!isStandaloneMode() && !isPwaPromptSuppressed()) {
-        setPwaPromptState(true);
-      } else {
-        setPwaPromptState(false);
-      }
-    };
-    global.window.addEventListener('beforeinstallprompt', function(event) {
-      event.preventDefault();
-      deferredInstallPrompt = event;
-      markVisibility();
-    });
-    markVisibility();
-    if (global.window.matchMedia) {
-      try {
-        var media = global.window.matchMedia('(display-mode: standalone)');
-        var handler = function(evt) {
-          if (evt.matches) {
-            deferredInstallPrompt = null;
-            setPwaPromptState(false);
-          }
-        };
-        if (typeof media.addEventListener === 'function') {
-          media.addEventListener('change', handler);
-        } else if (typeof media.addListener === 'function') {
-          media.addListener(handler);
-        }
-      } catch (_err) {
-        /* noop */
-      }
-    }
-  }
-
-  function renderPwaInstallBanner(db) {
-    if (!db.state.showPwaPrompt || isStandaloneMode()) return null;
-    return D.Containers.Div({ attrs: { class: 'pwa-install-banner' } }, [
-      D.Text.Span({ attrs: { class: 'pwa-text' } }, [
-        t('pwa.install.message', 'ثبّت تطبيق مستعمل حواء لفتح الشبكة بسرعة على هاتفك.')
-      ]),
-      D.Forms.Button({
-        attrs: { class: 'hero-cta', 'data-m-gkey': 'pwa-install' }
-      }, [t('pwa.install.action', 'تثبيت الآن')]),
-      D.Forms.Button({
-        attrs: { class: 'chip', 'data-m-gkey': 'pwa-dismiss' }
-      }, [t('pwa.install.later', 'لاحقاً')])
-    ]);
-  }
-
   // ================== INITIAL STATE ==================
   var persisted = loadPersistedPrefs();
-  var persistedSession = loadPersistedSession();
-  var persistedComposerDraft = loadComposerDraft();
-  var persistedOnboarding = loadOnboardingProgress();
-  var persistedLaunchChecklist = loadLaunchChecklistState();
-  var persistedNotificationPrefs = loadNotificationPrefs();
-  var persistedCompliancePrefs = loadCompliancePrefs();
 
   var initialDatabase = {
     env: {
-      theme: persisted.theme || 'dark',
+      theme: persisted.theme || 'light',
       lang: persisted.lang || 'ar',
       dir: persisted.dir || (persisted.lang === 'ar' ? 'rtl' : 'ltr'),
       i18n: BASE_I18N
@@ -756,120 +391,24 @@
       error: null,
       notice: null,
       currentSection: 'timeline',
-      activeUserId: persistedSession && persistedSession.userId ? persistedSession.userId : null,
+      activeUserId: 'usr_001',
       postOverlay: {
         open: false,
         postId: null
       },
-      detailOverlay: {
+      composer: {
         open: false,
-        kind: null,
-        targetId: null,
-        activeIndex: 0
-      },
-      homeTab: 'timeline',
-      composer: Object.assign({
-        open: false,
-        mediaMode: 'plain',
-        attachmentKind: 'classified',
+        type: 'plain',
         text: '',
         targetId: '',
-        mediaList: [],
-        reelDuration: null,
-        linkUrl: '',
-        uploadingMedia: false,
-        uploadError: null,
-        categoryId: '',
-        subcategoryId: '',
-        classifiedTitle: '',
-        classifiedPrice: '',
-        contactPhone: '',
-        editAttachmentId: '',
+        media: '',
         posting: false,
         error: null
-      }, persistedComposerDraft || {}),
-      onboarding: Object.assign({
-        completed: {},
-        dismissed: false
-      }, persistedOnboarding || {}),
-      launchChecklist: Object.assign({
-        composer: false,
-        attachments: false,
-        profile: false,
-        discovery: false,
-        safety: false
-      }, persistedLaunchChecklist || {}),
-      profileEditor: {
-        open: false,
-        fullName: '',
-        bio: '',
-        avatarUrl: ''
-      },
-      contactOverlay: {
-        open: false,
-        kind: null,
-        targetId: null,
-        phone: '',
-        userId: null,
-        preset: '',
-        message: ''
-      },
-      readerOverlay: {
-        open: false,
-        articleId: null,
-        fontSize: 'md'
-      },
-      reportOverlay: {
-        open: false,
-        targetType: null,
-        targetId: null,
-        reason: '',
-        notes: ''
       },
       filters: {
         search: '',
         category: '',
-        condition: '',
-        hashtag: ''
-      },
-      commentDraft: '',
-      showPwaPrompt: false,
-      notificationsOpen: false,
-      inboxOpen: false,
-      profileTab: 'posts',
-      notificationPrefs: Object.assign({
-        pushEnabled: false,
-        inboxEnabled: true,
-        permission: 'default',
-        webPushPrompted: false,
-        channels: {
-          comments: true,
-          messages: true,
-          saves: true,
-          reports: true
-        }
-      }, persistedNotificationPrefs || {}),
-      compliance: Object.assign({
-        termsAccepted: false,
-        privacyAccepted: false,
-        dataConsent: false,
-        deletionRequested: false
-      }, persistedCompliancePrefs || {}),
-      auth: {
-        open: false,
-        step: 'login',
-        fullName: '',
-        phone: (persistedSession && persistedSession.phone) || '+201',
-        email: (persistedSession && persistedSession.email) || 'demo@mostamal.eg',
-        password: '',
-        otp: '',
-        otpRequestedAt: 0,
-        blockedUntil: 0,
-        loginAttempts: 0,
-        recaptcha: false,
-        newPassword: '',
-        error: null,
-        pendingUser: null
+        condition: ''
       }
     },
     data: {
@@ -877,50 +416,14 @@
       products: [],
       services: [],
       articles: [],
-      classifiedCategories: [],
-      marketplaceCategories: [],
-      serviceCategories: [],
-      knowledgeCategories: [],
+      categories: [],
       users: [],
       posts: [],
       comments: [],
       hashtags: [],
-      reviews: [],
-      classifieds: [],
-      notifications: [],
-      inboxThreads: []
+      reviews: []
     }
   };
-
-  var DEFAULT_INBOX_THREADS = [
-    {
-      thread_id: 'thread_demo_1',
-      title: 'سؤال حول الإعلان',
-      snippet: 'هل ما زال المنتج متوفراً؟ أحتاج صوراً إضافية قبل الطلب.',
-      unread: true,
-      type: 'message',
-      updated_at: new Date().toISOString(),
-      counterpart: 'سارة العطار'
-    },
-    {
-      thread_id: 'thread_demo_2',
-      title: 'تعليق جديد على البوست',
-      snippet: 'أعجبني عرض الخدمة، هل يوجد باقة شهرية؟',
-      unread: false,
-      type: 'comment',
-      updated_at: new Date().toISOString(),
-      counterpart: 'منى عادل'
-    },
-    {
-      thread_id: 'thread_demo_3',
-      title: 'حفظ منتجك',
-      snippet: 'تم حفظ منتجك في قائمة مفضلات 12 مستخدمًا.',
-      unread: true,
-      type: 'save',
-      updated_at: new Date().toISOString(),
-      counterpart: 'تنبيه النظام'
-    }
-  ];
 
   // ================== DATA HELPERS ==================
 
@@ -966,64 +469,6 @@
     return media.length ? media[0] : '/projects/sbn/placeholder.jpg';
   }
 
-  function resolveInboxThreads(db) {
-    var threads = (db && db.data && db.data.inboxThreads) || [];
-    if (Array.isArray(threads) && threads.length) return threads;
-    return DEFAULT_INBOX_THREADS;
-  }
-
-  function updateNotificationPreferences(ctx, updates) {
-    ctx.setState(function(db) {
-      var current = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
-      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
-      persistNotificationPrefs(next);
-      var launch = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
-      var nextLaunch = next.pushEnabled || next.inboxEnabled
-        ? Object.assign({}, launch, { safety: true })
-        : launch;
-      if (nextLaunch !== launch) {
-        persistLaunchChecklistState(nextLaunch);
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: Object.assign({}, db.state, { notificationPrefs: next, launchChecklist: nextLaunch }),
-        data: db.data
-      };
-    });
-  }
-
-  function updateComplianceState(ctx, updates) {
-    ctx.setState(function(db) {
-      var current = db.state.compliance || initialDatabase.state.compliance;
-      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
-      persistCompliancePrefs(next);
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: Object.assign({}, db.state, { compliance: next }),
-        data: db.data
-      };
-    });
-  }
-
-  function resolveUserTrust(user) {
-    if (!user) return null;
-    if (user.verified || user.trusted || user.trust_score >= 70) {
-      return t('trust.verified', 'موثّق');
-    }
-    if ((user.reviews_count || user.reputation || 0) >= 3) {
-      return t('trust.seller', 'بائع موثوق');
-    }
-    return null;
-  }
-
-  function renderTrustBadge(user) {
-    var label = resolveUserTrust(user);
-    if (!label) return null;
-    return D.Text.Span({ attrs: { class: 'chip trust' } }, ['🔒 ', label]);
-  }
-
   function resolveProductTitle(product) {
     return getLocalizedField(product, 'title', t('product.untitled'));
   }
@@ -1049,29 +494,9 @@
     return ts;
   }
 
-  function matchesHashtag(entity, tag) {
-    if (!tag) return true;
-    var tags = [];
-    if (entity && entity.hashtags) tags = tags.concat(entity.hashtags);
-    if (entity && entity.tags) tags = tags.concat(entity.tags);
-    if (entity && entity.text) {
-      var extracted = entity.text
-        .split(/\s+/)
-        .filter(function (word) { return word.indexOf('#') === 0; })
-        .map(function (word) { return word.replace(/^#/, ''); });
-      tags = tags.concat(extracted);
-    }
-    return tags.some(function (t) { return (t || '').toLowerCase() === String(tag).toLowerCase(); });
-  }
-
   function getSortedPosts(db) {
     var posts = db.data.posts || [];
-    var filters = db.state.filters || {};
     return posts
-      .filter(function(post) {
-        if (filters.hashtag && !matchesHashtag(post, filters.hashtag)) return false;
-        return true;
-      })
       .slice()
       .sort(function (a, b) {
         return parseDateValue(b.created_at || b.createdAt) - parseDateValue(a.created_at || a.createdAt);
@@ -1105,113 +530,12 @@
     return fallback || '';
   }
 
-  function getCategoryDisplayName(cat) {
-    if (!cat) return '';
-    return getLocalizedField(cat, 'name', cat.title || cat.slug || t('category.untitled'));
-  }
-
-  function getCategoryDescription(cat) {
-    if (!cat) return '';
-    return getLocalizedField(cat, 'description', cat.description || '');
-  }
-
-  function buildCategoryHierarchy(categories) {
-    var filtered = (categories || []).slice();
-    var nodes = {};
-    filtered.forEach(function(cat) {
-      if (!cat || !cat.category_id) return;
-      nodes[cat.category_id] = {
-        data: cat,
-        children: []
-      };
-    });
-    var roots = [];
-    Object.keys(nodes).forEach(function(id) {
-      var node = nodes[id];
-      var parentId = node.data.parent_id;
-      if (parentId && nodes[parentId]) {
-        nodes[parentId].children.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
-    var sortFn = function(a, b) {
-      var ao = (a.data && a.data.sort_order) || 0;
-      var bo = (b.data && b.data.sort_order) || 0;
-      if (ao !== bo) return ao - bo;
-      var an = getCategoryDisplayName(a.data);
-      var bn = getCategoryDisplayName(b.data);
-      return an.localeCompare(bn);
-    };
-    roots.sort(sortFn);
-    roots.forEach(function(root) {
-      root.children.sort(sortFn);
-    });
-    return roots;
-  }
-
-  function getLeafCategories(categories, options) {
-    var opts = options || {};
-    var onlyLeaves = !!opts.onlyLeaves;
-    var limit = typeof opts.limit === 'number' ? opts.limit : null;
-    var filtered = (categories || []).filter(function(cat) {
-      if (onlyLeaves && (cat.parent_id == null || cat.parent_id === '')) return false;
-      return true;
-    });
-    filtered.sort(function(a, b) {
-      var ao = a.sort_order || 0;
-      var bo = b.sort_order || 0;
-      if (ao !== bo) return ao - bo;
-      var an = getCategoryDisplayName(a);
-      var bn = getCategoryDisplayName(b);
-      return an.localeCompare(bn);
-    });
-    if (limit != null) {
-      filtered = filtered.slice(0, limit);
-    }
-    return filtered;
-  }
-
   function resolveUserName(user) {
     return getLocalizedField(user, 'full_name', user && user.username ? user.username : t('user.unknown'));
   }
 
   function resolveHashtagLabel(tag) {
     return getLocalizedField(tag, 'name', tag && tag.normalized_name ? '#' + tag.normalized_name : '');
-  }
-
-  function normalizeNotificationRows(rows) {
-    return coerceTableRows(rows)
-      .map(function(entry) {
-        if (!entry) return null;
-        var clone = Object.assign({}, entry);
-        if (!clone.notification_id && clone.id) {
-          clone.notification_id = clone.id;
-        }
-        return clone;
-      })
-      .filter(Boolean)
-      .sort(function(a, b) {
-        return parseDateValue(b.created_at) - parseDateValue(a.created_at);
-      });
-  }
-
-  function mergeNotificationRows(existingRows, incomingRows) {
-    var registry = {};
-    normalizeNotificationRows(existingRows).forEach(function(entry) {
-      var key = entry.notification_id || entry.id;
-      if (!key) return;
-      registry[key] = entry;
-    });
-    normalizeNotificationRows(incomingRows).forEach(function(entry) {
-      var key = entry.notification_id || entry.id;
-      if (!key) return;
-      registry[key] = entry;
-    });
-    return Object.keys(registry).map(function(key) { return registry[key]; })
-      .sort(function(a, b) {
-        return parseDateValue(b.created_at) - parseDateValue(a.created_at);
-      });
   }
 
   /**
@@ -1223,9 +547,7 @@
 
     app.setState(function (db) {
       var newData = {};
-      var normalizedRows = tableName === 'sbn_notifications'
-        ? mergeNotificationRows(db.data.notifications || [], rows)
-        : coerceTableRows(rows);
+      var normalizedRows = coerceTableRows(rows);
       debugLog('[SBN PWA][data]', tableName, 'incoming sample:', Array.isArray(normalizedRows) ? normalizedRows.slice(0, 3) : normalizedRows, 'count:', Array.isArray(normalizedRows) ? normalizedRows.length : 0);
       newData[dataKey] = normalizedRows;
 
@@ -1254,288 +576,6 @@
     });
 
     markAppReady();
-
-    if (isCategoryTable(tableName)) {
-      refreshLocalizedCategory(tableName, getCurrentLang());
-    }
-  }
-
-  function updateClassifiedsSnapshot(list) {
-    if (!app) return;
-    app.setState(function(db) {
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: db.state,
-        data: Object.assign({}, db.data, {
-          classifieds: Array.isArray(list) ? list : []
-        })
-      };
-    });
-  }
-
-  function getApiOrigin() {
-    return global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
-  }
-
-  function loadClassifiedsSnapshot(lang) {
-    var origin = global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
-    if (!origin) return Promise.resolve([]);
-    var url = origin + '/api/classifieds?lang=' + encodeURIComponent(lang || getCurrentLang());
-    debugLog('[SBN PWA][rest] fetching classifieds from', url);
-    return fetch(url, { cache: 'no-store' })
-      .then(function(response) {
-        if (!response.ok) throw new Error('classifieds-fetch-failed');
-        return response.json();
-      })
-      .then(function(payload) {
-        var classifieds = payload && Array.isArray(payload.classifieds) ? payload.classifieds : [];
-        return classifieds;
-      })
-      .catch(function(error) {
-        debugLog('[SBN PWA][rest] classifieds fetch failed', error);
-        return [];
-      });
-  }
-
-  function refreshClassifiedsSnapshot(lang) {
-    loadClassifiedsSnapshot(lang)
-      .then(function(records) {
-        updateClassifiedsSnapshot(records);
-      })
-      .catch(function(error) {
-        debugLog('[SBN PWA][rest] classifieds refresh error', error);
-      });
-  }
-
-  function isCategoryTable(name) {
-    return CATEGORY_TABLES.indexOf(name) !== -1;
-  }
-
-  function fetchModuleTableRows(tableName, options) {
-    var origin = getApiOrigin();
-    if (!origin) return Promise.resolve([]);
-    var payload = {
-      branchId: BRANCH_ID,
-      moduleId: MODULE_ID,
-      table: tableName,
-      lang: (options && options.lang) || getCurrentLang(),
-      fallbackLang: (options && options.fallbackLang) || 'ar'
-    };
-    return fetch(origin + '/api/query/module', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then(function(response) {
-        if (!response.ok) throw new Error('module-query-failed');
-        return response.json();
-      })
-      .then(function(body) {
-        var rows = body && Array.isArray(body.rows) ? body.rows : [];
-        debugLog('[SBN PWA][module-query]', tableName, 'rows:', rows.length);
-        return rows;
-      })
-      .catch(function(error) {
-        debugLog('[SBN PWA][module-query]', tableName, 'failed', error);
-        return [];
-      });
-  }
-
-  function applyLocalizedCategoryRows(tableName, rows, lang) {
-    if (!app) return;
-    var key = TABLE_TO_DATA_KEY[tableName];
-    if (!key) return;
-    var targetLang = lang || getCurrentLang();
-    var normalizedRows = coerceTableRows(rows).map(function(entry) {
-      if (!entry || !entry.i18n || !entry.i18n.lang) return entry;
-      var bucket = entry.i18n.lang[targetLang];
-      if (!bucket) return entry;
-      return Object.assign({}, entry, bucket);
-    });
-    app.setState(function(db) {
-      var patch = {};
-      patch[key] = normalizedRows;
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: db.state,
-        data: Object.assign({}, db.data, patch)
-      };
-    });
-  }
-
-  function refreshLocalizedCategory(tableName, lang) {
-    if (!isCategoryTable(tableName)) return Promise.resolve([]);
-    if (pendingCategoryFetches[tableName]) return pendingCategoryFetches[tableName];
-    var effectiveLang = lang || getCurrentLang();
-    var promise = fetchModuleTableRows(tableName, { lang: effectiveLang })
-      .then(function(rows) {
-        applyLocalizedCategoryRows(tableName, rows, effectiveLang);
-        return rows;
-      })
-      .finally(function() {
-        delete pendingCategoryFetches[tableName];
-      });
-    pendingCategoryFetches[tableName] = promise;
-    return promise;
-  }
-
-  function refreshLocalizedCategories(lang) {
-    return Promise.all(
-      CATEGORY_TABLES.map(function(tableName) {
-        return refreshLocalizedCategory(tableName, lang || getCurrentLang());
-      })
-    );
-  }
-
-  function uploadMediaFiles(files, options) {
-    if (!files || !files.length) return Promise.resolve([]);
-    var origin = global.location && global.location.origin ? global.location.origin.replace(/\/+$/, '') : '';
-    if (!origin) return Promise.reject(new Error('origin-unresolved'));
-    var form = new global.FormData();
-    var composer = getComposerState();
-    var opts = options || {};
-    Array.prototype.slice.call(files, 0, MAX_COMPOSER_UPLOADS).forEach(function(file) {
-      if (file) {
-        form.append('file', file, file.name || 'upload.jpg');
-      }
-    });
-    var mediaMode = opts.mediaMode || (composer && composer.mediaMode) || 'plain';
-    form.append('media_mode', mediaMode);
-    if (mediaMode === 'reel') {
-      var duration = opts.reelDuration;
-      if (duration == null && composer && composer.reelDuration != null) {
-        duration = composer.reelDuration;
-      }
-      if (duration != null) {
-        form.append('reel_duration', String(duration));
-      }
-    }
-    return fetch(origin + '/api/uploads', {
-      method: 'POST',
-      body: form
-    })
-      .then(function(response) {
-        if (!response.ok) throw new Error('upload-failed');
-        return response.json();
-      })
-      .then(function(payload) {
-        return Array.isArray(payload.files) ? payload.files : [];
-      });
-  }
-
-  function validateReelDuration(file) {
-    return new Promise(function(resolve, reject) {
-      if (!file) {
-        reject(new Error('reel-invalid'));
-        return;
-      }
-      if (!global.document || !global.URL || typeof global.URL.createObjectURL !== 'function') {
-        resolve(null);
-        return;
-      }
-      try {
-        var video = global.document.createElement('video');
-        video.preload = 'metadata';
-        video.onloadedmetadata = function() {
-          try {
-            global.URL.revokeObjectURL(video.src);
-          } catch (_err) {
-            /* noop */
-          }
-          resolve(video.duration || null);
-        };
-        video.onerror = function() {
-          reject(new Error('reel-invalid'));
-        };
-        video.src = global.URL.createObjectURL(file);
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  function handleComposerMediaFiles(ctx, fileList) {
-    if (!fileList || !fileList.length) return;
-    var composer = getComposerState();
-    var isReel = composer.mediaMode === 'reel';
-    var files = Array.prototype.slice.call(fileList, 0, isReel ? 1 : MAX_COMPOSER_UPLOADS);
-    var initialMediaMode = composer.mediaMode || 'plain';
-    var reelDuration = null;
-    var validation = Promise.resolve();
-    if (isReel) {
-      var reelFile = files[0];
-      if (!reelFile || typeof reelFile.type !== 'string' || reelFile.type.toLowerCase().indexOf('video') !== 0) {
-        applyComposerState(ctx, { uploadError: t('composer.reel.videoOnly', 'يرجى اختيار ملف فيديو صالح') });
-        if (global.document) {
-          var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
-          if (input) input.value = '';
-        }
-        return;
-      }
-      validation = validateReelDuration(reelFile).then(function(duration) {
-        if (duration && duration > 30.5) {
-          var err = new Error('reel-too-long');
-          err.duration = duration;
-          throw err;
-        }
-        reelDuration = duration || null;
-        applyComposerState(ctx, { reelDuration: reelDuration });
-      });
-    }
-    applyComposerState(ctx, { uploadingMedia: true, uploadError: null });
-    validation
-      .then(function() {
-        return uploadMediaFiles(files, { mediaMode: initialMediaMode, reelDuration: reelDuration });
-      })
-      .then(function(files) {
-        var urls = files
-          .map(function(file) {
-            return file && file.url ? file.url : null;
-          })
-          .filter(Boolean);
-        if (!urls.length) {
-          applyComposerState(ctx, { uploadingMedia: false, uploadError: t('composer.media.error', 'تعذر رفع الملفات') });
-          return;
-        }
-        applyComposerState(ctx, function(current) {
-          var existing = Array.isArray(current.mediaList) ? current.mediaList.slice() : [];
-          var next = isReel ? urls.slice(urls.length - 1) : existing.concat(urls).slice(-MAX_COMPOSER_UPLOADS);
-          return { mediaList: next, uploadingMedia: false, uploadError: null };
-        });
-      })
-      .catch(function(error) {
-        debugLog('[SBN PWA][upload] failed', error);
-        var message = t('composer.media.error', 'تعذر رفع الملفات');
-        if (error && error.message === 'reel-too-long') {
-          message = t('composer.reel.tooLong', 'يجب ألا يتجاوز الفيديو 30 ثانية. الرجاء قص الفيديو وإعادة المحاولة.');
-        } else if (error && error.message === 'reel-invalid') {
-          message = t('composer.reel.invalid', 'تعذر قراءة ملف الفيديو، يرجى المحاولة بملف آخر.');
-        }
-        applyComposerState(ctx, { uploadingMedia: false, uploadError: message, reelDuration: null });
-      })
-      .finally(function() {
-        if (global.document) {
-          var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
-          if (input) input.value = '';
-        }
-      });
-  }
-
-  function removeComposerMedia(ctx, targetUrl) {
-    if (!targetUrl) return;
-    applyComposerState(ctx, function(current) {
-      var existing = Array.isArray(current.mediaList) ? current.mediaList : [];
-      var nextList = existing.filter(function(entry) {
-        return entry !== targetUrl;
-      });
-      var nextState = { mediaList: nextList };
-      if (!nextList.length) {
-        nextState.reelDuration = null;
-      }
-      return nextState;
-    });
   }
 
   // ================== VIEW HELPERS ==================
@@ -1589,36 +629,6 @@
     });
   }
 
-  function getFilteredClassifieds(db) {
-    var classifieds = db.data.classifieds || [];
-    var filters = db.state.filters || {};
-    return classifieds.filter(function(item) {
-      if (filters.category && item.category_id && item.category_id !== filters.category) return false;
-      if (filters.search) {
-        var searchLower = filters.search.toLowerCase();
-        var titleText = (item.title || '').toLowerCase();
-        var descText = (item.description || item.body || '').toLowerCase();
-        if (titleText.indexOf(searchLower) === -1 && descText.indexOf(searchLower) === -1) return false;
-      }
-      if (filters.hashtag && !matchesHashtag(item, filters.hashtag)) return false;
-      return true;
-    });
-  }
-
-  function getFilteredArticles(db) {
-    var filters = db.state.filters || {};
-    return getWikiArticles(db).filter(function(article) {
-      if (filters.search) {
-        var searchLower = filters.search.toLowerCase();
-        var titleMatch = getLocalizedField(article, 'title', '').toLowerCase().indexOf(searchLower) !== -1;
-        var bodyMatch = getLocalizedField(article, 'excerpt', (article.summary || '')).toLowerCase().indexOf(searchLower) !== -1;
-        if (!titleMatch && !bodyMatch) return false;
-      }
-      if (filters.hashtag && !matchesHashtag(article, filters.hashtag)) return false;
-      return true;
-    });
-  }
-
   /**
    * Get wiki articles (top-level)
    */
@@ -1661,10 +671,6 @@
    * Render top header
    */
   function renderHeader(db) {
-    var activeUser = getActiveUser(db);
-    var notifCount = (db.data.notifications || []).filter(function(entry) {
-      return entry && entry.status !== 'read';
-    }).length;
     return D.Containers.Header({ attrs: { class: 'app-header' } }, [
       D.Containers.Div({ attrs: { class: 'brand' } }, [
         D.Text.Span({ attrs: { class: 'brand-title' } }, [t('app.name')]),
@@ -1690,36 +696,6 @@
             }
           },
           [db.env.lang === 'ar' ? t('settings.language.code.en') : t('settings.language.code.ar')]
-        ),
-        D.Forms.Button(
-          {
-            attrs: {
-              'data-m-gkey': 'open-notifications',
-              class: 'icon-btn',
-              title: t('nav.notifications', 'الإشعارات')
-            }
-          },
-          [notifCount > 0 ? ('🔔 ' + notifCount) : '🔔']
-        ),
-        D.Forms.Button(
-          {
-            attrs: {
-              'data-m-gkey': 'open-inbox',
-              class: 'icon-btn',
-              title: t('notifications.inbox.title', 'صندوق الوارد')
-            }
-          },
-          ['💬']
-        ),
-        D.Forms.Button(
-          {
-            attrs: {
-              'data-m-gkey': activeUser ? 'auth-logout' : 'auth-open',
-              class: activeUser ? 'hero-ghost' : 'hero-cta small',
-              title: activeUser ? t('auth.logout', 'تسجيل الخروج') : t('auth.login', 'تسجيل الدخول')
-            }
-          },
-          [activeUser ? t('auth.logout', 'تسجيل الخروج') : t('auth.login', 'تسجيل الدخول')]
         )
       ])
     ]);
@@ -1730,20 +706,6 @@
     var activeUser = getActiveUser(db);
     var userName = resolveUserName(activeUser);
     var avatar = (activeUser && activeUser.avatar_url) || 'https://i.pravatar.cc/120?img=12';
-    if (!activeUser) {
-      return D.Containers.Div({ attrs: { class: 'composer-card locked' } }, [
-        D.Text.H3({}, [t('composer.locked.title', 'ابدأ بمشاركة أعمالك')]),
-        D.Text.P({ attrs: { class: 'composer-meta' } }, [
-          t('composer.locked.body', 'سجّل الدخول أو أنشئ حساباً جديداً لتتمكن من نشر الإعلانات والريلز.')
-        ]),
-        D.Forms.Button({
-          attrs: { class: 'hero-cta', 'data-m-gkey': 'auth-open' }
-        }, [t('auth.login', 'تسجيل الدخول')]),
-        D.Forms.Button({
-          attrs: { class: 'chip ghost', 'data-m-gkey': 'open-register' }
-        }, [t('auth.register', 'إنشاء حساب')])
-      ]);
-    }
     if (!composer.open) {
       return D.Containers.Div({ attrs: { class: 'composer-card collapsed' } }, [
         D.Media.Img({ attrs: { class: 'composer-avatar', src: avatar, alt: userName } }, []),
@@ -1753,24 +715,16 @@
       ]);
     }
 
-    var mediaModeOptions = [
-      { value: 'plain', label: t('composer.media.plain', 'منشور نصي / صور') },
-      { value: 'reel', label: t('composer.media.reel', 'ريل فيديو (حد أقصى 30 ثانية)') }
+    var typeOptions = [
+      { value: 'plain', label: t('composer.type.plain') },
+      { value: 'product_share', label: t('composer.type.product') },
+      { value: 'service_share', label: t('composer.type.service') },
+      { value: 'article_share', label: t('composer.type.article') },
+      { value: 'reel', label: t('composer.type.reel') }
     ];
-    var attachmentOptions = [
-      { value: 'classified', label: t('composer.type.classified', 'إعلان مستعمل') },
-      { value: 'product', label: t('composer.type.product') },
-      { value: 'service', label: t('composer.type.service') },
-      { value: 'wiki', label: t('composer.type.article') },
-      { value: 'ad', label: t('composer.type.ad', 'إعلان ممول') },
-      { value: 'none', label: t('composer.attachment.none', 'بدون مرفق') }
-    ];
-    var requiresTarget = ['product', 'service', 'wiki'].indexOf(composer.attachmentKind) !== -1;
-    var attachments = requiresTarget ? getAttachmentOptions(db, composer.attachmentKind) : [];
-    var showTarget = requiresTarget;
-    var isClassified = composer.attachmentKind === 'classified';
-    var composerCategories = getComposerCategoryGroupsByType(db, composer.attachmentKind);
-    var showAdLink = composer.attachmentKind === 'ad';
+    var attachments = getAttachmentOptions(db, composer.type);
+    var showTarget = attachments.length > 0;
+    var showMedia = composer.type === 'reel';
 
     return D.Containers.Div({ attrs: { class: 'composer-card expanded' } }, [
       D.Containers.Div({ attrs: { class: 'composer-header' } }, [
@@ -1784,173 +738,39 @@
         }, ['✕'])
       ]),
       D.Inputs.Select({
-        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-media-mode', value: composer.mediaMode || 'plain' }
-      }, mediaModeOptions.map(function(option) {
+        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-type', value: composer.type || 'plain' }
+      }, typeOptions.map(function(option) {
         return D.Inputs.Option({
-          attrs: { value: option.value, selected: composer.mediaMode === option.value }
+          attrs: { value: option.value, selected: composer.type === option.value }
         }, [option.label]);
       })),
-      D.Inputs.Select({
-        attrs: { class: 'composer-select', 'data-m-gkey': 'composer-attachment', value: composer.attachmentKind || 'none' }
-      }, attachmentOptions.map(function(option) {
-        return D.Inputs.Option({
-          attrs: { value: option.value, selected: composer.attachmentKind === option.value }
-        }, [option.label]);
-      })),
-      composer.mediaMode === 'reel'
-        ? D.Text.Small({ attrs: { class: 'composer-hint' } }, [t('composer.reel.hint', 'يتم قبول فيديو رأسي حتى 30 ثانية، وسيتم ضغطه تلقائياً.')])
+      showTarget
+        ? D.Inputs.Select({
+            attrs: {
+              class: 'composer-select',
+              'data-m-gkey': 'composer-target',
+              value: composer.targetId || ''
+            }
+          }, [
+            D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.default')])
+          ].concat(
+            attachments.map(function(option) {
+              return D.Inputs.Option({
+                attrs: { value: option.value, selected: composer.targetId === option.value }
+              }, [option.label]);
+            })
+          ))
         : null,
-      isClassified
-        ? D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
-            D.Inputs.Input({
-              attrs: {
-                type: 'text',
-                class: 'composer-input',
-                placeholder: t('composer.classified.title', 'عنوان الإعلان'),
-                value: composer.classifiedTitle || '',
-                'data-m-gkey': 'composer-classified-title'
-              }
-            }, []),
-            D.Inputs.Input({
-              attrs: {
-                type: 'number',
-                class: 'composer-input',
-                placeholder: t('composer.classified.price', 'السعر (اختياري)'),
-                value: composer.classifiedPrice || '',
-                'data-m-gkey': 'composer-classified-price'
-              }
-            }, []),
-            D.Inputs.Input({
-              attrs: {
-                type: 'tel',
-                class: 'composer-input',
-                placeholder: t('composer.classified.phone', 'هاتف التواصل'),
-                value: composer.contactPhone || '',
-                'data-m-gkey': 'composer-classified-phone'
-              }
-            }, [])
-          ].filter(Boolean))
-        : null,
-      composerCategories.length
-        ? D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
-            D.Inputs.Select({
-              attrs: {
-                class: 'composer-select',
-                'data-m-gkey': 'composer-category',
-                value: composer.categoryId || ''
-              }
-            }, [
-              D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.category', 'اختر التصنيف الرئيسي')])
-            ].concat(composerCategories.map(function(group) {
-              return D.Inputs.Option({ attrs: { value: group.id } }, [group.label]);
-            }))),
-            (function() {
-              var activeGroup = composerCategories.find(function(group) {
-                return group.id === composer.categoryId;
-              });
-              if (!activeGroup || !activeGroup.children.length) return null;
-              return D.Inputs.Select({
-                attrs: {
-                  class: 'composer-select',
-                  'data-m-gkey': 'composer-subcategory',
-                  value: composer.subcategoryId || ''
-                }
-              }, [
-                D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.subcategory', 'اختر التصنيف الفرعي')])
-              ].concat(activeGroup.children.map(function(child) {
-                return D.Inputs.Option({ attrs: { value: child.id } }, [child.label]);
-              })));
-            })()
-          ].filter(Boolean))
-        : null,
-      showTarget && !isClassified
-        ? renderComposerAttachmentSelect(db, composer, attachments)
-        : null,
-      showAdLink
+      showMedia
         ? D.Inputs.Input({
             attrs: {
-              type: 'url',
+              type: 'text',
               class: 'composer-input',
-              placeholder: t('composer.ad.link', 'رابط الصفحة أو المتجر'),
-              value: composer.linkUrl || '',
-              'data-m-gkey': 'composer-link-url'
+              placeholder: t('composer.media.placeholder'),
+              value: composer.media || '',
+              'data-m-gkey': 'composer-media'
             }
           }, [])
-        : null,
-      isClassified
-        ? (function() {
-            var hasBasics = composer.classifiedTitle || composer.classifiedPrice || composer.contactPhone;
-            if (!hasBasics) return null;
-            return D.Containers.Div({ attrs: { class: 'composer-target-preview classified-preview' } }, [
-              D.Containers.Div({ attrs: { class: 'preview-copy' } }, [
-                composer.classifiedTitle
-                  ? D.Text.Span({ attrs: { class: 'preview-title' } }, [composer.classifiedTitle])
-                  : null,
-                composer.classifiedPrice
-                  ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [formatCurrencyValue(composer.classifiedPrice, t('currency.egp'))])
-                  : null,
-                composer.contactPhone
-                  ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [composer.contactPhone])
-                  : null
-              ].filter(Boolean))
-            ]);
-          })()
-        : null,
-      (function() {
-        var uploadLabel = composer.mediaMode === 'reel'
-          ? t('composer.media.upload.reel', 'رفع فيديو')
-          : t('composer.media.upload', 'رفع صور');
-        var allowPicker = composer.mediaMode === 'reel' ||
-          composer.mediaMode === 'plain' ||
-          composer.attachmentKind === 'classified' ||
-          composer.attachmentKind === 'ad';
-        if (!allowPicker) return null;
-        return D.Containers.Div({ attrs: { class: 'composer-media-row' } }, [
-          D.Inputs.Input({
-            attrs: {
-              id: COMPOSER_MEDIA_INPUT_ID,
-              type: 'file',
-              class: 'composer-media-input',
-              multiple: composer.mediaMode === 'reel' ? null : 'multiple',
-              accept: composer.mediaMode === 'reel' ? 'video/*' : 'image/*',
-              'data-m-gkey': 'composer-media-file',
-              style: 'display:none;'
-            }
-          }, []),
-          D.Forms.Button({
-            attrs: {
-              class: 'chip',
-              'data-m-gkey': 'composer-media-pick',
-              disabled: composer.uploadingMedia ? 'disabled' : null
-            }
-          }, [composer.uploadingMedia ? t('composer.media.uploading', 'جارٍ رفع الوسائط...') : uploadLabel]),
-          composer.uploadError
-            ? D.Text.Span({ attrs: { class: 'composer-error' } }, [composer.uploadError])
-            : null
-        ]);
-      })(),
-      composer.mediaMode === 'reel' && composer.reelDuration
-        ? D.Text.Small({ attrs: { class: 'composer-hint' } }, [
-            t('composer.reel.durationLabel', 'المدة الحالية: ') + Math.round(composer.reelDuration) + 's'
-          ])
-        : null,
-      composer.mediaList && composer.mediaList.length
-        ? D.Containers.Div({ attrs: { class: 'composer-media-list' } }, [
-            composer.mediaList.map(function(url) {
-              return D.Containers.Div({ attrs: { class: 'composer-media-item', key: url } }, [
-                composer.mediaMode === 'reel'
-                  ? D.Media.Video({ attrs: { src: url, class: 'composer-media-thumb', controls: true, playsinline: 'playsinline' } }, [])
-                  : D.Media.Img({ attrs: { src: url, alt: 'media', class: 'composer-media-thumb' } }, []),
-                D.Forms.Button({
-                  attrs: {
-                    class: 'composer-media-remove',
-                    'data-m-gkey': 'composer-media-remove',
-                    'data-url': url
-                  }
-                }, ['✕'])
-              ]);
-            })
-          ])
         : null,
       D.Inputs.Textarea({
         attrs: {
@@ -1989,221 +809,12 @@
       ]),
       D.Containers.Div({ attrs: { class: 'hero-actions' } }, [
         D.Forms.Button({
-          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-commerce' }
+          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-marketplace' }
         }, [t('home.action.explore')]),
         D.Forms.Button({
-          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-classifieds' }
-        }, [t('nav.classifieds', 'إعلان مستعمل')])
+          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-services' }
+        }, ['＋'])
       ])
-    ]);
-  }
-
-  function getOnboardingTasks(db) {
-    var user = getActiveUser(db);
-    var completed = (db.state.onboarding && db.state.onboarding.completed) || {};
-    var userPosts = (db.data.posts || []).filter(function(post) { return user && post.user_id === user.user_id; });
-    var hasAttachmentShare = userPosts.some(function(post) {
-      return post && post.attachment_kind && post.attachment_kind !== 'none';
-    });
-    return [
-      {
-        key: 'avatar',
-        title: t('onboarding.avatar', 'أضف صورة شخصية'),
-        hint: t('onboarding.avatar.hint', 'يرفع الثقة مع المشترين'),
-        done: Boolean((user && user.avatar_url) || completed.avatar)
-      },
-      {
-        key: 'bio',
-        title: t('onboarding.bio', 'أكمل السيرة الذاتية'),
-        hint: t('onboarding.bio.hint', 'عرّف بنفسك أو نشاطك التجاري'),
-        done: Boolean((user && getLocalizedField(user, 'bio', '')) || completed.bio)
-      },
-      {
-        key: 'firstPost',
-        title: t('onboarding.firstPost', 'انشر أول بوست'),
-        hint: t('onboarding.firstPost.hint', 'شارك إعلان، منتج، خدمة أو مقال'),
-        done: Boolean(userPosts.length || completed.firstPost)
-      },
-      {
-        key: 'attachment',
-        title: t('onboarding.attachment', 'جرّب إضافة مرفق'),
-        hint: t('onboarding.attachment.hint', 'أضف إعلان مستعمل أو منتج/خدمة'),
-        done: Boolean(hasAttachmentShare || completed.attachment)
-      }
-    ];
-  }
-
-  function getLaunchChecklist(db) {
-    var defaults = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
-    return [
-      {
-        key: 'composer',
-        title: t('launch.composer', 'تحقق من الكومبوزر والمرفقات'),
-        hint: t('launch.composer.hint', 'تأكد أن الحقول الإلزامية والدرَفت تعمل بلا أعطال.'),
-        done: Boolean(defaults.composer),
-        action: 'composer-open'
-      },
-      {
-        key: 'attachments',
-        title: t('launch.attachments', 'شاشات التفاصيل والجاليري'),
-        hint: t('launch.attachments.hint', 'جرّب فتح إعلان، منتج، خدمة، ومقال مع الجاليري.'),
-        done: Boolean(defaults.attachments),
-        action: 'open-attachment'
-      },
-      {
-        key: 'profile',
-        title: t('launch.profile', 'تعديل الملف والتبويبات'),
-        hint: t('launch.profile.hint', 'اختبر التبويبات (بوست، إعلان، تجارة، معرفة) وخيار التعديل.'),
-        done: Boolean(defaults.profile),
-        action: 'nav-profile'
-      },
-      {
-        key: 'discovery',
-        title: t('launch.discovery', 'الفلاتر والهاشتاغات'),
-        hint: t('launch.discovery.hint', 'تأكد من البحث، التصنيفات، وإعادة الضبط للهاشتاغ.'),
-        done: Boolean(defaults.discovery),
-        action: 'reset-filters'
-      },
-      {
-        key: 'safety',
-        title: t('launch.safety', 'الثقة والتبليغ والإشعارات'),
-        hint: t('launch.safety.hint', 'اختبر الاتصال، الإبلاغ، والشارات الموثقة والإشعارات.'),
-        done: Boolean(defaults.safety),
-        action: 'open-notifications'
-      }
-    ];
-  }
-
-  function renderOnboardingCard(db) {
-    var user = getActiveUser(db);
-    var onboarding = db.state.onboarding || initialDatabase.state.onboarding;
-    if (!user || onboarding.dismissed) return null;
-    var tasks = getOnboardingTasks(db);
-    var remaining = tasks.filter(function(task) { return !task.done; });
-    if (!remaining.length) return null;
-    var progress = Math.round(((tasks.length - remaining.length) / tasks.length) * 100);
-
-    return D.Containers.Div({ attrs: { class: 'section-card onboarding-card' } }, [
-      D.Containers.Div({ attrs: { class: 'onboarding-head' } }, [
-        D.Text.H4({}, [t('onboarding.title', 'ابدأ رحلتك على مستعمل حواء')]),
-        D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'onboarding-dismiss' } }, ['✕'])
-      ]),
-      D.Containers.Div({ attrs: { class: 'onboarding-progress' } }, [
-        D.Containers.Div({ attrs: { class: 'onboarding-progress-fill', style: 'width:' + progress + '%;' } }, [])
-      ]),
-      D.Containers.Div({ attrs: { class: 'onboarding-tasks' } },
-        tasks.map(function(task) {
-          var done = task.done;
-          return D.Containers.Div({ attrs: { class: 'onboarding-task' + (done ? ' done' : ''), key: task.key } }, [
-            D.Text.Span({ attrs: { class: 'onboarding-check' } }, [done ? '✓' : '•']),
-            D.Containers.Div({ attrs: { class: 'onboarding-copy' } }, [
-              D.Text.Span({ attrs: { class: 'onboarding-title' } }, [task.title]),
-              D.Text.Small({ attrs: { class: 'onboarding-hint' } }, [task.hint])
-            ]),
-            done
-              ? null
-              : D.Forms.Button({
-                  attrs: {
-                    class: 'chip primary',
-                    'data-m-gkey': 'onboarding-complete',
-                    'data-task': task.key
-                  }
-                }, [t('onboarding.action', 'تم')])
-          ].filter(Boolean));
-        })
-      ),
-      D.Containers.Div({ attrs: { class: 'onboarding-actions' } }, [
-        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('composer.start')]),
-        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')])
-      ])
-    ]);
-  }
-
-  function renderLaunchChecklist(db) {
-    var items = getLaunchChecklist(db);
-    var doneCount = items.filter(function(item) { return item.done; }).length;
-    var progress = Math.round((doneCount / items.length) * 100);
-
-    return D.Containers.Div({ attrs: { class: 'section-card launch-card' } }, [
-      D.Containers.Div({ attrs: { class: 'launch-head' } }, [
-        D.Text.H4({}, [t('launch.title', 'جاهزية الإطلاق')]),
-        D.Text.Small({ attrs: { class: 'launch-progress' } }, [progress + '%'])
-      ]),
-      D.Containers.Div({ attrs: { class: 'launch-bar' } }, [
-        D.Containers.Div({ attrs: { class: 'launch-bar-fill', style: 'width:' + progress + '%;' } }, [])
-      ]),
-      D.Containers.Div({ attrs: { class: 'launch-list' } },
-        items.map(function(item) {
-          return D.Containers.Div({ attrs: { class: 'launch-item' + (item.done ? ' done' : ''), key: item.key } }, [
-            D.Forms.Button({
-              attrs: {
-                class: 'launch-check',
-                'data-m-gkey': 'launch-toggle',
-                'data-key': item.key,
-                'aria-pressed': item.done ? 'true' : 'false'
-              }
-            }, [item.done ? '✓' : '•']),
-            D.Containers.Div({ attrs: { class: 'launch-copy' } }, [
-              D.Text.Span({ attrs: { class: 'launch-title' } }, [item.title]),
-              D.Text.Small({ attrs: { class: 'launch-hint' } }, [item.hint])
-            ]),
-            item.action
-              ? D.Forms.Button({
-                  attrs: {
-                    class: 'chip ghost',
-                    'data-m-gkey': item.action
-                  }
-                }, [t('launch.action.test', 'تجربة')])
-              : null
-          ].filter(Boolean));
-        })
-      ),
-      D.Containers.Div({ attrs: { class: 'launch-actions' } }, [
-        D.Forms.Button({ attrs: { class: 'hero-cta small', 'data-m-gkey': 'launch-complete-all' } }, [t('launch.complete', 'تمييز الكل كمكتمل')]),
-        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'reset-filters' } }, [t('filters.reset', 'مسح الفلاتر')])
-      ])
-    ]);
-  }
-
-  function renderCategoryClusterRoot(db, node) {
-    if (!node || !node.data) return null;
-    var cat = node.data;
-    var description = getCategoryDescription(cat);
-    var children = (node.children || []).map(function(child) {
-      return child.data;
-    });
-    return D.Containers.Div({ attrs: { class: 'category-cluster', key: cat.category_id } }, [
-      D.Text.H4({ attrs: { class: 'cluster-title' } }, [getCategoryDisplayName(cat)]),
-      description ? D.Text.Span({ attrs: { class: 'cluster-description' } }, [description]) : null,
-      children.length
-        ? D.Containers.Div({ attrs: { class: 'chips-row' } },
-            renderCategoryChips(db, children, 'category', 'category-chip', { skipAll: true })
-          )
-        : null
-    ].filter(Boolean));
-  }
-
-  function renderCategoryShowcase(db) {
-    var configs = [
-      { key: 'classified', title: 'categories.classifieds', fallback: 'مستعمل حواء', data: db.data.classifiedCategories || [] },
-      { key: 'marketplace', title: 'categories.marketplace', fallback: 'متجر حواء', data: db.data.marketplaceCategories || [] },
-      { key: 'service', title: 'categories.services', fallback: 'خدمات حواء', data: db.data.serviceCategories || [] }
-    ];
-    var columns = configs.map(function(cfg) {
-      if (!cfg.data.length) return null;
-      var roots = buildCategoryHierarchy(cfg.data);
-      if (!roots.length) return null;
-      return D.Containers.Div({ attrs: { class: 'category-tree-column', key: cfg.key } }, [
-        D.Text.H4({ attrs: { class: 'category-tree-heading' } }, [t(cfg.title, cfg.fallback)]),
-        roots.slice(0, 3).map(function(root) {
-          return renderCategoryClusterRoot(db, root);
-        }).filter(Boolean)
-      ]);
-    }).filter(Boolean);
-    if (!columns.length) return null;
-    return D.Containers.Div({ attrs: { class: 'section-card category-tree-card' } }, [
-      renderSectionHeader('home.categories', null, 'home.categories.meta', null),
-      D.Containers.Div({ attrs: { class: 'category-tree-grid' } }, columns)
     ]);
   }
 
@@ -2226,30 +837,11 @@
     }));
   }
 
-  function renderQuickActions() {
-    return D.Containers.Div({ attrs: { class: 'section-card quick-actions' } }, [
-      D.Text.H4({}, [t('home.quickActions', 'الوصول السريع')]),
-      D.Containers.Div({ attrs: { class: 'chips-row' } }, [
-        D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-commerce' }
-        }, ['🛍️ ', t('nav.commerce', 'منتج / خدمة')]),
-        D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-classifieds' }
-        }, ['📢 ', t('nav.classifieds', 'إعلان مستعمل')]),
-        D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-knowledge' }
-        }, ['📚 ', t('nav.knowledge')])
-      ])
-    ]);
-  }
-
-  function renderSectionHeader(titleKey, titleFallback, metaKey, metaFallback) {
-    var heading = t(titleKey, titleFallback || titleKey);
-    var metaText = metaKey ? t(metaKey, metaFallback || '') : '';
+  function renderSectionHeader(titleKey, _unused, metaKey, _unusedMeta) {
     return D.Containers.Div({ attrs: { class: 'section-heading' } }, [
-      D.Text.H3({}, [heading]),
-      metaText
-        ? D.Text.Span({ attrs: { class: 'section-meta' } }, [metaText])
+      D.Text.H3({}, [t(titleKey)]),
+      metaKey
+        ? D.Text.Span({ attrs: { class: 'section-meta' } }, [t(metaKey)])
         : D.Text.Span({ attrs: { class: 'section-meta' } }, [])
     ]);
   }
@@ -2261,48 +853,27 @@
     }) || null;
   }
 
-  function resolveAttachmentPreview(db, kind, targetId) {
-    if (!db || !kind || !targetId) return null;
-    if (kind === 'product') {
-      return findById(db.data.products || [], 'product_id', targetId);
-    }
-    if (kind === 'service') {
-      return findById(db.data.services || [], 'service_id', targetId);
-    }
-    if (kind === 'wiki') {
-      return findById(db.data.articles || [], 'article_id', targetId);
-    }
-    if (kind === 'classified') {
-      return findById(db.data.classifieds || [], 'id', targetId) || findById(db.data.classifieds || [], 'classified_id', targetId);
-    }
-    return null;
-  }
-
   function getActiveUser(db) {
     var users = db.data.users || [];
     var activeId = db.state.activeUserId;
-    if (!activeId) return null;
-    return findById(users, 'user_id', activeId) || null;
+    if (!activeId && users.length) {
+      activeId = users[0].user_id;
+    }
+    return findById(users, 'user_id', activeId) || (users.length ? users[0] : null);
   }
 
-  function getAttachmentOptions(db, kind) {
-    if (kind === 'product') {
+  function getAttachmentOptions(db, type) {
+    if (type === 'product_share') {
       return (db.data.products || []).map(function(product) {
-        var title = resolveProductTitle(product);
-        var price = product.price != null ? formatCurrencyValue(product.price, product.currency) : '';
-        var label = price ? title + ' · ' + price : title;
-        return { value: product.product_id, label: label };
+        return { value: product.product_id, label: resolveProductTitle(product) };
       });
     }
-    if (kind === 'service') {
+    if (type === 'service_share') {
       return (db.data.services || []).map(function(service) {
-        var title = getLocalizedField(service, 'title', t('services.default'));
-        var city = resolveCityName(service) || '';
-        var label = city ? title + ' · ' + city : title;
-        return { value: service.service_id, label: label };
+        return { value: service.service_id, label: getLocalizedField(service, 'title', t('services.default')) };
       });
     }
-    if (kind === 'wiki') {
+    if (type === 'article_share') {
       return (db.data.articles || []).map(function(article) {
         return { value: article.article_id, label: getLocalizedField(article, 'title', t('knowledge.card.title')) };
       });
@@ -2314,7 +885,6 @@
     ctx.setState(function(db) {
       var currentComposer = db.state.composer || initialDatabase.state.composer;
       var nextComposer = typeof updates === 'function' ? updates(currentComposer) : Object.assign({}, currentComposer, updates);
-      persistComposerDraft(nextComposer);
       return {
         env: db.env,
         meta: db.meta,
@@ -2324,222 +894,14 @@
     });
   }
 
-  function getComposerState() {
-    if (app && app.database && app.database.state && app.database.state.composer) {
-      return app.database.state.composer;
-    }
-    return initialDatabase.state.composer;
-  }
-
-  function createComposerState(overrides) {
-    var snapshot = JSON.parse(JSON.stringify(initialDatabase.state.composer));
-    if (overrides && typeof overrides === 'object') {
-      Object.assign(snapshot, overrides);
-    }
-    return snapshot;
-  }
-
-  function updateOnboardingState(ctx, updates) {
-    ctx.setState(function(db) {
-      var current = db.state.onboarding || initialDatabase.state.onboarding || {};
-      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
-      persistOnboardingProgress(next);
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: Object.assign({}, db.state, { onboarding: next }),
-        data: db.data
-      };
-    });
-  }
-
-  function updateLaunchChecklist(ctx, updates) {
-    ctx.setState(function(db) {
-      var current = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
-      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
-      persistLaunchChecklistState(next);
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: Object.assign({}, db.state, { launchChecklist: next }),
-        data: db.data
-      };
-    });
-  }
-
-  function openAuthModal(step) {
-    var mode = step || 'login';
-    if (app) {
-      app.setState(function(db) {
-        var nextAuth = Object.assign({}, db.state.auth || initialDatabase.state.auth, {
-          open: true,
-          step: mode,
-          error: null
-        });
-        return {
-          env: db.env,
-          meta: db.meta,
-          state: Object.assign({}, db.state, { auth: nextAuth }),
-          data: db.data
-        };
-      });
-    } else {
-      initialDatabase.state.auth = Object.assign({}, initialDatabase.state.auth, {
-        open: true,
-        step: mode,
-        error: null
-      });
-    }
-  }
-
-  function closeAuthModal() {
-    if (app) {
-      app.setState(function(db) {
-        var nextAuth = Object.assign({}, db.state.auth || initialDatabase.state.auth, {
-          open: false,
-          error: null,
-          step: 'login',
-          password: '',
-          otp: ''
-        });
-        return {
-          env: db.env,
-          meta: db.meta,
-          state: Object.assign({}, db.state, { auth: nextAuth }),
-          data: db.data
-        };
-      });
-    } else {
-      initialDatabase.state.auth.open = false;
-    }
-  }
-
-  function updateAuthState(updates) {
-    if (app) {
-      app.setState(function(db) {
-        var currentAuth = db.state.auth || initialDatabase.state.auth;
-        var nextAuth = typeof updates === 'function'
-          ? updates(currentAuth)
-          : Object.assign({}, currentAuth, updates);
-        return {
-          env: db.env,
-          meta: db.meta,
-          state: Object.assign({}, db.state, { auth: nextAuth }),
-          data: db.data
-        };
-      });
-    } else {
-      var next = typeof updates === 'function'
-        ? updates(initialDatabase.state.auth)
-        : Object.assign({}, initialDatabase.state.auth, updates);
-      initialDatabase.state.auth = next;
-    }
-  }
-
   function setPostOverlay(ctx, updates) {
     ctx.setState(function(db) {
       var currentOverlay = db.state.postOverlay || initialDatabase.state.postOverlay;
       var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { postOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        nextState.commentDraft = '';
-      } else if (!nextOverlay || nextOverlay.open === false) {
-        nextState.commentDraft = '';
-      }
       return {
         env: db.env,
         meta: db.meta,
-        state: nextState,
-      data: db.data
-    };
-  });
-}
-
-  function setDetailOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setDetailOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setReaderOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.readerOverlay || initialDatabase.state.readerOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { readerOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setContactOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
-        data: db.data
-      };
-    });
-  }
-
-  function setReportOverlay(ctx, updates) {
-    ctx.setState(function(db) {
-      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
-      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
-      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
-      if (nextOverlay && nextOverlay.open) {
-        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
-        persistLaunchChecklistState(nextLaunch);
-        nextState.launchChecklist = nextLaunch;
-      }
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: nextState,
+        state: Object.assign({}, db.state, { postOverlay: nextOverlay }),
         data: db.data
       };
     });
@@ -2571,12 +933,8 @@
   function handleComposerSubmit(ctx) {
     var currentDb = app ? app.database : null;
     if (!currentDb) return;
-    var composer = getComposerState();
+    var composer = currentDb.state.composer || initialDatabase.state.composer;
     if (composer.posting) return;
-    if (composer.attachmentKind === 'classified') {
-      submitClassified(ctx, composer);
-      return;
-    }
     var user = getActiveUser(currentDb);
     if (!user) {
       applyComposerState(ctx, { error: t('composer.error.user') });
@@ -2586,25 +944,12 @@
       applyComposerState(ctx, { error: t('composer.error.offline'), posting: false });
       return;
     }
-    var hasMedia = Array.isArray(composer.mediaList) && composer.mediaList.length > 0;
-    var needsText = composer.mediaMode === 'plain' && composer.attachmentKind === 'none';
-    if (needsText && (!composer.text || !composer.text.trim()) && !hasMedia) {
+    if ((!composer.text || !composer.text.trim()) && composer.type === 'plain') {
       applyComposerState(ctx, { error: t('composer.error.empty'), posting: false });
       return;
     }
-    var requiresTarget = ['product', 'service', 'wiki'].indexOf(composer.attachmentKind) !== -1;
-    if (requiresTarget && !composer.targetId) {
+    if (composer.type !== 'plain' && composer.type !== 'reel' && !composer.targetId) {
       applyComposerState(ctx, { error: t('composer.error.target'), posting: false });
-      return;
-    }
-    if (composer.attachmentKind === 'ad') {
-      if (!composer.linkUrl || !composer.linkUrl.trim()) {
-        applyComposerState(ctx, { error: t('composer.ad.link.required', 'يرجى إضافة رابط الإعلان قبل النشر'), posting: false });
-        return;
-      }
-    }
-    if (composer.mediaMode === 'reel' && (!Array.isArray(composer.mediaList) || !composer.mediaList.length)) {
-      applyComposerState(ctx, { error: t('composer.reel.required', 'يرجى رفع فيديو للريل قبل النشر'), posting: false });
       return;
     }
     applyComposerState(ctx, { posting: true, error: null });
@@ -2616,8 +961,7 @@
     var record = {
       post_id: postId,
       user_id: user.user_id,
-      media_mode: composer.mediaMode || 'plain',
-      attachment_kind: composer.attachmentKind || 'none',
+      post_type: composer.type || 'plain',
       visibility: 'public',
       is_pinned: false,
       likes_count: 0,
@@ -2627,39 +971,15 @@
       created_at: now,
       updated_at: now
     };
-    if (composer.attachmentKind === 'product') {
+    if (composer.type === 'product_share') {
       record.shared_product_id = composer.targetId;
-    } else if (composer.attachmentKind === 'service') {
+    } else if (composer.type === 'service_share') {
       record.shared_service_id = composer.targetId;
-    } else if (composer.attachmentKind === 'wiki') {
+    } else if (composer.type === 'article_share') {
       record.shared_article_id = composer.targetId;
-    } else if (composer.attachmentKind === 'classified' && composer.targetId) {
-      record.shared_classified_id = composer.targetId;
     }
-    var mergedMedia = Array.isArray(composer.mediaList) ? composer.mediaList.slice() : [];
-    if (composer.attachmentKind === 'ad') {
-      record.link_url = composer.linkUrl.trim();
-      record.link_image = mergedMedia.length ? mergedMedia[0] : null;
-    } else {
-      record.link_url = null;
-      record.link_image = null;
-    }
-    if (composer.mediaMode === 'reel') {
-      record.media_metadata = {
-        duration: composer.reelDuration || null,
-        aspect_ratio: '9:16',
-        max_duration: 30
-      };
-    } else if (composer.attachmentKind === 'ad') {
-      record.media_metadata = {
-        og_image: mergedMedia[0] || null,
-        og_title: composer.text ? composer.text.slice(0, 120) : null
-      };
-    } else {
-      record.media_metadata = null;
-    }
-    if (mergedMedia.length) {
-      record.media_urls = JSON.stringify(mergedMedia);
+    if (composer.media) {
+      record.media_urls = JSON.stringify([composer.media.trim()]);
     }
     var langRecord = {
       id: postId + '_lang_' + lang,
@@ -2675,17 +995,19 @@
     ])
       .then(function() {
         ctx.setState(function(db) {
-          var resetComposer = createComposerState({ open: false });
-          persistComposerDraft(resetComposer);
-          var nextLaunch = Object.assign({}, db.state.launchChecklist, { composer: true });
-          persistLaunchChecklistState(nextLaunch);
+          var resetComposer = {
+            open: false,
+            type: 'plain',
+            text: '',
+            targetId: '',
+            media: '',
+            posting: false,
+            error: null
+          };
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, {
-              composer: resetComposer,
-              launchChecklist: nextLaunch
-            }),
+            state: Object.assign({}, db.state, { composer: resetComposer }),
             data: db.data
           };
         });
@@ -2694,135 +1016,6 @@
       .catch(function(error) {
         console.error('[SBN PWA] composer failed', error);
         applyComposerState(ctx, { posting: false, error: t('composer.error.failed') });
-      });
-  }
-
-  function submitClassified(ctx, composer) {
-    var origin = getApiOrigin();
-    if (!origin) {
-      applyComposerState(ctx, { error: t('composer.error.network') });
-      return;
-    }
-    var db = app ? app.database : null;
-    if (!db) return;
-    var sellerId = db.state.activeUserId;
-    if (!sellerId) {
-      applyComposerState(ctx, { error: t('composer.error.user') });
-      return;
-    }
-    var categoryId = composer.subcategoryId || composer.categoryId || '';
-    if (!categoryId) {
-      applyComposerState(ctx, { error: t('composer.classified.category.error', 'اختر التصنيف المناسب') });
-      return;
-    }
-    if (!composer.classifiedTitle || !composer.classifiedTitle.trim()) {
-      applyComposerState(ctx, { error: t('composer.classified.title.error', 'ادخل عنوان الإعلان') });
-      return;
-    }
-    var phoneDigits = (composer.contactPhone || '').replace(/\D/g, '');
-    if (!phoneDigits || phoneDigits.length < 6) {
-      applyComposerState(ctx, { error: t('composer.classified.phone.error', 'أضف رقم هاتف صالح للتواصل') });
-      return;
-    }
-    var images = Array.isArray(composer.mediaList) ? composer.mediaList.slice() : [];
-    var targetId = composer.editAttachmentId || composer.targetId || '';
-    var isEdit = Boolean(composer.editAttachmentId);
-    var payload = {
-      seller_id: sellerId,
-      category_id: categoryId,
-      title: composer.classifiedTitle.trim(),
-      description: composer.text || '',
-      price: composer.classifiedPrice ? Number(composer.classifiedPrice) : null,
-      currency: 'EGP',
-      contact_phone: composer.contactPhone || '',
-      images: images
-    };
-    applyComposerState(ctx, { posting: true, error: null });
-    var endpoint = isEdit && targetId
-      ? origin + '/api/classifieds/' + encodeURIComponent(targetId)
-      : origin + '/api/classifieds';
-    var method = isEdit ? 'PUT' : 'POST';
-    fetch(endpoint, {
-      method: method,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then(function(response) {
-        if (!response.ok) throw new Error('classified-' + (isEdit ? 'update' : 'create') + '-failed');
-        return response.json();
-      })
-      .then(function(body) {
-        setTimeout(function() {
-          refreshClassifiedsSnapshot(getCurrentLang());
-        }, 0);
-        if (isEdit && db && db.data && Array.isArray(db.data.classifieds)) {
-          var updatedRows = db.data.classifieds.map(function(row) {
-            if (!row) return row;
-            var rowId = row.id || row.classified_id;
-            if (rowId && rowId === targetId) {
-              return Object.assign({}, row, payload, body || {});
-            }
-            return row;
-          });
-          ctx.setState(function(prev) {
-            return {
-              env: prev.env,
-              meta: prev.meta,
-              state: prev.state,
-              data: Object.assign({}, prev.data, { classifieds: updatedRows })
-            };
-          });
-        }
-        applyComposerState(ctx, function() {
-          var resetComposer = createComposerState({ open: false, editAttachmentId: '' });
-          persistComposerDraft(resetComposer);
-          return resetComposer;
-        });
-        var successKey = isEdit ? 'composer.classified.updated' : 'composer.classified.success';
-        showNotice(ctx, t(successKey, isEdit ? 'تم تحديث الإعلان بنجاح' : 'تم إضافة الإعلان بنجاح'));
-      })
-      .catch(function(error) {
-        debugLog('[SBN PWA][classified]', error);
-        applyComposerState(ctx, { posting: false, error: t('composer.classified.error', 'تعذر إنشاء الإعلان') });
-      });
-  }
-
-  function deleteClassified(ctx, targetId) {
-    var origin = getApiOrigin();
-    if (!origin) {
-      showNotice(ctx, t('classifieds.delete.offline', 'يرجى الاتصال بالإنترنت لإزالة الإعلان'));
-      return;
-    }
-    if (!targetId) return;
-    fetch(origin + '/api/classifieds/' + encodeURIComponent(targetId), {
-      method: 'DELETE',
-      headers: { 'content-type': 'application/json' }
-    })
-      .then(function(response) {
-        if (!response.ok) throw new Error('classified-delete-failed');
-        return response.json().catch(function() { return {}; });
-      })
-      .then(function() {
-        refreshClassifiedsSnapshot(getCurrentLang());
-        if (app && app.database && Array.isArray(app.database.data.classifieds)) {
-          app.setState(function(prev) {
-            var nextClassifieds = (prev.data.classifieds || []).filter(function(row) {
-              var id = row && (row.id || row.classified_id);
-              return id !== targetId;
-            });
-            return {
-              env: prev.env,
-              meta: prev.meta,
-              state: prev.state,
-              data: Object.assign({}, prev.data, { classifieds: nextClassifieds })
-            };
-          });
-        }
-        showNotice(ctx, t('classifieds.delete.success', 'تم حذف الإعلان'));
-      })
-      .catch(function(error) {
-        debugLog('[SBN PWA][classified][delete]', error);
-        showNotice(ctx, t('classifieds.delete.error', 'تعذر حذف الإعلان'));
       });
   }
 
@@ -2843,241 +1036,55 @@
       return (b.usage_count || 0) - (a.usage_count || 0);
     }).slice(0, 6);
     if (!tags.length) return null;
-    var selected = db.state.filters && db.state.filters.hashtag ? db.state.filters.hashtag : '';
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('home.hashtags', null, null, null),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
-        [
-          D.Forms.Button({
-            attrs: {
-              class: 'chip' + (selected === '' ? ' chip-active' : ''),
-              'data-m-gkey': 'hashtag-chip',
-              'data-tag': ''
-            }
-          }, [t('filter.all')])
-        ].concat(tags.map(function(tag) {
-          var label = resolveHashtagLabel(tag);
-          var normalized = (tag && (tag.slug || tag.tag || tag.name)) || label.replace('#', '');
-          var active = selected && normalized && normalized.toLowerCase() === selected.toLowerCase();
-          return D.Forms.Button({
-            attrs: {
-              class: 'chip' + (active ? ' chip-active' : ''),
-              'data-m-gkey': 'hashtag-chip',
-              'data-tag': normalized || ''
-            }
-          }, [label]);
-        }))
+        tags.map(function(tag) {
+          return D.Containers.Div({ attrs: { class: 'chip' } }, [resolveHashtagLabel(tag)]);
+        })
       )
     ]);
   }
 
-  function renderNotificationSettings(db) {
-    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
-    var permission = prefs.permission || (global.Notification && Notification.permission) || 'default';
-    var channelPrefs = prefs.channels || {};
-    var summary = [
-      prefs.pushEnabled ? t('notifications.push.enabled', 'Push/WebPush مفعّل') : t('notifications.push.disabled', 'Push غير مفعل'),
-      prefs.inboxEnabled ? t('notifications.inbox.enabled', 'Inbox قيد العمل') : t('notifications.inbox.disabled', 'Inbox متوقف'),
-      t('notifications.permission', 'تصريح: ') + permission
-    ].join(' • ');
-
-    var channelOptions = [
-      { key: 'messages', label: t('notifications.channel.messages', 'رسائل ودردشات'), hint: t('notifications.channel.messages.hint', 'تفعيل تنبيهات المحادثات والاستفسارات')),
-      { key: 'comments', label: t('notifications.channel.comments', 'تعليقات وردود'), hint: t('notifications.channel.comments.hint', 'تنبيهات التعليقات على البوستات والريلز')),
-      { key: 'saves', label: t('notifications.channel.saves', 'حفظ ومفضلة'), hint: t('notifications.channel.saves.hint', 'إشعارات الحفظ والتفضيل لمحتواك')),
-      { key: 'reports', label: t('notifications.channel.reports', 'إبلاغات الأمان'), hint: t('notifications.channel.reports.hint', 'تنبيهات التبليغ أو التحذير على محتوى مرتبط بك'))
-    ];
-
-    return D.Containers.Div({ attrs: { class: 'section-card settings-card' } }, [
-      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-        D.Text.H4({}, [t('notifications.settings', 'الإشعارات والتراسل')]),
-        D.Text.Small({ attrs: { class: 'text-muted' } }, [summary])
-      ]),
-      D.Containers.Div({ attrs: { class: 'settings-actions' } }, [
-        D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'notifications-request' }
-        }, [prefs.pushEnabled ? t('notifications.push.recheck', 'إعادة فحص التصريح') : t('notifications.push.enable', 'تفعيل Push/WebPush')]),
-        D.Forms.Button({
-          attrs: { class: 'chip ghost', 'data-m-gkey': 'notifications-toggle-inbox', 'data-enabled': prefs.inboxEnabled ? '1' : '0' }
-        }, [prefs.inboxEnabled ? t('notifications.inbox.on', 'إيقاف Inbox') : t('notifications.inbox.off', 'تشغيل Inbox')]),
-        D.Forms.Button({
-          attrs: { class: 'chip', 'data-m-gkey': 'open-inbox' }
-        }, [t('notifications.openInbox', 'فتح صندوق الوارد')])
-      ]),
-      D.Containers.Div({ attrs: { class: 'toggle-grid' } }, channelOptions.map(function(channel) {
-        var enabled = channelPrefs[channel.key] !== false;
-        return D.Containers.Div({ attrs: { class: 'toggle-row', key: channel.key } }, [
-          D.Containers.Div({ attrs: { class: 'toggle-copy' } }, [
-            D.Text.Span({ attrs: { class: 'toggle-title' } }, [channel.label]),
-            D.Text.Small({ attrs: { class: 'toggle-hint' } }, [channel.hint])
-          ]),
-          D.Forms.Button({
-            attrs: {
-              class: 'toggle-pill' + (enabled ? ' active' : ''),
-              'data-m-gkey': 'notifications-toggle-channel',
-              'data-channel': channel.key
-            }
-          }, [enabled ? t('action.on', 'مفعل') : t('action.off', 'متوقف')])
-        ]);
-      })),
-      D.Text.Small({ attrs: { class: 'text-muted' } }, [
-        t('notifications.settings.note', 'نفعل WebPush + Inbox لعرض التعليقات، الرسائل، الحفظ، والتبليغ داخل التطبيق.')
-      ])
-    ]);
-  }
-
-  function renderComplianceCard(db) {
-    var compliance = db.state.compliance || initialDatabase.state.compliance;
-    var checklist = [
-      { key: 'termsAccepted', label: t('compliance.terms', 'شروط الاستخدام'), hint: t('compliance.terms.hint', 'الموافقة على بنود الاستخدام وآلية النشر') },
-      { key: 'privacyAccepted', label: t('compliance.privacy', 'سياسة الخصوصية'), hint: t('compliance.privacy.hint', 'الاطلاع والموافقة على جمع/استخدام البيانات') },
-      { key: 'dataConsent', label: t('compliance.data', 'موافقة جمع البيانات'), hint: t('compliance.data.hint', 'تفعيل التتبع الضروري وتجربة الإشعارات') }
-    ];
-    var status = [
-      compliance.termsAccepted ? '✔️ ' + t('compliance.terms.short', 'الشروط') : '• ' + t('compliance.terms.short', 'الشروط'),
-      compliance.privacyAccepted ? '✔️ ' + t('compliance.privacy.short', 'الخصوصية') : '• ' + t('compliance.privacy.short', 'الخصوصية'),
-      compliance.dataConsent ? '✔️ ' + t('compliance.data.short', 'البيانات') : '• ' + t('compliance.data.short', 'البيانات')
-    ].join(' / ');
-
-    return D.Containers.Div({ attrs: { class: 'section-card consent-card' } }, [
-      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-        D.Text.H4({}, [t('compliance.title', 'الامتثال والخصوصية')]),
-        D.Text.Small({ attrs: { class: 'text-muted' } }, [status])
-      ]),
-      D.Containers.Div({ attrs: { class: 'consent-list' } }, checklist.map(function(item) {
-        var enabled = Boolean(compliance[item.key]);
-        return D.Containers.Div({ attrs: { class: 'toggle-row', key: item.key } }, [
-          D.Containers.Div({ attrs: { class: 'toggle-copy' } }, [
-            D.Text.Span({ attrs: { class: 'toggle-title' } }, [item.label]),
-            D.Text.Small({ attrs: { class: 'toggle-hint' } }, [item.hint])
-          ]),
-          D.Forms.Button({
-            attrs: {
-              class: 'toggle-pill' + (enabled ? ' active' : ''),
-              'data-m-gkey': 'compliance-toggle',
-              'data-key': item.key
-            }
-          }, [enabled ? t('action.on', 'مفعل') : t('action.off', 'متوقف')])
-        ]);
-      })),
-      D.Containers.Div({ attrs: { class: 'consent-actions' } }, [
-        D.Forms.Button({
-          attrs: { class: 'chip ghost', 'data-m-gkey': 'compliance-delete' }
-        }, [
-          compliance.deletionRequested
-            ? t('compliance.delete.requested', 'تم طلب حذف الحساب/البيانات')
-            : t('compliance.delete', 'طلب حذف الحساب/البيانات')
-        ]),
-        D.Text.Small({ attrs: { class: 'text-muted' } }, [
-          t('compliance.note', 'تتطلب اللوائح إتاحة الموافقة، الانسحاب، وحذف البيانات من واجهة واحدة.')
-        ])
-      ])
-    ]);
-  }
-
-  function renderActiveFilters(db) {
-    var filters = db.state.filters || {};
-    var chips = [];
-    if (filters.search) {
-      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [t('filter.search', 'بحث: '), filters.search]));
-    }
-    if (filters.category) {
-      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [
-        t('filter.category', 'تصنيف: '),
-        findCategoryLabelById(db, filters.category) || filters.category
-      ]));
-    }
-    if (filters.condition) {
-      var conditionKey = filters.condition === 'new' ? 'product.condition.new' : 'product.condition.used';
-      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [t(conditionKey)]));
-    }
-    if (filters.hashtag) {
-      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, ['#' + filters.hashtag]));
-    }
-
-    if (!chips.length) return null;
-    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
-      D.Containers.Div({ attrs: { class: 'chips-row' } }, chips.concat([
-        D.Forms.Button({
-          attrs: {
-            class: 'chip ghost',
-            'data-m-gkey': 'reset-filters'
-          }
-        }, [t('filter.reset', 'مسح التصفية')])
-      ]))
-    ]);
-  }
-
-  function renderAnchorElement(attrs, children) {
-    if (D.Elements && typeof D.Elements.A === 'function') {
-      return D.Elements.A({ attrs: attrs }, children);
-    }
-    var label = (children && children.length) ? children : [attrs && attrs.href ? attrs.href : ''];
-    return D.Text.Span({ attrs: { class: 'link-fallback' } }, label);
-  }
-
-  function resolvePostPresentationLabel(post) {
-    if (!post || typeof post !== 'object') {
-      return t('post.type.plain');
-    }
-    var mediaMode = (post.media_mode || '').toLowerCase();
-    var attachmentKind = (post.attachment_kind || '').toLowerCase();
-    if (mediaMode === 'reel') {
-      return t('post.type.reel', 'ريل فيديو');
-    }
-    if (attachmentKind === 'product') {
-      return t('post.type.product_share', 'مشاركة منتج');
-    }
-    if (attachmentKind === 'service') {
-      return t('post.type.service_share', 'مشاركة خدمة');
-    }
-    if (attachmentKind === 'wiki') {
-      return t('post.type.article_share', 'مشاركة معرفة');
-    }
-    if (attachmentKind === 'classified') {
-      return t('post.type.classified', 'إعلان مستعمل');
-    }
-    if (attachmentKind === 'ad') {
-      return t('post.type.ad', 'إعلان ممول');
-    }
-    return t('post.type.plain', 'منشور');
-  }
-
   function renderPostCard(db, post) {
     var users = db.data.users || [];
+    var products = db.data.products || [];
+    var services = db.data.services || [];
+    var articles = db.data.articles || [];
     var user = findById(users, 'user_id', post.user_id);
     var userName = resolveUserName(user);
     var avatar = (user && user.avatar_url) || 'https://i.pravatar.cc/120?img=60';
-    var postText = getLocalizedField(post, 'content', '');
     var mediaList = toArray(post.media_urls);
-    var mediaMeta = post.media_metadata;
-    if (mediaMeta && typeof mediaMeta === 'string') {
-      try {
-        mediaMeta = JSON.parse(mediaMeta);
-      } catch (_err) {
-        mediaMeta = null;
+    var attachment = null;
+
+    if (post.post_type === 'product_share' && post.shared_product_id) {
+      var product = findById(products, 'product_id', post.shared_product_id);
+      if (product) attachment = renderProductCard(db, product, { compact: true });
+    } else if (post.post_type === 'article_share' && post.shared_article_id) {
+      var article = findById(articles, 'article_id', post.shared_article_id);
+      if (article) {
+        attachment = D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
+          D.Text.Span({ attrs: { class: 'chip' } }, [t('knowledge.title')]),
+          D.Text.P({}, [getLocalizedField(article, 'title', t('knowledge.card.title'))])
+        ]);
+      }
+    } else if (post.post_type === 'service_share' && post.shared_service_id) {
+      var service = findById(services, 'service_id', post.shared_service_id);
+      if (service) {
+        attachment = D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
+          D.Text.Span({ attrs: { class: 'chip' } }, [t('nav.services')]),
+          D.Text.P({}, [getLocalizedField(service, 'title', t('services.default'))])
+        ]);
       }
     }
-    var attachment = renderPostAttachment(db, post);
+
     var mediaStrip = null;
-    var isReel = (post.media_mode || '').toLowerCase() === 'reel';
-    if (isReel && mediaList.length) {
-      var reelPoster = mediaMeta && mediaMeta.thumbnail_url;
-      mediaStrip = D.Media.Video({
-        attrs: {
-          class: 'feed-reel',
-          src: mediaList[0],
-          controls: true,
-          loop: true,
-          playsinline: 'playsinline',
-          poster: reelPoster || null
-        }
-      }, []);
-    } else if (mediaList.length) {
+    if (mediaList.length) {
       mediaStrip = D.Containers.Div({ attrs: { class: 'feed-media' } }, mediaList.slice(0, 3).map(function(url, idx) {
         return D.Media.Img({ attrs: { src: url, class: 'media-thumb', key: post.post_id + '-media-' + idx } }, []);
       }));
     }
+
     return D.Containers.Div({
       attrs: {
         class: 'feed-card',
@@ -3090,9 +1097,8 @@
         D.Media.Img({ attrs: { src: avatar, class: 'feed-avatar', alt: userName } }, []),
         D.Containers.Div({ attrs: { class: 'feed-user' } }, [
           D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
-          renderTrustBadge(user),
           D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
-            resolvePostPresentationLabel(post),
+            t('post.type.' + (post.post_type || 'plain')) || (post.post_type || 'post'),
             ' · ',
             new Date(post.created_at).toLocaleDateString()
           ])
@@ -3101,7 +1107,9 @@
           ? D.Text.Span({ attrs: { class: 'chip' } }, [t('post.pinned')])
           : null
       ].filter(Boolean)),
-      postText ? D.Text.P({ attrs: { class: 'feed-content' } }, [postText]) : null,
+      D.Text.P({ attrs: { class: 'feed-content' } }, [
+        getLocalizedField(post, 'content', '')
+      ]),
       attachment,
       mediaStrip,
       D.Containers.Div({ attrs: { class: 'feed-stats' } }, [
@@ -3113,104 +1121,18 @@
     ]);
   }
 
-  function renderPostAttachment(db, post) {
-    if (!post) return null;
-    var products = db.data.products || [];
-    var services = db.data.services || [];
-    var articles = db.data.articles || [];
-    var classifieds = db.data.classifieds || [];
-    var mediaMeta = post.media_metadata;
-    if (mediaMeta && typeof mediaMeta === 'string') {
-      try {
-        mediaMeta = JSON.parse(mediaMeta);
-      } catch (_err) {
-        mediaMeta = null;
-      }
-    }
-    var attachmentKind = (post.attachment_kind || '').toLowerCase();
-    if (attachmentKind === 'product' && post.shared_product_id) {
-      var product = findById(products, 'product_id', post.shared_product_id);
-      if (product) return renderProductCard(db, product, { compact: true });
-    }
-    if (attachmentKind === 'service' && post.shared_service_id) {
-      var service = findById(services, 'service_id', post.shared_service_id);
-      if (service) return renderServiceCard(db, service);
-    }
-    if (attachmentKind === 'wiki' && post.shared_article_id) {
-      var article = findById(articles, 'article_id', post.shared_article_id);
-      if (article) {
-        return renderArticleItem(db, article);
-      }
-    }
-    if (attachmentKind === 'classified' && post.shared_classified_id) {
-      var classified = findById(classifieds, 'id', post.shared_classified_id) || findById(classifieds, 'classified_id', post.shared_classified_id);
-      if (classified) {
-        return renderClassifiedCard(db, classified);
-      }
-    }
-    if (attachmentKind === 'ad' && post.link_url) {
-      var adTitle = mediaMeta && (mediaMeta.og_title || mediaMeta.title);
-      var adImage = (mediaMeta && mediaMeta.og_image) || post.link_image || (mediaMeta && mediaMeta.thumbnail_url);
-      var adDescription = mediaMeta && (mediaMeta.og_description || mediaMeta.description);
-      return D.Containers.Div({ attrs: { class: 'feed-attachment' } }, [
-        D.Text.Span({ attrs: { class: 'chip' } }, [t('post.type.ad', 'إعلان')]),
-        adImage
-          ? D.Media.Img({ attrs: { src: adImage, alt: adTitle || post.link_url, class: 'ad-preview-img' } }, [])
-          : null,
-        adTitle ? D.Text.H4({}, [adTitle]) : null,
-        adDescription ? D.Text.P({}, [adDescription]) : null,
-        D.Text.P({}, [
-          renderAnchorElement({
-            href: post.link_url,
-            target: '_blank',
-            rel: 'noopener noreferrer'
-          }, [post.link_url])
-        ]),
-        renderAttachmentAction('ad', t('post.type.ad.visit', 'زيارة الإعلان'), '', { 'data-link': post.link_url })
-      ]);
-    }
-    return null;
-  }
-
-  function bumpPostStat(postId, field) {
-    if (!app || !postId) return;
-    app.setState(function(db) {
-      var posts = db.data.posts || [];
-      var updated = false;
-      var nextPosts = posts.map(function(post) {
-        if (post && post.post_id === postId) {
-          updated = true;
-          var nextValue = (post[field] || 0) + 1;
-          var clone = Object.assign({}, post);
-          clone[field] = nextValue;
-          return clone;
-        }
-        return post;
-      });
-      if (!updated) return db;
-      return {
-        env: db.env,
-        meta: db.meta,
-        state: db.state,
-        data: Object.assign({}, db.data, { posts: nextPosts })
-      };
-    });
-  }
-
-  function renderCategoryChips(db, categories, field, gkey, options) {
+  function renderCategoryChips(db, categories, field, gkey) {
     var selected = db.state.filters[field] || '';
-    var opts = options || {};
-    var chips = [];
-    if (!opts.skipAll) {
-      chips.push(D.Forms.Button({
+    var chips = [
+      D.Forms.Button({
         attrs: {
           class: 'chip' + (selected === '' ? ' chip-active' : ''),
           'data-m-gkey': gkey,
           'data-value': ''
         }
-      }, [t('filter.all')]));
-    }
-    chips = chips.concat((categories || []).map(function(cat) {
+      }, [t('filter.all')])
+    ];
+    chips = chips.concat(categories.map(function(cat) {
       return D.Forms.Button({
         attrs: {
           class: 'chip' + (selected === cat.category_id ? ' chip-active' : ''),
@@ -3220,243 +1142,6 @@
       }, [getLocalizedField(cat, 'name', cat.slug || '')]);
     }));
     return chips;
-  }
-
-  function findCategoryLabelById(db, categoryId) {
-    if (!categoryId) return '';
-    var allCategories = []
-      .concat(db.data.classifiedCategories || [])
-      .concat(db.data.marketplaceCategories || [])
-      .concat(db.data.serviceCategories || [])
-      .concat(db.data.knowledgeCategories || []);
-    var found = findById(allCategories, 'category_id', categoryId);
-    return found ? getCategoryDisplayName(found) : '';
-  }
-
-  function formatCurrencyValue(amount, currency) {
-    if (amount === undefined || amount === null || amount === '') return '';
-    var cur = currency || t('currency.egp');
-    return String(amount) + ' ' + cur;
-  }
-
-  function pickClassifiedImage(item) {
-    var images = Array.isArray(item?.images) ? item.images : [];
-    return images.length ? images[0] : 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=600';
-  }
-
-  function renderClassifiedCard(db, item) {
-    if (!item) return null;
-    var classifiedId = item.id || item.classified_id;
-    var priceLabel = item.price != null ? formatCurrencyValue(item.price, item.currency) : t('classifieds.price.ask', 'سعر عند التواصل');
-    var expires = item.expires_at ? new Date(item.expires_at).toLocaleDateString() : '';
-    var seller = findById(db.data.users || [], 'user_id', item.user_id || item.owner_id);
-    var activeUserId = db.state.activeUserId;
-    var isOwner = activeUserId && (item.user_id === activeUserId || item.owner_id === activeUserId || item.seller_id === activeUserId);
-    var badge = renderTrustBadge(seller);
-    var sellerName = resolveUserName(seller) || '';
-    return D.Containers.Div({ attrs: { class: 'classified-card', key: item.id } }, [
-      D.Media.Img({ attrs: { src: pickClassifiedImage(item), alt: item.title || '', class: 'classified-cover' } }, []),
-      D.Containers.Div({ attrs: { class: 'classified-body' } }, [
-        D.Text.H4({ attrs: { class: 'classified-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
-        D.Text.P({ attrs: { class: 'classified-meta' } }, [
-          priceLabel,
-          item.location_city ? ' · ' + item.location_city : ''
-        ]),
-        sellerName || badge
-          ? D.Containers.Div({ attrs: { class: 'seller-inline' } }, [
-              sellerName ? D.Text.Span({ attrs: { class: 'seller-inline-name' } }, [sellerName]) : null,
-              badge
-            ].filter(Boolean))
-          : null,
-        item.description
-          ? D.Text.P({ attrs: { class: 'classified-description' } }, [item.description])
-          : null,
-        D.Containers.Div({ attrs: { class: 'classified-footer' } }, [
-          expires ? D.Text.Span({ attrs: { class: 'chip' } }, [t('classifieds.expiry', 'ينتهي'), ': ', expires]) : null,
-          item.contact_phone
-            ? D.Text.Span({ attrs: { class: 'chip' } }, ['☎️ ', item.contact_phone])
-            : null
-        ].filter(Boolean)),
-        renderAttachmentAction('classified', t('classifieds.cta.contact', 'تواصل الآن'), classifiedId, {
-          'data-phone': item.contact_phone || ''
-        }),
-        D.Containers.Div({ attrs: { class: 'card-actions-row' } }, [
-          D.Forms.Button({
-            attrs: {
-              class: 'chip ghost',
-              'data-m-gkey': 'open-contact',
-              'data-kind': 'classified',
-              'data-target-id': classifiedId,
-              'data-phone': item.contact_phone || '',
-              'data-user-id': seller && seller.user_id ? seller.user_id : ''
-            }
-          }, [t('contact.message', 'مراسلة')]),
-          D.Forms.Button({
-            attrs: {
-              class: 'chip ghost',
-              'data-m-gkey': 'open-report',
-              'data-target-type': 'classified',
-              'data-target-id': classifiedId
-            }
-          }, [t('safety.report', 'إبلاغ/حظر')]),
-          isOwner
-            ? D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost',
-                  'data-m-gkey': 'classified-edit',
-                  'data-target-id': classifiedId
-                }
-              }, [t('classifieds.edit', 'تعديل الإعلان')])
-            : null,
-          isOwner
-            ? D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost danger',
-                  'data-m-gkey': 'classified-delete',
-                  'data-target-id': classifiedId
-                }
-              }, [t('classifieds.delete', 'حذف')])
-            : null
-        ].filter(Boolean))
-      ])
-    ]);
-  }
-
-  function renderClassifiedsSection(db) {
-    var classifieds = getFilteredClassifieds(db);
-    var categories = getLeafCategories(db.data.classifiedCategories || [], { onlyLeaves: true, limit: 10 });
-    var hasResults = classifieds.length > 0;
-    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
-      renderSectionHeader('classifieds.section', 'مستعمل حواء', 'classifieds.section.meta', 'أحدث الإعلانات المبوبة'),
-      D.Inputs.Input({
-        attrs: {
-          type: 'text',
-          placeholder: t('classifieds.search.placeholder', 'ابحث في الإعلانات'),
-          'data-m-gkey': 'search-input',
-          class: 'search-input',
-          value: db.state.filters.search || ''
-        }
-      }, []),
-      D.Containers.Div({ attrs: { class: 'chips-row' } },
-        renderCategoryChips(db, categories, 'category', 'category-chip')
-      ),
-      hasResults
-        ? D.Containers.Div({ attrs: { class: 'classified-grid' } },
-            classifieds.slice(0, 6).map(function(item) {
-              return renderClassifiedCard(db, item);
-            })
-          )
-        : D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات مستعملة حالياً')])
-    ]);
-  }
-
-  function getComposerCategoryGroups(categories) {
-    var hierarchy = buildCategoryHierarchy(categories || []);
-    return hierarchy.map(function(node) {
-      return {
-        id: node.data.category_id,
-        label: getCategoryDisplayName(node.data),
-        children: (node.children || []).map(function(child) {
-          return {
-            id: child.data.category_id,
-            label: getCategoryDisplayName(child.data)
-          };
-        })
-      };
-    });
-  }
-
-  function getComposerCategoryGroupsByType(db, kind) {
-    var sourceKey = COMPOSER_CATEGORY_SOURCES[kind];
-    if (!sourceKey) return [];
-    return getComposerCategoryGroups(db.data[sourceKey] || []);
-  }
-
-  function renderComposerAttachmentSelect(db, composer, attachments) {
-    var addGkey = null;
-    var addLabel = '';
-    if (composer.attachmentKind === 'product') {
-      addGkey = 'composer-add-product';
-      addLabel = t('composer.add.product', '＋ إضافة منتج');
-    } else if (composer.attachmentKind === 'service') {
-      addGkey = 'composer-add-service';
-      addLabel = t('composer.add.service', '＋ إضافة خدمة');
-    } else if (composer.attachmentKind === 'wiki') {
-      addGkey = 'composer-add-article';
-      addLabel = t('composer.add.article', '＋ إضافة معرفة');
-    }
-    if (!attachments.length) {
-      return D.Containers.Div({ attrs: { class: 'composer-empty-target' } }, [
-        D.Text.P({}, [t('composer.target.empty', 'لا توجد عناصر جاهزة للمشاركة بعد.')]),
-        addGkey
-          ? D.Forms.Button({
-              attrs: { class: 'chip ghost', 'data-m-gkey': addGkey }
-            }, [addLabel])
-          : null
-      ].filter(Boolean));
-    }
-    var selectedRecord = resolveAttachmentPreview(db, composer.attachmentKind, composer.targetId);
-    var previewNode = null;
-    if (selectedRecord) {
-      var image = resolvePrimaryImage(selectedRecord);
-      var title = getLocalizedField(selectedRecord, 'title', selectedRecord.title || selectedRecord.name || '');
-      var meta = composer.attachmentKind === 'product'
-        ? formatCurrencyValue(selectedRecord.price, selectedRecord.currency)
-        : resolveCityName(selectedRecord) || '';
-      previewNode = D.Containers.Div({ attrs: { class: 'composer-target-preview' } }, [
-        D.Media.Img({ attrs: { class: 'preview-thumb', src: image, alt: title } }, []),
-        D.Containers.Div({ attrs: { class: 'preview-copy' } }, [
-          D.Text.Span({ attrs: { class: 'preview-title' } }, [title]),
-          meta ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [meta]) : null
-        ].filter(Boolean)),
-        D.Forms.Button({
-          attrs: { class: 'composer-target-clear', 'data-m-gkey': 'composer-target-clear' }
-        }, ['✕'])
-      ]);
-    }
-    return D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
-      D.Inputs.Select({
-        attrs: {
-          class: 'composer-select',
-          'data-m-gkey': 'composer-target',
-          value: composer.targetId || ''
-        }
-      }, [
-        D.Inputs.Option({ attrs: { value: '' } }, [t('composer.select.default')])
-      ].concat(
-        attachments.map(function(option) {
-          return D.Inputs.Option({
-            attrs: { value: option.value, selected: composer.targetId === option.value }
-          }, [option.label]);
-        })
-      )),
-      addGkey
-        ? D.Forms.Button({
-            attrs: {
-              class: 'chip ghost',
-              'data-m-gkey': addGkey
-            }
-          }, [addLabel])
-        : null,
-      previewNode
-    ].filter(Boolean));
-  }
-
-  function renderAttachmentAction(kind, label, targetId, extra) {
-    var attrs = {
-      class: 'attachment-cta chip ghost',
-      'data-m-gkey': 'attachment-action',
-      'data-kind': kind || ''
-    };
-    if (targetId) {
-      attrs['data-target-id'] = targetId;
-    }
-    if (extra && typeof extra === 'object') {
-      Object.keys(extra).forEach(function(key) {
-        attrs[key] = extra[key];
-      });
-    }
-    return D.Forms.Button({ attrs: attrs }, [label]);
   }
 
   /**
@@ -3494,8 +1179,7 @@
               : t('product.condition.unknown')
           ]),
           D.Text.Span({}, [city])
-        ]),
-        renderAttachmentAction('product', t('product.view', 'عرض المنتج'), product.product_id)
+        ])
       ])
     ]);
   }
@@ -3506,131 +1190,48 @@
   function renderTimeline(db) {
     var products = db.data.products || [];
     var services = db.data.services || [];
-    var articles = getFilteredArticles(db).slice(0, 3);
-    var categoryShowcase = renderCategoryShowcase(db);
-    var tab = db.state.homeTab || 'timeline';
-
-    function renderHomeTabs() {
-      var tabOptions = [
-        { value: 'timeline', label: t('nav.timeline') },
-        { value: 'classifieds', label: t('nav.classifieds', 'إعلان مستعمل') },
-        { value: 'commerce', label: t('nav.commerce', 'منتج / خدمة') },
-        { value: 'knowledge', label: t('nav.knowledge') }
-      ];
-      return D.Containers.Div({ attrs: { class: 'section-card tab-switcher' } }, [
-        D.Containers.Div({ attrs: { class: 'tab-row' } }, tabOptions.map(function(entry) {
-          var active = tab === entry.value;
-          return D.Forms.Button({
-            attrs: {
-              class: 'tab-btn' + (active ? ' active' : ''),
-              'data-m-gkey': 'home-tab',
-              'data-value': entry.value
-            }
-          }, [entry.label]);
-        }))
-      ]);
-    }
+    var articles = getWikiArticles(db).slice(0, 3);
+    var categories = (db.data.categories || []).slice(0, 6);
 
     var sections = [
+      renderComposer(db),
+      renderSocialFeed(db),
       renderHero(db),
-      renderQuickActions(),
-      renderOnboardingCard(db),
-      renderLaunchChecklist(db),
-      renderNotificationSettings(db),
-      renderComplianceCard(db),
-      renderHomeTabs(),
-      renderActiveFilters(db)
-    ];
-
-    if (tab === 'timeline') {
-      sections = sections.concat([
-        renderComposer(db),
-        renderSocialFeed(db),
-        renderClassifiedsSection(db),
-        renderTrendingHashtags(db),
-        renderMetricGrid(db),
-        categoryShowcase,
-        D.Containers.Div({ attrs: { class: 'section-card' } }, [
-          renderSectionHeader('home.featured', null, 'home.featured.meta', null),
-          products.length
-            ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
-                products.slice(0, 5).map(function(product) {
-                  return renderProductCard(db, product, { compact: true });
-                })
-              )
-            : D.Text.P({}, [t('marketplace.empty')])
-        ]),
-        D.Containers.Div({ attrs: { class: 'section-card' } }, [
-          renderSectionHeader('home.services', null, null, null),
-          services.length
-            ? services.slice(0, 4).map(function(service) {
-                return renderServiceCard(db, service);
-              })
-            : D.Text.P({}, [t('services.empty')])
-        ]),
-        D.Containers.Div({ attrs: { class: 'section-card' } }, [
-          renderSectionHeader('knowledge.title', null, null, null),
-          articles.length
-            ? articles.map(function(article) { return renderArticleItem(db, article); })
-            : D.Text.P({}, [t('knowledge.empty')])
-        ])
-      ]);
-    } else if (tab === 'classifieds') {
-      sections = sections.concat([
-        renderComposer(db),
-        renderClassifiedsSection(db),
-        renderTrendingHashtags(db),
-        categoryShowcase
-      ]);
-    } else if (tab === 'commerce') {
-      sections = sections.concat([
-        renderComposer(db),
-        renderMarketplace(db),
-        renderServices(db),
-        categoryShowcase
-      ]);
-    } else if (tab === 'knowledge') {
-      sections = sections.concat([
-        renderComposer(db),
-        D.Containers.Div({ attrs: { class: 'section-card' } }, [
-          renderSectionHeader('knowledge.title', null, null, null),
-          D.Inputs.Input({
-            attrs: {
-              type: 'text',
-              placeholder: t('placeholder.search.articles', 'ابحث في المقالات'),
-              'data-m-gkey': 'search-input',
-              class: 'search-input',
-              value: db.state.filters.search || ''
-            }
-          }, []),
-          articles.length
-            ? articles.map(function(article) { return renderArticleItem(db, article); })
-            : D.Text.P({}, [t('knowledge.empty')])
-        ])
-      ]);
-    }
-
-    return D.Containers.Div({ attrs: { class: 'app-section' } }, sections.filter(Boolean));
-  }
-
-  function renderClassifiedsPage(db) {
-    var classifieds = getFilteredClassifieds(db);
-    var rows = classifieds.length
-      ? classifieds.map(function(item) { return renderClassifiedCard(db, item); })
-      : [D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات مستعملة حالياً')])];
-    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      renderTrendingHashtags(db),
+      renderMetricGrid(db),
       D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('classifieds.section', 'مستعمل حواء', 'classifieds.section.meta', 'أحدث الإعلانات'),
-        D.Containers.Div({ attrs: { class: 'classified-grid' } }, rows)
+        renderSectionHeader('home.categories', null, 'home.categories.meta', null),
+        D.Containers.Div({ attrs: { class: 'chips-row' } },
+          renderCategoryChips(db, categories, 'category', 'category-chip')
+        )
+      ]),
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('home.featured', null, 'home.featured.meta', null),
+        products.length
+          ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
+              products.slice(0, 5).map(function(product) {
+                return renderProductCard(db, product, { compact: true });
+              })
+            )
+          : D.Text.P({}, [t('marketplace.empty')])
+      ]),
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('home.services', null, null, null),
+        services.length
+          ? services.slice(0, 4).map(function(service) {
+              return renderServiceCard(db, service);
+            })
+          : D.Text.P({}, [t('services.empty')])
+      ]),
+      D.Containers.Div({ attrs: { class: 'section-card' } }, [
+        renderSectionHeader('knowledge.title', null, null, null),
+        articles.length
+          ? articles.map(function(article) { return renderArticleItem(db, article); })
+          : D.Text.P({}, [t('knowledge.empty')])
       ])
-    ]);
-  }
+    ].filter(Boolean);
 
-  function renderCommerce(db) {
-    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
-      renderMarketplace(db),
-      renderServices(db)
-    ]);
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, sections);
   }
 
   /**
@@ -3638,7 +1239,9 @@
    */
   function renderMarketplace(db) {
     var products = getFilteredProducts(db);
-    var categories = getLeafCategories(db.data.marketplaceCategories || [], { onlyLeaves: true, limit: 12 });
+    var categories = (db.data.categories || []).filter(function(cat) {
+      return cat.type === 'product';
+    }).slice(0, 8);
 
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('nav.marketplace', null, 'home.featured.meta', null),
@@ -3651,12 +1254,6 @@
           value: db.state.filters.search || ''
         }
       }, []),
-      D.Forms.Button({
-        attrs: {
-          class: 'chip primary',
-          'data-m-gkey': 'open-product-form'
-        }
-      }, [t('marketplace.add.product', '＋ إضافة منتج')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
         renderCategoryChips(db, categories, 'category', 'category-chip')
       ),
@@ -3714,8 +1311,7 @@
       D.Containers.Div({ attrs: { class: 'service-meta' } }, [
         D.Text.Span({ attrs: { class: 'service-price' } }, [priceLabel]),
         D.Text.Span({ attrs: { class: 'service-location' } }, [serviceCity])
-      ]),
-      renderAttachmentAction('service', t('services.cta.book', 'احجز الخدمة'), service.service_id)
+      ])
     ]);
   }
 
@@ -3724,7 +1320,9 @@
    */
   function renderServices(db) {
     var services = getFilteredServices(db);
-    var categories = getLeafCategories(db.data.serviceCategories || [], { onlyLeaves: true, limit: 12 });
+    var categories = (db.data.categories || []).filter(function(cat) {
+      return cat.type === 'service';
+    }).slice(0, 8);
 
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('nav.services', null, null, null),
@@ -3737,12 +1335,6 @@
           value: db.state.filters.search || ''
         }
       }, []),
-      D.Forms.Button({
-        attrs: {
-          class: 'chip primary',
-          'data-m-gkey': 'open-service-form'
-        }
-      }, [t('services.add', '＋ إضافة خدمة')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
         renderCategoryChips(db, categories, 'category', 'category-chip')
       ),
@@ -3760,7 +1352,6 @@
   function renderArticleItem(db, article) {
     var excerpt = article.excerpt || article.summary || article.description || '';
     var views = article.views_count != null ? article.views_count : (article.view_count || 0);
-    var cover = resolvePrimaryImage(article);
     return D.Containers.Div({
       attrs: {
         class: 'article-card',
@@ -3768,16 +1359,19 @@
         'data-m-key': 'article-' + article.article_id
       }
     }, [
-      cover
-        ? D.Media.Img({ attrs: { class: 'article-cover', src: cover, alt: getLocalizedField(article, 'title', '') } }, [])
-        : null,
       D.Text.H4({ attrs: { class: 'article-title' } }, [getLocalizedField(article, 'title', t('knowledge.card.title'))]),
       D.Text.P({ attrs: { class: 'article-summary' } }, [getLocalizedField(article, 'excerpt', excerpt) || t('wiki.noSummary')]),
       D.Containers.Div({ attrs: { class: 'article-meta' } }, [
         D.Text.Span({}, [String(views) + ' ' + t('wiki.views')]),
-        renderAttachmentAction('wiki', t('btn.read', 'اقرأ الآن'), article.article_id)
+        D.Forms.Button({
+          attrs: {
+            'data-m-gkey': 'view-article',
+            'data-article-id': article.article_id,
+            class: 'chip'
+          }
+        }, [t('btn.read')])
       ])
-    ].filter(Boolean));
+    ]);
   }
 
   /**
@@ -3805,51 +1399,14 @@
       { label: t('profile.following'), value: String(user.following_count || 0) },
       { label: t('profile.posts'), value: String(user.posts_count || 0) }
     ];
-    var profileTab = db.state.profileTab || 'posts';
-    var posts = getSortedPosts(db).filter(function(post) {
+    var posts = (db.data.posts || []).filter(function(post) {
       return post && post.user_id === user.user_id;
     });
-    var classifieds = getFilteredClassifieds(db).filter(function(item) { return item.user_id === user.user_id; });
-    var products = getFilteredProducts(db).filter(function(item) { return item.user_id === user.user_id; });
-    var services = getFilteredServices(db).filter(function(item) { return item.user_id === user.user_id; });
-    var articles = getFilteredArticles(db).filter(function(item) { return item.author_id === user.user_id; });
-
-    var tabOptions = [
-      { key: 'posts', label: t('profile.timeline', 'بوستات') },
-      { key: 'classifieds', label: t('nav.classifieds', 'إعلانات') },
-      { key: 'commerce', label: t('nav.commerce', 'منتج/خدمة') },
-      { key: 'knowledge', label: t('nav.knowledge', 'معرفة') }
-    ];
-
-    function renderProfileTabContent() {
-      if (profileTab === 'classifieds') {
-        return classifieds.length
-          ? classifieds.map(function(item) { return renderClassifiedCard(db, item); })
-          : D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات حالياً')]);
-      }
-      if (profileTab === 'commerce') {
-        var commerceList = products.concat(services);
-        return commerceList.length
-          ? commerceList.map(function(entry) {
-              return entry.product_id ? renderProductCard(db, entry) : renderServiceCard(db, entry);
-            })
-          : D.Text.P({}, [t('marketplace.empty')]);
-      }
-      if (profileTab === 'knowledge') {
-        return articles.length
-          ? articles.map(function(article) { return renderArticleItem(db, article); })
-          : D.Text.P({}, [t('knowledge.empty')]);
-      }
-      return posts.length
-        ? posts.map(function(post) { return renderPostCard(db, post); })
-        : D.Text.P({}, [t('profile.timeline.empty')]);
-    }
 
     return D.Containers.Div({ attrs: { class: 'app-section' } }, [
       D.Containers.Div({ attrs: { class: 'section-card profile-card' } }, [
         D.Media.Img({ attrs: { class: 'profile-avatar', src: avatar, alt: resolveUserName(user) } }, []),
         D.Text.H3({ attrs: { class: 'profile-name' } }, [resolveUserName(user)]),
-        renderTrustBadge(user),
         D.Text.P({ attrs: { class: 'profile-handle' } }, ['@' + (user.username || '')]),
         D.Text.P({ attrs: { class: 'profile-bio' } }, [
           getLocalizedField(user, 'bio', t('profile.bio.placeholder'))
@@ -3862,29 +1419,15 @@
         })),
         D.Containers.Div({ attrs: { class: 'profile-actions' } }, [
           D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('profile.cta.compose')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')]),
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'profile-message' } }, [t('profile.cta.message')]),
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'profile-follow' } }, [t('profile.cta.follow', 'متابعة')]),
-          user.phone
-            ? D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': user.phone } }, [t('contact.call', 'اتصال مباشر')])
-            : null
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-message' } }, [t('profile.cta.message')])
         ]),
         renderProfileSwitcher(db)
       ]),
       D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        D.Containers.Div({ attrs: { class: 'tab-switcher' } }, [
-          D.Containers.Div({ attrs: { class: 'tab-row' } }, tabOptions.map(function(tab) {
-            var active = tab.key === profileTab;
-            return D.Forms.Button({
-              attrs: {
-                class: 'tab-btn' + (active ? ' active' : ''),
-                'data-m-gkey': 'profile-tab',
-                'data-value': tab.key
-              }
-            }, [tab.label]);
-          }))
-        ]),
-        renderProfileTabContent()
+        renderSectionHeader('profile.timeline', null, null, null),
+        posts.length
+          ? posts.map(function(post) { return renderPostCard(db, post); })
+          : D.Text.P({}, [t('profile.timeline.empty')])
       ])
     ]);
   }
@@ -3926,7 +1469,6 @@
         })
       : [D.Text.P({ attrs: { class: 'comment-empty' } }, [t('post.overlay.empty')])];
     var langContent = getLocalizedField(post, 'content', '');
-    var attachment = renderPostAttachment(db, post);
 
     return D.Containers.Div({
       attrs: { class: 'post-overlay', 'data-m-gkey': 'post-close' }
@@ -3934,21 +1476,17 @@
       D.Containers.Div({ attrs: { class: 'post-overlay-panel', 'data-m-gkey': 'post-overlay-inner' } }, [
         D.Containers.Div({ attrs: { class: 'feed-header' } }, [
           D.Media.Img({ attrs: { class: 'feed-avatar', src: avatar, alt: userName } }, []),
-        D.Containers.Div({ attrs: { class: 'feed-user' } }, [
-          D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
-          renderTrustBadge(user),
-          D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
-            resolvePostPresentationLabel(post),
-            ' · ',
-            new Date(post.created_at).toLocaleString()
-          ])
-        ]),
+          D.Containers.Div({ attrs: { class: 'feed-user' } }, [
+            D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
+            D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
+              t('post.type.' + (post.post_type || 'plain'), post.post_type || 'post'),
+              ' · ',
+              new Date(post.created_at).toLocaleString()
+            ])
+          ]),
           D.Forms.Button({ attrs: { class: 'composer-close', 'data-m-gkey': 'post-close' } }, ['✕'])
         ]),
-        langContent
-          ? D.Text.P({ attrs: { class: 'feed-content' } }, [langContent])
-          : null,
-        attachment,
+        D.Text.P({ attrs: { class: 'feed-content' } }, [langContent]),
         D.Containers.Div({ attrs: { class: 'feed-stats overlay-stats' } }, [
           D.Text.Span({}, ['👁️ ', String(post.views_count || 0)]),
           D.Text.Span({}, ['💬 ', String(post.comments_count || 0)]),
@@ -3964,563 +1502,13 @@
           }, ['🔁 ', t('post.action.share')]),
           D.Forms.Button({
             attrs: { class: 'chip', 'data-m-gkey': 'post-subscribe', 'data-post-id': post.post_id }
-          }, ['🔔 ', t('post.action.subscribe')]),
-          D.Forms.Button({
-            attrs: {
-              class: 'chip ghost',
-              'data-m-gkey': 'open-contact',
-              'data-kind': post.attachment_kind || 'post',
-              'data-target-id': post.post_id,
-              'data-user-id': user && user.user_id ? user.user_id : ''
-            }
-          }, [t('contact.message', 'مراسلة')]),
-          D.Forms.Button({
-            attrs: {
-              class: 'chip ghost',
-              'data-m-gkey': 'open-report',
-              'data-target-type': 'post',
-              'data-target-id': post.post_id
-            }
-          }, [t('safety.report', 'إبلاغ')])
+          }, ['🔔 ', t('post.action.subscribe')])
         ]),
         D.Text.H4({}, [t('post.overlay.comments')]),
-        D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList),
-        (function() {
-          var canComment = Boolean(getActiveUser(db));
-          if (!canComment) {
-            return D.Forms.Button({
-              attrs: { class: 'hero-cta', 'data-m-gkey': 'auth-open' }
-            }, [t('comment.login', 'سجّل الدخول للتعليق')]);
-          }
-          return D.Containers.Div({ attrs: { class: 'comment-form' } }, [
-            D.Inputs.Textarea({
-              attrs: {
-                class: 'comment-input',
-                placeholder: t('comment.placeholder', 'أضف تعليقك...'),
-                value: db.state.commentDraft || '',
-                'data-m-gkey': 'comment-input'
-              }
-            }, []),
-            D.Forms.Button({
-              attrs: { class: 'hero-cta', 'data-m-gkey': 'comment-submit', 'data-post-id': post.post_id }
-            }, [t('comment.submit', 'إرسال')])
-          ]);
-        })()
+        D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList)
       ])
     ]);
   }
-
-  function renderDetailOverlay(db) {
-    var overlay = db.state.detailOverlay;
-    if (!overlay || !overlay.open) return null;
-    var kind = overlay.kind;
-    var target = resolveAttachmentPreview(db, kind, overlay.targetId);
-    if (!target) return null;
-    var seller = findById(db.data.users || [], 'user_id', target.user_id || target.owner_id || target.seller_id);
-    var gallery = toArray(target.images || target.media || target.gallery || target.media_urls);
-    if (!gallery.length) {
-      var primary = resolvePrimaryImage(target);
-      if (primary) gallery = [primary];
-    }
-    var activeIndex = Math.min(Math.max(overlay.activeIndex || 0, 0), Math.max(gallery.length - 1, 0));
-    var activeImage = gallery[activeIndex] || resolvePrimaryImage(target);
-    var title = getLocalizedField(target, 'title', target.title || target.name || '');
-    var price = target.price != null ? formatCurrencyValue(target.price, target.currency || t('currency.egp')) : (target.price_min != null || target.price_max != null) ? formatPriceRange(target.price_min, target.price_max) : '';
-    var description = getLocalizedField(target, 'description', target.body || target.summary || '');
-    var location = resolveCityName(target);
-    var contactPhone = target.contact_phone || target.phone || target.contact || '';
-    var sellerName = resolveUserName(seller) || t('seller.anon', 'بائع مجهول');
-    var sellerAvatar = (seller && seller.avatar_url) || 'https://i.pravatar.cc/120?img=15';
-    var sellerBadge = renderTrustBadge(seller);
-
-    var galleryThumbs = gallery.slice(0, 6).map(function(url, idx) {
-      var isActive = idx === activeIndex;
-      return D.Forms.Button({
-        attrs: {
-          class: 'detail-thumb' + (isActive ? ' active' : ''),
-          'data-m-gkey': 'detail-gallery-thumb',
-          'data-index': idx
-        }
-      }, [
-        D.Media.Img({ attrs: { src: url, alt: title } }, [])
-      ]);
-    });
-
-    var headerBadge = kind === 'product'
-      ? t('nav.commerce', 'منتج / خدمة')
-      : kind === 'service'
-        ? t('composer.type.service')
-        : kind === 'wiki'
-          ? t('composer.type.article')
-          : t('composer.type.classified', 'إعلان مستعمل');
-
-    var actionRow = [];
-    if (kind === 'classified' && contactPhone) {
-      actionRow.push(renderAttachmentAction('classified', t('classifieds.call', 'اتصل الآن'), '', { 'data-phone': contactPhone }));
-    }
-    actionRow.push(renderAttachmentAction(kind, t('attachment.share', 'مشاركة'), overlay.targetId));
-    actionRow.push(D.Forms.Button({
-      attrs: {
-        class: 'attachment-cta',
-        'data-m-gkey': 'open-contact',
-        'data-kind': kind,
-        'data-target-id': overlay.targetId,
-        'data-phone': contactPhone,
-        'data-user-id': seller && seller.user_id ? seller.user_id : ''
-      }
-    }, [t('contact.message', 'مراسلة البائع')]));
-    actionRow.push(D.Forms.Button({
-      attrs: {
-        class: 'chip ghost',
-        'data-m-gkey': 'open-report',
-        'data-target-type': kind,
-        'data-target-id': overlay.targetId
-      }
-    }, [t('safety.report', 'إبلاغ/حظر')]));
-
-    return D.Containers.Div({ attrs: { class: 'detail-overlay', 'data-m-gkey': 'detail-close' } }, [
-      D.Containers.Div({ attrs: { class: 'detail-panel', 'data-m-gkey': 'detail-overlay-inner' } }, [
-        D.Containers.Div({ attrs: { class: 'detail-header' } }, [
-          D.Text.Span({ attrs: { class: 'chip' } }, [headerBadge]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'detail-close' } }, ['✕'])
-        ]),
-        D.Containers.Div({ attrs: { class: 'detail-media' } }, [
-          activeImage ? D.Media.Img({ attrs: { src: activeImage, alt: title, class: 'detail-hero' } }, []) : null,
-          galleryThumbs.length ? D.Containers.Div({ attrs: { class: 'detail-gallery' } }, galleryThumbs) : null
-        ].filter(Boolean)),
-        D.Containers.Div({ attrs: { class: 'detail-body' } }, [
-          D.Text.H3({ attrs: { class: 'detail-title' } }, [title || headerBadge]),
-          price ? D.Text.Span({ attrs: { class: 'detail-price' } }, [price]) : null,
-          location ? D.Text.Span({ attrs: { class: 'detail-location' } }, [location]) : null,
-          description ? D.Text.P({ attrs: { class: 'detail-description' } }, [description]) : null,
-          D.Containers.Div({ attrs: { class: 'detail-seller' } }, [
-            D.Media.Img({ attrs: { class: 'seller-avatar', src: sellerAvatar, alt: sellerName } }, []),
-            D.Containers.Div({ attrs: { class: 'seller-meta' } }, [
-              D.Text.Span({ attrs: { class: 'seller-name' } }, [sellerName]),
-              sellerBadge
-            ].filter(Boolean)),
-            D.Containers.Div({ attrs: { class: 'seller-actions' } }, [
-              D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost',
-                  'data-m-gkey': 'open-contact',
-                  'data-kind': kind,
-                  'data-target-id': overlay.targetId,
-                  'data-phone': contactPhone,
-                  'data-user-id': seller && seller.user_id ? seller.user_id : ''
-                }
-              }, [t('contact.message', 'مراسلة')]),
-              contactPhone
-                ? D.Forms.Button({ attrs: { class: 'chip', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': contactPhone } }, [t('contact.call', 'اتصال مباشر')])
-                : null
-            ].filter(Boolean))
-          ].filter(Boolean)),
-          actionRow.length ? D.Containers.Div({ attrs: { class: 'detail-actions' } }, actionRow) : null,
-          D.Containers.Div({ attrs: { class: 'safety-block' } }, [
-            D.Text.Span({ attrs: { class: 'chip ghost' } }, ['🛡️ ', t('safety.title', 'ضمان الأمان')]),
-            D.Text.P({ attrs: { class: 'safety-copy' } }, [t('safety.copy', 'لا تشارك بياناتك الحساسة وأبلغ عن أي محتوى مخالف أو مشبوه.')])
-          ])
-        ].filter(Boolean))
-      ])
-    ]);
-  }
-
-  function renderReaderOverlay(db) {
-    var overlay = db.state.readerOverlay;
-    if (!overlay || !overlay.open) return null;
-    var article = findById(db.data.articles || [], 'article_id', overlay.articleId);
-    if (!article) return null;
-
-    var cover = resolvePrimaryImage(article);
-    var title = getLocalizedField(article, 'title', t('knowledge.card.title'));
-    var body = getLocalizedField(article, 'content', article.body || article.summary || article.excerpt || '');
-    var words = body.split(/\s+/).filter(Boolean).length;
-    var readMinutes = Math.max(1, Math.ceil(words / 170));
-    var fontSize = overlay.fontSize || 'md';
-    var related = (db.data.articles || []).filter(function(item) { return item.article_id !== article.article_id; }).slice(0, 3);
-
-    var fontOptions = [
-      { value: 'sm', label: 'A-' },
-      { value: 'md', label: 'A' },
-      { value: 'lg', label: 'A+' }
-    ];
-
-    return D.Containers.Div({ attrs: { class: 'reader-overlay', 'data-m-gkey': 'reader-close' } }, [
-      D.Containers.Div({ attrs: { class: 'reader-panel', 'data-m-gkey': 'reader-inner' } }, [
-        D.Containers.Div({ attrs: { class: 'reader-head' } }, [
-          D.Text.H4({ attrs: { class: 'reader-title' } }, [title]),
-          D.Containers.Div({ attrs: { class: 'reader-tools' } }, [
-            D.Text.Small({ attrs: { class: 'reader-meta' } }, [readMinutes + ' ' + t('knowledge.read.time', 'دقيقة قراءة')]),
-            D.Containers.Div({ attrs: { class: 'reader-fonts' } }, fontOptions.map(function(opt) {
-              var active = opt.value === fontSize;
-              return D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost' + (active ? ' active' : ''),
-                  'data-m-gkey': 'reader-font',
-                  'data-size': opt.value
-                }
-              }, [opt.label]);
-            })),
-            D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'reader-close' } }, ['✕'])
-          ])
-        ]),
-        cover ? D.Media.Img({ attrs: { class: 'reader-cover', src: cover, alt: title } }, []) : null,
-        D.Containers.Div({ attrs: { class: 'reader-body reader-size-' + fontSize } },
-          body
-            ? body.split(/\n+/).filter(Boolean).map(function(paragraph, idx) {
-                return D.Text.P({ attrs: { key: 'p-' + idx, class: 'reader-paragraph' } }, [paragraph.trim()]);
-              })
-            : [D.Text.P({}, [t('knowledge.empty', 'لا يوجد محتوى بعد.')])]
-        ),
-        related.length
-          ? D.Containers.Div({ attrs: { class: 'reader-related' } }, [
-              D.Text.H5({}, [t('knowledge.related', 'مقالات ذات صلة')]),
-              D.Containers.Div({ attrs: { class: 'reader-related-list' } },
-                related.map(function(item) {
-                  return D.Forms.Button({
-                    attrs: {
-                      class: 'chip ghost',
-                      'data-m-gkey': 'reader-open-related',
-                      'data-article-id': item.article_id
-                    }
-                  }, [getLocalizedField(item, 'title', t('knowledge.card.title'))]);
-                })
-              )
-            ])
-          : null
-      ])
-    ]);
-  }
-
-  function renderContactOverlay(db) {
-    var overlay = db.state.contactOverlay;
-    if (!overlay || !overlay.open) return null;
-    var seller = findById(db.data.users || [], 'user_id', overlay.userId);
-    var sellerName = resolveUserName(seller) || t('seller.anon', 'مستخدم');
-    var defaultText = overlay.preset || t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.');
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'contact-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'contact-modal' } }, [
-        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-          D.Text.H4({}, [t('contact.title', 'مراسلة') + ' ' + sellerName]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'contact-close' } }, ['✕'])
-        ]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('contact.hint', 'سنرسل رسالتك داخل التطبيق ويمكن متابعة الرد من الإشعارات.')]),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            value: overlay.message || defaultText,
-            'data-m-gkey': 'contact-message'
-          }
-        }, []),
-        overlay.phone
-          ? D.Text.Small({ attrs: { class: 'contact-meta' } }, [t('contact.phone', 'هاتف للتواصل: '), overlay.phone])
-          : null,
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'contact-send' } }, [t('contact.send', 'إرسال')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'contact-close' } }, [t('action.cancel', 'إلغاء')])
-        ])
-      ])
-    ]);
-  }
-
-  function renderReportOverlay(db) {
-    var overlay = db.state.reportOverlay;
-    if (!overlay || !overlay.open) return null;
-    var reasons = [
-      { value: 'spam', label: t('report.spam', 'محتوى مزعج / سبام') },
-      { value: 'fraud', label: t('report.fraud', 'احتيال أو طلب أموال') },
-      { value: 'illegal', label: t('report.illegal', 'محتوى مخالف للقوانين') },
-      { value: 'other', label: t('report.other', 'أخرى') }
-    ];
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'report-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'report-modal' } }, [
-        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-          D.Text.H4({}, [t('report.title', 'إبلاغ/حظر')]),
-          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'report-close' } }, ['✕'])
-        ]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('report.hint', 'سنراجع البلاغ سريعاً لحماية المجتمع.')]),
-        D.Inputs.Select({ attrs: { class: 'composer-select', 'data-m-gkey': 'report-reason', value: overlay.reason || '' } },
-          [D.Inputs.Option({ attrs: { value: '' } }, [t('report.choose', 'اختر سبب البلاغ')])].concat(
-            reasons.map(function(entry) {
-              return D.Inputs.Option({ attrs: { value: entry.value } }, [entry.label]);
-            })
-          )
-        ),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            placeholder: t('report.notes', 'أضف تفاصيل (اختياري)'),
-            value: overlay.notes || '',
-            'data-m-gkey': 'report-notes'
-          }
-        }, []),
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'report-submit' } }, [t('report.submit', 'إرسال البلاغ')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'report-close' } }, [t('action.cancel', 'إلغاء')])
-        ])
-      ])
-    ]);
-  }
-
-  function renderProfileEditor(db) {
-    var editor = db.state.profileEditor;
-    var user = getActiveUser(db);
-    if (!editor || !editor.open || !user) return null;
-    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'profile-edit-close' } }, [
-      D.Containers.Div({ attrs: { class: 'auth-modal', 'data-m-gkey': 'profile-edit-modal' } }, [
-        D.Text.H3({}, [t('profile.edit', 'تعديل الملف الشخصي')]),
-        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('profile.edit.hint', 'حسّن الثقة عبر صورة وسيرة واضحة')]),
-        D.Inputs.Input({
-          attrs: {
-            type: 'text',
-            class: 'composer-input',
-            placeholder: t('profile.edit.name', 'الاسم الظاهر'),
-            value: editor.fullName || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'fullName'
-          }
-        }, []),
-        D.Inputs.Input({
-          attrs: {
-            type: 'url',
-            class: 'composer-input',
-            placeholder: t('profile.edit.avatar', 'رابط الصورة الشخصية'),
-            value: editor.avatarUrl || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'avatarUrl'
-          }
-        }, []),
-        D.Inputs.Textarea({
-          attrs: {
-            class: 'composer-textarea',
-            placeholder: t('profile.edit.bio', 'نبذة عنك أو عن نشاطك'),
-            value: editor.bio || '',
-            'data-m-gkey': 'profile-edit-input',
-            'data-field': 'bio'
-          }
-        }, []),
-        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'profile-edit-save' } }, [t('profile.save', 'حفظ التعديلات')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-close' } }, ['✕'])
-        ])
-      ])
-    ]);
-  }
-
-  function renderNotificationsPanel(db) {
-    if (!db.state.notificationsOpen) return null;
-    var notifications = db.data.notifications || [];
-    return D.Containers.Div({ attrs: { class: 'section-card notification-panel' } }, [
-      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-        D.Text.H4({}, [t('nav.notifications', 'الإشعارات')]),
-        D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-notifications' } }, ['✕'])
-      ]),
-      notifications.length
-        ? D.Containers.Div({ attrs: { class: 'notification-list' } },
-            notifications.slice(0, 5).map(function(item) {
-              return D.Containers.Div({ attrs: { class: 'notification-item', key: item.notification_id || item.id } }, [
-                D.Text.Span({ attrs: { class: 'notification-title' } }, [getLocalizedField(item, 'title', t('nav.notifications'))]),
-                D.Text.P({ attrs: { class: 'notification-body' } }, [getLocalizedField(item, 'body', item.description || '')])
-              ]);
-            })
-          )
-        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.empty', 'لا توجد إشعارات حالياً')])
-    ]);
-  }
-
-  function renderInboxPanel(db) {
-    if (!db.state.inboxOpen) return null;
-    var threads = resolveInboxThreads(db);
-    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
-    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
-      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
-        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
-        ])
-      ]),
-      !prefs.inboxEnabled
-        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
-        : null,
-      threads && threads.length
-        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
-            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
-            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
-              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
-              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
-              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
-            ]);
-          }))
-        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
-    ]);
-  }
-
-  function markNotificationsAsRead() {
-    if (!app || !app.database) return;
-    var db = app.database;
-    var pending = (db.data.notifications || []).filter(function(item) {
-      return item && item.status !== 'read';
-    });
-    if (!pending.length) return;
-    var updated = (db.data.notifications || []).map(function(item) {
-      if (!item) return item;
-      if (item.status === 'read') return item;
-      var clone = Object.assign({}, item, { status: 'read' });
-      return clone;
-    });
-    app.setState(function(prev) {
-      return {
-        env: prev.env,
-        meta: prev.meta,
-        state: prev.state,
-        data: Object.assign({}, prev.data, { notifications: updated })
-      };
-    });
-    if (realtime && realtime.store && typeof realtime.store.merge === 'function') {
-      pending.forEach(function(item) {
-        var id = item.notification_id || item.id;
-        if (!id) return;
-        realtime.store
-          .merge('sbn_notifications', { notification_id: id, status: 'read' }, { source: 'pwa-notifications' })
-          .catch(function(error) {
-            console.warn('[SBN PWA] failed to mark notification read', error);
-          });
-      });
-    }
-  }
-
-  function renderAuthModal(db) {
-   var auth = (db && db.state && db.state.auth) || initialDatabase.state.auth;
-   if (!auth || !auth.open) return null;
-   var step = auth.step || 'login';
-   var title = t('auth.login.title', 'مرحبا بك');
-   var subtitle = t('auth.login.subtitle', 'سجّل دخولك للمتابعة');
-   var fields = [];
-   var demoHint = null;
-   var recaptchaBox = null;
-   if (step === 'register') {
-     title = t('auth.register.title', 'إنشاء حساب جديد');
-     subtitle = t('auth.register.subtitle', 'شارك أعمالك وخدماتك فوراً');
-     fields = [
-       { name: 'fullName', type: 'text', label: t('auth.fullName', 'الاسم الكامل'), value: auth.fullName || '' },
-       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
-       { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
-     ];
-     recaptchaBox = D.Forms.Label({ attrs: { class: 'auth-recaptcha' } }, [
-       D.Inputs.Input({ attrs: { type: 'checkbox', checked: !!auth.recaptcha, 'data-m-gkey': 'auth-recaptcha' } }, []),
-       D.Text.Span({ attrs: { class: 'auth-recaptcha-label' } }, [t('auth.recaptcha', 'أنا لست روبوتاً')])
-     ]);
-   } else if (step === 'otp') {
-     title = t('auth.otp.title', 'أدخل رمز التحقق');
-     subtitle = t('auth.otp.subtitle', 'استخدم الرمز 123456 لإكمال التفعيل');
-     fields = [
-       { name: 'otp', type: 'text', label: t('auth.otp', 'رمز التحقق'), value: auth.otp || '' }
-     ];
-   } else if (step === 'forgot') {
-     title = t('auth.forgot.title', 'استعادة كلمة المرور');
-     subtitle = t('auth.forgot.subtitle', 'سوف نرسل لك رمز تفعيل لتغيير كلمة المرور');
-     fields = [
-       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
-       { name: 'newPassword', type: 'password', label: t('auth.password.new', 'كلمة المرور الجديدة'), value: auth.newPassword || '' }
-     ];
-     recaptchaBox = D.Forms.Label({ attrs: { class: 'auth-recaptcha' } }, [
-       D.Inputs.Input({ attrs: { type: 'checkbox', checked: !!auth.recaptcha, 'data-m-gkey': 'auth-recaptcha' } }, []),
-       D.Text.Span({ attrs: { class: 'auth-recaptcha-label' } }, [t('auth.recaptcha', 'أنا لست روبوتاً')])
-     ]);
-   } else {
-     fields = [
-       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
-       { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
-     ];
-     demoHint = D.Text.Small({ attrs: { class: 'auth-note' } }, [
-       t('auth.demo.hint', 'بيانات العرض: +201000000000 / demo123')
-     ]);
-   }
-  var now = Date.now();
-  var cooldownRemaining = Math.max(0, (auth.otpRequestedAt || 0) + OTP_COOLDOWN_MS - now);
-  var blockedRemaining = Math.max(0, (auth.blockedUntil || 0) - now);
-  var cooldownNode = cooldownRemaining > 0 && (step === 'register' || step === 'forgot')
-    ? D.Text.Small({ attrs: { class: 'auth-note warning' } }, [
-        t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد'), ' ', Math.ceil(cooldownRemaining / 60000), ' ', t('auth.minutes', 'دقيقة')
-      ])
-    : null;
-  var blockNode = blockedRemaining > 0 && step === 'login'
-    ? D.Text.Small({ attrs: { class: 'auth-note warning' } }, [
-        t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), ' ', Math.ceil(blockedRemaining / 60000), ' ', t('auth.minutes', 'دقيقة متبقية')
-      ])
-    : null;
-  var autocompleteMap = {
-    email: 'email',
-    phone: 'tel',
-    password: step === 'login' ? 'current-password' : 'new-password',
-    newPassword: 'new-password',
-    fullName: 'name',
-    otp: 'one-time-code'
-  };
-  var fieldElements = fields.map(function(field) {
-    var autocomplete = autocompleteMap[field.name] || (field.type === 'password' ? 'current-password' : 'off');
-    return D.Inputs.Input({
-      attrs: {
-        type: field.type,
-        value: field.value,
-        placeholder: field.label,
-        class: 'auth-input',
-        name: field.name,
-        autocomplete: autocomplete,
-        'data-m-gkey': 'auth-input-' + field.name
-      }
-    }, []);
-  });
-   var primaryLabel = {
-     login: t('auth.login', 'تسجيل الدخول'),
-     register: t('auth.register', 'إنشاء حساب'),
-     otp: t('auth.verify', 'تأكيد الرمز'),
-     forgot: t('auth.send', 'إرسال الرمز')
-   }[step] || t('auth.login', 'تسجيل الدخول');
-   var links = [];
-   if (step === 'login') {
-     links = [
-       D.Forms.Button({
-         attrs: { class: 'link-btn', 'data-m-gkey': 'auth-switch', 'data-step': 'forgot' }
-       }, [t('auth.forgot.link', 'نسيت كلمة المرور؟')]),
-       D.Forms.Button({
-         attrs: { class: 'link-btn', 'data-m-gkey': 'auth-switch', 'data-step': 'register' }
-       }, [t('auth.register.link', 'مستخدم جديد؟ أنشئ حساباً')])
-     ];
-   } else if (step === 'register' || step === 'otp' || step === 'forgot') {
-     links = [
-       D.Forms.Button({
-         attrs: { class: 'link-btn', 'data-m-gkey': 'auth-switch', 'data-step': 'login' }
-       }, [t('auth.login.back', 'لديك حساب بالفعل؟')])
-     ];
-   }
-   var errorNode = auth.error
-     ? D.Text.P({ attrs: { class: 'auth-error' } }, [auth.error])
-     : null;
-  return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'auth-overlay' } }, [
-    D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'auth-modal' } }, [
-      D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'auth-close' } }, ['✕']),
-      D.Text.H3({ attrs: { class: 'auth-title' } }, [title]),
-      D.Text.P({ attrs: { class: 'auth-subtitle' } }, [subtitle]),
-      demoHint,
-      errorNode,
-      D.Forms.Form({
-        attrs: { class: 'auth-form', 'data-m-gkey': 'auth-submit', novalidate: 'novalidate' }
-      }, [
-        D.Containers.Div({ attrs: { class: 'auth-fields' } }, fieldElements),
-        recaptchaBox,
-        cooldownNode,
-        blockNode,
-        D.Forms.Button({
-          attrs: { class: 'hero-cta', type: 'submit' }
-        }, [primaryLabel]),
-        D.Containers.Div({ attrs: { class: 'auth-links' } }, links.filter(Boolean))
-      ])
-    ])
-  ]);
-}
-
 
   /**
    * Render bottom navigation
@@ -4531,30 +1519,30 @@
     return D.Containers.Nav({ attrs: { class: 'bottom-nav' } }, [
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-profile',
-          class: 'nav-item' + (currentSection === 'profile' ? ' active' : '')
+          'data-m-gkey': 'nav-home',
+          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-classifieds',
-          class: 'nav-item' + (currentSection === 'classifieds' ? ' active' : '')
+          'data-m-gkey': 'nav-marketplace',
+          class: 'nav-item' + (currentSection === 'marketplace' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['📢']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.classifieds', 'إعلان مستعمل')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛒']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.marketplace')])
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-commerce',
-          class: 'nav-item' + (currentSection === 'commerce' ? ' active' : '')
+          'data-m-gkey': 'nav-services',
+          class: 'nav-item' + (currentSection === 'services' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛍️']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.commerce', 'منتج / خدمة')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🔧']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.services')])
       ]),
       D.Forms.Button({
         attrs: {
@@ -4567,12 +1555,12 @@
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-home',
-          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
+          'data-m-gkey': 'nav-profile',
+          class: 'nav-item' + (currentSection === 'profile' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
       ])
     ]);
   }
@@ -4593,11 +1581,11 @@
     var sectionView;
 
     switch (currentSection) {
-      case 'commerce':
-        sectionView = renderCommerce(db);
+      case 'marketplace':
+        sectionView = renderMarketplace(db);
         break;
-      case 'classifieds':
-        sectionView = renderClassifiedsPage(db);
+      case 'services':
+        sectionView = renderServices(db);
         break;
       case 'knowledge':
         sectionView = renderKnowledge(db);
@@ -4612,20 +1600,11 @@
 
     return D.Containers.Div({ attrs: { class: 'screen-bg' } }, [
       D.Containers.Div({ attrs: { class: 'app-shell' } }, [
-        renderPwaInstallBanner(db),
         renderNotice(db),
         renderHeader(db),
-        renderNotificationsPanel(db),
-        renderInboxPanel(db),
         D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
         renderBottomNav(db),
-        renderDetailOverlay(db),
-        renderReaderOverlay(db),
-        renderContactOverlay(db),
-        renderReportOverlay(db),
-        renderPostOverlay(db),
-        renderProfileEditor(db),
-        renderAuthModal(db)
+        renderPostOverlay(db)
       ].filter(Boolean))
     ]);
   }
@@ -4647,341 +1626,30 @@
       }
     },
 
-    'nav.commerce': {
+    'nav.marketplace': {
       on: ['click'],
-      gkeys: ['nav-commerce', 'nav-marketplace', 'nav-services'],
+      gkeys: ['nav-marketplace'],
       handler: function(event, ctx) {
         ctx.setState(function(db) {
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
+            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
             data: db.data
           };
         });
       }
     },
 
-    'nav.classifieds': {
+    'nav.services': {
       on: ['click'],
-      gkeys: ['nav-classifieds'],
+      gkeys: ['nav-services'],
       handler: function(event, ctx) {
         ctx.setState(function(db) {
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'classifieds' }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'open.product.form': {
-      on: ['click'],
-      gkeys: ['open-product-form'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('marketplace.add.product.notice', 'انتقل للمتجر لإضافة منتج جديد ثم شاركه'));
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'attachment.action': {
-      on: ['click'],
-      gkeys: ['attachment-action'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        event.stopPropagation();
-        var target = event.currentTarget || event.target;
-        if (!target) return;
-        var kind = (target.getAttribute('data-kind') || '').toLowerCase();
-        var targetId = target.getAttribute('data-target-id') || '';
-        var link = target.getAttribute('data-link') || '';
-        var phone = target.getAttribute('data-phone') || '';
-        if (kind === 'product') {
-          setDetailOverlay(ctx, { open: true, kind: 'product', targetId: targetId, activeIndex: 0 });
-        } else if (kind === 'service') {
-          setDetailOverlay(ctx, { open: true, kind: 'service', targetId: targetId, activeIndex: 0 });
-        } else if (kind === 'wiki') {
-          setReaderOverlay(ctx, { open: true, articleId: targetId, fontSize: 'md' });
-        } else if (kind === 'classified') {
-          if (targetId) {
-            setDetailOverlay(ctx, { open: true, kind: 'classified', targetId: targetId, activeIndex: 0 });
-          } else if (phone) {
-            try {
-              global.open('tel:' + phone.replace(/[^0-9+]/g, ''), '_self');
-            } catch (_err) {
-              showNotice(ctx, phone);
-            }
-          } else {
-            showNotice(ctx, t('classifieds.contact.empty', 'يمكنك التواصل من خلال التعليقات أو الرسائل.'));
-          }
-        } else if (kind === 'ad') {
-          if (link) {
-            try {
-              global.open(link, '_blank', 'noopener');
-            } catch (_err) {
-              showNotice(ctx, link);
-            }
-          } else {
-            showNotice(ctx, t('post.type.ad', 'إعلان ممول'));
-          }
-        }
-      }
-    },
-
-    'open.contact': {
-      on: ['click'],
-      gkeys: ['open-contact'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var kind = (target.getAttribute('data-kind') || '').toLowerCase();
-        var targetId = target.getAttribute('data-target-id') || '';
-        var phone = target.getAttribute('data-phone') || '';
-        var userId = target.getAttribute('data-user-id') || '';
-        setContactOverlay(ctx, {
-          open: true,
-          kind: kind,
-          targetId: targetId,
-          phone: phone,
-          userId: userId,
-          message: '',
-          preset: t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.')
-        });
-      }
-    },
-
-    'classified.edit': {
-      on: ['click'],
-      gkeys: ['classified-edit'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var targetId = event.currentTarget && event.currentTarget.getAttribute('data-target-id');
-        if (!targetId || !app || !app.database) return;
-        var db = app.database;
-        var match = findById(db.data.classifieds || [], 'id', targetId) || findById(db.data.classifieds || [], 'classified_id', targetId);
-        if (!match) return;
-        var mediaList = Array.isArray(match.images) ? match.images.slice() : [];
-        var base = createComposerState({
-          open: true,
-          attachmentKind: 'classified',
-          editAttachmentId: targetId,
-          targetId: targetId,
-          text: match.description || '',
-          classifiedTitle: match.title || '',
-          classifiedPrice: match.price || '',
-          contactPhone: match.contact_phone || '',
-          categoryId: match.category_id || '',
-          subcategoryId: match.category_id || '',
-          mediaList: mediaList
-        });
-        applyComposerState(ctx, base);
-      }
-    },
-
-    'classified.delete': {
-      on: ['click'],
-      gkeys: ['classified-delete'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var targetId = event.currentTarget && event.currentTarget.getAttribute('data-target-id');
-        if (!targetId) return;
-        var confirmed = true;
-        try {
-          confirmed = global.confirm ? global.confirm(t('classifieds.delete.confirm', 'هل أنت متأكد من حذف الإعلان؟')) : true;
-        } catch (_err) {
-          confirmed = true;
-        }
-        if (!confirmed) return;
-        deleteClassified(ctx, targetId);
-      }
-    },
-
-    'contact.close': {
-      on: ['click'],
-      gkeys: ['contact-close'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        setContactOverlay(ctx, { open: false, targetId: null, kind: null, message: '' });
-      }
-    },
-
-    'contact.message': {
-      on: ['input'],
-      gkeys: ['contact-message'],
-      handler: function(event, ctx) {
-        var value = event.target && event.target.value ? event.target.value : '';
-        setContactOverlay(ctx, { message: value });
-      }
-    },
-
-    'contact.send': {
-      on: ['click'],
-      gkeys: ['contact-send'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { contactOverlay: Object.assign({}, db.state.contactOverlay, { open: false }) }),
-            data: db.data
-          };
-        });
-        showNotice(ctx, t('contact.sent', 'تم إرسال الرسالة وسيتم الرد عبر التنبيهات.'));
-      }
-    },
-
-    'open.report': {
-      on: ['click'],
-      gkeys: ['open-report'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var targetType = target.getAttribute('data-target-type') || 'post';
-        var targetId = target.getAttribute('data-target-id') || '';
-        setReportOverlay(ctx, { open: true, targetType: targetType, targetId: targetId });
-      }
-    },
-
-    'report.close': {
-      on: ['click'],
-      gkeys: ['report-close'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        setReportOverlay(ctx, { open: false, targetId: null, targetType: null, reason: '', notes: '' });
-      }
-    },
-
-    'report.reason': {
-      on: ['change'],
-      gkeys: ['report-reason'],
-      handler: function(event, ctx) {
-        var value = event.target && event.target.value ? event.target.value : '';
-        setReportOverlay(ctx, { reason: value });
-      }
-    },
-
-    'report.notes': {
-      on: ['input'],
-      gkeys: ['report-notes'],
-      handler: function(event, ctx) {
-        var value = event.target && event.target.value ? event.target.value : '';
-        setReportOverlay(ctx, { notes: value });
-      }
-    },
-
-    'report.submit': {
-      on: ['click'],
-      gkeys: ['report-submit'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var overlay = ctx.database && ctx.database.state && ctx.database.state.reportOverlay;
-        if (!overlay || !overlay.reason) {
-          showNotice(ctx, t('report.require.reason', 'اختر سبب البلاغ أولاً'));
-          return;
-        }
-        showNotice(ctx, t('report.submitted', 'تم تسجيل البلاغ. شكراً لحماية المجتمع.'));
-        setReportOverlay(ctx, { open: false, notes: '', reason: '' });
-      }
-    },
-
-    'detail.close': {
-      on: ['click'],
-      gkeys: ['detail-close'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        setDetailOverlay(ctx, { open: false, targetId: null, kind: null, activeIndex: 0 });
-      }
-    },
-
-    'reader.close': {
-      on: ['click'],
-      gkeys: ['reader-close'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          if (!db.state.readerOverlay.open) return db;
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { readerOverlay: Object.assign({}, db.state.readerOverlay, { open: false }) }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'reader.inner': {
-      on: ['click'],
-      gkeys: ['reader-inner'],
-      handler: function(event) {
-        event.stopPropagation();
-      }
-    },
-
-    'reader.font': {
-      on: ['click'],
-      gkeys: ['reader-font'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var size = event.currentTarget && event.currentTarget.getAttribute('data-size');
-        if (!size) return;
-        setReaderOverlay(ctx, function(current) {
-          return Object.assign({}, current, { fontSize: size });
-        });
-      }
-    },
-
-    'reader.open.related': {
-      on: ['click'],
-      gkeys: ['reader-open-related'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var id = event.currentTarget && event.currentTarget.getAttribute('data-article-id');
-        if (!id) return;
-        setReaderOverlay(ctx, { open: true, articleId: id });
-      }
-    },
-
-    'detail.inner': {
-      on: ['click'],
-      gkeys: ['detail-overlay-inner'],
-      handler: function(event) {
-        event.stopPropagation();
-      }
-    },
-
-    'detail.gallery.thumb': {
-      on: ['click'],
-      gkeys: ['detail-gallery-thumb'],
-      handler: function(event, ctx) {
-        var indexAttr = event.currentTarget && event.currentTarget.getAttribute('data-index');
-        var nextIndex = indexAttr ? Number(indexAttr) : 0;
-        setDetailOverlay(ctx, { activeIndex: nextIndex });
-      }
-    },
-
-    'open.service.form': {
-      on: ['click'],
-      gkeys: ['open-service-form'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('services.add.notice', 'انتقل لقسم الخدمات لإضافة عرض جديد ثم شاركه هنا'));
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
+            state: Object.assign({}, db.state, { currentSection: 'services' }),
             data: db.data
           };
         });
@@ -5015,515 +1683,6 @@
             data: db.data
           };
         });
-      }
-    },
-
-    'home.tab': {
-      on: ['click'],
-      gkeys: ['home-tab'],
-      handler: function(event, ctx) {
-        var value = event.currentTarget && event.currentTarget.getAttribute('data-value');
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { homeTab: value || 'timeline' }),
-            data: db.data
-          };
-        });
-      }
-    },
-    'open-notifications': {
-      on: ['click'],
-      gkeys: ['open-notifications'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var shouldOpen = !(app && app.database && app.database.state && app.database.state.notificationsOpen);
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { notificationsOpen: !db.state.notificationsOpen }),
-            data: db.data
-          };
-        });
-        if (shouldOpen) {
-          setTimeout(markNotificationsAsRead, 0);
-        }
-      }
-    },
-    'close-notifications': {
-      on: ['click'],
-      gkeys: ['close-notifications'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        event.stopPropagation();
-        ctx.setState(function(db) {
-          if (!db.state.notificationsOpen) return db;
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { notificationsOpen: false }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'notifications.request': {
-      on: ['click'],
-      gkeys: ['notifications-request'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var hasNotificationApi = typeof Notification !== 'undefined' && typeof Notification.requestPermission === 'function';
-        if (!hasNotificationApi) {
-          updateNotificationPreferences(ctx, { permission: 'unsupported', pushEnabled: false });
-          showNotice(ctx, t('notifications.push.unsupported', 'المتصفح الحالي لا يدعم Push/WebPush.'));
-          return;
-        }
-        Notification.requestPermission().then(function(permission) {
-          var enabled = permission === 'granted';
-          updateNotificationPreferences(ctx, function(current) {
-            return Object.assign({}, current, {
-              permission: permission,
-              pushEnabled: enabled,
-              webPushPrompted: true,
-              inboxEnabled: enabled || current.inboxEnabled
-            });
-          });
-          if (enabled) {
-            showNotice(ctx, t('notifications.push.ready', 'سيتم إرسال التنبيهات للأحداث الجديدة.'));
-          } else {
-            showNotice(ctx, t('notifications.push.denied', 'تم رفض الإذن. يمكنك إعادة المحاولة لاحقاً.'));
-          }
-        }).catch(function(err) {
-          console.warn('[SBN PWA] push permission failed', err);
-          updateNotificationPreferences(ctx, { permission: 'denied', pushEnabled: false });
-        });
-      }
-    },
-
-    'notifications.toggle-channel': {
-      on: ['click'],
-      gkeys: ['notifications-toggle-channel'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var channel = event.currentTarget && event.currentTarget.getAttribute('data-channel');
-        if (!channel) return;
-        updateNotificationPreferences(ctx, function(current) {
-          var channels = Object.assign({}, current.channels || {});
-          channels[channel] = channels[channel] === false;
-          return Object.assign({}, current, { channels: channels });
-        });
-      }
-    },
-
-    'notifications.toggle-inbox': {
-      on: ['click'],
-      gkeys: ['notifications-toggle-inbox'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        updateNotificationPreferences(ctx, function(current) {
-          return Object.assign({}, current, { inboxEnabled: !current.inboxEnabled });
-        });
-      }
-    },
-
-    'open-inbox': {
-      on: ['click'],
-      gkeys: ['open-inbox'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          var threads = resolveInboxThreads(db);
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { inboxOpen: true }),
-            data: Object.assign({}, db.data, { inboxThreads: threads })
-          };
-        });
-      }
-    },
-
-    'close-inbox': {
-      on: ['click'],
-      gkeys: ['close-inbox'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          if (!db.state.inboxOpen) return db;
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { inboxOpen: false }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'mark-inbox-read': {
-      on: ['click'],
-      gkeys: ['mark-inbox-read'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          var threads = resolveInboxThreads(db).map(function(thread) {
-            return Object.assign({}, thread, { unread: false });
-          });
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: db.state,
-            data: Object.assign({}, db.data, { inboxThreads: threads })
-          };
-        });
-      }
-    },
-
-    'compliance-toggle': {
-      on: ['click'],
-      gkeys: ['compliance-toggle'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var key = event.currentTarget && event.currentTarget.getAttribute('data-key');
-        if (!key) return;
-        updateComplianceState(ctx, function(current) {
-          var next = Object.assign({}, current);
-          next[key] = !current[key];
-          return next;
-        });
-      }
-    },
-
-    'compliance-delete': {
-      on: ['click'],
-      gkeys: ['compliance-delete'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        updateComplianceState(ctx, { deletionRequested: true });
-        showNotice(ctx, t('compliance.delete.notice', 'تم تسجيل طلب حذف البيانات. سنذكرك بمتطلبات التحقق.'));
-      }
-    },
-
-    'auth.open': {
-      on: ['click'],
-      gkeys: ['auth-open'],
-      handler: function(event) {
-        event.preventDefault();
-        openAuthModal('login');
-      }
-    },
-
-    'open-register': {
-      on: ['click'],
-      gkeys: ['open-register'],
-      handler: function(event) {
-        event.preventDefault();
-        openAuthModal('register');
-      }
-    },
-
-    'auth.close': {
-      on: ['click'],
-      gkeys: ['auth-close'],
-      handler: function(event) {
-        if (event && typeof event.preventDefault === 'function') {
-          event.preventDefault();
-        }
-        if (event && typeof event.stopPropagation === 'function') {
-          event.stopPropagation();
-        }
-        closeAuthModal();
-      }
-    },
-
-    'auth.overlay': {
-      on: ['click'],
-      gkeys: ['auth-overlay'],
-      handler: function(event) {
-        if (event && typeof event.stopPropagation === 'function') {
-          event.stopPropagation();
-        }
-        if (event && event.target !== event.currentTarget) {
-          return;
-        }
-        event.preventDefault();
-        closeAuthModal();
-      }
-    },
-
-    'auth.modal': {
-      on: ['click', 'mousedown', 'touchstart'],
-      gkeys: ['auth-modal'],
-      handler: function(event) {
-        event.stopPropagation();
-      }
-    },
-
-    'auth.switch': {
-      on: ['click'],
-      gkeys: ['auth-switch'],
-      handler: function(event) {
-        event.preventDefault();
-        var step = event.currentTarget && event.currentTarget.getAttribute('data-step');
-        if (!step) return;
-        updateAuthState(function(current) {
-          return Object.assign({}, current, {
-            step: step,
-            error: null,
-            otp: '',
-            fullName: step === 'register' ? current.fullName : '',
-            pendingUser: step === 'otp' ? current.pendingUser : null,
-            password: step === 'login' ? '' : current.password,
-            recaptcha: false
-          });
-        });
-      }
-    },
-
-    'auth-input-email': {
-      on: ['input'],
-      gkeys: ['auth-input-email'],
-      handler: function(event) {
-        updateAuthState({ email: event.target.value });
-      }
-    },
-
-    'auth-input-phone': {
-      on: ['input'],
-      gkeys: ['auth-input-phone'],
-      handler: function(event) {
-        updateAuthState({ phone: event.target.value });
-      }
-    },
-
-    'auth-input-password': {
-      on: ['input'],
-      gkeys: ['auth-input-password'],
-      handler: function(event) {
-        var value = (event && event.target && event.target.value) || (event && event.currentTarget && event.currentTarget.value) || '';
-        console.log('[SBN PWA][auth] password input', { length: value.length });
-        updateAuthState({ password: value });
-      }
-    },
-
-    'auth-input-fullName': {
-      on: ['input'],
-      gkeys: ['auth-input-fullName'],
-      handler: function(event) {
-        updateAuthState({ fullName: event.target.value });
-      }
-    },
-
-    'auth-input-newPassword': {
-      on: ['input'],
-      gkeys: ['auth-input-newPassword'],
-      handler: function(event) {
-        updateAuthState({ newPassword: event.target.value });
-      }
-    },
-
-    'auth-input-otp': {
-      on: ['input'],
-      gkeys: ['auth-input-otp'],
-      handler: function(event) {
-        updateAuthState({ otp: event.target.value });
-      }
-    },
-
-    'auth-recaptcha': {
-      on: ['change'],
-      gkeys: ['auth-recaptcha'],
-      handler: function(event) {
-        updateAuthState({ recaptcha: !!(event && event.target && event.target.checked) });
-      }
-    },
-
-
-    'auth.submit': {
-      on: ['submit'],
-      gkeys: ['auth-submit'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        if (event && typeof event.stopPropagation === 'function') {
-          event.stopPropagation();
-        }
-        var db = app ? app.database : null;
-        var auth = (db && db.state && db.state.auth) || initialDatabase.state.auth;
-        var formEl = event && event.target;
-        var step = auth.step || 'login';
-        var email = (auth.email || '').trim().toLowerCase();
-        var phone = (auth.phone || '').trim();
-        var password = auth.password || '';
-        if (!password && formEl && typeof formEl.querySelector === 'function') {
-          var passwordInput = formEl.querySelector('input[name="password"]');
-          if (passwordInput && passwordInput.value) {
-            password = passwordInput.value;
-            updateAuthState({ password: password });
-          }
-        }
-        var now = Date.now();
-        var blockedUntil = auth.blockedUntil || 0;
-        if (step === 'login' && blockedUntil > now) {
-          var remaining = Math.ceil((blockedUntil - now) / 60000);
-          updateAuthState({ error: t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), loginAttempts: auth.loginAttempts || 0 });
-          showNotice(ctx, t('auth.blocked.retry', 'حاول مرة أخرى بعد ') + remaining + ' ' + t('auth.minutes', 'دقائق'));
-          return;
-        }
-        if (step === 'login') {
-          var phoneDigits = phone.replace(/\D/g, '');
-          var demoPhoneDigits = (DEMO_ACCOUNT.phone || '').replace(/\D/g, '');
-          var loginSuccess = phoneDigits && phoneDigits === demoPhoneDigits && password === DEMO_ACCOUNT.password;
-          if (loginSuccess) {
-            ctx.setState(function(prev) {
-              var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '', loginAttempts: 0, blockedUntil: 0, recaptcha: false });
-              return {
-                env: prev.env,
-                meta: prev.meta,
-                state: Object.assign({}, prev.state, { activeUserId: DEMO_ACCOUNT.userId, auth: nextAuth }),
-                data: prev.data
-              };
-            });
-            persistSession({ userId: DEMO_ACCOUNT.userId, email: email || DEMO_ACCOUNT.email, phone: phone });
-            showNotice(ctx, t('auth.success.login', 'تم تسجيل الدخول بنجاح'));
-          } else {
-            var attempts = (auth.loginAttempts || 0) + 1;
-            var nextBlock = attempts >= 3 ? now + OTP_BLOCK_MS : auth.blockedUntil;
-            updateAuthState({
-              error: t('auth.error.credentials', 'بيانات الدخول غير صحيحة'),
-              loginAttempts: attempts,
-              blockedUntil: nextBlock
-            });
-          }
-          return;
-        }
-        if (step === 'register') {
-          var phoneDigitsRegister = phone.replace(/\D/g, '');
-          if (!auth.fullName || !auth.fullName.trim() || !phoneDigitsRegister || !auth.password || !auth.recaptcha) {
-            updateAuthState({ error: t('auth.error.fields', 'يرجى تعبئة جميع الحقول وتأكيد أنك لست روبوتاً') });
-            return;
-          }
-          if (auth.otpRequestedAt && now - auth.otpRequestedAt < OTP_COOLDOWN_MS) {
-            updateAuthState({ error: t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد مرور فترة التهدئة') });
-            return;
-          }
-          var pendingUser = {
-            user_id: generateId('usr'),
-            full_name: auth.fullName.trim(),
-            username: auth.fullName.trim().split(/\s+/).join('_'),
-            email: email || (phoneDigitsRegister + '@mostamal.eg'),
-            phone: phone,
-            newPassword: auth.password,
-            flow: 'register',
-            avatar_url: 'https://i.pravatar.cc/120?img=28'
-          };
-          updateAuthState({ pendingUser: pendingUser, step: 'otp', error: null, otp: '', otpRequestedAt: now });
-          showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
-          return;
-        }
-        if (step === 'forgot') {
-          var phoneDigitsForgot = phone.replace(/\D/g, '');
-          if (!phoneDigitsForgot || !auth.newPassword || !auth.recaptcha) {
-            updateAuthState({ error: t('auth.error.fields', 'أدخل رقم الهاتف وكلمة المرور الجديدة وأكّد أنك لست روبوتاً') });
-            return;
-          }
-          if (auth.otpRequestedAt && now - auth.otpRequestedAt < OTP_COOLDOWN_MS) {
-            updateAuthState({ error: t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد مرور فترة التهدئة') });
-            return;
-          }
-          updateAuthState({ pendingUser: { user_id: DEMO_ACCOUNT.userId, phone: phone, newPassword: auth.newPassword, flow: 'forgot' }, step: 'otp', error: null, otp: '', otpRequestedAt: now });
-          showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
-          return;
-        }
-        if (step === 'otp') {
-          if ((auth.otp || '').trim() !== STATIC_OTP) {
-            updateAuthState({ error: t('auth.error.otp', 'رمز التحقق غير صحيح') });
-            return;
-          }
-          var pendingUser = auth.pendingUser || { user_id: DEMO_ACCOUNT.userId, email: auth.email || DEMO_ACCOUNT.email, phone: phone };
-          var resolvedUserId = pendingUser.user_id || DEMO_ACCOUNT.userId;
-          if (pendingUser.flow === 'forgot' && pendingUser.newPassword) {
-            DEMO_ACCOUNT.password = pendingUser.newPassword;
-          }
-          ctx.setState(function(prev) {
-            var pending = (prev.state.auth && prev.state.auth.pendingUser) || pendingUser;
-            var nextAuth = Object.assign({}, prev.state.auth, {
-              open: false,
-              error: null,
-              otp: '',
-              password: '',
-              newPassword: '',
-              recaptcha: false,
-              otpRequestedAt: 0,
-              pendingUser: null,
-              loginAttempts: 0,
-              blockedUntil: 0
-            });
-            var nextData = prev.data;
-            var newUserId = pending && pending.user_id ? pending.user_id : DEMO_ACCOUNT.userId;
-            if (pending && pending.flow === 'register') {
-              var users = Array.isArray(prev.data.users) ? prev.data.users.slice() : [];
-              if (!users.some(function(user) { return user && user.user_id === pending.user_id; })) {
-                var newUser = {
-                  user_id: pending.user_id,
-                  username: pending.username || pending.full_name.replace(/\s+/g, '_').toLowerCase(),
-                  full_name: pending.full_name,
-                  email: pending.email,
-                  phone: pending.phone,
-                  avatar_url: pending.avatar_url || 'https://i.pravatar.cc/120?img=11',
-                  followers_count: 0,
-                  following_count: 0,
-                  posts_count: 0,
-                  status: 'active'
-                };
-                users.push(newUser);
-                nextData = Object.assign({}, prev.data, { users: users });
-              }
-            }
-            return {
-              env: prev.env,
-              meta: prev.meta,
-              state: Object.assign({}, prev.state, { activeUserId: newUserId, auth: nextAuth }),
-              data: nextData
-            };
-          });
-          persistSession({ userId: resolvedUserId, email: pendingUser.email || auth.email || DEMO_ACCOUNT.email, phone: pendingUser.phone || phone });
-          var successMsg = pendingUser.flow === 'forgot'
-            ? t('auth.success.reset', 'تم تحديث كلمة المرور بنجاح')
-            : t('auth.success.register', 'تم التفعيل بنجاح');
-          showNotice(ctx, successMsg);
-          return;
-        }
-      }
-    },
-
-    'auth.logout': {
-      on: ['click'],
-      gkeys: ['auth-logout'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { activeUserId: null, composer: createComposerState({ open: false }) }),
-            data: db.data
-          };
-        });
-        clearPersistedSession();
-        showNotice(ctx, t('auth.logout.success', 'تم تسجيل الخروج'));
-      }
-    },
-
-    'pwa-dismiss': {
-      on: ['click'],
-      gkeys: ['pwa-dismiss'],
-      handler: function(event) {
-        event.preventDefault();
-        suppressPwaPromptForSession();
-        setPwaPromptState(false);
       }
     },
 
@@ -5620,44 +1779,6 @@
         });
       }
     },
-
-    'filter.hashtag.chip': {
-      on: ['click'],
-      gkeys: ['hashtag-chip'],
-      handler: function(event, ctx) {
-        var tagValue = event.currentTarget && event.currentTarget.getAttribute('data-tag') || '';
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, {
-              filters: Object.assign({}, db.state.filters, { hashtag: tagValue })
-            }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'filter.reset': {
-      on: ['click'],
-      gkeys: ['reset-filters'],
-      handler: function(event, ctx) {
-        ctx.setState(function(db) {
-          var nextLaunch = Object.assign({}, db.state.launchChecklist, { discovery: true });
-          persistLaunchChecklistState(nextLaunch);
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, {
-              filters: { search: '', category: '', condition: '', hashtag: '' },
-              launchChecklist: nextLaunch
-            }),
-            data: db.data
-          };
-        });
-      }
-    },
     'filter.condition': {
       on: ['change'],
       gkeys: ['condition-filter'],
@@ -5697,12 +1818,6 @@
       on: ['click'],
       gkeys: ['composer-open'],
       handler: function(event, ctx) {
-        var db = app ? app.database : null;
-        var user = db ? getActiveUser(db) : null;
-        if (!user) {
-          openAuthModal('login');
-          return;
-        }
         applyComposerState(ctx, function(current) {
           return Object.assign({}, current, { open: true, error: null });
         });
@@ -5712,9 +1827,7 @@
       on: ['click'],
       gkeys: ['composer-close'],
       handler: function(event, ctx) {
-        applyComposerState(ctx, function() {
-          return createComposerState({ open: false });
-        });
+        applyComposerState(ctx, { open: false, posting: false });
       }
     },
     'composer.text': {
@@ -5725,51 +1838,12 @@
         applyComposerState(ctx, { text: value });
       }
     },
-    'composer.mediaMode': {
+    'composer.type': {
       on: ['change'],
-      gkeys: ['composer-media-mode'],
+      gkeys: ['composer-type'],
       handler: function(event, ctx) {
         var value = event.target.value || 'plain';
-        applyComposerState(ctx, function(current) {
-          var next = Object.assign({}, current, { mediaMode: value });
-          if (value === 'reel') {
-            next.mediaList = [];
-            next.media = '';
-            next.reelDuration = null;
-          } else if (current.mediaMode === 'reel' && value !== 'reel') {
-            next.mediaList = [];
-            next.media = '';
-            next.reelDuration = null;
-          }
-          return next;
-        });
-      }
-    },
-    'composer.attachment': {
-      on: ['change'],
-      gkeys: ['composer-attachment'],
-      handler: function(event, ctx) {
-        var value = event.target.value || 'none';
-        applyComposerState(ctx, function(current) {
-          var next = Object.assign({}, current, { attachmentKind: value, targetId: '', editAttachmentId: '' });
-          if (value !== 'classified') {
-            next.categoryId = '';
-            next.subcategoryId = '';
-            next.classifiedTitle = '';
-            next.classifiedPrice = '';
-            next.contactPhone = '';
-          } else {
-            next.mediaMode = 'plain';
-            next.reelDuration = null;
-          }
-          if (value === 'none' || value === 'ad') {
-            next.targetId = '';
-          }
-          if (value !== 'ad') {
-            next.linkUrl = '';
-          }
-          return next;
-        });
+        applyComposerState(ctx, { type: value, targetId: '' });
       }
     },
     'composer.target': {
@@ -5780,150 +1854,11 @@
         applyComposerState(ctx, { targetId: value });
       }
     },
-    'composer.target.clear': {
-      on: ['click'],
-      gkeys: ['composer-target-clear'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        applyComposerState(ctx, { targetId: '' });
-      }
-    },
-    'composer.classified.title': {
+    'composer.media': {
       on: ['input'],
-      gkeys: ['composer-classified-title'],
+      gkeys: ['composer-media'],
       handler: function(event, ctx) {
-        applyComposerState(ctx, { classifiedTitle: event.target.value });
-      }
-    },
-    'composer.classified.price': {
-      on: ['input'],
-      gkeys: ['composer-classified-price'],
-      handler: function(event, ctx) {
-        applyComposerState(ctx, { classifiedPrice: event.target.value });
-      }
-    },
-    'composer.classified.phone': {
-      on: ['input'],
-      gkeys: ['composer-classified-phone'],
-      handler: function(event, ctx) {
-        applyComposerState(ctx, { contactPhone: event.target.value });
-      }
-    },
-    'composer.category': {
-      on: ['change'],
-      gkeys: ['composer-category'],
-      handler: function(event, ctx) {
-        var value = event.target.value || '';
-        applyComposerState(ctx, { categoryId: value, subcategoryId: '' });
-      }
-    },
-    'composer.subcategory': {
-      on: ['change'],
-      gkeys: ['composer-subcategory'],
-      handler: function(event, ctx) {
-        var value = event.target.value || '';
-        applyComposerState(ctx, { subcategoryId: value });
-      }
-    },
-    'composer.link': {
-      on: ['input'],
-      gkeys: ['composer-link-url'],
-      handler: function(event, ctx) {
-        var value = event.target.value || '';
-        applyComposerState(ctx, { linkUrl: value });
-      }
-    },
-    'composer.media.pick': {
-      on: ['click'],
-      gkeys: ['composer-media-pick'],
-      handler: function(event) {
-        event.preventDefault();
-        if (!global.document) return;
-        var input = global.document.getElementById(COMPOSER_MEDIA_INPUT_ID);
-        if (input) input.click();
-      }
-    },
-    'composer.media.file': {
-      on: ['change'],
-      gkeys: ['composer-media-file'],
-      handler: function(event, ctx) {
-        var files = event.target && event.target.files ? event.target.files : null;
-        if (!files || !files.length) return;
-        handleComposerMediaFiles(ctx, files);
-      }
-    },
-    'composer.media.remove': {
-      on: ['click'],
-      gkeys: ['composer-media-remove'],
-      handler: function(event, ctx) {
-        var url = event.currentTarget && event.currentTarget.getAttribute('data-url');
-        removeComposerMedia(ctx, url);
-      }
-    },
-    'composer.add.product': {
-      on: ['click'],
-      gkeys: ['composer-add-product'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('composer.add.product.notice', 'انتقل إلى المتجر لإضافة منتج جديد ثم شاركه هنا'));
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
-            data: db.data
-          };
-        });
-      }
-    },
-    'composer.add.service': {
-      on: ['click'],
-      gkeys: ['composer-add-service'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('composer.add.service.notice', 'انتقل إلى قسم الخدمات لإضافة عرض جديد ثم شاركه'));
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
-            data: db.data
-          };
-        });
-      }
-    },
-    'composer.add.article': {
-      on: ['click'],
-      gkeys: ['composer-add-article'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('composer.add.article.notice', 'يمكنك إضافة مقالة جديدة من قسم المعرفة'));
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'knowledge' }),
-            data: db.data
-          };
-        });
-      }
-    },
-    'pwa.install': {
-      on: ['click'],
-      gkeys: ['pwa-install'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        if (deferredInstallPrompt && typeof deferredInstallPrompt.prompt === 'function') {
-          deferredInstallPrompt.prompt().catch(function(error) {
-            console.warn('[SBN PWA] install prompt failed', error);
-          }).finally(function() {
-            deferredInstallPrompt = null;
-            suppressPwaPromptForSession();
-            setPwaPromptState(false);
-          });
-        } else {
-          showNotice(ctx, t('pwa.install.instructions', 'من فضلك استخدم خيار \"تثبيت التطبيق\" من متصفحك.'));
-        }
+        applyComposerState(ctx, { media: event.target.value });
       }
     },
     'composer.submit': {
@@ -5931,82 +1866,6 @@
       gkeys: ['composer-submit'],
       handler: function(event, ctx) {
         handleComposerSubmit(ctx);
-      }
-    },
-    'comment.text': {
-      on: ['input'],
-      gkeys: ['comment-input'],
-      handler: function(event, ctx) {
-        var value = event.target.value || '';
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { commentDraft: value }),
-            data: db.data
-          };
-        });
-      }
-    },
-    'comment.submit': {
-      on: ['click'],
-      gkeys: ['comment-submit'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
-        if (!postId) return;
-        var db = app ? app.database : null;
-        var draft = (db && db.state && db.state.commentDraft) || '';
-        var trimmed = draft.trim();
-        if (!trimmed) {
-          showNotice(ctx, t('comment.error.empty', 'اكتب تعليقاً أولاً'));
-          return;
-        }
-        var now = new Date().toISOString();
-        var commentId = generateId('cmt');
-        var activeUserId = (db && db.state && db.state.activeUserId) || null;
-        if (!activeUserId) {
-          openAuthModal('login');
-          return;
-        }
-        var newComment = {
-          comment_id: commentId,
-          post_id: postId,
-          user_id: activeUserId,
-          content: trimmed,
-          created_at: now
-        };
-        if (realtime && realtime.store && typeof realtime.store.insert === 'function') {
-          realtime.store.insert('sbn_comments', Object.assign({}, newComment), { source: 'pwa-comment' }).catch(function(error) {
-            console.warn('[SBN PWA] comment insert failed', error);
-          });
-        }
-        ctx.setState(function(prev) {
-          var comments = Array.isArray(prev.data.comments) ? prev.data.comments.slice() : [];
-          comments.push(Object.assign({}, newComment));
-          return {
-            env: prev.env,
-            meta: prev.meta,
-            state: Object.assign({}, prev.state, { commentDraft: '' }),
-            data: Object.assign({}, prev.data, { comments: comments })
-          };
-        });
-        bumpPostStat(postId, 'comments_count');
-      }
-    },
-    'profile.tab': {
-      on: ['click'],
-      gkeys: ['profile-tab'],
-      handler: function(event, ctx) {
-        var value = event.currentTarget && event.currentTarget.getAttribute('data-value');
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { profileTab: value || 'posts' }),
-            data: db.data
-          };
-        });
       }
     },
     'profile.select': {
@@ -6027,122 +1886,8 @@
     'profile.message': {
       on: ['click'],
       gkeys: ['profile-message'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('profile.message.unavailable', 'قريباً سيتم دعم المراسلة داخل التطبيق'));
-      }
-    },
-    'profile.follow': {
-      on: ['click'],
-      gkeys: ['profile-follow'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('profile.following', 'تمت المتابعة، سنعرض تحديثات هذا الحساب لك.'));
-      }
-    },
-    'profile.edit.open': {
-      on: ['click'],
-      gkeys: ['profile-edit-open'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          var user = getActiveUser(db);
-          var nextEditor = {
-            open: true,
-            fullName: resolveUserName(user),
-            bio: getLocalizedField(user, 'bio', ''),
-            avatarUrl: (user && user.avatar_url) || ''
-          };
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { profileEditor: nextEditor }),
-            data: db.data
-          };
-        });
-      }
-    },
-    'profile.edit.close': {
-      on: ['click'],
-      gkeys: ['profile-edit-close'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { profileEditor: Object.assign({}, db.state.profileEditor, { open: false }) }),
-            data: db.data
-          };
-        });
-      }
-    },
-    'profile.edit.modal': {
-      on: ['click'],
-      gkeys: ['profile-edit-modal'],
-      handler: function(event) {
-        event.stopPropagation();
-      }
-    },
-    'profile.edit.input': {
-      on: ['input'],
-      gkeys: ['profile-edit-input'],
-      handler: function(event, ctx) {
-        var field = event.currentTarget && event.currentTarget.getAttribute('data-field');
-        var value = event.target ? event.target.value : '';
-        if (!field) return;
-        ctx.setState(function(db) {
-          var editor = Object.assign({}, db.state.profileEditor, {});
-          editor[field] = value;
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { profileEditor: editor }),
-            data: db.data
-          };
-        });
-      }
-    },
-    'profile.edit.save': {
-      on: ['click'],
-      gkeys: ['profile-edit-save'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          var editor = db.state.profileEditor || {};
-          var users = Array.isArray(db.data.users) ? db.data.users.slice() : [];
-          var activeId = db.state.activeUserId;
-          var updatedUsers = users.map(function(u) {
-            if (!u || u.user_id !== activeId) return u;
-            var next = Object.assign({}, u, {
-              avatar_url: editor.avatarUrl || u.avatar_url,
-              bio: editor.bio || u.bio
-            });
-            if (editor.fullName) {
-              next.full_name = editor.fullName;
-            }
-            return next;
-          });
-          var nextOnboarding = Object.assign({}, db.state.onboarding, {
-            completed: Object.assign({}, (db.state.onboarding && db.state.onboarding.completed) || {}, {
-              avatar: Boolean(editor.avatarUrl),
-              bio: Boolean(editor.bio)
-            })
-          });
-          persistOnboardingProgress(nextOnboarding);
-          var nextLaunch = Object.assign({}, db.state.launchChecklist, { profile: true });
-          persistLaunchChecklistState(nextLaunch);
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, {
-              profileEditor: Object.assign({}, editor, { open: false }),
-              onboarding: nextOnboarding,
-              launchChecklist: nextLaunch
-            }),
-            data: Object.assign({}, db.data, { users: updatedUsers })
-          };
-        });
+      handler: function() {
+        console.info('[SBN PWA] message action tapped');
       }
     },
 
@@ -6194,93 +1939,7 @@
       gkeys: ['post-like'],
       handler: function(event, ctx) {
         event.stopPropagation();
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
-        bumpPostStat(postId, 'likes_count');
         showNotice(ctx, t('post.action.like') + ' ✓');
-      }
-    },
-
-    'onboarding.complete': {
-      on: ['click'],
-      gkeys: ['onboarding-complete'],
-      handler: function(event, ctx) {
-        var taskKey = event.currentTarget && event.currentTarget.getAttribute('data-task');
-        if (!taskKey) return;
-        updateOnboardingState(ctx, function(current) {
-          var nextCompleted = Object.assign({}, current.completed || {}, {});
-          nextCompleted[taskKey] = true;
-          return Object.assign({}, current, { completed: nextCompleted });
-        });
-      }
-    },
-
-    'onboarding.dismiss': {
-      on: ['click'],
-      gkeys: ['onboarding-dismiss'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        updateOnboardingState(ctx, { dismissed: true });
-      }
-    },
-
-    'launch.toggle': {
-      on: ['click'],
-      gkeys: ['launch-toggle'],
-      handler: function(event, ctx) {
-        var key = event.currentTarget && event.currentTarget.getAttribute('data-key');
-        if (!key) return;
-        updateLaunchChecklist(ctx, function(current) {
-          var next = Object.assign({}, current);
-          next[key] = !current[key];
-          return next;
-        });
-      }
-    },
-
-    'launch.completeAll': {
-      on: ['click'],
-      gkeys: ['launch-complete-all'],
-      handler: function(_event, ctx) {
-        updateLaunchChecklist(ctx, {
-          composer: true,
-          attachments: true,
-          profile: true,
-          discovery: true,
-          safety: true
-        });
-        showNotice(ctx, t('launch.done', 'تم ضبط جاهزية الإطلاق.'));
-      }
-    },
-
-    'launch.openAttachment': {
-      on: ['click'],
-      gkeys: ['open-attachment'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        ctx.setState(function(db) {
-          var classifieds = db.data.classifieds || [];
-          var products = db.data.products || [];
-          var services = db.data.services || [];
-          var articles = db.data.articles || [];
-          var target = (classifieds[0] && { kind: 'classified', id: classifieds[0].classified_id })
-            || (products[0] && { kind: 'product', id: products[0].product_id })
-            || (services[0] && { kind: 'service', id: services[0].service_id })
-            || (articles[0] && { kind: 'article', id: articles[0].article_id });
-          if (!target) return db;
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, {
-              detailOverlay: {
-                open: true,
-                kind: target.kind,
-                targetId: target.id,
-                activeIndex: 0
-              }
-            }),
-            data: db.data
-          };
-        });
       }
     },
 
@@ -6289,8 +1948,6 @@
       gkeys: ['post-share'],
       handler: function(event, ctx) {
         event.stopPropagation();
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
-        bumpPostStat(postId, 'shares_count');
         showNotice(ctx, t('post.action.share') + ' ✓');
       }
     },
@@ -6300,8 +1957,6 @@
       gkeys: ['post-subscribe'],
       handler: function(event, ctx) {
         event.stopPropagation();
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
-        bumpPostStat(postId, 'saves_count');
         showNotice(ctx, t('post.action.subscribe') + ' ✓');
       }
     }
@@ -6319,7 +1974,6 @@
         console.warn('[SBN PWA] Failed to dispose realtime store', err);
       }
     }
-    clearNotificationWatch();
     realtime = null;
   }
 
@@ -6395,7 +2049,6 @@
             });
           });
           debugLog('[SBN PWA][rt] watchers registered');
-          setupNotificationWatch();
 
           // Watch connection status
           realtime.status(function(status) {
@@ -6473,10 +2126,6 @@
       })
       .catch(function(error) {
         debugLog('[SBN PWA][rest] snapshot fetch failed', error);
-      })
-      .finally(function() {
-        refreshLocalizedCategories(lang || getCurrentLang());
-        refreshClassifiedsSnapshot(lang || getCurrentLang());
       });
   }
 
@@ -6516,7 +2165,6 @@
 
       // Mount to DOM
       app.mount('#app');
-      setupPwaInstallPrompt();
 
       console.log('[SBN PWA] App mounted successfully');
 
