@@ -1503,6 +1503,173 @@
     ]);
   }
 
+  function getOnboardingTasks(db) {
+    var user = getActiveUser(db);
+    var completed = (db.state.onboarding && db.state.onboarding.completed) || {};
+    var userPosts = (db.data.posts || []).filter(function(post) { return user && post.user_id === user.user_id; });
+    var hasAttachmentShare = userPosts.some(function(post) {
+      return post && post.attachment_kind && post.attachment_kind !== 'none';
+    });
+    return [
+      {
+        key: 'avatar',
+        title: t('onboarding.avatar', 'أضف صورة شخصية'),
+        hint: t('onboarding.avatar.hint', 'يرفع الثقة مع المشترين'),
+        done: Boolean((user && user.avatar_url) || completed.avatar)
+      },
+      {
+        key: 'bio',
+        title: t('onboarding.bio', 'أكمل السيرة الذاتية'),
+        hint: t('onboarding.bio.hint', 'عرّف بنفسك أو نشاطك التجاري'),
+        done: Boolean((user && getLocalizedField(user, 'bio', '')) || completed.bio)
+      },
+      {
+        key: 'firstPost',
+        title: t('onboarding.firstPost', 'انشر أول بوست'),
+        hint: t('onboarding.firstPost.hint', 'شارك إعلان، منتج، خدمة أو مقال'),
+        done: Boolean(userPosts.length || completed.firstPost)
+      },
+      {
+        key: 'attachment',
+        title: t('onboarding.attachment', 'جرّب إضافة مرفق'),
+        hint: t('onboarding.attachment.hint', 'أضف إعلان مستعمل أو منتج/خدمة'),
+        done: Boolean(hasAttachmentShare || completed.attachment)
+      }
+    ];
+  }
+
+  function getLaunchChecklist(db) {
+    var defaults = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
+    return [
+      {
+        key: 'composer',
+        title: t('launch.composer', 'تحقق من الكومبوزر والمرفقات'),
+        hint: t('launch.composer.hint', 'تأكد أن الحقول الإلزامية والدرَفت تعمل بلا أعطال.'),
+        done: Boolean(defaults.composer),
+        action: 'composer-open'
+      },
+      {
+        key: 'attachments',
+        title: t('launch.attachments', 'شاشات التفاصيل والجاليري'),
+        hint: t('launch.attachments.hint', 'جرّب فتح إعلان، منتج، خدمة، ومقال مع الجاليري.'),
+        done: Boolean(defaults.attachments),
+        action: 'open-attachment'
+      },
+      {
+        key: 'profile',
+        title: t('launch.profile', 'تعديل الملف والتبويبات'),
+        hint: t('launch.profile.hint', 'اختبر التبويبات (بوست، إعلان، تجارة، معرفة) وخيار التعديل.'),
+        done: Boolean(defaults.profile),
+        action: 'nav-profile'
+      },
+      {
+        key: 'discovery',
+        title: t('launch.discovery', 'الفلاتر والهاشتاغات'),
+        hint: t('launch.discovery.hint', 'تأكد من البحث، التصنيفات، وإعادة الضبط للهاشتاغ.'),
+        done: Boolean(defaults.discovery),
+        action: 'reset-filters'
+      },
+      {
+        key: 'safety',
+        title: t('launch.safety', 'الثقة والتبليغ والإشعارات'),
+        hint: t('launch.safety.hint', 'اختبر الاتصال، الإبلاغ، والشارات الموثقة والإشعارات.'),
+        done: Boolean(defaults.safety),
+        action: 'open-notifications'
+      }
+    ];
+  }
+
+  function renderOnboardingCard(db) {
+    var user = getActiveUser(db);
+    var onboarding = db.state.onboarding || initialDatabase.state.onboarding;
+    if (!user || onboarding.dismissed) return null;
+    var tasks = getOnboardingTasks(db);
+    var remaining = tasks.filter(function(task) { return !task.done; });
+    if (!remaining.length) return null;
+    var progress = Math.round(((tasks.length - remaining.length) / tasks.length) * 100);
+
+    return D.Containers.Div({ attrs: { class: 'section-card onboarding-card' } }, [
+      D.Containers.Div({ attrs: { class: 'onboarding-head' } }, [
+        D.Text.H4({}, [t('onboarding.title', 'ابدأ رحلتك على مستعمل حواء')]),
+        D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'onboarding-dismiss' } }, ['✕'])
+      ]),
+      D.Containers.Div({ attrs: { class: 'onboarding-progress' } }, [
+        D.Containers.Div({ attrs: { class: 'onboarding-progress-fill', style: 'width:' + progress + '%;' } }, [])
+      ]),
+      D.Containers.Div({ attrs: { class: 'onboarding-tasks' } },
+        tasks.map(function(task) {
+          var done = task.done;
+          return D.Containers.Div({ attrs: { class: 'onboarding-task' + (done ? ' done' : ''), key: task.key } }, [
+            D.Text.Span({ attrs: { class: 'onboarding-check' } }, [done ? '✓' : '•']),
+            D.Containers.Div({ attrs: { class: 'onboarding-copy' } }, [
+              D.Text.Span({ attrs: { class: 'onboarding-title' } }, [task.title]),
+              D.Text.Small({ attrs: { class: 'onboarding-hint' } }, [task.hint])
+            ]),
+            done
+              ? null
+              : D.Forms.Button({
+                  attrs: {
+                    class: 'chip primary',
+                    'data-m-gkey': 'onboarding-complete',
+                    'data-task': task.key
+                  }
+                }, [t('onboarding.action', 'تم')])
+          ].filter(Boolean));
+        })
+      ),
+      D.Containers.Div({ attrs: { class: 'onboarding-actions' } }, [
+        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('composer.start')]),
+        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')])
+      ])
+    ]);
+  }
+
+  function renderLaunchChecklist(db) {
+    var items = getLaunchChecklist(db);
+    var doneCount = items.filter(function(item) { return item.done; }).length;
+    var progress = Math.round((doneCount / items.length) * 100);
+
+    return D.Containers.Div({ attrs: { class: 'section-card launch-card' } }, [
+      D.Containers.Div({ attrs: { class: 'launch-head' } }, [
+        D.Text.H4({}, [t('launch.title', 'جاهزية الإطلاق')]),
+        D.Text.Small({ attrs: { class: 'launch-progress' } }, [progress + '%'])
+      ]),
+      D.Containers.Div({ attrs: { class: 'launch-bar' } }, [
+        D.Containers.Div({ attrs: { class: 'launch-bar-fill', style: 'width:' + progress + '%;' } }, [])
+      ]),
+      D.Containers.Div({ attrs: { class: 'launch-list' } },
+        items.map(function(item) {
+          return D.Containers.Div({ attrs: { class: 'launch-item' + (item.done ? ' done' : ''), key: item.key } }, [
+            D.Forms.Button({
+              attrs: {
+                class: 'launch-check',
+                'data-m-gkey': 'launch-toggle',
+                'data-key': item.key,
+                'aria-pressed': item.done ? 'true' : 'false'
+              }
+            }, [item.done ? '✓' : '•']),
+            D.Containers.Div({ attrs: { class: 'launch-copy' } }, [
+              D.Text.Span({ attrs: { class: 'launch-title' } }, [item.title]),
+              D.Text.Small({ attrs: { class: 'launch-hint' } }, [item.hint])
+            ]),
+            item.action
+              ? D.Forms.Button({
+                  attrs: {
+                    class: 'chip ghost',
+                    'data-m-gkey': item.action
+                  }
+                }, [t('launch.action.test', 'تجربة')])
+              : null
+          ].filter(Boolean));
+        })
+      ),
+      D.Containers.Div({ attrs: { class: 'launch-actions' } }, [
+        D.Forms.Button({ attrs: { class: 'hero-cta small', 'data-m-gkey': 'launch-complete-all' } }, [t('launch.complete', 'تمييز الكل كمكتمل')]),
+        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'reset-filters' } }, [t('filters.reset', 'مسح الفلاتر')])
+      ])
+    ]);
+  }
+
   function renderNotice(db) {
     if (!db.state.notice) return null;
     return D.Containers.Div({ attrs: { class: 'notice-toast' } }, [db.state.notice]);
@@ -1581,6 +1748,127 @@
       activeId = users[0].user_id;
     }
     return findById(users, 'user_id', activeId) || (users.length ? users[0] : null);
+  }
+
+  function isClassifiedOwner(db, item) {
+    if (!item) return false;
+    var activeUserId = db && db.state && db.state.activeUserId;
+    return Boolean(
+      activeUserId &&
+        (item.user_id === activeUserId || item.owner_id === activeUserId || item.seller_id === activeUserId)
+    );
+  }
+
+  function resolveClassifiedStatus(item) {
+    if (!item) return 'live';
+    var status = (item.status || item.state || '').toLowerCase();
+    if (status === 'archived' || status === 'closed' || status === 'pending' || status === 'draft') {
+      return status;
+    }
+    if (item.closed_at || item.closed) return 'closed';
+    if (item.archived_at || item.archived) return 'archived';
+    return 'live';
+  }
+
+  function buildClassifiedStats(classifieds) {
+    var defaults = { live: 0, pending: 0, closed: 0, archived: 0, draft: 0 };
+    return (classifieds || []).reduce(function(acc, item) {
+      var status = resolveClassifiedStatus(item);
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, defaults);
+  }
+
+  function resolveClassifiedLeads(db, classifieds) {
+    var overrides = (db.state.classifiedDashboard && db.state.classifiedDashboard.leadStatus) || {};
+    var threads = resolveInboxThreads(db) || [];
+    var notifications = db.data.notifications || [];
+    var leads = [];
+
+    threads.forEach(function(thread, idx) {
+      var targetId = thread.target_id || thread.classified_id || '';
+      var status = overrides[thread.thread_id] || (thread.unread ? 'open' : 'responded');
+      leads.push({
+        id: thread.thread_id || 'thread_' + idx,
+        targetId: targetId,
+        status: status,
+        title: thread.title || t('inbox.thread', 'رسالة واردة'),
+        snippet: thread.snippet || '',
+        updated_at: thread.updated_at,
+        type: thread.type || 'message'
+      });
+    });
+
+    notifications.forEach(function(note, idx) {
+      var targetType = (note.target_type || note.type || '').toLowerCase();
+      if (targetType && targetType.indexOf('classified') === -1) return;
+      var targetId = note.target_id || note.classified_id || '';
+      var status = overrides[note.notification_id || idx] || (note.status === 'read' ? 'responded' : 'open');
+      leads.push({
+        id: note.notification_id || 'note_' + idx,
+        targetId: targetId,
+        status: status,
+        title: getLocalizedField(note, 'title', t('classifieds.lead', 'طلب تواصل')), 
+        snippet: getLocalizedField(note, 'body', note.description || ''),
+        updated_at: note.created_at || note.updated_at,
+        type: note.type || 'comment'
+      });
+    });
+
+    return leads;
+  }
+
+  function updateClassifiedStatus(ctx, targetId, nextStatus) {
+    if (!targetId || !nextStatus) return;
+    ctx.setState(function(db) {
+      var classifieds = db.data.classifieds || [];
+      var target = classifieds.find(function(item) {
+        var id = item.id || item.classified_id;
+        return id === targetId;
+      });
+      if (!target || !isClassifiedOwner(db, target)) return db;
+      var nextRows = classifieds.map(function(item) {
+        var id = item.id || item.classified_id;
+        if (id !== targetId) return item;
+        var clone = Object.assign({}, item, { status: nextStatus });
+        if (nextStatus === 'archived') {
+          clone.archived_at = new Date().toISOString();
+        } else if (nextStatus === 'closed') {
+          clone.closed_at = new Date().toISOString();
+        } else if (nextStatus === 'live') {
+          delete clone.archived_at;
+          delete clone.closed_at;
+        }
+        return clone;
+      });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, { classifieds: nextRows })
+      };
+    });
+    showNotice(ctx, t('classifieds.status.updated', 'تم تحديث حالة الإعلان'));
+  }
+
+  function updateLeadStatus(ctx, leadId, status) {
+    if (!leadId || !status) return;
+    ctx.setState(function(db) {
+      var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+      var currentStatus = current.leadStatus || {};
+      var nextStatus = Object.assign({}, currentStatus, (function() {
+        var out = {};
+        out[leadId] = status;
+        return out;
+      })());
+      var nextDashboard = Object.assign({}, current, { leadStatus: nextStatus });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { classifiedDashboard: nextDashboard }),
+        data: db.data
+      };
+    });
   }
 
   function isClassifiedOwner(db, item) {
@@ -1857,6 +2145,82 @@
         env: db.env,
         meta: db.meta,
         state: Object.assign({}, db.state, { postOverlay: nextOverlay }),
+        data: db.data
+      };
+    });
+  }
+
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReaderOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.readerOverlay || initialDatabase.state.readerOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { readerOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setContactOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReportOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
         data: db.data
       };
     });
@@ -3773,6 +4137,303 @@
     ]);
   }
 
+  function renderDetailOverlay(db) {
+    var overlay = db.state.detailOverlay;
+    if (!overlay || !overlay.open) return null;
+    var kind = overlay.kind;
+    var target = resolveAttachmentPreview(db, kind, overlay.targetId);
+    if (!target) return null;
+    var seller = findById(db.data.users || [], 'user_id', target.user_id || target.owner_id || target.seller_id);
+    var gallery = toArray(target.images || target.media || target.gallery || target.media_urls);
+    if (!gallery.length) {
+      var primary = resolvePrimaryImage(target);
+      if (primary) gallery = [primary];
+    }
+    var activeIndex = Math.min(Math.max(overlay.activeIndex || 0, 0), Math.max(gallery.length - 1, 0));
+    var activeImage = gallery[activeIndex] || resolvePrimaryImage(target);
+    var title = getLocalizedField(target, 'title', target.title || target.name || '');
+    var price = target.price != null ? formatCurrencyValue(target.price, target.currency || t('currency.egp')) : (target.price_min != null || target.price_max != null) ? formatPriceRange(target.price_min, target.price_max) : '';
+    var description = getLocalizedField(target, 'description', target.body || target.summary || '');
+    var location = resolveCityName(target);
+    var contactPhone = target.contact_phone || target.phone || target.contact || '';
+    var sellerName = resolveUserName(seller) || t('seller.anon', 'بائع مجهول');
+    var sellerAvatar = (seller && seller.avatar_url) || 'https://i.pravatar.cc/120?img=15';
+    var sellerBadge = renderTrustBadge(seller);
+
+    var galleryThumbs = gallery.slice(0, 6).map(function(url, idx) {
+      var isActive = idx === activeIndex;
+      return D.Forms.Button({
+        attrs: {
+          class: 'detail-thumb' + (isActive ? ' active' : ''),
+          'data-m-gkey': 'detail-gallery-thumb',
+          'data-index': idx
+        }
+      }, [
+        D.Media.Img({ attrs: { src: url, alt: title } }, [])
+      ]);
+    });
+
+    var headerBadge = kind === 'product'
+      ? t('nav.commerce', 'منتج / خدمة')
+      : kind === 'service'
+        ? t('composer.type.service')
+        : kind === 'wiki'
+          ? t('composer.type.article')
+          : t('composer.type.classified', 'إعلان مستعمل');
+
+    var actionRow = [];
+    if (kind === 'classified' && contactPhone) {
+      actionRow.push(renderAttachmentAction('classified', t('classifieds.call', 'اتصل الآن'), '', { 'data-phone': contactPhone }));
+    }
+    actionRow.push(renderAttachmentAction(kind, t('attachment.share', 'مشاركة'), overlay.targetId));
+    actionRow.push(D.Forms.Button({
+      attrs: {
+        class: 'attachment-cta',
+        'data-m-gkey': 'open-contact',
+        'data-kind': kind,
+        'data-target-id': overlay.targetId,
+        'data-phone': contactPhone,
+        'data-user-id': seller && seller.user_id ? seller.user_id : ''
+      }
+    }, [t('contact.message', 'مراسلة البائع')]));
+    actionRow.push(D.Forms.Button({
+      attrs: {
+        class: 'chip ghost',
+        'data-m-gkey': 'open-report',
+        'data-target-type': kind,
+        'data-target-id': overlay.targetId
+      }
+    }, [t('safety.report', 'إبلاغ/حظر')]));
+
+    return D.Containers.Div({ attrs: { class: 'detail-overlay', 'data-m-gkey': 'detail-close' } }, [
+      D.Containers.Div({ attrs: { class: 'detail-panel', 'data-m-gkey': 'detail-overlay-inner' } }, [
+        D.Containers.Div({ attrs: { class: 'detail-header' } }, [
+          D.Text.Span({ attrs: { class: 'chip' } }, [headerBadge]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'detail-close' } }, ['✕'])
+        ]),
+        D.Containers.Div({ attrs: { class: 'detail-media' } }, [
+          activeImage ? D.Media.Img({ attrs: { src: activeImage, alt: title, class: 'detail-hero' } }, []) : null,
+          galleryThumbs.length ? D.Containers.Div({ attrs: { class: 'detail-gallery' } }, galleryThumbs) : null
+        ].filter(Boolean)),
+        D.Containers.Div({ attrs: { class: 'detail-body' } }, [
+          D.Text.H3({ attrs: { class: 'detail-title' } }, [title || headerBadge]),
+          price ? D.Text.Span({ attrs: { class: 'detail-price' } }, [price]) : null,
+          location ? D.Text.Span({ attrs: { class: 'detail-location' } }, [location]) : null,
+          description ? D.Text.P({ attrs: { class: 'detail-description' } }, [description]) : null,
+          D.Containers.Div({ attrs: { class: 'detail-seller' } }, [
+            D.Media.Img({ attrs: { class: 'seller-avatar', src: sellerAvatar, alt: sellerName } }, []),
+            D.Containers.Div({ attrs: { class: 'seller-meta' } }, [
+              D.Text.Span({ attrs: { class: 'seller-name' } }, [sellerName]),
+              sellerBadge
+            ].filter(Boolean)),
+            D.Containers.Div({ attrs: { class: 'seller-actions' } }, [
+              D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'open-contact',
+                  'data-kind': kind,
+                  'data-target-id': overlay.targetId,
+                  'data-phone': contactPhone,
+                  'data-user-id': seller && seller.user_id ? seller.user_id : ''
+                }
+              }, [t('contact.message', 'مراسلة')]),
+              contactPhone
+                ? D.Forms.Button({ attrs: { class: 'chip', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': contactPhone } }, [t('contact.call', 'اتصال مباشر')])
+                : null
+            ].filter(Boolean))
+          ].filter(Boolean)),
+          actionRow.length ? D.Containers.Div({ attrs: { class: 'detail-actions' } }, actionRow) : null,
+          D.Containers.Div({ attrs: { class: 'safety-block' } }, [
+            D.Text.Span({ attrs: { class: 'chip ghost' } }, ['🛡️ ', t('safety.title', 'ضمان الأمان')]),
+            D.Text.P({ attrs: { class: 'safety-copy' } }, [t('safety.copy', 'لا تشارك بياناتك الحساسة وأبلغ عن أي محتوى مخالف أو مشبوه.')])
+          ])
+        ].filter(Boolean))
+      ])
+    ]);
+  }
+
+  function renderReaderOverlay(db) {
+    var overlay = db.state.readerOverlay;
+    if (!overlay || !overlay.open) return null;
+    var article = findById(db.data.articles || [], 'article_id', overlay.articleId);
+    if (!article) return null;
+
+    var cover = resolvePrimaryImage(article);
+    var title = getLocalizedField(article, 'title', t('knowledge.card.title'));
+    var body = getLocalizedField(article, 'content', article.body || article.summary || article.excerpt || '');
+    var words = body.split(/\s+/).filter(Boolean).length;
+    var readMinutes = Math.max(1, Math.ceil(words / 170));
+    var fontSize = overlay.fontSize || 'md';
+    var related = (db.data.articles || []).filter(function(item) { return item.article_id !== article.article_id; }).slice(0, 3);
+
+    var fontOptions = [
+      { value: 'sm', label: 'A-' },
+      { value: 'md', label: 'A' },
+      { value: 'lg', label: 'A+' }
+    ];
+
+    return D.Containers.Div({ attrs: { class: 'reader-overlay', 'data-m-gkey': 'reader-close' } }, [
+      D.Containers.Div({ attrs: { class: 'reader-panel', 'data-m-gkey': 'reader-inner' } }, [
+        D.Containers.Div({ attrs: { class: 'reader-head' } }, [
+          D.Text.H4({ attrs: { class: 'reader-title' } }, [title]),
+          D.Containers.Div({ attrs: { class: 'reader-tools' } }, [
+            D.Text.Small({ attrs: { class: 'reader-meta' } }, [readMinutes + ' ' + t('knowledge.read.time', 'دقيقة قراءة')]),
+            D.Containers.Div({ attrs: { class: 'reader-fonts' } }, fontOptions.map(function(opt) {
+              var active = opt.value === fontSize;
+              return D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost' + (active ? ' active' : ''),
+                  'data-m-gkey': 'reader-font',
+                  'data-size': opt.value
+                }
+              }, [opt.label]);
+            })),
+            D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'reader-close' } }, ['✕'])
+          ])
+        ]),
+        cover ? D.Media.Img({ attrs: { class: 'reader-cover', src: cover, alt: title } }, []) : null,
+        D.Containers.Div({ attrs: { class: 'reader-body reader-size-' + fontSize } },
+          body
+            ? body.split(/\n+/).filter(Boolean).map(function(paragraph, idx) {
+                return D.Text.P({ attrs: { key: 'p-' + idx, class: 'reader-paragraph' } }, [paragraph.trim()]);
+              })
+            : [D.Text.P({}, [t('knowledge.empty', 'لا يوجد محتوى بعد.')])]
+        ),
+        related.length
+          ? D.Containers.Div({ attrs: { class: 'reader-related' } }, [
+              D.Text.H5({}, [t('knowledge.related', 'مقالات ذات صلة')]),
+              D.Containers.Div({ attrs: { class: 'reader-related-list' } },
+                related.map(function(item) {
+                  return D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'reader-open-related',
+                      'data-article-id': item.article_id
+                    }
+                  }, [getLocalizedField(item, 'title', t('knowledge.card.title'))]);
+                })
+              )
+            ])
+          : null
+      ])
+    ]);
+  }
+
+  function renderContactOverlay(db) {
+    var overlay = db.state.contactOverlay;
+    if (!overlay || !overlay.open) return null;
+    var seller = findById(db.data.users || [], 'user_id', overlay.userId);
+    var sellerName = resolveUserName(seller) || t('seller.anon', 'مستخدم');
+    var defaultText = overlay.preset || t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.');
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'contact-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'contact-modal' } }, [
+        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+          D.Text.H4({}, [t('contact.title', 'مراسلة') + ' ' + sellerName]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'contact-close' } }, ['✕'])
+        ]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('contact.hint', 'سنرسل رسالتك داخل التطبيق ويمكن متابعة الرد من الإشعارات.')]),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            value: overlay.message || defaultText,
+            'data-m-gkey': 'contact-message'
+          }
+        }, []),
+        overlay.phone
+          ? D.Text.Small({ attrs: { class: 'contact-meta' } }, [t('contact.phone', 'هاتف للتواصل: '), overlay.phone])
+          : null,
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'contact-send' } }, [t('contact.send', 'إرسال')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'contact-close' } }, [t('action.cancel', 'إلغاء')])
+        ])
+      ])
+    ]);
+  }
+
+  function renderReportOverlay(db) {
+    var overlay = db.state.reportOverlay;
+    if (!overlay || !overlay.open) return null;
+    var reasons = [
+      { value: 'spam', label: t('report.spam', 'محتوى مزعج / سبام') },
+      { value: 'fraud', label: t('report.fraud', 'احتيال أو طلب أموال') },
+      { value: 'illegal', label: t('report.illegal', 'محتوى مخالف للقوانين') },
+      { value: 'other', label: t('report.other', 'أخرى') }
+    ];
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'report-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'report-modal' } }, [
+        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+          D.Text.H4({}, [t('report.title', 'إبلاغ/حظر')]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'report-close' } }, ['✕'])
+        ]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('report.hint', 'سنراجع البلاغ سريعاً لحماية المجتمع.')]),
+        D.Inputs.Select({ attrs: { class: 'composer-select', 'data-m-gkey': 'report-reason', value: overlay.reason || '' } },
+          [D.Inputs.Option({ attrs: { value: '' } }, [t('report.choose', 'اختر سبب البلاغ')])].concat(
+            reasons.map(function(entry) {
+              return D.Inputs.Option({ attrs: { value: entry.value } }, [entry.label]);
+            })
+          )
+        ),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            placeholder: t('report.notes', 'أضف تفاصيل (اختياري)'),
+            value: overlay.notes || '',
+            'data-m-gkey': 'report-notes'
+          }
+        }, []),
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'report-submit' } }, [t('report.submit', 'إرسال البلاغ')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'report-close' } }, [t('action.cancel', 'إلغاء')])
+        ])
+      ])
+    ]);
+  }
+
+  function renderProfileEditor(db) {
+    var editor = db.state.profileEditor;
+    var user = getActiveUser(db);
+    if (!editor || !editor.open || !user) return null;
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'profile-edit-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-modal', 'data-m-gkey': 'profile-edit-modal' } }, [
+        D.Text.H3({}, [t('profile.edit', 'تعديل الملف الشخصي')]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('profile.edit.hint', 'حسّن الثقة عبر صورة وسيرة واضحة')]),
+        D.Inputs.Input({
+          attrs: {
+            type: 'text',
+            class: 'composer-input',
+            placeholder: t('profile.edit.name', 'الاسم الظاهر'),
+            value: editor.fullName || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'fullName'
+          }
+        }, []),
+        D.Inputs.Input({
+          attrs: {
+            type: 'url',
+            class: 'composer-input',
+            placeholder: t('profile.edit.avatar', 'رابط الصورة الشخصية'),
+            value: editor.avatarUrl || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'avatarUrl'
+          }
+        }, []),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            placeholder: t('profile.edit.bio', 'نبذة عنك أو عن نشاطك'),
+            value: editor.bio || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'bio'
+          }
+        }, []),
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'profile-edit-save' } }, [t('profile.save', 'حفظ التعديلات')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-close' } }, ['✕'])
+        ])
+      ])
+    ]);
+  }
+
   function renderNotificationsPanel(db) {
     if (!db.state.notificationsOpen) return null;
     var notifications = db.data.notifications || [];
@@ -4156,6 +4817,66 @@
             env: db.env,
             meta: db.meta,
             state: Object.assign({}, db.state, { classifiedDashboard: next }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'classified.lead.filter': {
+      on: ['click'],
+      gkeys: ['classified-lead-filter'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var filter = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        ctx.setState(function(db) {
+          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+          var next = Object.assign({}, current, { leadFilter: filter || 'open' });
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { classifiedDashboard: next }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'classified.lead.status': {
+      on: ['click'],
+      gkeys: ['classified-lead-status'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var leadId = target && target.getAttribute('data-lead-id');
+        var status = target && target.getAttribute('data-status');
+        updateLeadStatus(ctx, leadId, status);
+      }
+    },
+
+    'classified.status': {
+      on: ['click'],
+      gkeys: ['classified-status'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var status = target && target.getAttribute('data-status');
+        var id = target && target.getAttribute('data-target-id');
+        updateClassifiedStatus(ctx, id, status);
+      }
+    },
+
+    'open.product.form': {
+      on: ['click'],
+      gkeys: ['open-product-form'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('marketplace.add.product.notice', 'انتقل للمتجر لإضافة منتج جديد ثم شاركه'));
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -5851,9 +6572,39 @@
           console.error('[SBN PWA] Schema not found in response:', payload);
           throw new Error('schema-invalid');
         }
-        debugLog('[SBN PWA][rt] schema fetched, tables:', Object.keys(TABLE_TO_DATA_KEY));
+        var schemaTables = (schema && schema.tables) || (schema && schema.schema && schema.schema.tables) || [];
+        var schemaTableNames = schemaTables
+          .map(function(tbl) { return (tbl && (tbl.name || tbl.table || tbl.sqlName)); })
+          .filter(Boolean);
+        var schemaTableSet = schemaTableNames.reduce(function(acc, name) {
+          acc[name] = true;
+          return acc;
+        }, {});
 
-        var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY);
+        var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY).filter(function(tableName) {
+          return !!schemaTableSet[tableName];
+        });
+        var missingTables = Object.keys(TABLE_TO_DATA_KEY).filter(function(tableName) {
+          return !schemaTableSet[tableName];
+        });
+
+        if (missingTables.length) {
+          console.warn('[SBN PWA][rt] skipping missing tables from schema', missingTables);
+        }
+        if (!tablesToWatch.length) {
+          console.error('[SBN PWA] No matching tables found in schema, aborting realtime bootstrap');
+          ctx.setState(function(db) {
+            return {
+              env: db.env,
+              meta: db.meta,
+              state: Object.assign({}, db.state, { loading: false, error: 'schema-mismatch' }),
+              data: db.data
+            };
+          });
+          return;
+        }
+
+        debugLog('[SBN PWA][rt] schema fetched, tables:', tablesToWatch);
 
         realtime = global.createDBAuto(schema, tablesToWatch, {
           branchId: BRANCH_ID,
