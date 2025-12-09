@@ -220,15 +220,26 @@
 
             // Load data from REST API (preserves original structure)
             const loadFromRestApi = async () => {
-              try {
-                const tables = await window.loadPosData(BRANCH_ID, 'pos');
-                window.database = tables;
-                status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
-                status.keys = Object.keys(tables);
-              } catch (error) {
-                window.database = {};
-                status.status = 'error';
+              if (loadFromRestApi.inFlight) {
+                return loadFromRestApi.inFlight;
               }
+
+              loadFromRestApi.inFlight = (async () => {
+                try {
+                  const tables = await window.loadPosData(BRANCH_ID, 'pos');
+                  window.database = tables;
+                  status.status = Object.keys(tables).length > 0 ? 'ready' : 'idle';
+                  status.keys = Object.keys(tables);
+                } catch (error) {
+                  window.database = {};
+                  status.status = 'error';
+                  throw error;
+                } finally {
+                  loadFromRestApi.inFlight = null;
+                }
+              })();
+
+              return loadFromRestApi.inFlight;
             };
 
             // Initial load from REST API
@@ -244,7 +255,7 @@
                 if (name === 'pos_database') return;
                 db.watch(name, () => {
                   loadFromRestApi(); // Reload from REST API on any change
-                });
+                }, { immediate: false });
               });
             });
 
