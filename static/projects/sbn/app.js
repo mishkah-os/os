@@ -156,6 +156,14 @@
   var BRANCH_ID = 'sbn';
   var MODULE_ID = 'mostamal';
   var PREF_STORAGE_KEY = 'sbn:prefs:v1';
+  var NOTIFICATION_PREFS_KEY = 'sbn:notification:prefs:v1';
+  var COMPLIANCE_PREFS_KEY = 'sbn:compliance:prefs:v1';
+  var COMPOSER_DRAFT_KEY = 'sbn:composer:draft';
+  var ONBOARDING_STORAGE_KEY = 'sbn:onboarding:progress';
+  var LAUNCH_CHECKLIST_KEY = 'sbn:launch:checklist';
+  var OTP_COOLDOWN_MS = 10 * 60 * 1000;
+  var OTP_BLOCK_MS = 30 * 60 * 1000;
+  var STATIC_OTP = '123456';
 
   var BASE_I18N = {};
   var realtime = null;
@@ -165,12 +173,15 @@
   var installPromptInitialized = false;
   var SESSION_PWA_KEY = 'sbn:pwa:dismissed';
   var SESSION_STORAGE_KEY = 'sbn:pwa:session';
+  var AUTH_USERS_KEY = 'sbn:auth:users:v1';
   var notificationsUnsubscribe = null;
   var DEMO_ACCOUNT = {
     email: 'demo@mostamal.eg',
+    phone: '+201000000000',
     password: 'demo123',
-    otp: '123456',
-    userId: 'usr_001'
+    otp: STATIC_OTP,
+    userId: 'usr_001',
+    fullName: 'Demo User'
   };
 
   function registerRealtimeStoreInstance(rt) {
@@ -452,6 +463,130 @@
     }
   }
 
+  function loadNotificationPrefs() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(NOTIFICATION_PREFS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistNotificationPrefs(prefs) {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(prefs || {}));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  function loadCompliancePrefs() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(COMPLIANCE_PREFS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistCompliancePrefs(prefs) {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(COMPLIANCE_PREFS_KEY, JSON.stringify(prefs || {}));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  function loadComposerDraft() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(COMPOSER_DRAFT_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistComposerDraft(draft) {
+    if (!global.localStorage) return;
+    try {
+      if (!draft || draft.open === false) {
+        global.localStorage.removeItem(COMPOSER_DRAFT_KEY);
+        return;
+      }
+      var payload = JSON.stringify(draft);
+      global.localStorage.setItem(COMPOSER_DRAFT_KEY, payload);
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  function loadOnboardingProgress() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(ONBOARDING_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistOnboardingProgress(progress) {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(progress || {}));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  function loadLaunchChecklistState() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(LAUNCH_CHECKLIST_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function loadAuthUsers() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(AUTH_USERS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistAuthUsers(users) {
+    if (!global.localStorage) return;
+    try {
+      if (!users || !users.length) {
+        global.localStorage.removeItem(AUTH_USERS_KEY);
+        return;
+      }
+      global.localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
+  function persistLaunchChecklistState(progress) {
+    if (!global.localStorage) return;
+    try {
+      global.localStorage.setItem(LAUNCH_CHECKLIST_KEY, JSON.stringify(progress || {}));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
   function loadPersistedSession() {
     if (!global.localStorage) return null;
     try {
@@ -477,6 +612,7 @@
       var payload = {
         userId: session.userId,
         email: session.email || '',
+        phone: session.phone || '',
         updatedAt: Date.now()
       };
       global.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
@@ -492,6 +628,30 @@
     } catch (_err) {
       /* noop */
     }
+  }
+
+  function normalizePhoneDigits(value) {
+    return (value || '').replace(/\D/g, '');
+  }
+
+  function ensureDemoAuthUser(users) {
+    var list = Array.isArray(users) ? users.slice() : [];
+    var demoDigits = normalizePhoneDigits(DEMO_ACCOUNT.phone);
+    var demoRecord = {
+      userId: DEMO_ACCOUNT.userId,
+      phone: DEMO_ACCOUNT.phone,
+      password: DEMO_ACCOUNT.password,
+      fullName: 'Demo User'
+    };
+    var existingIndex = list.findIndex(function(user) {
+      return normalizePhoneDigits(user && user.phone) === demoDigits;
+    });
+    if (existingIndex >= 0) {
+      list[existingIndex] = Object.assign({}, demoRecord, list[existingIndex]);
+    } else {
+      list.unshift(demoRecord);
+    }
+    return list;
   }
 
   /**
@@ -623,6 +783,13 @@
   // ================== INITIAL STATE ==================
   var persisted = loadPersistedPrefs();
   var persistedSession = loadPersistedSession();
+  var persistedComposerDraft = loadComposerDraft();
+  var persistedOnboarding = loadOnboardingProgress();
+  var persistedLaunchChecklist = loadLaunchChecklistState();
+  var persistedNotificationPrefs = loadNotificationPrefs();
+  var persistedCompliancePrefs = loadCompliancePrefs();
+  var persistedAuthUsers = loadAuthUsers();
+  var initialAuthUsers = ensureDemoAuthUser(persistedAuthUsers || []);
 
   var initialDatabase = {
     env: {
@@ -641,11 +808,19 @@
       notice: null,
       currentSection: 'timeline',
       activeUserId: persistedSession && persistedSession.userId ? persistedSession.userId : null,
+      authUsers: initialAuthUsers,
       postOverlay: {
         open: false,
         postId: null
       },
-      composer: {
+      detailOverlay: {
+        open: false,
+        kind: null,
+        targetId: null,
+        activeIndex: 0
+      },
+      homeTab: 'timeline',
+      composer: Object.assign({
         open: false,
         mediaMode: 'plain',
         attachmentKind: 'classified',
@@ -661,24 +836,95 @@
         classifiedTitle: '',
         classifiedPrice: '',
         contactPhone: '',
+        editAttachmentId: '',
         posting: false,
         error: null
+      }, persistedComposerDraft || {}),
+      onboarding: Object.assign({
+        completed: {},
+        dismissed: false
+      }, persistedOnboarding || {}),
+      launchChecklist: Object.assign({
+        composer: false,
+        attachments: false,
+        profile: false,
+        discovery: false,
+        safety: false
+      }, persistedLaunchChecklist || {}),
+      profileEditor: {
+        open: false,
+        fullName: '',
+        bio: '',
+        avatarUrl: ''
+      },
+      contactOverlay: {
+        open: false,
+        kind: null,
+        targetId: null,
+        phone: '',
+        userId: null,
+        preset: '',
+        message: ''
+      },
+      readerOverlay: {
+        open: false,
+        articleId: null,
+        fontSize: 'md'
+      },
+      reportOverlay: {
+        open: false,
+        targetType: null,
+        targetId: null,
+        reason: '',
+        notes: ''
       },
       filters: {
         search: '',
         category: '',
-        condition: ''
+        condition: '',
+        hashtag: ''
       },
       commentDraft: '',
       showPwaPrompt: false,
       notificationsOpen: false,
+      inboxOpen: false,
+      profileTab: 'posts',
+      classifiedDashboard: {
+        tab: 'live',
+        leadFilter: 'open',
+        leadStatus: {}
+      },
+      notificationPrefs: Object.assign({
+        pushEnabled: false,
+        inboxEnabled: true,
+        permission: 'default',
+        webPushPrompted: false,
+        channels: {
+          comments: true,
+          messages: true,
+          saves: true,
+          reports: true
+        }
+      }, persistedNotificationPrefs || {}),
+      compliance: Object.assign({
+        termsAccepted: false,
+        privacyAccepted: false,
+        dataConsent: false,
+        deletionRequested: false
+      }, persistedCompliancePrefs || {}),
       auth: {
         open: false,
         step: 'login',
         fullName: '',
+        phone: (persistedSession && persistedSession.phone) || '+201',
         email: (persistedSession && persistedSession.email) || 'demo@mostamal.eg',
         password: '',
         otp: '',
+        otpRequestedAt: 0,
+        blockedUntil: 0,
+        loginAttempts: 0,
+        recaptcha: false,
+        newPassword: '',
         error: null,
         pendingUser: null
       }
@@ -698,9 +944,40 @@
       hashtags: [],
       reviews: [],
       classifieds: [],
-      notifications: []
+      notifications: [],
+      inboxThreads: []
     }
   };
+
+  var DEFAULT_INBOX_THREADS = [
+    {
+      thread_id: 'thread_demo_1',
+      title: 'سؤال حول الإعلان',
+      snippet: 'هل ما زال المنتج متوفراً؟ أحتاج صوراً إضافية قبل الطلب.',
+      unread: true,
+      type: 'message',
+      updated_at: new Date().toISOString(),
+      counterpart: 'سارة العطار'
+    },
+    {
+      thread_id: 'thread_demo_2',
+      title: 'تعليق جديد على البوست',
+      snippet: 'أعجبني عرض الخدمة، هل يوجد باقة شهرية؟',
+      unread: false,
+      type: 'comment',
+      updated_at: new Date().toISOString(),
+      counterpart: 'منى عادل'
+    },
+    {
+      thread_id: 'thread_demo_3',
+      title: 'حفظ منتجك',
+      snippet: 'تم حفظ منتجك في قائمة مفضلات 12 مستخدمًا.',
+      unread: true,
+      type: 'save',
+      updated_at: new Date().toISOString(),
+      counterpart: 'تنبيه النظام'
+    }
+  ];
 
   // ================== DATA HELPERS ==================
 
@@ -746,6 +1023,64 @@
     return media.length ? media[0] : '/projects/sbn/placeholder.jpg';
   }
 
+  function resolveInboxThreads(db) {
+    var threads = (db && db.data && db.data.inboxThreads) || [];
+    if (Array.isArray(threads) && threads.length) return threads;
+    return DEFAULT_INBOX_THREADS;
+  }
+
+  function updateNotificationPreferences(ctx, updates) {
+    ctx.setState(function(db) {
+      var current = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
+      persistNotificationPrefs(next);
+      var launch = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
+      var nextLaunch = next.pushEnabled || next.inboxEnabled
+        ? Object.assign({}, launch, { safety: true })
+        : launch;
+      if (nextLaunch !== launch) {
+        persistLaunchChecklistState(nextLaunch);
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { notificationPrefs: next, launchChecklist: nextLaunch }),
+        data: db.data
+      };
+    });
+  }
+
+  function updateComplianceState(ctx, updates) {
+    ctx.setState(function(db) {
+      var current = db.state.compliance || initialDatabase.state.compliance;
+      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
+      persistCompliancePrefs(next);
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { compliance: next }),
+        data: db.data
+      };
+    });
+  }
+
+  function resolveUserTrust(user) {
+    if (!user) return null;
+    if (user.verified || user.trusted || user.trust_score >= 70) {
+      return t('trust.verified', 'موثّق');
+    }
+    if ((user.reviews_count || user.reputation || 0) >= 3) {
+      return t('trust.seller', 'بائع موثوق');
+    }
+    return null;
+  }
+
+  function renderTrustBadge(user) {
+    var label = resolveUserTrust(user);
+    if (!label) return null;
+    return D.Text.Span({ attrs: { class: 'chip trust' } }, ['🔒 ', label]);
+  }
+
   function resolveProductTitle(product) {
     return getLocalizedField(product, 'title', t('product.untitled'));
   }
@@ -771,9 +1106,29 @@
     return ts;
   }
 
+  function matchesHashtag(entity, tag) {
+    if (!tag) return true;
+    var tags = [];
+    if (entity && entity.hashtags) tags = tags.concat(entity.hashtags);
+    if (entity && entity.tags) tags = tags.concat(entity.tags);
+    if (entity && entity.text) {
+      var extracted = entity.text
+        .split(/\s+/)
+        .filter(function (word) { return word.indexOf('#') === 0; })
+        .map(function (word) { return word.replace(/^#/, ''); });
+      tags = tags.concat(extracted);
+    }
+    return tags.some(function (t) { return (t || '').toLowerCase() === String(tag).toLowerCase(); });
+  }
+
   function getSortedPosts(db) {
     var posts = db.data.posts || [];
+    var filters = db.state.filters || {};
     return posts
+      .filter(function(post) {
+        if (filters.hashtag && !matchesHashtag(post, filters.hashtag)) return false;
+        return true;
+      })
       .slice()
       .sort(function (a, b) {
         return parseDateValue(b.created_at || b.createdAt) - parseDateValue(a.created_at || a.createdAt);
@@ -1291,6 +1646,36 @@
     });
   }
 
+  function getFilteredClassifieds(db) {
+    var classifieds = db.data.classifieds || [];
+    var filters = db.state.filters || {};
+    return classifieds.filter(function(item) {
+      if (filters.category && item.category_id && item.category_id !== filters.category) return false;
+      if (filters.search) {
+        var searchLower = filters.search.toLowerCase();
+        var titleText = (item.title || '').toLowerCase();
+        var descText = (item.description || item.body || '').toLowerCase();
+        if (titleText.indexOf(searchLower) === -1 && descText.indexOf(searchLower) === -1) return false;
+      }
+      if (filters.hashtag && !matchesHashtag(item, filters.hashtag)) return false;
+      return true;
+    });
+  }
+
+  function getFilteredArticles(db) {
+    var filters = db.state.filters || {};
+    return getWikiArticles(db).filter(function(article) {
+      if (filters.search) {
+        var searchLower = filters.search.toLowerCase();
+        var titleMatch = getLocalizedField(article, 'title', '').toLowerCase().indexOf(searchLower) !== -1;
+        var bodyMatch = getLocalizedField(article, 'excerpt', (article.summary || '')).toLowerCase().indexOf(searchLower) !== -1;
+        if (!titleMatch && !bodyMatch) return false;
+      }
+      if (filters.hashtag && !matchesHashtag(article, filters.hashtag)) return false;
+      return true;
+    });
+  }
+
   /**
    * Get wiki articles (top-level)
    */
@@ -1372,6 +1757,16 @@
             }
           },
           [notifCount > 0 ? ('🔔 ' + notifCount) : '🔔']
+        ),
+        D.Forms.Button(
+          {
+            attrs: {
+              'data-m-gkey': 'open-inbox',
+              class: 'icon-btn',
+              title: t('notifications.inbox.title', 'صندوق الوارد')
+            }
+          },
+          ['💬']
         ),
         D.Forms.Button(
           {
@@ -1539,6 +1934,25 @@
             }
           }, [])
         : null,
+      isClassified
+        ? (function() {
+            var hasBasics = composer.classifiedTitle || composer.classifiedPrice || composer.contactPhone;
+            if (!hasBasics) return null;
+            return D.Containers.Div({ attrs: { class: 'composer-target-preview classified-preview' } }, [
+              D.Containers.Div({ attrs: { class: 'preview-copy' } }, [
+                composer.classifiedTitle
+                  ? D.Text.Span({ attrs: { class: 'preview-title' } }, [composer.classifiedTitle])
+                  : null,
+                composer.classifiedPrice
+                  ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [formatCurrencyValue(composer.classifiedPrice, t('currency.egp'))])
+                  : null,
+                composer.contactPhone
+                  ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [composer.contactPhone])
+                  : null
+              ].filter(Boolean))
+            ]);
+          })()
+        : null,
       (function() {
         var uploadLabel = composer.mediaMode === 'reel'
           ? t('composer.media.upload.reel', 'رفع فيديو')
@@ -1632,11 +2046,178 @@
       ]),
       D.Containers.Div({ attrs: { class: 'hero-actions' } }, [
         D.Forms.Button({
-          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-marketplace' }
+          attrs: { class: 'hero-cta', 'data-m-gkey': 'nav-commerce' }
         }, [t('home.action.explore')]),
         D.Forms.Button({
-          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-services' }
-        }, ['＋'])
+          attrs: { class: 'hero-ghost', 'data-m-gkey': 'nav-classifieds' }
+        }, [t('nav.classifieds', 'إعلان مستعمل')])
+      ])
+    ]);
+  }
+
+  function getOnboardingTasks(db) {
+    var user = getActiveUser(db);
+    var completed = (db.state.onboarding && db.state.onboarding.completed) || {};
+    var userPosts = (db.data.posts || []).filter(function(post) { return user && post.user_id === user.user_id; });
+    var hasAttachmentShare = userPosts.some(function(post) {
+      return post && post.attachment_kind && post.attachment_kind !== 'none';
+    });
+    return [
+      {
+        key: 'avatar',
+        title: t('onboarding.avatar', 'أضف صورة شخصية'),
+        hint: t('onboarding.avatar.hint', 'يرفع الثقة مع المشترين'),
+        done: Boolean((user && user.avatar_url) || completed.avatar)
+      },
+      {
+        key: 'bio',
+        title: t('onboarding.bio', 'أكمل السيرة الذاتية'),
+        hint: t('onboarding.bio.hint', 'عرّف بنفسك أو نشاطك التجاري'),
+        done: Boolean((user && getLocalizedField(user, 'bio', '')) || completed.bio)
+      },
+      {
+        key: 'firstPost',
+        title: t('onboarding.firstPost', 'انشر أول بوست'),
+        hint: t('onboarding.firstPost.hint', 'شارك إعلان، منتج، خدمة أو مقال'),
+        done: Boolean(userPosts.length || completed.firstPost)
+      },
+      {
+        key: 'attachment',
+        title: t('onboarding.attachment', 'جرّب إضافة مرفق'),
+        hint: t('onboarding.attachment.hint', 'أضف إعلان مستعمل أو منتج/خدمة'),
+        done: Boolean(hasAttachmentShare || completed.attachment)
+      }
+    ];
+  }
+
+  function getLaunchChecklist(db) {
+    var defaults = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
+    return [
+      {
+        key: 'composer',
+        title: t('launch.composer', 'تحقق من الكومبوزر والمرفقات'),
+        hint: t('launch.composer.hint', 'تأكد أن الحقول الإلزامية والدرَفت تعمل بلا أعطال.'),
+        done: Boolean(defaults.composer),
+        action: 'composer-open'
+      },
+      {
+        key: 'attachments',
+        title: t('launch.attachments', 'شاشات التفاصيل والجاليري'),
+        hint: t('launch.attachments.hint', 'جرّب فتح إعلان، منتج، خدمة، ومقال مع الجاليري.'),
+        done: Boolean(defaults.attachments),
+        action: 'open-attachment'
+      },
+      {
+        key: 'profile',
+        title: t('launch.profile', 'تعديل الملف والتبويبات'),
+        hint: t('launch.profile.hint', 'اختبر التبويبات (بوست، إعلان، تجارة، معرفة) وخيار التعديل.'),
+        done: Boolean(defaults.profile),
+        action: 'nav-profile'
+      },
+      {
+        key: 'discovery',
+        title: t('launch.discovery', 'الفلاتر والهاشتاغات'),
+        hint: t('launch.discovery.hint', 'تأكد من البحث، التصنيفات، وإعادة الضبط للهاشتاغ.'),
+        done: Boolean(defaults.discovery),
+        action: 'reset-filters'
+      },
+      {
+        key: 'safety',
+        title: t('launch.safety', 'الثقة والتبليغ والإشعارات'),
+        hint: t('launch.safety.hint', 'اختبر الاتصال، الإبلاغ، والشارات الموثقة والإشعارات.'),
+        done: Boolean(defaults.safety),
+        action: 'open-notifications'
+      }
+    ];
+  }
+
+  function renderOnboardingCard(db) {
+    var user = getActiveUser(db);
+    var onboarding = db.state.onboarding || initialDatabase.state.onboarding;
+    if (!user || onboarding.dismissed) return null;
+    var tasks = getOnboardingTasks(db);
+    var remaining = tasks.filter(function(task) { return !task.done; });
+    if (!remaining.length) return null;
+    var progress = Math.round(((tasks.length - remaining.length) / tasks.length) * 100);
+
+    return D.Containers.Div({ attrs: { class: 'section-card onboarding-card' } }, [
+      D.Containers.Div({ attrs: { class: 'onboarding-head' } }, [
+        D.Text.H4({}, [t('onboarding.title', 'ابدأ رحلتك على مستعمل حواء')]),
+        D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'onboarding-dismiss' } }, ['✕'])
+      ]),
+      D.Containers.Div({ attrs: { class: 'onboarding-progress' } }, [
+        D.Containers.Div({ attrs: { class: 'onboarding-progress-fill', style: 'width:' + progress + '%;' } }, [])
+      ]),
+      D.Containers.Div({ attrs: { class: 'onboarding-tasks' } },
+        tasks.map(function(task) {
+          var done = task.done;
+          return D.Containers.Div({ attrs: { class: 'onboarding-task' + (done ? ' done' : ''), key: task.key } }, [
+            D.Text.Span({ attrs: { class: 'onboarding-check' } }, [done ? '✓' : '•']),
+            D.Containers.Div({ attrs: { class: 'onboarding-copy' } }, [
+              D.Text.Span({ attrs: { class: 'onboarding-title' } }, [task.title]),
+              D.Text.Small({ attrs: { class: 'onboarding-hint' } }, [task.hint])
+            ]),
+            done
+              ? null
+              : D.Forms.Button({
+                  attrs: {
+                    class: 'chip primary',
+                    'data-m-gkey': 'onboarding-complete',
+                    'data-task': task.key
+                  }
+                }, [t('onboarding.action', 'تم')])
+          ].filter(Boolean));
+        })
+      ),
+      D.Containers.Div({ attrs: { class: 'onboarding-actions' } }, [
+        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('composer.start')]),
+        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')])
+      ])
+    ]);
+  }
+
+  function renderLaunchChecklist(db) {
+    var items = getLaunchChecklist(db);
+    var doneCount = items.filter(function(item) { return item.done; }).length;
+    var progress = Math.round((doneCount / items.length) * 100);
+
+    return D.Containers.Div({ attrs: { class: 'section-card launch-card' } }, [
+      D.Containers.Div({ attrs: { class: 'launch-head' } }, [
+        D.Text.H4({}, [t('launch.title', 'جاهزية الإطلاق')]),
+        D.Text.Small({ attrs: { class: 'launch-progress' } }, [progress + '%'])
+      ]),
+      D.Containers.Div({ attrs: { class: 'launch-bar' } }, [
+        D.Containers.Div({ attrs: { class: 'launch-bar-fill', style: 'width:' + progress + '%;' } }, [])
+      ]),
+      D.Containers.Div({ attrs: { class: 'launch-list' } },
+        items.map(function(item) {
+          return D.Containers.Div({ attrs: { class: 'launch-item' + (item.done ? ' done' : ''), key: item.key } }, [
+            D.Forms.Button({
+              attrs: {
+                class: 'launch-check',
+                'data-m-gkey': 'launch-toggle',
+                'data-key': item.key,
+                'aria-pressed': item.done ? 'true' : 'false'
+              }
+            }, [item.done ? '✓' : '•']),
+            D.Containers.Div({ attrs: { class: 'launch-copy' } }, [
+              D.Text.Span({ attrs: { class: 'launch-title' } }, [item.title]),
+              D.Text.Small({ attrs: { class: 'launch-hint' } }, [item.hint])
+            ]),
+            item.action
+              ? D.Forms.Button({
+                  attrs: {
+                    class: 'chip ghost',
+                    'data-m-gkey': item.action
+                  }
+                }, [t('launch.action.test', 'تجربة')])
+              : null
+          ].filter(Boolean));
+        })
+      ),
+      D.Containers.Div({ attrs: { class: 'launch-actions' } }, [
+        D.Forms.Button({ attrs: { class: 'hero-cta small', 'data-m-gkey': 'launch-complete-all' } }, [t('launch.complete', 'تمييز الكل كمكتمل')]),
+        D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'reset-filters' } }, [t('filters.reset', 'مسح الفلاتر')])
       ])
     ]);
   }
@@ -1707,11 +2288,11 @@
       D.Text.H4({}, [t('home.quickActions', 'الوصول السريع')]),
       D.Containers.Div({ attrs: { class: 'chips-row' } }, [
         D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-marketplace' }
-        }, ['🛒 ', t('nav.marketplace')]),
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-commerce' }
+        }, ['🛍️ ', t('nav.commerce', 'منتج / خدمة')]),
         D.Forms.Button({
-          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-services' }
-        }, ['🔧 ', t('nav.services')]),
+          attrs: { class: 'chip primary', 'data-m-gkey': 'nav-classifieds' }
+        }, ['📢 ', t('nav.classifieds', 'إعلان مستعمل')]),
         D.Forms.Button({
           attrs: { class: 'chip primary', 'data-m-gkey': 'nav-knowledge' }
         }, ['📚 ', t('nav.knowledge')])
@@ -1737,11 +2318,149 @@
     }) || null;
   }
 
+  function resolveAttachmentPreview(db, kind, targetId) {
+    if (!db || !kind || !targetId) return null;
+    if (kind === 'product') {
+      return findById(db.data.products || [], 'product_id', targetId);
+    }
+    if (kind === 'service') {
+      return findById(db.data.services || [], 'service_id', targetId);
+    }
+    if (kind === 'wiki') {
+      return findById(db.data.articles || [], 'article_id', targetId);
+    }
+    if (kind === 'classified') {
+      return findById(db.data.classifieds || [], 'id', targetId) || findById(db.data.classifieds || [], 'classified_id', targetId);
+    }
+    return null;
+  }
+
   function getActiveUser(db) {
     var users = db.data.users || [];
     var activeId = db.state.activeUserId;
     if (!activeId) return null;
     return findById(users, 'user_id', activeId) || null;
+  }
+
+  function isClassifiedOwner(db, item) {
+    if (!item) return false;
+    var activeUserId = db && db.state && db.state.activeUserId;
+    return Boolean(
+      activeUserId &&
+        (item.user_id === activeUserId || item.owner_id === activeUserId || item.seller_id === activeUserId)
+    );
+  }
+
+  function resolveClassifiedStatus(item) {
+    if (!item) return 'live';
+    var status = (item.status || item.state || '').toLowerCase();
+    if (status === 'archived' || status === 'closed' || status === 'pending' || status === 'draft') {
+      return status;
+    }
+    if (item.closed_at || item.closed) return 'closed';
+    if (item.archived_at || item.archived) return 'archived';
+    return 'live';
+  }
+
+  function buildClassifiedStats(classifieds) {
+    var defaults = { live: 0, pending: 0, closed: 0, archived: 0, draft: 0 };
+    return (classifieds || []).reduce(function(acc, item) {
+      var status = resolveClassifiedStatus(item);
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, defaults);
+  }
+
+  function resolveClassifiedLeads(db, classifieds) {
+    var overrides = (db.state.classifiedDashboard && db.state.classifiedDashboard.leadStatus) || {};
+    var threads = resolveInboxThreads(db) || [];
+    var notifications = db.data.notifications || [];
+    var leads = [];
+
+    threads.forEach(function(thread, idx) {
+      var targetId = thread.target_id || thread.classified_id || '';
+      var status = overrides[thread.thread_id] || (thread.unread ? 'open' : 'responded');
+      leads.push({
+        id: thread.thread_id || 'thread_' + idx,
+        targetId: targetId,
+        status: status,
+        title: thread.title || t('inbox.thread', 'رسالة واردة'),
+        snippet: thread.snippet || '',
+        updated_at: thread.updated_at,
+        type: thread.type || 'message'
+      });
+    });
+
+    notifications.forEach(function(note, idx) {
+      var targetType = (note.target_type || note.type || '').toLowerCase();
+      if (targetType && targetType.indexOf('classified') === -1) return;
+      var targetId = note.target_id || note.classified_id || '';
+      var status = overrides[note.notification_id || idx] || (note.status === 'read' ? 'responded' : 'open');
+      leads.push({
+        id: note.notification_id || 'note_' + idx,
+        targetId: targetId,
+        status: status,
+        title: getLocalizedField(note, 'title', t('classifieds.lead', 'طلب تواصل')), 
+        snippet: getLocalizedField(note, 'body', note.description || ''),
+        updated_at: note.created_at || note.updated_at,
+        type: note.type || 'comment'
+      });
+    });
+
+    return leads;
+  }
+
+  function updateClassifiedStatus(ctx, targetId, nextStatus) {
+    if (!targetId || !nextStatus) return;
+    ctx.setState(function(db) {
+      var classifieds = db.data.classifieds || [];
+      var target = classifieds.find(function(item) {
+        var id = item.id || item.classified_id;
+        return id === targetId;
+      });
+      if (!target || !isClassifiedOwner(db, target)) return db;
+      var nextRows = classifieds.map(function(item) {
+        var id = item.id || item.classified_id;
+        if (id !== targetId) return item;
+        var clone = Object.assign({}, item, { status: nextStatus });
+        if (nextStatus === 'archived') {
+          clone.archived_at = new Date().toISOString();
+        } else if (nextStatus === 'closed') {
+          clone.closed_at = new Date().toISOString();
+        } else if (nextStatus === 'live') {
+          delete clone.archived_at;
+          delete clone.closed_at;
+        }
+        return clone;
+      });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: db.state,
+        data: Object.assign({}, db.data, { classifieds: nextRows })
+      };
+    });
+    showNotice(ctx, t('classifieds.status.updated', 'تم تحديث حالة الإعلان'));
+  }
+
+  function updateLeadStatus(ctx, leadId, status) {
+    if (!leadId || !status) return;
+    ctx.setState(function(db) {
+      var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+      var currentStatus = current.leadStatus || {};
+      var nextStatus = Object.assign({}, currentStatus, (function() {
+        var out = {};
+        out[leadId] = status;
+        return out;
+      })());
+      var nextDashboard = Object.assign({}, current, { leadStatus: nextStatus });
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { classifiedDashboard: nextDashboard }),
+        data: db.data
+      };
+    });
   }
 
   function getAttachmentOptions(db, kind) {
@@ -1773,6 +2492,7 @@
     ctx.setState(function(db) {
       var currentComposer = db.state.composer || initialDatabase.state.composer;
       var nextComposer = typeof updates === 'function' ? updates(currentComposer) : Object.assign({}, currentComposer, updates);
+      persistComposerDraft(nextComposer);
       return {
         env: db.env,
         meta: db.meta,
@@ -1795,6 +2515,34 @@
       Object.assign(snapshot, overrides);
     }
     return snapshot;
+  }
+
+  function updateOnboardingState(ctx, updates) {
+    ctx.setState(function(db) {
+      var current = db.state.onboarding || initialDatabase.state.onboarding || {};
+      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
+      persistOnboardingProgress(next);
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { onboarding: next }),
+        data: db.data
+      };
+    });
+  }
+
+  function updateLaunchChecklist(ctx, updates) {
+    ctx.setState(function(db) {
+      var current = db.state.launchChecklist || initialDatabase.state.launchChecklist || {};
+      var next = typeof updates === 'function' ? updates(current) : Object.assign({}, current, updates);
+      persistLaunchChecklistState(next);
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: Object.assign({}, db.state, { launchChecklist: next }),
+        data: db.data
+      };
+    });
   }
 
   function openAuthModal(step) {
@@ -1875,6 +2623,82 @@
         nextState.commentDraft = '';
       } else if (!nextOverlay || nextOverlay.open === false) {
         nextState.commentDraft = '';
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setDetailOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.detailOverlay || initialDatabase.state.detailOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { detailOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReaderOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.readerOverlay || initialDatabase.state.readerOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { readerOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { attachments: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setContactOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.contactOverlay || initialDatabase.state.contactOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { contactOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
+      }
+      return {
+        env: db.env,
+        meta: db.meta,
+        state: nextState,
+        data: db.data
+      };
+    });
+  }
+
+  function setReportOverlay(ctx, updates) {
+    ctx.setState(function(db) {
+      var currentOverlay = db.state.reportOverlay || initialDatabase.state.reportOverlay;
+      var nextOverlay = typeof updates === 'function' ? updates(currentOverlay) : Object.assign({}, currentOverlay, updates);
+      var nextState = Object.assign({}, db.state, { reportOverlay: nextOverlay });
+      if (nextOverlay && nextOverlay.open) {
+        var nextLaunch = Object.assign({}, db.state.launchChecklist, { safety: true });
+        persistLaunchChecklistState(nextLaunch);
+        nextState.launchChecklist = nextLaunch;
       }
       return {
         env: db.env,
@@ -2016,10 +2840,16 @@
       .then(function() {
         ctx.setState(function(db) {
           var resetComposer = createComposerState({ open: false });
+          persistComposerDraft(resetComposer);
+          var nextLaunch = Object.assign({}, db.state.launchChecklist, { composer: true });
+          persistLaunchChecklistState(nextLaunch);
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { composer: resetComposer }),
+            state: Object.assign({}, db.state, {
+              composer: resetComposer,
+              launchChecklist: nextLaunch
+            }),
             data: db.data
           };
         });
@@ -2053,7 +2883,14 @@
       applyComposerState(ctx, { error: t('composer.classified.title.error', 'ادخل عنوان الإعلان') });
       return;
     }
+    var phoneDigits = (composer.contactPhone || '').replace(/\D/g, '');
+    if (!phoneDigits || phoneDigits.length < 6) {
+      applyComposerState(ctx, { error: t('composer.classified.phone.error', 'أضف رقم هاتف صالح للتواصل') });
+      return;
+    }
     var images = Array.isArray(composer.mediaList) ? composer.mediaList.slice() : [];
+    var targetId = composer.editAttachmentId || composer.targetId || '';
+    var isEdit = Boolean(composer.editAttachmentId);
     var payload = {
       seller_id: sellerId,
       category_id: categoryId,
@@ -2065,27 +2902,91 @@
       images: images
     };
     applyComposerState(ctx, { posting: true, error: null });
-    fetch(origin + '/api/classifieds', {
-      method: 'POST',
+    var endpoint = isEdit && targetId
+      ? origin + '/api/classifieds/' + encodeURIComponent(targetId)
+      : origin + '/api/classifieds';
+    var method = isEdit ? 'PUT' : 'POST';
+    fetch(endpoint, {
+      method: method,
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload)
     })
       .then(function(response) {
-        if (!response.ok) throw new Error('classified-create-failed');
+        if (!response.ok) throw new Error('classified-' + (isEdit ? 'update' : 'create') + '-failed');
         return response.json();
       })
-      .then(function() {
+      .then(function(body) {
         setTimeout(function() {
           refreshClassifiedsSnapshot(getCurrentLang());
         }, 0);
+        if (isEdit && db && db.data && Array.isArray(db.data.classifieds)) {
+          var updatedRows = db.data.classifieds.map(function(row) {
+            if (!row) return row;
+            var rowId = row.id || row.classified_id;
+            if (rowId && rowId === targetId) {
+              return Object.assign({}, row, payload, body || {});
+            }
+            return row;
+          });
+          ctx.setState(function(prev) {
+            return {
+              env: prev.env,
+              meta: prev.meta,
+              state: prev.state,
+              data: Object.assign({}, prev.data, { classifieds: updatedRows })
+            };
+          });
+        }
         applyComposerState(ctx, function() {
-          return createComposerState({ open: false });
+          var resetComposer = createComposerState({ open: false, editAttachmentId: '' });
+          persistComposerDraft(resetComposer);
+          return resetComposer;
         });
-        showNotice(ctx, t('composer.classified.success', 'تم إضافة الإعلان بنجاح'));
+        var successKey = isEdit ? 'composer.classified.updated' : 'composer.classified.success';
+        showNotice(ctx, t(successKey, isEdit ? 'تم تحديث الإعلان بنجاح' : 'تم إضافة الإعلان بنجاح'));
       })
       .catch(function(error) {
         debugLog('[SBN PWA][classified]', error);
         applyComposerState(ctx, { posting: false, error: t('composer.classified.error', 'تعذر إنشاء الإعلان') });
+      });
+  }
+
+  function deleteClassified(ctx, targetId) {
+    var origin = getApiOrigin();
+    if (!origin) {
+      showNotice(ctx, t('classifieds.delete.offline', 'يرجى الاتصال بالإنترنت لإزالة الإعلان'));
+      return;
+    }
+    if (!targetId) return;
+    fetch(origin + '/api/classifieds/' + encodeURIComponent(targetId), {
+      method: 'DELETE',
+      headers: { 'content-type': 'application/json' }
+    })
+      .then(function(response) {
+        if (!response.ok) throw new Error('classified-delete-failed');
+        return response.json().catch(function() { return {}; });
+      })
+      .then(function() {
+        refreshClassifiedsSnapshot(getCurrentLang());
+        if (app && app.database && Array.isArray(app.database.data.classifieds)) {
+          app.setState(function(prev) {
+            var nextClassifieds = (prev.data.classifieds || []).filter(function(row) {
+              var id = row && (row.id || row.classified_id);
+              return id !== targetId;
+            });
+            return {
+              env: prev.env,
+              meta: prev.meta,
+              state: prev.state,
+              data: Object.assign({}, prev.data, { classifieds: nextClassifieds })
+            };
+          });
+        }
+        showNotice(ctx, t('classifieds.delete.success', 'تم حذف الإعلان'));
+      })
+      .catch(function(error) {
+        debugLog('[SBN PWA][classified][delete]', error);
+        showNotice(ctx, t('classifieds.delete.error', 'تعذر حذف الإعلان'));
       });
   }
 
@@ -2106,13 +3007,168 @@
       return (b.usage_count || 0) - (a.usage_count || 0);
     }).slice(0, 6);
     if (!tags.length) return null;
+    var selected = db.state.filters && db.state.filters.hashtag ? db.state.filters.hashtag : '';
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('home.hashtags', null, null, null),
       D.Containers.Div({ attrs: { class: 'chips-row' } },
-        tags.map(function(tag) {
-          return D.Containers.Div({ attrs: { class: 'chip' } }, [resolveHashtagLabel(tag)]);
-        })
+        [
+          D.Forms.Button({
+            attrs: {
+              class: 'chip' + (selected === '' ? ' chip-active' : ''),
+              'data-m-gkey': 'hashtag-chip',
+              'data-tag': ''
+            }
+          }, [t('filter.all')])
+        ].concat(tags.map(function(tag) {
+          var label = resolveHashtagLabel(tag);
+          var normalized = (tag && (tag.slug || tag.tag || tag.name)) || label.replace('#', '');
+          var active = selected && normalized && normalized.toLowerCase() === selected.toLowerCase();
+          return D.Forms.Button({
+            attrs: {
+              class: 'chip' + (active ? ' chip-active' : ''),
+              'data-m-gkey': 'hashtag-chip',
+              'data-tag': normalized || ''
+            }
+          }, [label]);
+        }))
       )
+    ]);
+  }
+
+  function renderNotificationSettings(db) {
+    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+    var permission = prefs.permission || (global.Notification && Notification.permission) || 'default';
+    var channelPrefs = prefs.channels || {};
+    var summary = [
+      prefs.pushEnabled ? t('notifications.push.enabled', 'Push/WebPush مفعّل') : t('notifications.push.disabled', 'Push غير مفعل'),
+      prefs.inboxEnabled ? t('notifications.inbox.enabled', 'Inbox قيد العمل') : t('notifications.inbox.disabled', 'Inbox متوقف'),
+      t('notifications.permission', 'تصريح: ') + permission
+    ].join(' • ');
+
+    var channelOptions = [
+      { key: 'messages', label: t('notifications.channel.messages', 'رسائل ودردشات'), hint: t('notifications.channel.messages.hint', 'تفعيل تنبيهات المحادثات والاستفسارات')},
+      { key: 'comments', label: t('notifications.channel.comments', 'تعليقات وردود'), hint: t('notifications.channel.comments.hint', 'تنبيهات التعليقات على البوستات والريلز')},
+      { key: 'saves', label: t('notifications.channel.saves', 'حفظ ومفضلة'), hint: t('notifications.channel.saves.hint', 'إشعارات الحفظ والتفضيل لمحتواك')},
+      { key: 'reports', label: t('notifications.channel.reports', 'إبلاغات الأمان'), hint: t('notifications.channel.reports.hint', 'تنبيهات التبليغ أو التحذير على محتوى مرتبط بك')},
+    ];
+
+    return D.Containers.Div({ attrs: { class: 'section-card settings-card' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('notifications.settings', 'الإشعارات والتراسل')]),
+        D.Text.Small({ attrs: { class: 'text-muted' } }, [summary])
+      ]),
+      D.Containers.Div({ attrs: { class: 'settings-actions' } }, [
+        D.Forms.Button({
+          attrs: { class: 'chip primary', 'data-m-gkey': 'notifications-request' }
+        }, [prefs.pushEnabled ? t('notifications.push.recheck', 'إعادة فحص التصريح') : t('notifications.push.enable', 'تفعيل Push/WebPush')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'notifications-toggle-inbox', 'data-enabled': prefs.inboxEnabled ? '1' : '0' }
+        }, [prefs.inboxEnabled ? t('notifications.inbox.on', 'إيقاف Inbox') : t('notifications.inbox.off', 'تشغيل Inbox')]),
+        D.Forms.Button({
+          attrs: { class: 'chip', 'data-m-gkey': 'open-inbox' }
+        }, [t('notifications.openInbox', 'فتح صندوق الوارد')])
+      ]),
+      D.Containers.Div({ attrs: { class: 'toggle-grid' } }, channelOptions.map(function(channel) {
+        var enabled = channelPrefs[channel.key] !== false;
+        return D.Containers.Div({ attrs: { class: 'toggle-row', key: channel.key } }, [
+          D.Containers.Div({ attrs: { class: 'toggle-copy' } }, [
+            D.Text.Span({ attrs: { class: 'toggle-title' } }, [channel.label]),
+            D.Text.Small({ attrs: { class: 'toggle-hint' } }, [channel.hint])
+          ]),
+          D.Forms.Button({
+            attrs: {
+              class: 'toggle-pill' + (enabled ? ' active' : ''),
+              'data-m-gkey': 'notifications-toggle-channel',
+              'data-channel': channel.key
+            }
+          }, [enabled ? t('action.on', 'مفعل') : t('action.off', 'متوقف')])
+        ]);
+      })),
+      D.Text.Small({ attrs: { class: 'text-muted' } }, [
+        t('notifications.settings.note', 'نفعل WebPush + Inbox لعرض التعليقات، الرسائل، الحفظ، والتبليغ داخل التطبيق.')
+      ])
+    ]);
+  }
+
+  function renderComplianceCard(db) {
+    var compliance = db.state.compliance || initialDatabase.state.compliance;
+    var checklist = [
+      { key: 'termsAccepted', label: t('compliance.terms', 'شروط الاستخدام'), hint: t('compliance.terms.hint', 'الموافقة على بنود الاستخدام وآلية النشر') },
+      { key: 'privacyAccepted', label: t('compliance.privacy', 'سياسة الخصوصية'), hint: t('compliance.privacy.hint', 'الاطلاع والموافقة على جمع/استخدام البيانات') },
+      { key: 'dataConsent', label: t('compliance.data', 'موافقة جمع البيانات'), hint: t('compliance.data.hint', 'تفعيل التتبع الضروري وتجربة الإشعارات') }
+    ];
+    var status = [
+      compliance.termsAccepted ? '✔️ ' + t('compliance.terms.short', 'الشروط') : '• ' + t('compliance.terms.short', 'الشروط'),
+      compliance.privacyAccepted ? '✔️ ' + t('compliance.privacy.short', 'الخصوصية') : '• ' + t('compliance.privacy.short', 'الخصوصية'),
+      compliance.dataConsent ? '✔️ ' + t('compliance.data.short', 'البيانات') : '• ' + t('compliance.data.short', 'البيانات')
+    ].join(' / ');
+
+    return D.Containers.Div({ attrs: { class: 'section-card consent-card' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('compliance.title', 'الامتثال والخصوصية')]),
+        D.Text.Small({ attrs: { class: 'text-muted' } }, [status])
+      ]),
+      D.Containers.Div({ attrs: { class: 'consent-list' } }, checklist.map(function(item) {
+        var enabled = Boolean(compliance[item.key]);
+        return D.Containers.Div({ attrs: { class: 'toggle-row', key: item.key } }, [
+          D.Containers.Div({ attrs: { class: 'toggle-copy' } }, [
+            D.Text.Span({ attrs: { class: 'toggle-title' } }, [item.label]),
+            D.Text.Small({ attrs: { class: 'toggle-hint' } }, [item.hint])
+          ]),
+          D.Forms.Button({
+            attrs: {
+              class: 'toggle-pill' + (enabled ? ' active' : ''),
+              'data-m-gkey': 'compliance-toggle',
+              'data-key': item.key
+            }
+          }, [enabled ? t('action.on', 'مفعل') : t('action.off', 'متوقف')])
+        ]);
+      })),
+      D.Containers.Div({ attrs: { class: 'consent-actions' } }, [
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'compliance-delete' }
+        }, [
+          compliance.deletionRequested
+            ? t('compliance.delete.requested', 'تم طلب حذف الحساب/البيانات')
+            : t('compliance.delete', 'طلب حذف الحساب/البيانات')
+        ]),
+        D.Text.Small({ attrs: { class: 'text-muted' } }, [
+          t('compliance.note', 'تتطلب اللوائح إتاحة الموافقة، الانسحاب، وحذف البيانات من واجهة واحدة.')
+        ])
+      ])
+    ]);
+  }
+
+  function renderActiveFilters(db) {
+    var filters = db.state.filters || {};
+    var chips = [];
+    if (filters.search) {
+      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [t('filter.search', 'بحث: '), filters.search]));
+    }
+    if (filters.category) {
+      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [
+        t('filter.category', 'تصنيف: '),
+        findCategoryLabelById(db, filters.category) || filters.category
+      ]));
+    }
+    if (filters.condition) {
+      var conditionKey = filters.condition === 'new' ? 'product.condition.new' : 'product.condition.used';
+      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, [t(conditionKey)]));
+    }
+    if (filters.hashtag) {
+      chips.push(D.Containers.Div({ attrs: { class: 'chip chip-active' } }, ['#' + filters.hashtag]));
+    }
+
+    if (!chips.length) return null;
+    return D.Containers.Div({ attrs: { class: 'section-card' } }, [
+      D.Containers.Div({ attrs: { class: 'chips-row' } }, chips.concat([
+        D.Forms.Button({
+          attrs: {
+            class: 'chip ghost',
+            'data-m-gkey': 'reset-filters'
+          }
+        }, [t('filter.reset', 'مسح التصفية')])
+      ]))
     ]);
   }
 
@@ -2198,6 +3254,7 @@
         D.Media.Img({ attrs: { src: avatar, class: 'feed-avatar', alt: userName } }, []),
         D.Containers.Div({ attrs: { class: 'feed-user' } }, [
           D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
+          renderTrustBadge(user),
           D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
             resolvePostPresentationLabel(post),
             ' · ',
@@ -2216,6 +3273,20 @@
         D.Text.Span({}, ['💬 ', String(post.comments_count || 0)]),
         D.Text.Span({}, ['❤️ ', String(post.likes_count || 0)]),
         D.Text.Span({}, ['🔁 ', String(post.shares_count || 0)])
+      ]),
+      D.Containers.Div({ attrs: { class: 'feed-actions' } }, [
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'post-like', 'data-post-id': post.post_id }
+        }, ['❤️ ', t('post.action.like', 'إعجاب')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'post-open', 'data-post-id': post.post_id }
+        }, ['💬 ', t('post.action.comment', 'تعليقات')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'post-share', 'data-post-id': post.post_id }
+        }, ['🔁 ', t('post.action.share', 'مشاركة')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'post-subscribe', 'data-post-id': post.post_id }
+        }, ['🔔 ', t('post.action.subscribe', 'متابعة')])
       ])
     ]);
   }
@@ -2329,6 +3400,17 @@
     return chips;
   }
 
+  function findCategoryLabelById(db, categoryId) {
+    if (!categoryId) return '';
+    var allCategories = []
+      .concat(db.data.classifiedCategories || [])
+      .concat(db.data.marketplaceCategories || [])
+      .concat(db.data.serviceCategories || [])
+      .concat(db.data.knowledgeCategories || []);
+    var found = findById(allCategories, 'category_id', categoryId);
+    return found ? getCategoryDisplayName(found) : '';
+  }
+
   function formatCurrencyValue(amount, currency) {
     if (amount === undefined || amount === null || amount === '') return '';
     var cur = currency || t('currency.egp');
@@ -2345,14 +3427,44 @@
     var classifiedId = item.id || item.classified_id;
     var priceLabel = item.price != null ? formatCurrencyValue(item.price, item.currency) : t('classifieds.price.ask', 'سعر عند التواصل');
     var expires = item.expires_at ? new Date(item.expires_at).toLocaleDateString() : '';
-    return D.Containers.Div({ attrs: { class: 'classified-card', key: item.id } }, [
+    var seller = findById(db.data.users || [], 'user_id', item.user_id || item.owner_id);
+    var activeUserId = db.state.activeUserId;
+    var isOwner = activeUserId && (item.user_id === activeUserId || item.owner_id === activeUserId || item.seller_id === activeUserId);
+    var badge = renderTrustBadge(seller);
+    var sellerName = resolveUserName(seller) || '';
+    var status = resolveClassifiedStatus(item);
+    var statusLabel = status === 'archived'
+      ? t('classifieds.status.archived', 'مؤرشف')
+      : status === 'closed'
+        ? t('classifieds.status.closed', 'مغلق')
+        : status === 'pending'
+          ? t('classifieds.status.pending', 'قيد المراجعة')
+          : status === 'draft'
+            ? t('classifieds.status.draft', 'مسودة')
+            : t('classifieds.status.live', 'نشط');
+    return D.Containers.Div({
+      attrs: {
+        class: 'classified-card',
+        key: item.id,
+        'data-m-gkey': 'attachment-action',
+        'data-kind': 'classified',
+        'data-target-id': classifiedId
+      }
+    }, [
       D.Media.Img({ attrs: { src: pickClassifiedImage(item), alt: item.title || '', class: 'classified-cover' } }, []),
       D.Containers.Div({ attrs: { class: 'classified-body' } }, [
         D.Text.H4({ attrs: { class: 'classified-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
+        D.Text.Span({ attrs: { class: 'status-chip status-' + status } }, [statusLabel]),
         D.Text.P({ attrs: { class: 'classified-meta' } }, [
           priceLabel,
           item.location_city ? ' · ' + item.location_city : ''
         ]),
+        sellerName || badge
+          ? D.Containers.Div({ attrs: { class: 'seller-inline' } }, [
+              sellerName ? D.Text.Span({ attrs: { class: 'seller-inline-name' } }, [sellerName]) : null,
+              badge
+            ].filter(Boolean))
+          : null,
         item.description
           ? D.Text.P({ attrs: { class: 'classified-description' } }, [item.description])
           : null,
@@ -2364,21 +3476,293 @@
         ].filter(Boolean)),
         renderAttachmentAction('classified', t('classifieds.cta.contact', 'تواصل الآن'), classifiedId, {
           'data-phone': item.contact_phone || ''
-        })
+        }),
+        D.Containers.Div({ attrs: { class: 'card-actions-row' } }, [
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-contact',
+              'data-kind': 'classified',
+              'data-target-id': classifiedId,
+              'data-phone': item.contact_phone || '',
+              'data-user-id': seller && seller.user_id ? seller.user_id : ''
+            }
+          }, [t('contact.message', 'مراسلة')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-report',
+              'data-target-type': 'classified',
+              'data-target-id': classifiedId
+            }
+          }, [t('safety.report', 'إبلاغ/حظر')]),
+          isOwner
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'classified-edit',
+                  'data-target-id': classifiedId
+                }
+              }, [t('classifieds.edit', 'تعديل الإعلان')])
+            : null,
+          isOwner
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost danger',
+                  'data-m-gkey': 'classified-delete',
+                  'data-target-id': classifiedId
+                }
+              }, [t('classifieds.delete', 'حذف')])
+            : null
+        ].filter(Boolean))
       ])
     ]);
   }
 
   function renderClassifiedsSection(db) {
-    var classifieds = db.data.classifieds || [];
-    if (!classifieds.length) return null;
+    var classifieds = getFilteredClassifieds(db);
+    var categories = getLeafCategories(db.data.classifiedCategories || [], { onlyLeaves: true, limit: 10 });
+    var hasResults = classifieds.length > 0;
     return D.Containers.Div({ attrs: { class: 'section-card' } }, [
       renderSectionHeader('classifieds.section', 'مستعمل حواء', 'classifieds.section.meta', 'أحدث الإعلانات المبوبة'),
-      D.Containers.Div({ attrs: { class: 'classified-grid' } },
-        classifieds.slice(0, 6).map(function(item) {
-          return renderClassifiedCard(db, item);
-        })
-      )
+      D.Inputs.Input({
+        attrs: {
+          type: 'text',
+          placeholder: t('classifieds.search.placeholder', 'ابحث في الإعلانات'),
+          'data-m-gkey': 'search-input',
+          class: 'search-input',
+          value: db.state.filters.search || ''
+        }
+      }, []),
+      D.Containers.Div({ attrs: { class: 'chips-row' } },
+        renderCategoryChips(db, categories, 'category', 'category-chip')
+      ),
+      hasResults
+        ? D.Containers.Div({ attrs: { class: 'classified-grid' } },
+            classifieds.slice(0, 6).map(function(item) {
+              return renderClassifiedCard(db, item);
+            })
+          )
+        : D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات مستعملة حالياً')])
+    ]);
+  }
+
+  function renderClassifiedDashboard(db) {
+    var user = getActiveUser(db);
+    if (!user) return null;
+    var dashboardState = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+    var tab = dashboardState.tab || 'live';
+    var leadFilter = dashboardState.leadFilter || 'open';
+    var myClassifieds = (db.data.classifieds || []).filter(function(item) { return isClassifiedOwner(db, item); });
+    if (!myClassifieds.length) {
+      return D.Containers.Div({ attrs: { class: 'section-card dashboard-card' } }, [
+        D.Containers.Div({ attrs: { class: 'section-header' } }, [
+          D.Text.H3({}, [t('classifieds.dashboard.title', 'لوحة متابعة الإعلانات')]),
+          D.Text.P({ attrs: { class: 'text-muted' } }, [t('classifieds.dashboard.empty', 'أضف أول إعلان لك لتبدأ المتابعة.')])
+        ]),
+        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [
+          t('composer.type.classified', 'إعلان مستعمل'),
+          ' + '
+        ])
+      ]);
+    }
+
+    var stats = buildClassifiedStats(myClassifieds);
+    var tabs = [
+      { key: 'live', label: t('classifieds.status.live', 'نشط') + ' (' + (stats.live || 0) + ')' },
+      { key: 'pending', label: t('classifieds.status.pending', 'قيد المراجعة') + ' (' + (stats.pending || 0) + ')' },
+      { key: 'closed', label: t('classifieds.status.closed', 'مغلق') + ' (' + (stats.closed || 0) + ')' },
+      { key: 'archived', label: t('classifieds.status.archived', 'مؤرشف') + ' (' + (stats.archived || 0) + ')' },
+      { key: 'draft', label: t('classifieds.status.draft', 'مسودة') + ' (' + (stats.draft || 0) + ')' },
+      { key: 'all', label: t('filter.all', 'الكل') + ' (' + myClassifieds.length + ')' }
+    ];
+
+    var filtered = tab === 'all'
+      ? myClassifieds
+      : myClassifieds.filter(function(item) { return resolveClassifiedStatus(item) === tab; });
+
+    var leads = resolveClassifiedLeads(db, myClassifieds);
+    var filteredLeads = leadFilter === 'all'
+      ? leads
+      : leads.filter(function(lead) { return (lead.status || 'open') === leadFilter; });
+
+    function renderDashboardRow(item) {
+      var status = resolveClassifiedStatus(item);
+      var statusLabel = status === 'archived'
+        ? t('classifieds.status.archived', 'مؤرشف')
+        : status === 'closed'
+          ? t('classifieds.status.closed', 'مغلق')
+          : status === 'pending'
+            ? t('classifieds.status.pending', 'قيد المراجعة')
+            : status === 'draft'
+              ? t('classifieds.status.draft', 'مسودة')
+              : t('classifieds.status.live', 'نشط');
+      return D.Containers.Div({ attrs: { class: 'dashboard-row', key: item.id || item.classified_id } }, [
+        D.Containers.Div({ attrs: { class: 'dashboard-row-main' } }, [
+          D.Text.H4({ attrs: { class: 'dashboard-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
+          D.Text.P({ attrs: { class: 'dashboard-meta' } }, [
+            statusLabel,
+            ' · ',
+            item.location_city || t('classifieds.location.unknown', 'دون موقع'),
+            item.price != null ? ' · ' + formatCurrencyValue(item.price, item.currency) : ''
+          ])
+        ]),
+        D.Containers.Div({ attrs: { class: 'dashboard-actions' } }, [
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-contact',
+              'data-kind': 'classified',
+              'data-target-id': item.id || item.classified_id,
+              'data-phone': item.contact_phone || user.phone || ''
+            }
+          }, [t('classifieds.dashboard.reply', 'رد سريع')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-inbox'
+            }
+          }, [t('notifications.inbox.title', 'صندوق الوارد')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'classified-edit',
+              'data-target-id': item.id || item.classified_id
+            }
+          }, [t('classifieds.edit', 'تعديل الإعلان')]),
+          status !== 'archived'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'archived'
+                }
+              }, [t('classifieds.dashboard.archive', 'أرشفة')])
+            : null,
+          status !== 'closed'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost danger',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'closed'
+                }
+              }, [t('classifieds.dashboard.close', 'إغلاق')])
+            : null,
+          status !== 'live'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'live'
+                }
+              }, [t('classifieds.dashboard.reopen', 'إعادة التفعيل')])
+            : null
+        ].filter(Boolean))
+      ]);
+    }
+
+    return D.Containers.Div({ attrs: { class: 'section-card dashboard-card' } }, [
+      D.Containers.Div({ attrs: { class: 'section-header' } }, [
+        D.Containers.Div({ attrs: { class: 'section-titles' } }, [
+          D.Text.H3({}, [t('classifieds.dashboard.title', 'لوحة متابعة الإعلانات')]),
+          D.Text.P({ attrs: { class: 'text-muted' } }, [t('classifieds.dashboard.subtitle', 'تابع الحالات والطلبات ورد فوراً')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'header-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'composer-open' } }, [t('classifieds.add', '＋ إعلان جديد')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'open-inbox' } }, [t('notifications.inbox.title', 'الوارد')])
+        ])
+      ]),
+
+      D.Containers.Div({ attrs: { class: 'stats-grid' } }, tabs.slice(0, 5).map(function(stat) {
+        return D.Containers.Div({ attrs: { class: 'stat-card' } }, [
+          D.Text.Span({ attrs: { class: 'stat-label' } }, [stat.label.split('(')[0].trim()]),
+          D.Text.Span({ attrs: { class: 'stat-value' } }, [stat.label.match(/\((\d+)\)/) ? stat.label.match(/\((\d+)\)/)[1] : '0'])
+        ]);
+      })),
+
+      D.Containers.Div({ attrs: { class: 'tab-switcher' } }, [
+        D.Containers.Div({ attrs: { class: 'tab-row' } }, tabs.map(function(entry) {
+          var active = tab === entry.key;
+          return D.Forms.Button({
+            attrs: {
+              class: 'tab-btn' + (active ? ' active' : ''),
+              'data-m-gkey': 'classified-dashboard-tab',
+              'data-value': entry.key
+            }
+          }, [entry.label]);
+        }))
+      ]),
+
+      filtered.length
+        ? D.Containers.Div({ attrs: { class: 'dashboard-list' } }, filtered.map(renderDashboardRow))
+        : D.Text.P({}, [t('classifieds.dashboard.emptyTab', 'لا توجد إعلانات في هذه الحالة')]),
+
+      D.Containers.Div({ attrs: { class: 'lead-panel' } }, [
+        D.Containers.Div({ attrs: { class: 'lead-header' } }, [
+          D.Text.H4({}, [t('classifieds.leads.title', 'طلبات العملاء')]),
+          D.Containers.Div({ attrs: { class: 'chips-row' } }, [
+            ['open', 'responded', 'closed', 'all'].map(function(filter) {
+              var labels = {
+                open: t('leads.open', 'بانتظار الرد'),
+                responded: t('leads.responded', 'تم الرد'),
+                closed: t('leads.closed', 'مغلق'),
+                all: t('filter.all', 'الكل')
+              };
+              var active = leadFilter === filter;
+              return D.Forms.Button({
+                attrs: {
+                  class: 'chip' + (active ? ' chip-active' : ''),
+                  'data-m-gkey': 'classified-lead-filter',
+                  'data-value': filter
+                }
+              }, [labels[filter]]);
+            })
+          ])
+        ]),
+        filteredLeads.length
+          ? D.Containers.Div({ attrs: { class: 'lead-list' } }, filteredLeads.map(function(lead) {
+              var statusLabel = lead.status === 'responded'
+                ? t('leads.responded', 'تم الرد')
+                : lead.status === 'closed'
+                  ? t('leads.closed', 'مغلق')
+                  : t('leads.open', 'بانتظار الرد');
+              return D.Containers.Div({ attrs: { class: 'lead-item', key: lead.id } }, [
+                D.Containers.Div({ attrs: { class: 'lead-body' } }, [
+                  D.Text.Span({ attrs: { class: 'lead-title' } }, [lead.title || t('classifieds.lead', 'طلب تواصل')]),
+                  D.Text.P({ attrs: { class: 'lead-snippet' } }, [lead.snippet || t('classifieds.lead.snippet', 'عميل جديد بانتظارك')]),
+                  D.Text.Small({ attrs: { class: 'lead-meta' } }, [statusLabel])
+                ]),
+                D.Containers.Div({ attrs: { class: 'lead-actions' } }, [
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'open-inbox'
+                    }
+                  }, [t('classifieds.dashboard.reply', 'رد سريع')]),
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'classified-lead-status',
+                      'data-lead-id': lead.id,
+                      'data-status': 'responded'
+                    }
+                  }, [t('leads.responded', 'تم الرد')]),
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost danger',
+                      'data-m-gkey': 'classified-lead-status',
+                      'data-lead-id': lead.id,
+                      'data-status': 'closed'
+                    }
+                  }, [t('leads.closed', 'إغلاق')])
+                ])
+              ]);
+            }))
+          : D.Text.P({ attrs: { class: 'lead-empty' } }, [t('classifieds.leads.empty', 'لا توجد طلبات حالياً')])
+      ])
     ]);
   }
 
@@ -2427,6 +3811,25 @@
           : null
       ].filter(Boolean));
     }
+    var selectedRecord = resolveAttachmentPreview(db, composer.attachmentKind, composer.targetId);
+    var previewNode = null;
+    if (selectedRecord) {
+      var image = resolvePrimaryImage(selectedRecord);
+      var title = getLocalizedField(selectedRecord, 'title', selectedRecord.title || selectedRecord.name || '');
+      var meta = composer.attachmentKind === 'product'
+        ? formatCurrencyValue(selectedRecord.price, selectedRecord.currency)
+        : resolveCityName(selectedRecord) || '';
+      previewNode = D.Containers.Div({ attrs: { class: 'composer-target-preview' } }, [
+        D.Media.Img({ attrs: { class: 'preview-thumb', src: image, alt: title } }, []),
+        D.Containers.Div({ attrs: { class: 'preview-copy' } }, [
+          D.Text.Span({ attrs: { class: 'preview-title' } }, [title]),
+          meta ? D.Text.Small({ attrs: { class: 'preview-meta' } }, [meta]) : null
+        ].filter(Boolean)),
+        D.Forms.Button({
+          attrs: { class: 'composer-target-clear', 'data-m-gkey': 'composer-target-clear' }
+        }, ['✕'])
+      ]);
+    }
     return D.Containers.Div({ attrs: { class: 'composer-form-grid' } }, [
       D.Inputs.Select({
         attrs: {
@@ -2450,7 +3853,8 @@
               'data-m-gkey': addGkey
             }
           }, [addLabel])
-        : null
+        : null,
+      previewNode
     ].filter(Boolean));
   }
 
@@ -2480,6 +3884,9 @@
     var city = resolveCityName(product) || t('product.location.unknown');
     var priceValue = product.price != null ? product.price : (product.price_min != null ? product.price_min : product.price_max);
     var priceText = priceValue != null ? String(priceValue) + ' ' + t('currency.egp') : t('product.price.request');
+    var seller = findById(db.data.users || [], 'user_id', product.seller_id || product.owner_id || product.user_id);
+    var sellerName = resolveUserName(seller);
+    var badge = renderTrustBadge(seller);
     var cardClass = 'product-card';
     if (options && options.compact) {
       cardClass += ' carousel-card';
@@ -2488,12 +3895,21 @@
       attrs: {
         class: cardClass,
         key: product.product_id,
-        'data-m-key': 'product-' + product.product_id
+        'data-m-key': 'product-' + product.product_id,
+        'data-m-gkey': 'attachment-action',
+        'data-kind': 'product',
+        'data-target-id': product.product_id
       }
     }, [
       D.Containers.Div({ attrs: { class: 'product-media' } }, [
         D.Media.Img({
-          attrs: { src: imageSrc, alt: title }
+          attrs: {
+            src: imageSrc,
+            alt: title,
+            'data-m-gkey': 'attachment-action',
+            'data-kind': 'product',
+            'data-target-id': product.product_id
+          }
         }, [])
       ]),
       D.Containers.Div({ attrs: { class: 'product-body' } }, [
@@ -2507,6 +3923,12 @@
           ]),
           D.Text.Span({}, [city])
         ]),
+        sellerName || badge
+          ? D.Containers.Div({ attrs: { class: 'seller-inline' } }, [
+              sellerName ? D.Text.Span({ attrs: { class: 'seller-inline-name' } }, [sellerName]) : null,
+              badge
+            ].filter(Boolean))
+          : null,
         renderAttachmentAction('product', t('product.view', 'عرض المنتج'), product.product_id)
       ])
     ]);
@@ -2518,45 +3940,127 @@
   function renderTimeline(db) {
     var products = db.data.products || [];
     var services = db.data.services || [];
-    var articles = getWikiArticles(db).slice(0, 3);
-    var categoryShowcase = renderCategoryShowcase(db);
+    var articles = getFilteredArticles(db).slice(0, 3);
+    var categoryShowcase = typeof renderCategoryShowcase === 'function'
+      ? renderCategoryShowcase(db)
+      : null;
+    var tab = db.state.homeTab || 'timeline';
+
+    function renderHomeTabs() {
+      var tabOptions = [
+        { value: 'timeline', label: t('nav.timeline') },
+        { value: 'classifieds', label: t('nav.classifieds', 'إعلان مستعمل') },
+        { value: 'commerce', label: t('nav.commerce', 'منتج / خدمة') },
+        { value: 'knowledge', label: t('nav.knowledge') }
+      ];
+      return D.Containers.Div({ attrs: { class: 'section-card tab-switcher' } }, [
+        D.Containers.Div({ attrs: { class: 'tab-row' } }, tabOptions.map(function(entry) {
+          var active = tab === entry.value;
+          return D.Forms.Button({
+            attrs: {
+              class: 'tab-btn' + (active ? ' active' : ''),
+              'data-m-gkey': 'home-tab',
+              'data-value': entry.value
+            }
+          }, [entry.label]);
+        }))
+      ]);
+    }
 
     var sections = [
-      renderComposer(db),
-      renderQuickActions(),
-      renderClassifiedsSection(db),
-      renderSocialFeed(db),
       renderHero(db),
-      renderTrendingHashtags(db),
-      renderMetricGrid(db),
-      categoryShowcase,
-      D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('home.featured', null, 'home.featured.meta', null),
-        products.length
-          ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
-              products.slice(0, 5).map(function(product) {
-                return renderProductCard(db, product, { compact: true });
-              })
-            )
-          : D.Text.P({}, [t('marketplace.empty')])
-      ]),
-      D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('home.services', null, null, null),
-        services.length
-          ? services.slice(0, 4).map(function(service) {
-              return renderServiceCard(db, service);
-            })
-          : D.Text.P({}, [t('services.empty')])
-      ]),
-      D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('knowledge.title', null, null, null),
-        articles.length
-          ? articles.map(function(article) { return renderArticleItem(db, article); })
-          : D.Text.P({}, [t('knowledge.empty')])
-      ])
-    ].filter(Boolean);
+      renderQuickActions(),
+      renderOnboardingCard(db),
+      renderLaunchChecklist(db),
+      renderNotificationSettings(db),
+      renderComplianceCard(db),
+      renderHomeTabs(),
+      renderActiveFilters(db)
+    ];
 
-    return D.Containers.Div({ attrs: { class: 'app-section' } }, sections);
+    if (tab === 'timeline') {
+      sections = sections.concat([
+        renderComposer(db),
+        renderSocialFeed(db),
+        renderClassifiedsSection(db),
+        renderTrendingHashtags(db),
+        renderMetricGrid(db),
+        categoryShowcase,
+        D.Containers.Div({ attrs: { class: 'section-card' } }, [
+          renderSectionHeader('home.featured', null, 'home.featured.meta', null),
+          products.length
+            ? D.Containers.Div({ attrs: { class: 'carousel-track' } },
+                products.slice(0, 5).map(function(product) {
+                  return renderProductCard(db, product, { compact: true });
+                })
+              )
+            : D.Text.P({}, [t('marketplace.empty')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'section-card' } }, [
+          renderSectionHeader('home.services', null, null, null),
+          services.length
+            ? services.slice(0, 4).map(function(service) {
+                return renderServiceCard(db, service);
+              })
+            : D.Text.P({}, [t('services.empty')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'section-card' } }, [
+          renderSectionHeader('knowledge.title', null, null, null),
+          articles.length
+            ? articles.map(function(article) { return renderArticleItem(db, article); })
+            : D.Text.P({}, [t('knowledge.empty')])
+        ])
+      ]);
+    } else if (tab === 'classifieds') {
+      sections = sections.concat([
+        renderComposer(db),
+        renderClassifiedsSection(db),
+        renderTrendingHashtags(db),
+        categoryShowcase
+      ]);
+    } else if (tab === 'commerce') {
+      sections = sections.concat([
+        renderComposer(db),
+        renderMarketplace(db),
+        renderServices(db),
+        categoryShowcase
+      ]);
+    } else if (tab === 'knowledge') {
+      sections = sections.concat([
+        renderComposer(db),
+        D.Containers.Div({ attrs: { class: 'section-card' } }, [
+          renderSectionHeader('knowledge.title', null, null, null),
+          D.Inputs.Input({
+            attrs: {
+              type: 'text',
+              placeholder: t('placeholder.search.articles', 'ابحث في المقالات'),
+              'data-m-gkey': 'search-input',
+              class: 'search-input',
+              value: db.state.filters.search || ''
+            }
+          }, []),
+          articles.length
+            ? articles.map(function(article) { return renderArticleItem(db, article); })
+            : D.Text.P({}, [t('knowledge.empty')])
+        ])
+      ]);
+    }
+
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, sections.filter(Boolean));
+  }
+
+  function renderClassifiedsPage(db) {
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      renderClassifiedDashboard(db),
+      renderClassifiedsSection(db)
+    ].filter(Boolean));
+  }
+
+  function renderCommerce(db) {
+    return D.Containers.Div({ attrs: { class: 'app-section' } }, [
+      renderMarketplace(db),
+      renderServices(db)
+    ]);
   }
 
   /**
@@ -2628,11 +4132,17 @@
       ? priceRange + ' ' + t('currency.egp')
       : (service.price ? String(service.price) + ' ' + t('currency.egp') : t('services.price.request'));
     var serviceCity = resolveCityName(service) || t('services.location.unknown');
+    var provider = findById(db.data.users || [], 'user_id', service.provider_id || service.user_id);
+    var providerName = resolveUserName(provider);
+    var badge = renderTrustBadge(provider);
     return D.Containers.Div({
       attrs: {
         class: 'service-card',
         key: service.service_id,
-        'data-m-key': 'service-' + service.service_id
+        'data-m-key': 'service-' + service.service_id,
+        'data-m-gkey': 'attachment-action',
+        'data-kind': 'service',
+        'data-target-id': service.service_id
       }
     }, [
       D.Text.H4({ attrs: { class: 'service-title' } }, [getLocalizedField(service, 'title', t('services.default'))]),
@@ -2641,6 +4151,12 @@
         D.Text.Span({ attrs: { class: 'service-price' } }, [priceLabel]),
         D.Text.Span({ attrs: { class: 'service-location' } }, [serviceCity])
       ]),
+      providerName || badge
+        ? D.Containers.Div({ attrs: { class: 'seller-inline' } }, [
+            providerName ? D.Text.Span({ attrs: { class: 'seller-inline-name' } }, [providerName]) : null,
+            badge
+          ].filter(Boolean))
+        : null,
       renderAttachmentAction('service', t('services.cta.book', 'احجز الخدمة'), service.service_id)
     ]);
   }
@@ -2686,20 +4202,27 @@
   function renderArticleItem(db, article) {
     var excerpt = article.excerpt || article.summary || article.description || '';
     var views = article.views_count != null ? article.views_count : (article.view_count || 0);
+    var cover = resolvePrimaryImage(article);
     return D.Containers.Div({
       attrs: {
         class: 'article-card',
         key: article.article_id,
-        'data-m-key': 'article-' + article.article_id
+        'data-m-key': 'article-' + article.article_id,
+        'data-m-gkey': 'attachment-action',
+        'data-kind': 'wiki',
+        'data-target-id': article.article_id
       }
     }, [
+      cover
+        ? D.Media.Img({ attrs: { class: 'article-cover', src: cover, alt: getLocalizedField(article, 'title', '') } }, [])
+        : null,
       D.Text.H4({ attrs: { class: 'article-title' } }, [getLocalizedField(article, 'title', t('knowledge.card.title'))]),
       D.Text.P({ attrs: { class: 'article-summary' } }, [getLocalizedField(article, 'excerpt', excerpt) || t('wiki.noSummary')]),
       D.Containers.Div({ attrs: { class: 'article-meta' } }, [
         D.Text.Span({}, [String(views) + ' ' + t('wiki.views')]),
         renderAttachmentAction('wiki', t('btn.read', 'اقرأ الآن'), article.article_id)
       ])
-    ]);
+    ].filter(Boolean));
   }
 
   /**
@@ -2727,14 +4250,51 @@
       { label: t('profile.following'), value: String(user.following_count || 0) },
       { label: t('profile.posts'), value: String(user.posts_count || 0) }
     ];
-    var posts = (db.data.posts || []).filter(function(post) {
+    var profileTab = db.state.profileTab || 'posts';
+    var posts = getSortedPosts(db).filter(function(post) {
       return post && post.user_id === user.user_id;
     });
+    var classifieds = getFilteredClassifieds(db).filter(function(item) { return item.user_id === user.user_id; });
+    var products = getFilteredProducts(db).filter(function(item) { return item.user_id === user.user_id; });
+    var services = getFilteredServices(db).filter(function(item) { return item.user_id === user.user_id; });
+    var articles = getFilteredArticles(db).filter(function(item) { return item.author_id === user.user_id; });
+
+    var tabOptions = [
+      { key: 'posts', label: t('profile.timeline', 'بوستات') },
+      { key: 'classifieds', label: t('nav.classifieds', 'إعلانات') },
+      { key: 'commerce', label: t('nav.commerce', 'منتج/خدمة') },
+      { key: 'knowledge', label: t('nav.knowledge', 'معرفة') }
+    ];
+
+    function renderProfileTabContent() {
+      if (profileTab === 'classifieds') {
+        return classifieds.length
+          ? classifieds.map(function(item) { return renderClassifiedCard(db, item); })
+          : D.Text.P({}, [t('classifieds.empty', 'لا توجد إعلانات حالياً')]);
+      }
+      if (profileTab === 'commerce') {
+        var commerceList = products.concat(services);
+        return commerceList.length
+          ? commerceList.map(function(entry) {
+              return entry.product_id ? renderProductCard(db, entry) : renderServiceCard(db, entry);
+            })
+          : D.Text.P({}, [t('marketplace.empty')]);
+      }
+      if (profileTab === 'knowledge') {
+        return articles.length
+          ? articles.map(function(article) { return renderArticleItem(db, article); })
+          : D.Text.P({}, [t('knowledge.empty')]);
+      }
+      return posts.length
+        ? posts.map(function(post) { return renderPostCard(db, post); })
+        : D.Text.P({}, [t('profile.timeline.empty')]);
+    }
 
     return D.Containers.Div({ attrs: { class: 'app-section' } }, [
       D.Containers.Div({ attrs: { class: 'section-card profile-card' } }, [
         D.Media.Img({ attrs: { class: 'profile-avatar', src: avatar, alt: resolveUserName(user) } }, []),
         D.Text.H3({ attrs: { class: 'profile-name' } }, [resolveUserName(user)]),
+        renderTrustBadge(user),
         D.Text.P({ attrs: { class: 'profile-handle' } }, ['@' + (user.username || '')]),
         D.Text.P({ attrs: { class: 'profile-bio' } }, [
           getLocalizedField(user, 'bio', t('profile.bio.placeholder'))
@@ -2747,15 +4307,29 @@
         })),
         D.Containers.Div({ attrs: { class: 'profile-actions' } }, [
           D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [t('profile.cta.compose')]),
-          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-message' } }, [t('profile.cta.message')])
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-open' } }, [t('profile.edit', 'تعديل الملف')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'profile-message' } }, [t('profile.cta.message')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'profile-follow' } }, [t('profile.cta.follow', 'متابعة')]),
+          user.phone
+            ? D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': user.phone } }, [t('contact.call', 'اتصال مباشر')])
+            : null
         ]),
         renderProfileSwitcher(db)
       ]),
       D.Containers.Div({ attrs: { class: 'section-card' } }, [
-        renderSectionHeader('profile.timeline', null, null, null),
-        posts.length
-          ? posts.map(function(post) { return renderPostCard(db, post); })
-          : D.Text.P({}, [t('profile.timeline.empty')])
+        D.Containers.Div({ attrs: { class: 'tab-switcher' } }, [
+          D.Containers.Div({ attrs: { class: 'tab-row' } }, tabOptions.map(function(tab) {
+            var active = tab.key === profileTab;
+            return D.Forms.Button({
+              attrs: {
+                class: 'tab-btn' + (active ? ' active' : ''),
+                'data-m-gkey': 'profile-tab',
+                'data-value': tab.key
+              }
+            }, [tab.label]);
+          }))
+        ]),
+        renderProfileTabContent()
       ])
     ]);
   }
@@ -2807,6 +4381,7 @@
           D.Media.Img({ attrs: { class: 'feed-avatar', src: avatar, alt: userName } }, []),
         D.Containers.Div({ attrs: { class: 'feed-user' } }, [
           D.Text.Span({ attrs: { class: 'feed-user-name' } }, [userName]),
+          renderTrustBadge(user),
           D.Text.Span({ attrs: { class: 'feed-user-meta' } }, [
             resolvePostPresentationLabel(post),
             ' · ',
@@ -2834,7 +4409,24 @@
           }, ['🔁 ', t('post.action.share')]),
           D.Forms.Button({
             attrs: { class: 'chip', 'data-m-gkey': 'post-subscribe', 'data-post-id': post.post_id }
-          }, ['🔔 ', t('post.action.subscribe')])
+          }, ['🔔 ', t('post.action.subscribe')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-contact',
+              'data-kind': post.attachment_kind || 'post',
+              'data-target-id': post.post_id,
+              'data-user-id': user && user.user_id ? user.user_id : ''
+            }
+          }, [t('contact.message', 'مراسلة')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-report',
+              'data-target-type': 'post',
+              'data-target-id': post.post_id
+            }
+          }, [t('safety.report', 'إبلاغ')])
         ]),
         D.Text.H4({}, [t('post.overlay.comments')]),
         D.Containers.Div({ attrs: { class: 'overlay-comments' } }, commentList),
@@ -2863,6 +4455,303 @@
     ]);
   }
 
+  function renderDetailOverlay(db) {
+    var overlay = db.state.detailOverlay;
+    if (!overlay || !overlay.open) return null;
+    var kind = overlay.kind;
+    var target = resolveAttachmentPreview(db, kind, overlay.targetId);
+    if (!target) return null;
+    var seller = findById(db.data.users || [], 'user_id', target.user_id || target.owner_id || target.seller_id);
+    var gallery = toArray(target.images || target.media || target.gallery || target.media_urls);
+    if (!gallery.length) {
+      var primary = resolvePrimaryImage(target);
+      if (primary) gallery = [primary];
+    }
+    var activeIndex = Math.min(Math.max(overlay.activeIndex || 0, 0), Math.max(gallery.length - 1, 0));
+    var activeImage = gallery[activeIndex] || resolvePrimaryImage(target);
+    var title = getLocalizedField(target, 'title', target.title || target.name || '');
+    var price = target.price != null ? formatCurrencyValue(target.price, target.currency || t('currency.egp')) : (target.price_min != null || target.price_max != null) ? formatPriceRange(target.price_min, target.price_max) : '';
+    var description = getLocalizedField(target, 'description', target.body || target.summary || '');
+    var location = resolveCityName(target);
+    var contactPhone = target.contact_phone || target.phone || target.contact || '';
+    var sellerName = resolveUserName(seller) || t('seller.anon', 'بائع مجهول');
+    var sellerAvatar = (seller && seller.avatar_url) || 'https://i.pravatar.cc/120?img=15';
+    var sellerBadge = renderTrustBadge(seller);
+
+    var galleryThumbs = gallery.slice(0, 6).map(function(url, idx) {
+      var isActive = idx === activeIndex;
+      return D.Forms.Button({
+        attrs: {
+          class: 'detail-thumb' + (isActive ? ' active' : ''),
+          'data-m-gkey': 'detail-gallery-thumb',
+          'data-index': idx
+        }
+      }, [
+        D.Media.Img({ attrs: { src: url, alt: title } }, [])
+      ]);
+    });
+
+    var headerBadge = kind === 'product'
+      ? t('nav.commerce', 'منتج / خدمة')
+      : kind === 'service'
+        ? t('composer.type.service')
+        : kind === 'wiki'
+          ? t('composer.type.article')
+          : t('composer.type.classified', 'إعلان مستعمل');
+
+    var actionRow = [];
+    if (kind === 'classified' && contactPhone) {
+      actionRow.push(renderAttachmentAction('classified', t('classifieds.call', 'اتصل الآن'), '', { 'data-phone': contactPhone }));
+    }
+    actionRow.push(renderAttachmentAction(kind, t('attachment.share', 'مشاركة'), overlay.targetId));
+    actionRow.push(D.Forms.Button({
+      attrs: {
+        class: 'attachment-cta',
+        'data-m-gkey': 'open-contact',
+        'data-kind': kind,
+        'data-target-id': overlay.targetId,
+        'data-phone': contactPhone,
+        'data-user-id': seller && seller.user_id ? seller.user_id : ''
+      }
+    }, [t('contact.message', 'مراسلة البائع')]));
+    actionRow.push(D.Forms.Button({
+      attrs: {
+        class: 'chip ghost',
+        'data-m-gkey': 'open-report',
+        'data-target-type': kind,
+        'data-target-id': overlay.targetId
+      }
+    }, [t('safety.report', 'إبلاغ/حظر')]));
+
+    return D.Containers.Div({ attrs: { class: 'detail-overlay', 'data-m-gkey': 'detail-close' } }, [
+      D.Containers.Div({ attrs: { class: 'detail-panel', 'data-m-gkey': 'detail-overlay-inner' } }, [
+        D.Containers.Div({ attrs: { class: 'detail-header' } }, [
+          D.Text.Span({ attrs: { class: 'chip' } }, [headerBadge]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'detail-close' } }, ['✕'])
+        ]),
+        D.Containers.Div({ attrs: { class: 'detail-media' } }, [
+          activeImage ? D.Media.Img({ attrs: { src: activeImage, alt: title, class: 'detail-hero' } }, []) : null,
+          galleryThumbs.length ? D.Containers.Div({ attrs: { class: 'detail-gallery' } }, galleryThumbs) : null
+        ].filter(Boolean)),
+        D.Containers.Div({ attrs: { class: 'detail-body' } }, [
+          D.Text.H3({ attrs: { class: 'detail-title' } }, [title || headerBadge]),
+          price ? D.Text.Span({ attrs: { class: 'detail-price' } }, [price]) : null,
+          location ? D.Text.Span({ attrs: { class: 'detail-location' } }, [location]) : null,
+          description ? D.Text.P({ attrs: { class: 'detail-description' } }, [description]) : null,
+          D.Containers.Div({ attrs: { class: 'detail-seller' } }, [
+            D.Media.Img({ attrs: { class: 'seller-avatar', src: sellerAvatar, alt: sellerName } }, []),
+            D.Containers.Div({ attrs: { class: 'seller-meta' } }, [
+              D.Text.Span({ attrs: { class: 'seller-name' } }, [sellerName]),
+              sellerBadge
+            ].filter(Boolean)),
+            D.Containers.Div({ attrs: { class: 'seller-actions' } }, [
+              D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'open-contact',
+                  'data-kind': kind,
+                  'data-target-id': overlay.targetId,
+                  'data-phone': contactPhone,
+                  'data-user-id': seller && seller.user_id ? seller.user_id : ''
+                }
+              }, [t('contact.message', 'مراسلة')]),
+              contactPhone
+                ? D.Forms.Button({ attrs: { class: 'chip', 'data-m-gkey': 'attachment-action', 'data-kind': 'classified', 'data-phone': contactPhone } }, [t('contact.call', 'اتصال مباشر')])
+                : null
+            ].filter(Boolean))
+          ].filter(Boolean)),
+          actionRow.length ? D.Containers.Div({ attrs: { class: 'detail-actions' } }, actionRow) : null,
+          D.Containers.Div({ attrs: { class: 'safety-block' } }, [
+            D.Text.Span({ attrs: { class: 'chip ghost' } }, ['🛡️ ', t('safety.title', 'ضمان الأمان')]),
+            D.Text.P({ attrs: { class: 'safety-copy' } }, [t('safety.copy', 'لا تشارك بياناتك الحساسة وأبلغ عن أي محتوى مخالف أو مشبوه.')])
+          ])
+        ].filter(Boolean))
+      ])
+    ]);
+  }
+
+  function renderReaderOverlay(db) {
+    var overlay = db.state.readerOverlay;
+    if (!overlay || !overlay.open) return null;
+    var article = findById(db.data.articles || [], 'article_id', overlay.articleId);
+    if (!article) return null;
+
+    var cover = resolvePrimaryImage(article);
+    var title = getLocalizedField(article, 'title', t('knowledge.card.title'));
+    var body = getLocalizedField(article, 'content', article.body || article.summary || article.excerpt || '');
+    var words = body.split(/\s+/).filter(Boolean).length;
+    var readMinutes = Math.max(1, Math.ceil(words / 170));
+    var fontSize = overlay.fontSize || 'md';
+    var related = (db.data.articles || []).filter(function(item) { return item.article_id !== article.article_id; }).slice(0, 3);
+
+    var fontOptions = [
+      { value: 'sm', label: 'A-' },
+      { value: 'md', label: 'A' },
+      { value: 'lg', label: 'A+' }
+    ];
+
+    return D.Containers.Div({ attrs: { class: 'reader-overlay', 'data-m-gkey': 'reader-close' } }, [
+      D.Containers.Div({ attrs: { class: 'reader-panel', 'data-m-gkey': 'reader-inner' } }, [
+        D.Containers.Div({ attrs: { class: 'reader-head' } }, [
+          D.Text.H4({ attrs: { class: 'reader-title' } }, [title]),
+          D.Containers.Div({ attrs: { class: 'reader-tools' } }, [
+            D.Text.Small({ attrs: { class: 'reader-meta' } }, [readMinutes + ' ' + t('knowledge.read.time', 'دقيقة قراءة')]),
+            D.Containers.Div({ attrs: { class: 'reader-fonts' } }, fontOptions.map(function(opt) {
+              var active = opt.value === fontSize;
+              return D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost' + (active ? ' active' : ''),
+                  'data-m-gkey': 'reader-font',
+                  'data-size': opt.value
+                }
+              }, [opt.label]);
+            })),
+            D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'reader-close' } }, ['✕'])
+          ])
+        ]),
+        cover ? D.Media.Img({ attrs: { class: 'reader-cover', src: cover, alt: title } }, []) : null,
+        D.Containers.Div({ attrs: { class: 'reader-body reader-size-' + fontSize } },
+          body
+            ? body.split(/\n+/).filter(Boolean).map(function(paragraph, idx) {
+                return D.Text.P({ attrs: { key: 'p-' + idx, class: 'reader-paragraph' } }, [paragraph.trim()]);
+              })
+            : [D.Text.P({}, [t('knowledge.empty', 'لا يوجد محتوى بعد.')])]
+        ),
+        related.length
+          ? D.Containers.Div({ attrs: { class: 'reader-related' } }, [
+              D.Text.H5({}, [t('knowledge.related', 'مقالات ذات صلة')]),
+              D.Containers.Div({ attrs: { class: 'reader-related-list' } },
+                related.map(function(item) {
+                  return D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'reader-open-related',
+                      'data-article-id': item.article_id
+                    }
+                  }, [getLocalizedField(item, 'title', t('knowledge.card.title'))]);
+                })
+              )
+            ])
+          : null
+      ])
+    ]);
+  }
+
+  function renderContactOverlay(db) {
+    var overlay = db.state.contactOverlay;
+    if (!overlay || !overlay.open) return null;
+    var seller = findById(db.data.users || [], 'user_id', overlay.userId);
+    var sellerName = resolveUserName(seller) || t('seller.anon', 'مستخدم');
+    var defaultText = overlay.preset || t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.');
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'contact-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'contact-modal' } }, [
+        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+          D.Text.H4({}, [t('contact.title', 'مراسلة') + ' ' + sellerName]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'contact-close' } }, ['✕'])
+        ]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('contact.hint', 'سنرسل رسالتك داخل التطبيق ويمكن متابعة الرد من الإشعارات.')]),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            value: overlay.message || defaultText,
+            'data-m-gkey': 'contact-message'
+          }
+        }, []),
+        overlay.phone
+          ? D.Text.Small({ attrs: { class: 'contact-meta' } }, [t('contact.phone', 'هاتف للتواصل: '), overlay.phone])
+          : null,
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'contact-send' } }, [t('contact.send', 'إرسال')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'contact-close' } }, [t('action.cancel', 'إلغاء')])
+        ])
+      ])
+    ]);
+  }
+
+  function renderReportOverlay(db) {
+    var overlay = db.state.reportOverlay;
+    if (!overlay || !overlay.open) return null;
+    var reasons = [
+      { value: 'spam', label: t('report.spam', 'محتوى مزعج / سبام') },
+      { value: 'fraud', label: t('report.fraud', 'احتيال أو طلب أموال') },
+      { value: 'illegal', label: t('report.illegal', 'محتوى مخالف للقوانين') },
+      { value: 'other', label: t('report.other', 'أخرى') }
+    ];
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'report-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-panel', 'data-m-gkey': 'report-modal' } }, [
+        D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+          D.Text.H4({}, [t('report.title', 'إبلاغ/حظر')]),
+          D.Forms.Button({ attrs: { class: 'auth-close-btn', 'data-m-gkey': 'report-close' } }, ['✕'])
+        ]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('report.hint', 'سنراجع البلاغ سريعاً لحماية المجتمع.')]),
+        D.Inputs.Select({ attrs: { class: 'composer-select', 'data-m-gkey': 'report-reason', value: overlay.reason || '' } },
+          [D.Inputs.Option({ attrs: { value: '' } }, [t('report.choose', 'اختر سبب البلاغ')])].concat(
+            reasons.map(function(entry) {
+              return D.Inputs.Option({ attrs: { value: entry.value } }, [entry.label]);
+            })
+          )
+        ),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            placeholder: t('report.notes', 'أضف تفاصيل (اختياري)'),
+            value: overlay.notes || '',
+            'data-m-gkey': 'report-notes'
+          }
+        }, []),
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'report-submit' } }, [t('report.submit', 'إرسال البلاغ')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'report-close' } }, [t('action.cancel', 'إلغاء')])
+        ])
+      ])
+    ]);
+  }
+
+  function renderProfileEditor(db) {
+    var editor = db.state.profileEditor;
+    var user = getActiveUser(db);
+    if (!editor || !editor.open || !user) return null;
+    return D.Containers.Div({ attrs: { class: 'auth-overlay', 'data-m-gkey': 'profile-edit-close' } }, [
+      D.Containers.Div({ attrs: { class: 'auth-modal', 'data-m-gkey': 'profile-edit-modal' } }, [
+        D.Text.H3({}, [t('profile.edit', 'تعديل الملف الشخصي')]),
+        D.Text.P({ attrs: { class: 'composer-hint' } }, [t('profile.edit.hint', 'حسّن الثقة عبر صورة وسيرة واضحة')]),
+        D.Inputs.Input({
+          attrs: {
+            type: 'text',
+            class: 'composer-input',
+            placeholder: t('profile.edit.name', 'الاسم الظاهر'),
+            value: editor.fullName || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'fullName'
+          }
+        }, []),
+        D.Inputs.Input({
+          attrs: {
+            type: 'url',
+            class: 'composer-input',
+            placeholder: t('profile.edit.avatar', 'رابط الصورة الشخصية'),
+            value: editor.avatarUrl || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'avatarUrl'
+          }
+        }, []),
+        D.Inputs.Textarea({
+          attrs: {
+            class: 'composer-textarea',
+            placeholder: t('profile.edit.bio', 'نبذة عنك أو عن نشاطك'),
+            value: editor.bio || '',
+            'data-m-gkey': 'profile-edit-input',
+            'data-field': 'bio'
+          }
+        }, []),
+        D.Containers.Div({ attrs: { class: 'composer-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'profile-edit-save' } }, [t('profile.save', 'حفظ التعديلات')]),
+          D.Forms.Button({ attrs: { class: 'hero-ghost', 'data-m-gkey': 'profile-edit-close' } }, ['✕'])
+        ])
+      ])
+    ]);
+  }
+
   function renderNotificationsPanel(db) {
     if (!db.state.notificationsOpen) return null;
     var notifications = db.data.notifications || [];
@@ -2881,6 +4770,34 @@
             })
           )
         : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.empty', 'لا توجد إشعارات حالياً')])
+    ]);
+  }
+
+  function renderInboxPanel(db) {
+    if (!db.state.inboxOpen) return null;
+    var threads = resolveInboxThreads(db);
+    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
+        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
+        ])
+      ]),
+      !prefs.inboxEnabled
+        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
+        : null,
+      threads && threads.length
+        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
+            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
+            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
+              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
+              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
+              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
+            ]);
+          }))
+        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
     ]);
   }
 
@@ -2925,15 +4842,20 @@
    var title = t('auth.login.title', 'مرحبا بك');
    var subtitle = t('auth.login.subtitle', 'سجّل دخولك للمتابعة');
    var fields = [];
-  var demoHint = null;
+   var demoHint = null;
+   var recaptchaBox = null;
    if (step === 'register') {
      title = t('auth.register.title', 'إنشاء حساب جديد');
      subtitle = t('auth.register.subtitle', 'شارك أعمالك وخدماتك فوراً');
      fields = [
        { name: 'fullName', type: 'text', label: t('auth.fullName', 'الاسم الكامل'), value: auth.fullName || '' },
-       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' },
+       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
        { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
      ];
+     recaptchaBox = D.Forms.Label({ attrs: { class: 'auth-recaptcha' } }, [
+       D.Inputs.Input({ attrs: { type: 'checkbox', checked: !!auth.recaptcha, 'data-m-gkey': 'auth-recaptcha' } }, []),
+       D.Text.Span({ attrs: { class: 'auth-recaptcha-label' } }, [t('auth.recaptcha', 'أنا لست روبوتاً')])
+     ]);
    } else if (step === 'otp') {
      title = t('auth.otp.title', 'أدخل رمز التحقق');
      subtitle = t('auth.otp.subtitle', 'استخدم الرمز 123456 لإكمال التفعيل');
@@ -2944,20 +4866,40 @@
      title = t('auth.forgot.title', 'استعادة كلمة المرور');
      subtitle = t('auth.forgot.subtitle', 'سوف نرسل لك رمز تفعيل لتغيير كلمة المرور');
      fields = [
-       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' }
+       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
+       { name: 'newPassword', type: 'password', label: t('auth.password.new', 'كلمة المرور الجديدة'), value: auth.newPassword || '' }
      ];
+     recaptchaBox = D.Forms.Label({ attrs: { class: 'auth-recaptcha' } }, [
+       D.Inputs.Input({ attrs: { type: 'checkbox', checked: !!auth.recaptcha, 'data-m-gkey': 'auth-recaptcha' } }, []),
+       D.Text.Span({ attrs: { class: 'auth-recaptcha-label' } }, [t('auth.recaptcha', 'أنا لست روبوتاً')])
+     ]);
    } else {
      fields = [
-       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' },
+       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
        { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
      ];
      demoHint = D.Text.Small({ attrs: { class: 'auth-note' } }, [
-       t('auth.demo.hint', 'بيانات العرض: demo@mostamal.eg / demo123')
+       t('auth.demo.hint', 'بيانات العرض: +201000000000 / demo123')
      ]);
    }
+  var now = Date.now();
+  var cooldownRemaining = Math.max(0, (auth.otpRequestedAt || 0) + OTP_COOLDOWN_MS - now);
+  var blockedRemaining = Math.max(0, (auth.blockedUntil || 0) - now);
+  var cooldownNode = cooldownRemaining > 0 && (step === 'register' || step === 'forgot')
+    ? D.Text.Small({ attrs: { class: 'auth-note warning' } }, [
+        t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد'), ' ', Math.ceil(cooldownRemaining / 60000), ' ', t('auth.minutes', 'دقيقة')
+      ])
+    : null;
+  var blockNode = blockedRemaining > 0 && step === 'login'
+    ? D.Text.Small({ attrs: { class: 'auth-note warning' } }, [
+        t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), ' ', Math.ceil(blockedRemaining / 60000), ' ', t('auth.minutes', 'دقيقة متبقية')
+      ])
+    : null;
   var autocompleteMap = {
     email: 'email',
+    phone: 'tel',
     password: step === 'login' ? 'current-password' : 'new-password',
+    newPassword: 'new-password',
     fullName: 'name',
     otp: 'one-time-code'
   };
@@ -3012,6 +4954,9 @@
         attrs: { class: 'auth-form', 'data-m-gkey': 'auth-submit', novalidate: 'novalidate' }
       }, [
         D.Containers.Div({ attrs: { class: 'auth-fields' } }, fieldElements),
+        recaptchaBox,
+        cooldownNode,
+        blockNode,
         D.Forms.Button({
           attrs: { class: 'hero-cta', type: 'submit' }
         }, [primaryLabel]),
@@ -3031,30 +4976,30 @@
     return D.Containers.Nav({ attrs: { class: 'bottom-nav' } }, [
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-home',
-          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
+          'data-m-gkey': 'nav-profile',
+          class: 'nav-item' + (currentSection === 'profile' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-marketplace',
-          class: 'nav-item' + (currentSection === 'marketplace' ? ' active' : '')
+          'data-m-gkey': 'nav-classifieds',
+          class: 'nav-item' + (currentSection === 'classifieds' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛒']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.marketplace')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['📢']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.classifieds', 'إعلان مستعمل')])
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-services',
-          class: 'nav-item' + (currentSection === 'services' ? ' active' : '')
+          'data-m-gkey': 'nav-commerce',
+          class: 'nav-item' + (currentSection === 'commerce' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🔧']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.services')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🛍️']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.commerce', 'منتج / خدمة')])
       ]),
       D.Forms.Button({
         attrs: {
@@ -3067,12 +5012,12 @@
       ]),
       D.Forms.Button({
         attrs: {
-          'data-m-gkey': 'nav-profile',
-          class: 'nav-item' + (currentSection === 'profile' ? ' active' : '')
+          'data-m-gkey': 'nav-home',
+          class: 'nav-item' + (currentSection === 'timeline' ? ' active' : '')
         }
       }, [
-        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['👤']),
-        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.profile')])
+        D.Text.Span({ attrs: { class: 'nav-icon' } }, ['🏠']),
+        D.Text.Span({ attrs: { class: 'nav-label' } }, [t('nav.timeline')])
       ])
     ]);
   }
@@ -3093,11 +5038,11 @@
     var sectionView;
 
     switch (currentSection) {
-      case 'marketplace':
-        sectionView = renderMarketplace(db);
+      case 'commerce':
+        sectionView = renderCommerce(db);
         break;
-      case 'services':
-        sectionView = renderServices(db);
+      case 'classifieds':
+        sectionView = renderClassifiedsPage(db);
         break;
       case 'knowledge':
         sectionView = renderKnowledge(db);
@@ -3116,9 +5061,15 @@
         renderNotice(db),
         renderHeader(db),
         renderNotificationsPanel(db),
+        renderInboxPanel(db),
         D.Containers.Main({ attrs: { class: 'app-main' } }, [sectionView]),
         renderBottomNav(db),
+        renderDetailOverlay(db),
+        renderReaderOverlay(db),
+        renderContactOverlay(db),
+        renderReportOverlay(db),
         renderPostOverlay(db),
+        renderProfileEditor(db),
         renderAuthModal(db)
       ].filter(Boolean))
     ]);
@@ -3141,18 +5092,96 @@
       }
     },
 
-    'nav.marketplace': {
+    'nav.commerce': {
       on: ['click'],
-      gkeys: ['nav-marketplace'],
+      gkeys: ['nav-commerce', 'nav-marketplace', 'nav-services'],
       handler: function(event, ctx) {
         ctx.setState(function(db) {
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
+      }
+    },
+
+    'nav.classifieds': {
+      on: ['click'],
+      gkeys: ['nav-classifieds'],
+      handler: function(event, ctx) {
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'classifieds' }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'classified.dashboard.tab': {
+      on: ['click'],
+      gkeys: ['classified-dashboard-tab'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var tab = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        if (!tab) return;
+        ctx.setState(function(db) {
+          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+          var next = Object.assign({}, current, { tab: tab });
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { classifiedDashboard: next }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'classified.lead.filter': {
+      on: ['click'],
+      gkeys: ['classified-lead-filter'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var filter = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        ctx.setState(function(db) {
+          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+          var next = Object.assign({}, current, { leadFilter: filter || 'open' });
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { classifiedDashboard: next }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'classified.lead.status': {
+      on: ['click'],
+      gkeys: ['classified-lead-status'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var leadId = target && target.getAttribute('data-lead-id');
+        var status = target && target.getAttribute('data-status');
+        updateLeadStatus(ctx, leadId, status);
+      }
+    },
+
+    'classified.status': {
+      on: ['click'],
+      gkeys: ['classified-status'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var status = target && target.getAttribute('data-status');
+        var id = target && target.getAttribute('data-target-id');
+        updateClassifiedStatus(ctx, id, status);
       }
     },
 
@@ -3166,22 +5195,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'nav.services': {
-      on: ['click'],
-      gkeys: ['nav-services'],
-      handler: function(event, ctx) {
-        ctx.setState(function(db) {
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3201,36 +5215,15 @@
         var link = target.getAttribute('data-link') || '';
         var phone = target.getAttribute('data-phone') || '';
         if (kind === 'product') {
-          showNotice(ctx, t('composer.notice.product', 'تم فتح المتجر لاستعراض المنتج.'));
-          ctx.setState(function(db) {
-            return {
-              env: db.env,
-              meta: db.meta,
-              state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
-              data: db.data
-            };
-          });
+          setDetailOverlay(ctx, { open: true, kind: 'product', targetId: targetId, activeIndex: 0 });
         } else if (kind === 'service') {
-          showNotice(ctx, t('composer.notice.service', 'انتقلنا إلى قسم الخدمات لعرض التفاصيل.'));
-          ctx.setState(function(db) {
-            return {
-              env: db.env,
-              meta: db.meta,
-              state: Object.assign({}, db.state, { currentSection: 'services' }),
-              data: db.data
-            };
-          });
+          setDetailOverlay(ctx, { open: true, kind: 'service', targetId: targetId, activeIndex: 0 });
         } else if (kind === 'wiki') {
-          ctx.setState(function(db) {
-            return {
-              env: db.env,
-              meta: db.meta,
-              state: Object.assign({}, db.state, { currentSection: 'knowledge' }),
-              data: db.data
-            };
-          });
+          setReaderOverlay(ctx, { open: true, articleId: targetId, fontSize: 'md' });
         } else if (kind === 'classified') {
-          if (phone) {
+          if (targetId) {
+            setDetailOverlay(ctx, { open: true, kind: 'classified', targetId: targetId, activeIndex: 0 });
+          } else if (phone) {
             try {
               global.open('tel:' + phone.replace(/[^0-9+]/g, ''), '_self');
             } catch (_err) {
@@ -3253,6 +5246,239 @@
       }
     },
 
+    'open.contact': {
+      on: ['click'],
+      gkeys: ['open-contact'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var kind = (target.getAttribute('data-kind') || '').toLowerCase();
+        var targetId = target.getAttribute('data-target-id') || '';
+        var phone = target.getAttribute('data-phone') || '';
+        var userId = target.getAttribute('data-user-id') || '';
+        setContactOverlay(ctx, {
+          open: true,
+          kind: kind,
+          targetId: targetId,
+          phone: phone,
+          userId: userId,
+          message: '',
+          preset: t('contact.preset', 'مرحباً، أود الاستفسار عن العرض.')
+        });
+      }
+    },
+
+    'classified.edit': {
+      on: ['click'],
+      gkeys: ['classified-edit'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var targetId = event.currentTarget && event.currentTarget.getAttribute('data-target-id');
+        if (!targetId || !app || !app.database) return;
+        var db = app.database;
+        var match = findById(db.data.classifieds || [], 'id', targetId) || findById(db.data.classifieds || [], 'classified_id', targetId);
+        if (!match) return;
+        var mediaList = Array.isArray(match.images) ? match.images.slice() : [];
+        var base = createComposerState({
+          open: true,
+          attachmentKind: 'classified',
+          editAttachmentId: targetId,
+          targetId: targetId,
+          text: match.description || '',
+          classifiedTitle: match.title || '',
+          classifiedPrice: match.price || '',
+          contactPhone: match.contact_phone || '',
+          categoryId: match.category_id || '',
+          subcategoryId: match.category_id || '',
+          mediaList: mediaList
+        });
+        applyComposerState(ctx, base);
+      }
+    },
+
+    'classified.delete': {
+      on: ['click'],
+      gkeys: ['classified-delete'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var targetId = event.currentTarget && event.currentTarget.getAttribute('data-target-id');
+        if (!targetId) return;
+        var confirmed = true;
+        try {
+          confirmed = global.confirm ? global.confirm(t('classifieds.delete.confirm', 'هل أنت متأكد من حذف الإعلان؟')) : true;
+        } catch (_err) {
+          confirmed = true;
+        }
+        if (!confirmed) return;
+        deleteClassified(ctx, targetId);
+      }
+    },
+
+    'contact.close': {
+      on: ['click'],
+      gkeys: ['contact-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        setContactOverlay(ctx, { open: false, targetId: null, kind: null, message: '' });
+      }
+    },
+
+    'contact.message': {
+      on: ['input'],
+      gkeys: ['contact-message'],
+      handler: function(event, ctx) {
+        var value = event.target && event.target.value ? event.target.value : '';
+        setContactOverlay(ctx, { message: value });
+      }
+    },
+
+    'contact.send': {
+      on: ['click'],
+      gkeys: ['contact-send'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { contactOverlay: Object.assign({}, db.state.contactOverlay, { open: false }) }),
+            data: db.data
+          };
+        });
+        showNotice(ctx, t('contact.sent', 'تم إرسال الرسالة وسيتم الرد عبر التنبيهات.'));
+      }
+    },
+
+    'open.report': {
+      on: ['click'],
+      gkeys: ['open-report'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var targetType = target.getAttribute('data-target-type') || 'post';
+        var targetId = target.getAttribute('data-target-id') || '';
+        setReportOverlay(ctx, { open: true, targetType: targetType, targetId: targetId });
+      }
+    },
+
+    'report.close': {
+      on: ['click'],
+      gkeys: ['report-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        setReportOverlay(ctx, { open: false, targetId: null, targetType: null, reason: '', notes: '' });
+      }
+    },
+
+    'report.reason': {
+      on: ['change'],
+      gkeys: ['report-reason'],
+      handler: function(event, ctx) {
+        var value = event.target && event.target.value ? event.target.value : '';
+        setReportOverlay(ctx, { reason: value });
+      }
+    },
+
+    'report.notes': {
+      on: ['input'],
+      gkeys: ['report-notes'],
+      handler: function(event, ctx) {
+        var value = event.target && event.target.value ? event.target.value : '';
+        setReportOverlay(ctx, { notes: value });
+      }
+    },
+
+    'report.submit': {
+      on: ['click'],
+      gkeys: ['report-submit'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var overlay = ctx.database && ctx.database.state && ctx.database.state.reportOverlay;
+        if (!overlay || !overlay.reason) {
+          showNotice(ctx, t('report.require.reason', 'اختر سبب البلاغ أولاً'));
+          return;
+        }
+        showNotice(ctx, t('report.submitted', 'تم تسجيل البلاغ. شكراً لحماية المجتمع.'));
+        setReportOverlay(ctx, { open: false, notes: '', reason: '' });
+      }
+    },
+
+    'detail.close': {
+      on: ['click'],
+      gkeys: ['detail-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        setDetailOverlay(ctx, { open: false, targetId: null, kind: null, activeIndex: 0 });
+      }
+    },
+
+    'reader.close': {
+      on: ['click'],
+      gkeys: ['reader-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          if (!db.state.readerOverlay.open) return db;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { readerOverlay: Object.assign({}, db.state.readerOverlay, { open: false }) }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'reader.inner': {
+      on: ['click'],
+      gkeys: ['reader-inner'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+
+    'reader.font': {
+      on: ['click'],
+      gkeys: ['reader-font'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var size = event.currentTarget && event.currentTarget.getAttribute('data-size');
+        if (!size) return;
+        setReaderOverlay(ctx, function(current) {
+          return Object.assign({}, current, { fontSize: size });
+        });
+      }
+    },
+
+    'reader.open.related': {
+      on: ['click'],
+      gkeys: ['reader-open-related'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var id = event.currentTarget && event.currentTarget.getAttribute('data-article-id');
+        if (!id) return;
+        setReaderOverlay(ctx, { open: true, articleId: id });
+      }
+    },
+
+    'detail.inner': {
+      on: ['click'],
+      gkeys: ['detail-overlay-inner'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+
+    'detail.gallery.thumb': {
+      on: ['click'],
+      gkeys: ['detail-gallery-thumb'],
+      handler: function(event, ctx) {
+        var indexAttr = event.currentTarget && event.currentTarget.getAttribute('data-index');
+        var nextIndex = indexAttr ? Number(indexAttr) : 0;
+        setDetailOverlay(ctx, { activeIndex: nextIndex });
+      }
+    },
+
     'open.service.form': {
       on: ['click'],
       gkeys: ['open-service-form'],
@@ -3263,7 +5489,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3294,6 +5520,22 @@
             env: db.env,
             meta: db.meta,
             state: Object.assign({}, db.state, { currentSection: 'profile' }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'home.tab': {
+      on: ['click'],
+      gkeys: ['home-tab'],
+      handler: function(event, ctx) {
+        var value = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { homeTab: value || 'timeline' }),
             data: db.data
           };
         });
@@ -3333,6 +5575,143 @@
             data: db.data
           };
         });
+      }
+    },
+
+    'notifications.request': {
+      on: ['click'],
+      gkeys: ['notifications-request'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var hasNotificationApi = typeof Notification !== 'undefined' && typeof Notification.requestPermission === 'function';
+        if (!hasNotificationApi) {
+          updateNotificationPreferences(ctx, { permission: 'unsupported', pushEnabled: false });
+          showNotice(ctx, t('notifications.push.unsupported', 'المتصفح الحالي لا يدعم Push/WebPush.'));
+          return;
+        }
+        Notification.requestPermission().then(function(permission) {
+          var enabled = permission === 'granted';
+          updateNotificationPreferences(ctx, function(current) {
+            return Object.assign({}, current, {
+              permission: permission,
+              pushEnabled: enabled,
+              webPushPrompted: true,
+              inboxEnabled: enabled || current.inboxEnabled
+            });
+          });
+          if (enabled) {
+            showNotice(ctx, t('notifications.push.ready', 'سيتم إرسال التنبيهات للأحداث الجديدة.'));
+          } else {
+            showNotice(ctx, t('notifications.push.denied', 'تم رفض الإذن. يمكنك إعادة المحاولة لاحقاً.'));
+          }
+        }).catch(function(err) {
+          console.warn('[SBN PWA] push permission failed', err);
+          updateNotificationPreferences(ctx, { permission: 'denied', pushEnabled: false });
+        });
+      }
+    },
+
+    'notifications.toggle-channel': {
+      on: ['click'],
+      gkeys: ['notifications-toggle-channel'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var channel = event.currentTarget && event.currentTarget.getAttribute('data-channel');
+        if (!channel) return;
+        updateNotificationPreferences(ctx, function(current) {
+          var channels = Object.assign({}, current.channels || {});
+          channels[channel] = channels[channel] === false;
+          return Object.assign({}, current, { channels: channels });
+        });
+      }
+    },
+
+    'notifications.toggle-inbox': {
+      on: ['click'],
+      gkeys: ['notifications-toggle-inbox'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        updateNotificationPreferences(ctx, function(current) {
+          return Object.assign({}, current, { inboxEnabled: !current.inboxEnabled });
+        });
+      }
+    },
+
+    'open-inbox': {
+      on: ['click'],
+      gkeys: ['open-inbox'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var threads = resolveInboxThreads(db);
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { inboxOpen: true }),
+            data: Object.assign({}, db.data, { inboxThreads: threads })
+          };
+        });
+      }
+    },
+
+    'close-inbox': {
+      on: ['click'],
+      gkeys: ['close-inbox'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          if (!db.state.inboxOpen) return db;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { inboxOpen: false }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'mark-inbox-read': {
+      on: ['click'],
+      gkeys: ['mark-inbox-read'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var threads = resolveInboxThreads(db).map(function(thread) {
+            return Object.assign({}, thread, { unread: false });
+          });
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: db.state,
+            data: Object.assign({}, db.data, { inboxThreads: threads })
+          };
+        });
+      }
+    },
+
+    'compliance-toggle': {
+      on: ['click'],
+      gkeys: ['compliance-toggle'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var key = event.currentTarget && event.currentTarget.getAttribute('data-key');
+        if (!key) return;
+        updateComplianceState(ctx, function(current) {
+          var next = Object.assign({}, current);
+          next[key] = !current[key];
+          return next;
+        });
+      }
+    },
+
+    'compliance-delete': {
+      on: ['click'],
+      gkeys: ['compliance-delete'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        updateComplianceState(ctx, { deletionRequested: true });
+        showNotice(ctx, t('compliance.delete.notice', 'تم تسجيل طلب حذف البيانات. سنذكرك بمتطلبات التحقق.'));
       }
     },
 
@@ -3405,7 +5784,8 @@
             otp: '',
             fullName: step === 'register' ? current.fullName : '',
             pendingUser: step === 'otp' ? current.pendingUser : null,
-            password: step === 'login' ? '' : current.password
+            password: step === 'login' ? '' : current.password,
+            recaptcha: false
           });
         });
       }
@@ -3416,6 +5796,14 @@
       gkeys: ['auth-input-email'],
       handler: function(event) {
         updateAuthState({ email: event.target.value });
+      }
+    },
+
+    'auth-input-phone': {
+      on: ['input'],
+      gkeys: ['auth-input-phone'],
+      handler: function(event) {
+        updateAuthState({ phone: event.target.value });
       }
     },
 
@@ -3437,6 +5825,14 @@
       }
     },
 
+    'auth-input-newPassword': {
+      on: ['input'],
+      gkeys: ['auth-input-newPassword'],
+      handler: function(event) {
+        updateAuthState({ newPassword: event.target.value });
+      }
+    },
+
     'auth-input-otp': {
       on: ['input'],
       gkeys: ['auth-input-otp'],
@@ -3444,6 +5840,15 @@
         updateAuthState({ otp: event.target.value });
       }
     },
+
+    'auth-recaptcha': {
+      on: ['change'],
+      gkeys: ['auth-recaptcha'],
+      handler: function(event) {
+        updateAuthState({ recaptcha: !!(event && event.target && event.target.checked) });
+      }
+    },
+
 
     'auth.submit': {
       on: ['submit'],
@@ -3458,76 +5863,139 @@
         var formEl = event && event.target;
         var step = auth.step || 'login';
         var email = (auth.email || '').trim().toLowerCase();
-        var password = auth.password || '';
+        var phone = (auth.phone || '').trim();
+        var password = (auth.password || '').trim();
         if (!password && formEl && typeof formEl.querySelector === 'function') {
-          var passwordInput = formEl.querySelector('input[name=\"password\"]');
+          var passwordInput = formEl.querySelector('input[name="password"]');
           if (passwordInput && passwordInput.value) {
             password = passwordInput.value;
             updateAuthState({ password: password });
           }
         }
+        var now = Date.now();
+        var blockedUntil = auth.blockedUntil || 0;
+        if (step === 'login' && blockedUntil > now) {
+          var remaining = Math.ceil((blockedUntil - now) / 60000);
+          updateAuthState({ error: t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), loginAttempts: auth.loginAttempts || 0 });
+          showNotice(ctx, t('auth.blocked.retry', 'حاول مرة أخرى بعد ') + remaining + ' ' + t('auth.minutes', 'دقائق'));
+          return;
+        }
         if (step === 'login') {
-          console.log('[SBN PWA][auth] login attempt', {
-            email: email,
-            matchesDemoEmail: email === DEMO_ACCOUNT.email,
-            passwordMatch: password === DEMO_ACCOUNT.password,
-            hasPassword: Boolean(password)
+          var phoneDigits = normalizePhoneDigits(phone);
+          var authUsers = ensureDemoAuthUser((db && db.state && db.state.authUsers) || initialAuthUsers);
+          var matchedUser = authUsers.find(function(user) {
+            return normalizePhoneDigits(user && user.phone) === phoneDigits;
           });
-          if (email === DEMO_ACCOUNT.email && password === DEMO_ACCOUNT.password) {
+          var loginSuccess = matchedUser && password && password === (matchedUser.password || '').trim();
+          if (loginSuccess) {
             ctx.setState(function(prev) {
-              var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '' });
+              var nextAuthUsers = ensureDemoAuthUser(prev.state.authUsers || initialAuthUsers);
+              persistAuthUsers(nextAuthUsers);
+              var resolvedUserId = matchedUser.userId || DEMO_ACCOUNT.userId;
+              var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '', loginAttempts: 0, blockedUntil: 0, recaptcha: false });
               return {
                 env: prev.env,
                 meta: prev.meta,
-                state: Object.assign({}, prev.state, { activeUserId: DEMO_ACCOUNT.userId, auth: nextAuth }),
+                state: Object.assign({}, prev.state, { activeUserId: resolvedUserId, auth: nextAuth, authUsers: nextAuthUsers }),
                 data: prev.data
               };
             });
-            persistSession({ userId: DEMO_ACCOUNT.userId, email: email });
+            persistSession({ userId: matchedUser.userId || DEMO_ACCOUNT.userId, email: email || matchedUser.email || DEMO_ACCOUNT.email, phone: phone });
             showNotice(ctx, t('auth.success.login', 'تم تسجيل الدخول بنجاح'));
           } else {
-            updateAuthState({ error: t('auth.error.credentials', 'بيانات الدخول غير صحيحة') });
+            var attempts = (auth.loginAttempts || 0) + 1;
+            var nextBlock = attempts >= 3 ? now + OTP_BLOCK_MS : auth.blockedUntil;
+            updateAuthState({
+              error: t('auth.error.credentials', 'بيانات الدخول غير صحيحة'),
+              loginAttempts: attempts,
+              blockedUntil: nextBlock
+            });
           }
           return;
         }
         if (step === 'register') {
-          if (!auth.fullName || !auth.fullName.trim() || !email || !auth.password) {
-            updateAuthState({ error: t('auth.error.fields', 'يرجى تعبئة جميع الحقول') });
+          var phoneDigitsRegister = phone.replace(/\D/g, '');
+          if (!auth.fullName || !auth.fullName.trim() || !phoneDigitsRegister || !auth.password || !auth.recaptcha) {
+            updateAuthState({ error: t('auth.error.fields', 'يرجى تعبئة جميع الحقول وتأكيد أنك لست روبوتاً') });
+            return;
+          }
+          if (auth.otpRequestedAt && now - auth.otpRequestedAt < OTP_COOLDOWN_MS) {
+            updateAuthState({ error: t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد مرور فترة التهدئة') });
             return;
           }
           var pendingUser = {
             user_id: generateId('usr'),
             full_name: auth.fullName.trim(),
             username: auth.fullName.trim().split(/\s+/).join('_'),
-            email: email,
+            email: email || (phoneDigitsRegister + '@mostamal.eg'),
+            phone: phone,
+            newPassword: auth.password,
+            flow: 'register',
             avatar_url: 'https://i.pravatar.cc/120?img=28'
           };
-          updateAuthState({ pendingUser: pendingUser, step: 'otp', error: null, otp: '' });
+          updateAuthState({ pendingUser: pendingUser, step: 'otp', error: null, otp: '', otpRequestedAt: now });
           showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
           return;
         }
         if (step === 'forgot') {
-          if (!email) {
-            updateAuthState({ error: t('auth.error.email', 'أدخل بريدك الإلكتروني') });
+          var phoneDigitsForgot = phone.replace(/\D/g, '');
+          if (!phoneDigitsForgot || !auth.newPassword || !auth.recaptcha) {
+            updateAuthState({ error: t('auth.error.fields', 'أدخل رقم الهاتف وكلمة المرور الجديدة وأكّد أنك لست روبوتاً') });
             return;
           }
-          updateAuthState({ pendingUser: { user_id: DEMO_ACCOUNT.userId }, step: 'otp', error: null, otp: '' });
+          if (auth.otpRequestedAt && now - auth.otpRequestedAt < OTP_COOLDOWN_MS) {
+            updateAuthState({ error: t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد مرور فترة التهدئة') });
+            return;
+          }
+          updateAuthState({ pendingUser: { user_id: DEMO_ACCOUNT.userId, phone: phone, newPassword: auth.newPassword, flow: 'forgot' }, step: 'otp', error: null, otp: '', otpRequestedAt: now });
           showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
           return;
         }
         if (step === 'otp') {
-          if ((auth.otp || '').trim() !== DEMO_ACCOUNT.otp) {
+          if ((auth.otp || '').trim() !== STATIC_OTP) {
             updateAuthState({ error: t('auth.error.otp', 'رمز التحقق غير صحيح') });
             return;
           }
-          var pendingUser = auth.pendingUser || { user_id: DEMO_ACCOUNT.userId, email: auth.email || DEMO_ACCOUNT.email };
+          var pendingUser = auth.pendingUser || { user_id: DEMO_ACCOUNT.userId, email: auth.email || DEMO_ACCOUNT.email, phone: phone };
           var resolvedUserId = pendingUser.user_id || DEMO_ACCOUNT.userId;
+          if (pendingUser.flow === 'forgot' && pendingUser.newPassword) {
+            DEMO_ACCOUNT.password = pendingUser.newPassword;
+          }
           ctx.setState(function(prev) {
             var pending = (prev.state.auth && prev.state.auth.pendingUser) || pendingUser;
-            var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, otp: '', password: '', pendingUser: null });
+            var nextAuthUsers = ensureDemoAuthUser(prev.state.authUsers || initialAuthUsers);
+            var normalizedPhone = normalizePhoneDigits(pending.phone || phone);
+            var authRecord = {
+              userId: pending.user_id || DEMO_ACCOUNT.userId,
+              phone: pending.phone || phone,
+              password: (pending.newPassword || auth.newPassword || auth.password || DEMO_ACCOUNT.password || '').trim(),
+              email: pending.email || auth.email || DEMO_ACCOUNT.email,
+              fullName: pending.full_name || pending.fullName || DEMO_ACCOUNT.fullName || 'مستخدم مستعمل'
+            };
+            var existingIndex = nextAuthUsers.findIndex(function(user) {
+              return normalizePhoneDigits(user && user.phone) === normalizedPhone;
+            });
+            if (existingIndex >= 0) {
+              nextAuthUsers[existingIndex] = Object.assign({}, nextAuthUsers[existingIndex], authRecord);
+            } else if (normalizedPhone) {
+              nextAuthUsers.push(authRecord);
+            }
+            persistAuthUsers(nextAuthUsers);
+            var nextAuth = Object.assign({}, prev.state.auth, {
+              open: false,
+              error: null,
+              otp: '',
+              password: '',
+              newPassword: '',
+              recaptcha: false,
+              otpRequestedAt: 0,
+              pendingUser: null,
+              loginAttempts: 0,
+              blockedUntil: 0
+            });
             var nextData = prev.data;
             var newUserId = pending && pending.user_id ? pending.user_id : DEMO_ACCOUNT.userId;
-            if (pending) {
+            if (pending && pending.flow === 'register') {
               var users = Array.isArray(prev.data.users) ? prev.data.users.slice() : [];
               if (!users.some(function(user) { return user && user.user_id === pending.user_id; })) {
                 var newUser = {
@@ -3535,6 +6003,7 @@
                   username: pending.username || pending.full_name.replace(/\s+/g, '_').toLowerCase(),
                   full_name: pending.full_name,
                   email: pending.email,
+                  phone: pending.phone,
                   avatar_url: pending.avatar_url || 'https://i.pravatar.cc/120?img=11',
                   followers_count: 0,
                   following_count: 0,
@@ -3548,12 +6017,15 @@
             return {
               env: prev.env,
               meta: prev.meta,
-              state: Object.assign({}, prev.state, { activeUserId: newUserId, auth: nextAuth }),
+              state: Object.assign({}, prev.state, { activeUserId: newUserId, auth: nextAuth, authUsers: nextAuthUsers }),
               data: nextData
             };
           });
-          persistSession({ userId: resolvedUserId, email: pendingUser.email || auth.email || DEMO_ACCOUNT.email });
-          showNotice(ctx, t('auth.success.register', 'تم التفعيل بنجاح'));
+          persistSession({ userId: resolvedUserId, email: pendingUser.email || auth.email || DEMO_ACCOUNT.email, phone: pendingUser.phone || phone });
+          var successMsg = pendingUser.flow === 'forgot'
+            ? t('auth.success.reset', 'تم تحديث كلمة المرور بنجاح')
+            : t('auth.success.register', 'تم التفعيل بنجاح');
+          showNotice(ctx, successMsg);
           return;
         }
       }
@@ -3680,6 +6152,44 @@
         });
       }
     },
+
+    'filter.hashtag.chip': {
+      on: ['click'],
+      gkeys: ['hashtag-chip'],
+      handler: function(event, ctx) {
+        var tagValue = event.currentTarget && event.currentTarget.getAttribute('data-tag') || '';
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: Object.assign({}, db.state.filters, { hashtag: tagValue })
+            }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'filter.reset': {
+      on: ['click'],
+      gkeys: ['reset-filters'],
+      handler: function(event, ctx) {
+        ctx.setState(function(db) {
+          var nextLaunch = Object.assign({}, db.state.launchChecklist, { discovery: true });
+          persistLaunchChecklistState(nextLaunch);
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              filters: { search: '', category: '', condition: '', hashtag: '' },
+              launchChecklist: nextLaunch
+            }),
+            data: db.data
+          };
+        });
+      }
+    },
     'filter.condition': {
       on: ['change'],
       gkeys: ['condition-filter'],
@@ -3773,7 +6283,7 @@
       handler: function(event, ctx) {
         var value = event.target.value || 'none';
         applyComposerState(ctx, function(current) {
-          var next = Object.assign({}, current, { attachmentKind: value, targetId: '' });
+          var next = Object.assign({}, current, { attachmentKind: value, targetId: '', editAttachmentId: '' });
           if (value !== 'classified') {
             next.categoryId = '';
             next.subcategoryId = '';
@@ -3800,6 +6310,14 @@
       handler: function(event, ctx) {
         var value = event.target.value || '';
         applyComposerState(ctx, { targetId: value });
+      }
+    },
+    'composer.target.clear': {
+      on: ['click'],
+      gkeys: ['composer-target-clear'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        applyComposerState(ctx, { targetId: '' });
       }
     },
     'composer.classified.title': {
@@ -3884,7 +6402,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'marketplace' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -3900,7 +6418,7 @@
           return {
             env: db.env,
             meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'services' }),
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -4008,6 +6526,21 @@
         bumpPostStat(postId, 'comments_count');
       }
     },
+    'profile.tab': {
+      on: ['click'],
+      gkeys: ['profile-tab'],
+      handler: function(event, ctx) {
+        var value = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { profileTab: value || 'posts' }),
+            data: db.data
+          };
+        });
+      }
+    },
     'profile.select': {
       on: ['click'],
       gkeys: ['profile-select'],
@@ -4031,11 +6564,117 @@
         showNotice(ctx, t('profile.message.unavailable', 'قريباً سيتم دعم المراسلة داخل التطبيق'));
       }
     },
-    'profile.message': {
+    'profile.follow': {
       on: ['click'],
-      gkeys: ['profile-message'],
-      handler: function() {
-        console.info('[SBN PWA] message action tapped');
+      gkeys: ['profile-follow'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('profile.following', 'تمت المتابعة، سنعرض تحديثات هذا الحساب لك.'));
+      }
+    },
+    'profile.edit.open': {
+      on: ['click'],
+      gkeys: ['profile-edit-open'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var user = getActiveUser(db);
+          var nextEditor = {
+            open: true,
+            fullName: resolveUserName(user),
+            bio: getLocalizedField(user, 'bio', ''),
+            avatarUrl: (user && user.avatar_url) || ''
+          };
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { profileEditor: nextEditor }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'profile.edit.close': {
+      on: ['click'],
+      gkeys: ['profile-edit-close'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { profileEditor: Object.assign({}, db.state.profileEditor, { open: false }) }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'profile.edit.modal': {
+      on: ['click'],
+      gkeys: ['profile-edit-modal'],
+      handler: function(event) {
+        event.stopPropagation();
+      }
+    },
+    'profile.edit.input': {
+      on: ['input'],
+      gkeys: ['profile-edit-input'],
+      handler: function(event, ctx) {
+        var field = event.currentTarget && event.currentTarget.getAttribute('data-field');
+        var value = event.target ? event.target.value : '';
+        if (!field) return;
+        ctx.setState(function(db) {
+          var editor = Object.assign({}, db.state.profileEditor, {});
+          editor[field] = value;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { profileEditor: editor }),
+            data: db.data
+          };
+        });
+      }
+    },
+    'profile.edit.save': {
+      on: ['click'],
+      gkeys: ['profile-edit-save'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var editor = db.state.profileEditor || {};
+          var users = Array.isArray(db.data.users) ? db.data.users.slice() : [];
+          var activeId = db.state.activeUserId;
+          var updatedUsers = users.map(function(u) {
+            if (!u || u.user_id !== activeId) return u;
+            var next = Object.assign({}, u, {
+              avatar_url: editor.avatarUrl || u.avatar_url,
+              bio: editor.bio || u.bio
+            });
+            if (editor.fullName) {
+              next.full_name = editor.fullName;
+            }
+            return next;
+          });
+          var nextOnboarding = Object.assign({}, db.state.onboarding, {
+            completed: Object.assign({}, (db.state.onboarding && db.state.onboarding.completed) || {}, {
+              avatar: Boolean(editor.avatarUrl),
+              bio: Boolean(editor.bio)
+            })
+          });
+          persistOnboardingProgress(nextOnboarding);
+          var nextLaunch = Object.assign({}, db.state.launchChecklist, { profile: true });
+          persistLaunchChecklistState(nextLaunch);
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              profileEditor: Object.assign({}, editor, { open: false }),
+              onboarding: nextOnboarding,
+              launchChecklist: nextLaunch
+            }),
+            data: Object.assign({}, db.data, { users: updatedUsers })
+          };
+        });
       }
     },
 
@@ -4090,6 +6729,90 @@
         var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
         bumpPostStat(postId, 'likes_count');
         showNotice(ctx, t('post.action.like') + ' ✓');
+      }
+    },
+
+    'onboarding.complete': {
+      on: ['click'],
+      gkeys: ['onboarding-complete'],
+      handler: function(event, ctx) {
+        var taskKey = event.currentTarget && event.currentTarget.getAttribute('data-task');
+        if (!taskKey) return;
+        updateOnboardingState(ctx, function(current) {
+          var nextCompleted = Object.assign({}, current.completed || {}, {});
+          nextCompleted[taskKey] = true;
+          return Object.assign({}, current, { completed: nextCompleted });
+        });
+      }
+    },
+
+    'onboarding.dismiss': {
+      on: ['click'],
+      gkeys: ['onboarding-dismiss'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        updateOnboardingState(ctx, { dismissed: true });
+      }
+    },
+
+    'launch.toggle': {
+      on: ['click'],
+      gkeys: ['launch-toggle'],
+      handler: function(event, ctx) {
+        var key = event.currentTarget && event.currentTarget.getAttribute('data-key');
+        if (!key) return;
+        updateLaunchChecklist(ctx, function(current) {
+          var next = Object.assign({}, current);
+          next[key] = !current[key];
+          return next;
+        });
+      }
+    },
+
+    'launch.completeAll': {
+      on: ['click'],
+      gkeys: ['launch-complete-all'],
+      handler: function(_event, ctx) {
+        updateLaunchChecklist(ctx, {
+          composer: true,
+          attachments: true,
+          profile: true,
+          discovery: true,
+          safety: true
+        });
+        showNotice(ctx, t('launch.done', 'تم ضبط جاهزية الإطلاق.'));
+      }
+    },
+
+    'launch.openAttachment': {
+      on: ['click'],
+      gkeys: ['open-attachment'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        ctx.setState(function(db) {
+          var classifieds = db.data.classifieds || [];
+          var products = db.data.products || [];
+          var services = db.data.services || [];
+          var articles = db.data.articles || [];
+          var target = (classifieds[0] && { kind: 'classified', id: classifieds[0].classified_id })
+            || (products[0] && { kind: 'product', id: products[0].product_id })
+            || (services[0] && { kind: 'service', id: services[0].service_id })
+            || (articles[0] && { kind: 'article', id: articles[0].article_id });
+          if (!target) return db;
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, {
+              detailOverlay: {
+                open: true,
+                kind: target.kind,
+                targetId: target.id,
+                activeIndex: 0
+              }
+            }),
+            data: db.data
+          };
+        });
       }
     },
 
@@ -4174,9 +6897,39 @@
           console.error('[SBN PWA] Schema not found in response:', payload);
           throw new Error('schema-invalid');
         }
-        debugLog('[SBN PWA][rt] schema fetched, tables:', Object.keys(TABLE_TO_DATA_KEY));
+        var schemaTables = (schema && schema.tables) || (schema && schema.schema && schema.schema.tables) || [];
+        var schemaTableNames = schemaTables
+          .map(function(tbl) { return (tbl && (tbl.name || tbl.table || tbl.sqlName)); })
+          .filter(Boolean);
+        var schemaTableSet = schemaTableNames.reduce(function(acc, name) {
+          acc[name] = true;
+          return acc;
+        }, {});
 
-        var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY);
+        var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY).filter(function(tableName) {
+          return !!schemaTableSet[tableName];
+        });
+        var missingTables = Object.keys(TABLE_TO_DATA_KEY).filter(function(tableName) {
+          return !schemaTableSet[tableName];
+        });
+
+        if (missingTables.length) {
+          console.warn('[SBN PWA][rt] skipping missing tables from schema', missingTables);
+        }
+        if (!tablesToWatch.length) {
+          console.error('[SBN PWA] No matching tables found in schema, aborting realtime bootstrap');
+          ctx.setState(function(db) {
+            return {
+              env: db.env,
+              meta: db.meta,
+              state: Object.assign({}, db.state, { loading: false, error: 'schema-mismatch' }),
+              data: db.data
+            };
+          });
+          return;
+        }
+
+        debugLog('[SBN PWA][rt] schema fetched, tables:', tablesToWatch);
 
         realtime = global.createDBAuto(schema, tablesToWatch, {
           branchId: BRANCH_ID,
