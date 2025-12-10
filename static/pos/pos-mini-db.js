@@ -718,7 +718,7 @@ function normalizeSchemaPayload(schema, moduleEntry, tables) {
   return normalized;
 }
 
-async function createRemotePosDb({ branchId, moduleId, tables, logger, role, historyLimit }) {
+async function createRemotePosDb({ branchId, moduleId, tables, logger, role, historyLimit, smartFetch }) {
   const { schema, moduleEntry } = await fetchModuleSchemaRemote(branchId, moduleId);
   const normalizedSchema = normalizeSchemaPayload(schema, moduleEntry, tables);
   const db = createDBAuto(normalizedSchema, tables, {
@@ -727,13 +727,14 @@ async function createRemotePosDb({ branchId, moduleId, tables, logger, role, his
     historyLimit: historyLimit || 200,
     role: role || 'pos-mini',
     autoReconnect: true,
-    logger: logger || console
+    logger: logger || console,
+    smartFetch
   });
   await db.ready();
   return { db, schema: normalizedSchema, moduleEntry };
 }
 
-async function createOfflinePosDb({ branchId, moduleId, tables, logger, role }, cause) {
+async function createOfflinePosDb({ branchId, moduleId, tables, logger, role, smartFetch }, cause) {
   // NOTE: Despite the name "offline", this still uses REST API for both schema and data
   // This is a fallback when WebSocket connection fails, not truly offline
   // All data is fetched securely via REST API endpoints
@@ -759,7 +760,7 @@ async function createOfflinePosDb({ branchId, moduleId, tables, logger, role }, 
   };
 }
 
- async function createPosDb(options = {}) {
+async function createPosDb(options = {}) {
   const branchId = options.branchId || 'dar';
   const moduleId = options.moduleId || 'pos';
   const tables = options.tables || DEFAULT_TABLES;
@@ -770,13 +771,14 @@ async function createOfflinePosDb({ branchId, moduleId, tables, logger, role }, 
       tables,
       logger: options.logger,
       role: options.role,
-      historyLimit: options.historyLimit
+      historyLimit: options.historyLimit,
+      smartFetch: options.smartFetch
     });
   } catch (error) {
     const logger = options.logger || console;
     logger?.warn?.('[PosMiniDB] Falling back to offline dataset', error);
     return await createOfflinePosDb(
-      { branchId, moduleId, tables, logger, role: options.role || 'pos-mini-offline' },
+      { branchId, moduleId, tables, logger, role: options.role || 'pos-mini-offline', smartFetch: options.smartFetch },
       error
     );
   }

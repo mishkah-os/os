@@ -94,10 +94,7 @@ static/projects/sbn/
 - `sbn_products` - المنتجات
 - `sbn_services` - الخدمات
 - `sbn_wiki_articles` - مقالات المعرفة
-- `sbn_classified_categories` - تصنيفات قسم المستعمل
-- `sbn_marketplace_categories` - تصنيفات المتجر
-- `sbn_service_categories` - تصنيفات الخدمات
-- `sbn_knowledge_categories` - تصنيفات المعرفة
+- `sbn_categories` - التصنيفات
 - `sbn_users` - المستخدمين
 
 ### طبقة العرض (View Layer)
