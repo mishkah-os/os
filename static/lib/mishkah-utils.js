@@ -31,7 +31,7 @@
   const isArr = Array.isArray;
   const isObj = v => v != null && typeof v === 'object' && !Array.isArray(v);
   const isStr = v => typeof v === 'string';
-  const isFn  = v => typeof v === 'function';
+  const isFn = v => typeof v === 'function';
   const isNum = v => typeof v === 'number' && !Number.isNaN(v);
 
   U.Type = { isArr, isObj, isStr, isFn, isNum };
@@ -41,7 +41,7 @@
   // ---------------------------------------------------------------------------
   const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
   const between = (v, min, max) => v >= min && v <= max;
-  const round = (v, p = 0) => { const m = Math.pow(10, p|0); return Math.round((+v) * m) / m; };
+  const round = (v, p = 0) => { const m = Math.pow(10, p | 0); return Math.round((+v) * m) / m; };
   const randomInt = (min, max) => Math.floor(min + Math.random() * (max - min + 1));
 
   U.Num = { clamp, between, round, randomInt };
@@ -51,12 +51,12 @@
   // ---------------------------------------------------------------------------
   let colorCanvas = null;
   let colorCtx = null;
-  if (typeof document !== 'undefined' && typeof document.createElement === 'function'){
+  if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
     colorCanvas = document.createElement('canvas');
     colorCanvas.width = colorCanvas.height = 1;
     colorCtx = colorCanvas.getContext && colorCanvas.getContext('2d');
   }
-  const clampByte = (v) => Math.max(0, Math.min(255, v|0));
+  const clampByte = (v) => Math.max(0, Math.min(255, v | 0));
   const byteToHex = (v) => clampByte(v).toString(16).padStart(2, '0');
   const toHex = (value) => {
     if (value == null) return null;
@@ -70,11 +70,11 @@
       const normalized = colorCtx.fillStyle;
       if (/^#[0-9a-f]{6}$/i.test(normalized) || /^#[0-9a-f]{8}$/i.test(normalized)) return normalized;
       const match = normalized.match(/^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([0-9.]+))?\)$/);
-      if (match){
+      if (match) {
         const r = clampByte(parseInt(match[1], 10));
         const g = clampByte(parseInt(match[2], 10));
         const b = clampByte(parseInt(match[3], 10));
-        if (match[4] != null){
+        if (match[4] != null) {
           const alpha = Math.max(0, Math.min(1, parseFloat(match[4])));
           const a = Math.round(alpha * 255);
           return `#${byteToHex(r)}${byteToHex(g)}${byteToHex(b)}${a < 255 ? byteToHex(a) : ''}`;
@@ -82,7 +82,7 @@
         return `#${byteToHex(r)}${byteToHex(g)}${byteToHex(b)}`;
       }
       return normalized;
-    } catch (_err){
+    } catch (_err) {
       return null;
     }
   };
@@ -94,27 +94,27 @@
   // ---------------------------------------------------------------------------
   const now = () => Date.now();
   const ts = () => new Date().toISOString();
-  const fmt = (d, opts) => new Intl.DateTimeFormat(undefined, opts || { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).format(d instanceof Date ? d : new Date(d));
-  const sleep = ms => new Promise(r => setTimeout(r, ms|0));
+  const fmt = (d, opts) => new Intl.DateTimeFormat(undefined, opts || { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(d instanceof Date ? d : new Date(d));
+  const sleep = ms => new Promise(r => setTimeout(r, ms | 0));
 
   U.Time = { now, ts, fmt, sleep };
 
   // ---------------------------------------------------------------------------
   // Control — تدفّق وتنظيم محاولات/زمن
   // ---------------------------------------------------------------------------
-  const once = fn => { let c=false, val; return (...a)=>{ if(!c){ c=true; val = fn(...a) } return val; } };
+  const once = fn => { let c = false, val; return (...a) => { if (!c) { c = true; val = fn(...a) } return val; } };
   const nextTick = fn => Promise.resolve().then(fn);
-  const debounce = (fn, wait=250) => { let t; return (...args)=>{ clearTimeout(t); t = setTimeout(()=>fn(...args), wait); } };
-  const throttle = (fn, wait=250) => { let last=0, pend=null, timer=null; const run=a=>{ last=Date.now(); pend=null; fn(...a) }; return (...a)=>{ const now=Date.now(), rem=wait-(now-last); if(rem<=0) run(a); else { pend=a; clearTimeout(timer); timer=setTimeout(()=>run(pend), rem); } } };
-  const retry = async (fn, { tries=3, base=300, factor=2, jitter=true }={}) => { let a=0, d=base; for(;;){ try{ return await fn(); } catch(e){ a++; if(a>=tries) throw e; const j = jitter ? Math.floor(d*(0.8+Math.random()*0.4)) : d; await sleep(j); d*=factor; } } };
+  const debounce = (fn, wait = 250) => { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); } };
+  const throttle = (fn, wait = 250) => { let last = 0, pend = null, timer = null; const run = a => { last = Date.now(); pend = null; fn(...a) }; return (...a) => { const now = Date.now(), rem = wait - (now - last); if (rem <= 0) run(a); else { pend = a; clearTimeout(timer); timer = setTimeout(() => run(pend), rem); } } };
+  const retry = async (fn, { tries = 3, base = 300, factor = 2, jitter = true } = {}) => { let a = 0, d = base; for (; ;) { try { return await fn(); } catch (e) { a++; if (a >= tries) throw e; const j = jitter ? Math.floor(d * (0.8 + Math.random() * 0.4)) : d; await sleep(j); d *= factor; } } };
 
   U.Control = { once, nextTick, debounce, throttle, retry };
 
   // ---------------------------------------------------------------------------
   // JSON — JSON آمن وثابت
   // ---------------------------------------------------------------------------
-  const parseSafe = (s, def=null) => { try{ return JSON.parse(String(s)); } catch(_){ return def; } };
-  const stableStringify = (obj) => { const seen = new WeakSet(); const f = x => { if (x && typeof x === 'object') { if (seen.has(x)) return '"[Circular]"'; seen.add(x); if (Array.isArray(x)) return '['+ x.map(f).join(',') +']'; const keys = Object.keys(x).sort(); return '{' + keys.map(k => JSON.stringify(k)+':'+f(x[k])).join(',') + '}'; } return JSON.stringify(x); }; return f(obj); };
+  const parseSafe = (s, def = null) => { try { return JSON.parse(String(s)); } catch (_) { return def; } };
+  const stableStringify = (obj) => { const seen = new WeakSet(); const f = x => { if (x && typeof x === 'object') { if (seen.has(x)) return '"[Circular]"'; seen.add(x); if (Array.isArray(x)) return '[' + x.map(f).join(',') + ']'; const keys = Object.keys(x).sort(); return '{' + keys.map(k => JSON.stringify(k) + ':' + f(x[k])).join(',') + '}'; } return JSON.stringify(x); }; return f(obj); };
   const clone = (x) => (typeof structuredClone === 'function') ? structuredClone(x) : parseSafe(JSON.stringify(x));
 
   U.JSON = { parseSafe, stableStringify, clone };
@@ -125,35 +125,35 @@
   const deepEqual = (a, b) => {
     if (a === b) return true;
     if (typeof a !== typeof b) return false;
-    if (isArr(a) && isArr(b)) { if (a.length !== b.length) return false; for (let i=0;i<a.length;i++) if (!deepEqual(a[i], b[i])) return false; return true; }
-    if (isObj(a) && isObj(b)) { const ka=Object.keys(a), kb=Object.keys(b); if (ka.length !== kb.length) return false; for (const k of ka) if (!deepEqual(a[k], b[k])) return false; return true; }
+    if (isArr(a) && isArr(b)) { if (a.length !== b.length) return false; for (let i = 0; i < a.length; i++) if (!deepEqual(a[i], b[i])) return false; return true; }
+    if (isObj(a) && isObj(b)) { const ka = Object.keys(a), kb = Object.keys(b); if (ka.length !== kb.length) return false; for (const k of ka) if (!deepEqual(a[k], b[k])) return false; return true; }
     return false;
   };
   const deepMerge = (t, s) => { if (!isObj(t) || !isObj(s)) return s; const o = { ...t }; for (const k of Object.keys(s)) o[k] = isObj(s[k]) && isObj(t[k]) ? deepMerge(t[k], s[k]) : s[k]; return o; };
-  const pick = (obj, keys) => { const o={}; for (const k of keys) if (k in obj) o[k]=obj[k]; return o; };
-  const omit = (obj, keys) => { const s=new Set(keys); const o={}; for (const k in obj) if (!s.has(k)) o[k]=obj[k]; return o; };
-  const getPath = (obj, path, def) => { const ks=String(path).split('.'); let cur=obj; for (const k of ks){ if(cur && typeof cur==='object' && k in cur) cur=cur[k]; else return def; } return cur; };
-  const setPath = (obj, path, val) => { const ks=String(path).split('.'); let cur=obj; for(let i=0;i<ks.length-1;i++){ const k=ks[i]; if(!isObj(cur[k])) cur[k]={}; cur=cur[k]; } cur[ks[ks.length-1]]=val; return obj; };
+  const pick = (obj, keys) => { const o = {}; for (const k of keys) if (k in obj) o[k] = obj[k]; return o; };
+  const omit = (obj, keys) => { const s = new Set(keys); const o = {}; for (const k in obj) if (!s.has(k)) o[k] = obj[k]; return o; };
+  const getPath = (obj, path, def) => { const ks = String(path).split('.'); let cur = obj; for (const k of ks) { if (cur && typeof cur === 'object' && k in cur) cur = cur[k]; else return def; } return cur; };
+  const setPath = (obj, path, val) => { const ks = String(path).split('.'); let cur = obj; for (let i = 0; i < ks.length - 1; i++) { const k = ks[i]; if (!isObj(cur[k])) cur[k] = {}; cur = cur[k]; } cur[ks[ks.length - 1]] = val; return obj; };
   const hasPath = (obj, path) => getPath(obj, path, Symbol.for('m.na')) !== Symbol.for('m.na');
   const defaults = (obj, def) => deepMerge(def, obj);
-  const coalesce = (...vals) => vals.find(v => v!=null);
-  const ensureArray = v => isArr(v) ? v : v==null ? [] : [v];
-  const isEmptyObj = o => isObj(o) && Object.keys(o).length===0;
+  const coalesce = (...vals) => vals.find(v => v != null);
+  const ensureArray = v => isArr(v) ? v : v == null ? [] : [v];
+  const isEmptyObj = o => isObj(o) && Object.keys(o).length === 0;
 
   U.Data = { deepEqual, deepMerge, pick, omit, getPath, setPath, hasPath, defaults, coalesce, ensureArray, isEmptyObj };
 
   // ---------------------------------------------------------------------------
   // Array — أدوات مصفوفات عملية
   // ---------------------------------------------------------------------------
-  const uniqueBy = (arr, key) => { const set=new Set(); const out=[]; for(const it of arr){ const k=isFn(key)? key(it): it[key]; if(!set.has(k)){ set.add(k); out.push(it); } } return out; };
-  const groupBy = (arr, key) => { const out={}; for(const it of arr){ const k=isFn(key)? key(it): it[key]; (out[k]||(out[k]=[])).push(it); } return out; };
-  const sortBy = (arr, key, dir='asc') => { const a=arr.slice(); const g=isFn(key)? key: (x=>x[key]); a.sort((x,y)=>{ const dx=g(x), dy=g(y); if(dx<dy) return dir==='asc'?-1:1; if(dx>dy) return dir==='asc'?1:-1; return 0; }); return a; };
-  const chunk = (arr, size) => { const out=[]; for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size)); return out; };
-  const range = (n, s=0) => Array.from({length:n}, (_,i)=> i+s);
-  const sum = arr => arr.reduce((a,b)=> a+(+b||0), 0);
-  const avg = arr => arr.length ? sum(arr)/arr.length : 0;
-  const median = arr => { const a=arr.map(Number).filter(n=>!Number.isNaN(n)).sort((x,y)=>x-y); const l=a.length; if(!l) return 0; const m=Math.floor(l/2); return l%2? a[m] : (a[m-1]+a[m])/2; };
-  const flatten = arr => arr.flat ? arr.flat(Infinity) : arr.reduce((a,b)=> a.concat(isArr(b)? flatten(b): b), []);
+  const uniqueBy = (arr, key) => { const set = new Set(); const out = []; for (const it of arr) { const k = isFn(key) ? key(it) : it[key]; if (!set.has(k)) { set.add(k); out.push(it); } } return out; };
+  const groupBy = (arr, key) => { const out = {}; for (const it of arr) { const k = isFn(key) ? key(it) : it[key]; (out[k] || (out[k] = [])).push(it); } return out; };
+  const sortBy = (arr, key, dir = 'asc') => { const a = arr.slice(); const g = isFn(key) ? key : (x => x[key]); a.sort((x, y) => { const dx = g(x), dy = g(y); if (dx < dy) return dir === 'asc' ? -1 : 1; if (dx > dy) return dir === 'asc' ? 1 : -1; return 0; }); return a; };
+  const chunk = (arr, size) => { const out = []; for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size)); return out; };
+  const range = (n, s = 0) => Array.from({ length: n }, (_, i) => i + s);
+  const sum = arr => arr.reduce((a, b) => a + (+b || 0), 0);
+  const avg = arr => arr.length ? sum(arr) / arr.length : 0;
+  const median = arr => { const a = arr.map(Number).filter(n => !Number.isNaN(n)).sort((x, y) => x - y); const l = a.length; if (!l) return 0; const m = Math.floor(l / 2); return l % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+  const flatten = arr => arr.flat ? arr.flat(Infinity) : arr.reduce((a, b) => a.concat(isArr(b) ? flatten(b) : b), []);
   const compact = arr => arr.filter(Boolean);
 
   U.Array = { uniqueBy, groupBy, sortBy, chunk, range, sum, avg, median, flatten, compact };
@@ -161,8 +161,8 @@
   // ---------------------------------------------------------------------------
   // Id — معرّفات
   // ---------------------------------------------------------------------------
-  const uuid = () => { const b=new Uint8Array(16); crypto.getRandomValues(b); b[6]=(b[6]&0x0f)|0x40; b[8]=(b[8]&0x3f)|0x80; const h=[...b].map(x=>x.toString(16).padStart(2,'0')); return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`; };
-  const uid = (prefix='id') => `${prefix}-${Math.random().toString(36).slice(2,9)}`;
+  const uuid = () => { const b = new Uint8Array(16); crypto.getRandomValues(b); b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80; const h = [...b].map(x => x.toString(16).padStart(2, '0')); return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`; };
+  const uid = (prefix = 'id') => `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 
   U.Id = { uuid, uid };
 
@@ -170,33 +170,33 @@
   // Text — تحويل وترميز المعرّفات العربية
   // ---------------------------------------------------------------------------
   const ARABIC_CHAR_MAP = {
-    'ا':'a','أ':'a','إ':'i','آ':'aa','ء':'a','ؤ':'u','ئ':'i','ب':'b','ت':'t','ث':'th','ج':'j','ح':'h','خ':'kh','د':'d','ذ':'dh',
-    'ر':'r','ز':'z','س':'s','ش':'sh','ص':'s','ض':'d','ط':'t','ظ':'z','ع':'a','غ':'gh','ف':'f','ق':'q','ك':'k','ل':'l','م':'m','ن':'n',
-    'ه':'h','و':'w','ي':'y','ى':'a','ة':'a','ﻻ':'la','لا':'la','ﻷ':'la','ﻹ':'la','ﻵ':'la','ٱ':'a','پ':'p','چ':'ch','ڤ':'v','گ':'g','ژ':'zh',
-    '۰':'0','٠':'0','۱':'1','١':'1','۲':'2','٢':'2','۳':'3','٣':'3','٤':'4','۴':'4','٥':'5','۵':'5','٦':'6','۶':'6','٧':'7','۷':'7','٨':'8','۸':'8','٩':'9','۹':'9'
+    'ا': 'a', 'أ': 'a', 'إ': 'i', 'آ': 'aa', 'ء': 'a', 'ؤ': 'u', 'ئ': 'i', 'ب': 'b', 'ت': 't', 'ث': 'th', 'ج': 'j', 'ح': 'h', 'خ': 'kh', 'د': 'd', 'ذ': 'dh',
+    'ر': 'r', 'ز': 'z', 'س': 's', 'ش': 'sh', 'ص': 's', 'ض': 'd', 'ط': 't', 'ظ': 'z', 'ع': 'a', 'غ': 'gh', 'ف': 'f', 'ق': 'q', 'ك': 'k', 'ل': 'l', 'م': 'm', 'ن': 'n',
+    'ه': 'h', 'و': 'w', 'ي': 'y', 'ى': 'a', 'ة': 'a', 'ﻻ': 'la', 'لا': 'la', 'ﻷ': 'la', 'ﻹ': 'la', 'ﻵ': 'la', 'ٱ': 'a', 'پ': 'p', 'چ': 'ch', 'ڤ': 'v', 'گ': 'g', 'ژ': 'zh',
+    '۰': '0', '٠': '0', '۱': '1', '١': '1', '۲': '2', '٢': '2', '۳': '3', '٣': '3', '٤': '4', '۴': '4', '٥': '5', '۵': '5', '٦': '6', '۶': '6', '٧': '7', '۷': '7', '٨': '8', '۸': '8', '٩': '9', '۹': '9'
   };
 
   const stripCombiningMarks = str => typeof str.normalize === 'function'
     ? str.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     : str;
 
-  function transliterateArabic(input){
-    if(input == null) return '';
+  function transliterateArabic(input) {
+    if (input == null) return '';
     const source = String(input);
     let buffer = '';
-    for(const ch of source){
-      if(/[A-Za-z0-9]/.test(ch)){ buffer += ch; continue; }
-      if(/\s/.test(ch)){ buffer += ' '; continue; }
+    for (const ch of source) {
+      if (/[A-Za-z0-9]/.test(ch)) { buffer += ch; continue; }
+      if (/\s/.test(ch)) { buffer += ' '; continue; }
       const mapped = ARABIC_CHAR_MAP[ch];
-      if(mapped != null){ buffer += mapped; continue; }
-      if(/[\-_]/.test(ch)){ buffer += ' '; continue; }
+      if (mapped != null) { buffer += mapped; continue; }
+      if (/[\-_]/.test(ch)) { buffer += ' '; continue; }
       const normalized = stripCombiningMarks(ch);
-      if(/[A-Za-z0-9]/.test(normalized)){ buffer += normalized; }
+      if (/[A-Za-z0-9]/.test(normalized)) { buffer += normalized; }
     }
     return buffer.replace(/\s+/g, ' ').trim();
   }
 
-  function identifierFromArabic(input, { fallback='item', separator='_' }={}){
+  function identifierFromArabic(input, { fallback = 'item', separator = '_' } = {}) {
     const base = transliterateArabic(input);
     const cleaned = stripCombiningMarks(base)
       .replace(/[^A-Za-z0-9]+/g, ' ')
@@ -204,15 +204,15 @@
       .replace(/\s+/g, separator)
       .toLowerCase();
     let slug = cleaned.replace(new RegExp(`${separator}{2,}`, 'g'), separator).replace(new RegExp(`^${separator}|${separator}$`, 'g'), '');
-    if(!slug){
+    if (!slug) {
       slug = String(fallback || 'item')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, separator)
         .replace(new RegExp(`${separator}{2,}`, 'g'), separator)
         .replace(new RegExp(`^${separator}|${separator}$`, 'g'), '');
-      if(!slug) slug = `item${separator}${uid('slug').slice(5)}`;
+      if (!slug) slug = `item${separator}${uid('slug').slice(5)}`;
     }
-    if(/^\d/.test(slug)) slug = `${separator}${slug}`;
+    if (/^\d/.test(slug)) slug = `${separator}${slug}`;
     return slug || 'item';
   }
 
@@ -225,45 +225,45 @@
   // ---------------------------------------------------------------------------
   // Crypto — تشفير خفيف
   // ---------------------------------------------------------------------------
-  const sha256 = async s => { const enc=new TextEncoder().encode(String(s)); const buf=await crypto.subtle.digest('SHA-256', enc); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); };
+  const sha256 = async s => { const enc = new TextEncoder().encode(String(s)); const buf = await crypto.subtle.digest('SHA-256', enc); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join(''); };
 
   const base64 = {
-  encode(str) {
-    const bytes = new TextEncoder().encode(String(str));
-    let bin = "";
-    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    return btoa(bin);
-  },
-  decode(b64) {
-    const bin = atob(String(b64));
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
-  },
-  encodeBytes(uint8) {
-    let bin = "";
-    for (let i = 0; i < uint8.length; i++) bin += String.fromCharCode(uint8[i]);
-    return btoa(bin);
-  },
-  decodeBytes(b64) {
-    const bin = atob(String(b64));
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-    return out;
-  },
-  // URL-safe Base64 helpers
-  encodeURL(str) {
-    return base64.encode(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/,"");
-  },
-  decodeURL(b64url) {
-    let s = String(b64url).replace(/-/g, "+").replace(/_/g, "/");
-    while (s.length % 4) s += "=";
-    return base64.decode(s);
-  },
-  // مكافئات "one-liner" بدون escape/unescape
-  utf8Enc: (s) => base64.encode(s),
-  utf8Dec: (s) => base64.decode(s)
-};
+    encode(str) {
+      const bytes = new TextEncoder().encode(String(str));
+      let bin = "";
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    },
+    decode(b64) {
+      const bin = atob(String(b64));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder().decode(bytes);
+    },
+    encodeBytes(uint8) {
+      let bin = "";
+      for (let i = 0; i < uint8.length; i++) bin += String.fromCharCode(uint8[i]);
+      return btoa(bin);
+    },
+    decodeBytes(b64) {
+      const bin = atob(String(b64));
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    },
+    // URL-safe Base64 helpers
+    encodeURL(str) {
+      return base64.encode(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    },
+    decodeURL(b64url) {
+      let s = String(b64url).replace(/-/g, "+").replace(/_/g, "/");
+      while (s.length % 4) s += "=";
+      return base64.decode(s);
+    },
+    // مكافئات "one-liner" بدون escape/unescape
+    utf8Enc: (s) => base64.encode(s),
+    utf8Dec: (s) => base64.decode(s)
+  };
 
   // تجميع تحت مساحة الأسماء
   U.Crypto = { sha256, base64 };
@@ -273,8 +273,8 @@
   // QS — Query String
   // ---------------------------------------------------------------------------
   const qs = {
-    parse(s){ const out={}; if(!s) return out; s=String(s).replace(/^\?/,''); for(const part of s.split('&')){ if(!part) continue; const [k,v=''] = part.split('='); const key=decodeURIComponent(k.replace(/\+/g,' ')); const val=decodeURIComponent(v.replace(/\+/g,' ')); if(key in out){ const cur=out[key]; out[key]=Array.isArray(cur)? cur.concat(val): [cur,val]; } else out[key]=val; } return out; },
-    stringify(obj){ const enc=x=>encodeURIComponent(String(x)); const parts=[]; for(const k in obj){ const v=obj[k]; if(v==null) continue; if(Array.isArray(v)) for(const it of v) parts.push(`${enc(k)}=${enc(it)}`); else parts.push(`${enc(k)}=${enc(v)}`); } return parts.length? `?${parts.join('&')}` : ''; }
+    parse(s) { const out = {}; if (!s) return out; s = String(s).replace(/^\?/, ''); for (const part of s.split('&')) { if (!part) continue; const [k, v = ''] = part.split('='); const key = decodeURIComponent(k.replace(/\+/g, ' ')); const val = decodeURIComponent(v.replace(/\+/g, ' ')); if (key in out) { const cur = out[key]; out[key] = Array.isArray(cur) ? cur.concat(val) : [cur, val]; } else out[key] = val; } return out; },
+    stringify(obj) { const enc = x => encodeURIComponent(String(x)); const parts = []; for (const k in obj) { const v = obj[k]; if (v == null) continue; if (Array.isArray(v)) for (const it of v) parts.push(`${enc(k)}=${enc(it)}`); else parts.push(`${enc(k)}=${enc(v)}`); } return parts.length ? `?${parts.join('&')}` : ''; }
   };
 
   U.QS = qs;
@@ -291,7 +291,7 @@
         return () => listeners.get(type)?.delete(fn);
       },
       emit(type, payload) {
-        listeners.get(type)?.forEach(fn => { try { fn(payload); } catch {} });
+        listeners.get(type)?.forEach(fn => { try { fn(payload); } catch { } });
       }
     };
   }
@@ -465,7 +465,7 @@
 
   // لا نكسر الموجود لو موجود مسبقاً
   U.Storage = Object.assign({}, U.Storage, {
-    local:   make('local',   'mishkah'),
+    local: make('local', 'mishkah'),
     session: make('session', 'mishkah:session'),
     // اشتراك على مستوى كل المخازن لو تحب
     on: emitter.on
@@ -474,26 +474,26 @@
   // ---------------------------------------------------------------------------
   // Cookie — إدارة الكوكيز
   // ---------------------------------------------------------------------------
-  const setCookie = (name, value, { days=7, path='/', domain, sameSite='Lax', secure }={}) => {
-    const d = new Date(); d.setTime(d.getTime() + days*24*60*60*1000);
+  const setCookie = (name, value, { days = 7, path = '/', domain, sameSite = 'Lax', secure } = {}) => {
+    const d = new Date(); d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
     let str = `${encodeURIComponent(name)}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=${path}`;
     if (domain) str += `;domain=${domain}`;
     if (sameSite) str += `;samesite=${sameSite}`;
     if (secure) str += `;secure`;
     document.cookie = str;
   };
-  const getCookie = (name) => { const m = document.cookie.match(new RegExp('(^| )'+encodeURIComponent(name)+'=([^;]+)')); return m ? decodeURIComponent(m[2]) : null; };
-  const delCookie = (name, path='/', domain) => { setCookie(name, '', { days:-1, path, domain }); };
+  const getCookie = (name) => { const m = document.cookie.match(new RegExp('(^| )' + encodeURIComponent(name) + '=([^;]+)')); return m ? decodeURIComponent(m[2]) : null; };
+  const delCookie = (name, path = '/', domain) => { setCookie(name, '', { days: -1, path, domain }); };
 
   U.Cookie = { set: setCookie, get: getCookie, remove: delCookie };
 
   // ---------------------------------------------------------------------------
   // Net — Ajax/Fetch قوي، مع JSON/timeout/retry و client builder
   // ---------------------------------------------------------------------------
-  class HttpError extends Error { constructor(status, message, response){ super(`HTTP ${status} ${message||''}`.trim()); this.name='HttpError'; this.status=status; this.response=response; } }
+  class HttpError extends Error { constructor(status, message, response) { super(`HTTP ${status} ${message || ''}`.trim()); this.name = 'HttpError'; this.status = status; this.response = response; } }
 
   const buildURL = (url, query) => {
-    if (!query || (isObj(query) && Object.keys(query).length===0)) return url;
+    if (!query || (isObj(query) && Object.keys(query).length === 0)) return url;
     const usp = new URLSearchParams();
     for (const k in query) {
       const v = query[k];
@@ -510,7 +510,7 @@
     if (responseType === 'blob') return res.blob();
     if (responseType === 'arrayBuffer') return res.arrayBuffer();
     if (responseType === 'formData') return res.formData();
-    const ct = (res.headers.get('content-type')||'').toLowerCase();
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
     if (ct.includes('application/json')) return res.json();
     if (ct.includes('text/')) return res.text();
     if (ct.includes('application/octet-stream')) return res.arrayBuffer();
@@ -518,35 +518,35 @@
     return res.blob();
   };
 
-  const ajax = async (url, opt={}) => {
+  const ajax = async (url, opt = {}) => {
     const {
-      method='GET', headers={}, query=null, body,
-      timeout=0, withCredentials=false, responseType=null,
-      retry: rConf = 0, retryBase=300, retryFactor=2, retryJitter=true,
+      method = 'GET', headers = {}, query = null, body,
+      timeout = 0, withCredentials = false, responseType = null,
+      retry: rConf = 0, retryBase = 300, retryFactor = 2, retryJitter = true,
       signal
     } = opt;
 
     const run = async () => {
       const full = buildURL(url, query);
       const ctrl = new AbortController();
-      const to = timeout>0 ? setTimeout(()=>ctrl.abort(), timeout) : null;
+      const to = timeout > 0 ? setTimeout(() => ctrl.abort(), timeout) : null;
       const wantJSON = isObj(body) && !headers['Content-Type'] && !headers['content-type'];
       const h = wantJSON
-        ? { 'Content-Type':'application/json', 'Accept':'application/json, text/plain, */*', ...headers }
-        : { 'Accept':'application/json, text/plain, */*', ...headers };
-      const b = isObj(body) && h['Content-Type']==='application/json' ? JSON.stringify(body) : body;
+        ? { 'Content-Type': 'application/json', 'Accept': 'application/json, text/plain, */*', ...headers }
+        : { 'Accept': 'application/json, text/plain, */*', ...headers };
+      const b = isObj(body) && h['Content-Type'] === 'application/json' ? JSON.stringify(body) : body;
 
       // merge external signal
       if (signal) {
-        if (signal.aborted) ctrl.abort(); else signal.addEventListener('abort', ()=> ctrl.abort(), { once:true });
+        if (signal.aborted) ctrl.abort(); else signal.addEventListener('abort', () => ctrl.abort(), { once: true });
       }
 
       try {
-        const res = await fetch(full, { method, headers:h, body:b, credentials: withCredentials ? 'include' : 'same-origin', signal: ctrl.signal });
+        const res = await fetch(full, { method, headers: h, body: b, credentials: withCredentials ? 'include' : 'same-origin', signal: ctrl.signal });
         if (to) clearTimeout(to);
         if (!res.ok) {
           let msg = res.statusText || '';
-          try { const j = await res.clone().json(); msg = j?.message || msg; } catch(_){}
+          try { const j = await res.clone().json(); msg = j?.message || msg; } catch (_) { }
           throw new HttpError(res.status, msg, res);
         }
         return parseByType(res, responseType);
@@ -554,24 +554,24 @@
     };
 
     if (!rConf) return run();
-    const tries = isNum(rConf) ? rConf : (rConf.tries||3);
+    const tries = isNum(rConf) ? rConf : (rConf.tries || 3);
     return retry(run, { tries, base: retryBase, factor: retryFactor, jitter: retryJitter });
   };
 
-  const methods = ['GET','POST','PUT','PATCH','DELETE','HEAD'];
+  const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
   const Net = { ajax };
   methods.forEach(M => {
-    Net[M.toLowerCase()] = (url, opt={}) => ajax(url, { ...opt, method:M });
+    Net[M.toLowerCase()] = (url, opt = {}) => ajax(url, { ...opt, method: M });
   });
 
-  Net.client = (base, baseHeaders={}) => {
-    const req = (path, opt={}) => ajax(String(base).replace(/\/$/, '') + '/' + String(path).replace(/^\//,''), { ...opt, headers: { ...baseHeaders, ...(opt.headers||{}) } });
+  Net.client = (base, baseHeaders = {}) => {
+    const req = (path, opt = {}) => ajax(String(base).replace(/\/$/, '') + '/' + String(path).replace(/^\//, ''), { ...opt, headers: { ...baseHeaders, ...(opt.headers || {}) } });
     const api = { request: req };
-    methods.forEach(M => { api[M.toLowerCase()] = (p, opt={}) => req(p, { ...opt, method:M }); });
+    methods.forEach(M => { api[M.toLowerCase()] = (p, opt = {}) => req(p, { ...opt, method: M }); });
     return api;
   };
 
-  Net.form = (obj) => { const fd = new FormData(); const push=(k,v)=> fd.append(k, v==null?'': String(v)); const walk=(p, v)=>{ if (v==null) { push(p,''); } else if (v instanceof Blob || v instanceof File) { fd.append(p, v); } else if (Array.isArray(v)) { v.forEach((it,i)=> walk(`${p}[${i}]`, it)); } else if (typeof v==='object') { for (const k in v) walk(`${p}.${k}`, v[k]); } else push(p, v); }; for (const k in obj) walk(k, obj[k]); return fd; };
+  Net.form = (obj) => { const fd = new FormData(); const push = (k, v) => fd.append(k, v == null ? '' : String(v)); const walk = (p, v) => { if (v == null) { push(p, ''); } else if (v instanceof Blob || v instanceof File) { fd.append(p, v); } else if (Array.isArray(v)) { v.forEach((it, i) => walk(`${p}[${i}]`, it)); } else if (typeof v === 'object') { for (const k in v) walk(`${p}.${k}`, v[k]); } else push(p, v); }; for (const k in obj) walk(k, obj[k]); return fd; };
 
   U.Net = Net;
   U.HttpError = HttpError;
@@ -582,36 +582,36 @@
   // ---------------------------------------------------------------------------
   // IO — تفاعلات نسخ/تحميل بسيطة
   // ---------------------------------------------------------------------------
-  const copyText = async (text) => { try { await navigator.clipboard.writeText(String(text)); return true; } catch (_) { const ta=document.createElement('textarea'); ta.value=String(text); ta.style.position='fixed'; ta.style.top='-1000px'; document.body.appendChild(ta); ta.select(); let ok=false; try{ ok=document.execCommand('copy'); } catch(_){ ok=false; } document.body.removeChild(ta); return ok; } };
-  const download = (data, filename='file.txt', mime='application/octet-stream') => { const blob = data instanceof Blob ? data : new Blob([data], { type:mime }); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); };
+  const copyText = async (text) => { try { await navigator.clipboard.writeText(String(text)); return true; } catch (_) { const ta = document.createElement('textarea'); ta.value = String(text); ta.style.position = 'fixed'; ta.style.top = '-1000px'; document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (_) { ok = false; } document.body.removeChild(ta); return ok; } };
+  const download = (data, filename = 'file.txt', mime = 'application/octet-stream') => { const blob = data instanceof Blob ? data : new Blob([data], { type: mime }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); };
 
   U.IO = { copyText, download };
 
   // ---------------------------------------------------------------------------
   // DOM — مساعدات تركيز ولمسات بصرية
   // ---------------------------------------------------------------------------
-  const focusById = (id, { scroll=true }={}) => {
+  const focusById = (id, { scroll = true } = {}) => {
     if (typeof document === 'undefined') return false;
     const el = document.getElementById(id);
     if (!el) return false;
     try { if (typeof el.focus === 'function') el.focus({ preventScroll: !scroll }); }
     catch (_err) { /* ignore */ }
-    if (scroll && typeof el.scrollIntoView === 'function'){
-      try { el.scrollIntoView({ behavior:'smooth', block:'center' }); }
-      catch(_err){ /* ignore */ }
+    if (scroll && typeof el.scrollIntoView === 'function') {
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      catch (_err) { /* ignore */ }
     }
     return true;
   };
 
-  const flashClass = (id, className, duration=1500) => {
+  const flashClass = (id, className, duration = 1500) => {
     if (typeof document === 'undefined') return false;
     const el = document.getElementById(id);
     if (!el || !className) return false;
     el.classList.add(className);
-    if (duration > 0){
-      setTimeout(()=>{
+    if (duration > 0) {
+      setTimeout(() => {
         try { el.classList.remove(className); }
-        catch(_err){ /* ignore */ }
+        catch (_err) { /* ignore */ }
       }, duration);
     }
     return true;
@@ -623,47 +623,47 @@
   // Cache — واجهة بسيطة على Cache API (اختياري)
   // ---------------------------------------------------------------------------
   const Cache = {
-    async get(name, req, fetcher){ if(!('caches' in window)) throw new Error('Cache API not available'); const c=await caches.open(name); const key= typeof req==='string'? new Request(req): req; const hit=await c.match(key); if(hit) return hit.clone(); const res = fetcher? await fetcher(key) : await fetch(key); if(res && res.ok) await c.put(key, res.clone()); return res.clone(); },
-    async put(name, req, res){ if(!('caches' in window)) throw new Error('Cache API not available'); const c=await caches.open(name); await c.put(req, res); return true; },
-    async del(name, req){ if(!('caches' in window)) throw new Error('Cache API not available'); const c=await caches.open(name); return c.delete(req); },
-    async clear(name){ if(!('caches' in window)) throw new Error('Cache API not available'); const keys=await caches.keys(); for(const k of keys){ if(!name || k===name) await caches.delete(k); } }
+    async get(name, req, fetcher) { if (!('caches' in window)) throw new Error('Cache API not available'); const c = await caches.open(name); const key = typeof req === 'string' ? new Request(req) : req; const hit = await c.match(key); if (hit) return hit.clone(); const res = fetcher ? await fetcher(key) : await fetch(key); if (res && res.ok) await c.put(key, res.clone()); return res.clone(); },
+    async put(name, req, res) { if (!('caches' in window)) throw new Error('Cache API not available'); const c = await caches.open(name); await c.put(req, res); return true; },
+    async del(name, req) { if (!('caches' in window)) throw new Error('Cache API not available'); const c = await caches.open(name); return c.delete(req); },
+    async clear(name) { if (!('caches' in window)) throw new Error('Cache API not available'); const keys = await caches.keys(); for (const k of keys) { if (!name || k === name) await caches.delete(k); } }
   };
 
   U.Cache = Cache;
-// — i18n helpers (محليّة للصفحة)
-const __i18nCache = new WeakMap();
+  // — i18n helpers (محليّة للصفحة)
+  const __i18nCache = new WeakMap();
 
-function buildLangTables(dict) {
-  if (!dict || typeof dict !== 'object') return {};
-  if (__i18nCache.has(dict)) return __i18nCache.get(dict);
-  const tables = {};
-  for (const key of Object.keys(dict)) {
-    const row = dict[key];
-    if (!row || typeof row !== 'object') continue;
-    for (const L of Object.keys(row)) {
-      (tables[L] || (tables[L] = {}))[key] = row[L];
+  function buildLangTables(dict) {
+    if (!dict || typeof dict !== 'object') return {};
+    if (__i18nCache.has(dict)) return __i18nCache.get(dict);
+    const tables = {};
+    for (const key of Object.keys(dict)) {
+      const row = dict[key];
+      if (!row || typeof row !== 'object') continue;
+      for (const L of Object.keys(row)) {
+        (tables[L] || (tables[L] = {}))[key] = row[L];
+      }
     }
+    __i18nCache.set(dict, tables);
+    return tables;
   }
-  __i18nCache.set(dict, tables);
-  return tables;
-}
 
-function makeLangLookup(db) {
-  const dict = db?.i18n?.dict || {};
-  const langs = buildLangTables(dict);
-  const fallback = db?.i18n?.fallback || 'en';
-  const current  = db?.env?.lang || db?.i18n?.lang || fallback;
+  function makeLangLookup(db) {
+    const dict = db?.i18n?.dict || {};
+    const langs = buildLangTables(dict);
+    const fallback = db?.i18n?.fallback || 'en';
+    const current = db?.env?.lang || db?.i18n?.lang || fallback;
 
-  const TL = (key) => {
-    const v = langs[current]?.[key];
-    if (v != null && v !== '') return String(v);
-    const vEn = langs[fallback]?.[key];
-    return vEn != null && vEn !== '' ? String(vEn) : String(key);
-  };
+    const TL = (key) => {
+      const v = langs[current]?.[key];
+      if (v != null && v !== '') return String(v);
+      const vEn = langs[fallback]?.[key];
+      return vEn != null && vEn !== '' ? String(vEn) : String(key);
+    };
 
-  return { TL, langs, current, fallback };
-}
- U.lang ={buildLangTables,makeLangLookup}
+    return { TL, langs, current, fallback };
+  }
+  U.lang = { buildLangTables, makeLangLookup }
 
 
 
@@ -780,7 +780,7 @@ function makeLangLookup(db) {
       this.version = this.initialVersion;
       this.closed = false;
       this.channel = null;
-      if (this.broadcast && 'BroadcastChannel' in g) try { this.channel = new BroadcastChannel('idb:' + this.name) } catch (_) {}
+      if (this.broadcast && 'BroadcastChannel' in g) try { this.channel = new BroadcastChannel('idb:' + this.name) } catch (_) { }
       this.listeners = new Map();
       this._instrumented = false;
     }
@@ -796,7 +796,7 @@ function makeLangLookup(db) {
       if (this.db) return this.db;
       let ver = Math.max(this.initialVersion, await this.currentVersion() || 1);
       let attempt = 0;
-      for (;;) {
+      for (; ;) {
         attempt++;
         try {
           const db = await this._openVersion(ver);
@@ -816,17 +816,17 @@ function makeLangLookup(db) {
     _openVersion(version) {
       return new Promise((resolve, reject) => {
         const req = g.indexedDB.open(this.name, version);
-        req.onblocked = () => { if (isFn(this.onBlocked)) try { this.onBlocked({ reason: 'blocked', name: this.name, version }) } catch (_) {} };
+        req.onblocked = () => { if (isFn(this.onBlocked)) try { this.onBlocked({ reason: 'blocked', name: this.name, version }) } catch (_) { } };
         req.onupgradeneeded = e => {
           const db = e.target.result; const oldV = e.oldVersion || 0; const newV = e.newVersion || version; const tx = e.target.transaction;
-          if (isFn(this.onUpgradeStart)) try { this.onUpgradeStart({ db, oldVersion: oldV, newVersion: newV }) } catch (_) {}
+          if (isFn(this.onUpgradeStart)) try { this.onUpgradeStart({ db, oldVersion: oldV, newVersion: newV }) } catch (_) { }
           try { applySchema(db, tx, this.schema, this.migrations, oldV, newV, this.strict) } catch (er) { reject(wrapErr(er)); return }
-          if (isFn(this.onUpgradeEnd)) try { this.onUpgradeEnd({ db, oldVersion: oldV, newVersion: newV }) } catch (_) {}
+          if (isFn(this.onUpgradeEnd)) try { this.onUpgradeEnd({ db, oldVersion: oldV, newVersion: newV }) } catch (_) { }
         };
         req.onerror = e => reject(wrapErr(e.target.error || e));
         req.onsuccess = e => {
           const db = e.target.result;
-          db.onversionchange = () => { try { if (isFn(this.onVersionChange)) this.onVersionChange({ reason: 'versionchange' }) } catch (_) {} try { db.close(); this.db = null; this.closed = true } catch (_) {} };
+          db.onversionchange = () => { try { if (isFn(this.onVersionChange)) this.onVersionChange({ reason: 'versionchange' }) } catch (_) { } try { db.close(); this.db = null; this.closed = true } catch (_) { } };
           resolve(db);
         };
       });
@@ -843,9 +843,9 @@ function makeLangLookup(db) {
         const req = g.indexedDB.open(this.name, nextV);
         req.onupgradeneeded = e => {
           const updb = e.target.result; const oldV = e.oldVersion || db.version; const newV = e.newVersion || nextV; const tx = e.target.transaction;
-          if (isFn(this.onUpgradeStart)) try { this.onUpgradeStart({ db: updb, oldVersion: oldV, newVersion: newV }) } catch (_) {}
+          if (isFn(this.onUpgradeStart)) try { this.onUpgradeStart({ db: updb, oldVersion: oldV, newVersion: newV }) } catch (_) { }
           try { applySchema(updb, tx, Object.assign({}, this.schema, { strict: this.strict }), this.migrations, oldV, newV, this.strict) } catch (er) { rej(wrapErr(er)); return }
-          if (isFn(this.onUpgradeEnd)) try { this.onUpgradeEnd({ db: updb, oldVersion: oldV, newVersion: newV }) } catch (_) {}
+          if (isFn(this.onUpgradeEnd)) try { this.onUpgradeEnd({ db: updb, oldVersion: oldV, newVersion: newV }) } catch (_) { }
         };
         req.onerror = e => rej(wrapErr(e.target.error || e));
         req.onsuccess = e => { const updb = e.target.result; updb.close(); res(true) };
@@ -853,7 +853,7 @@ function makeLangLookup(db) {
       return true;
     }
 
-    close() { if (this.db) { try { this.db.close() } catch (_) {} this.db = null; this.closed = true } }
+    close() { if (this.db) { try { this.db.close() } catch (_) { } this.db = null; this.closed = true } }
     async destroy() { this.close(); await new Promise((res, rej) => { const del = g.indexedDB.deleteDatabase(this.name); del.onsuccess = () => res(true); del.onerror = e => rej(wrapErr(e.target.error || e)); del.onblocked = () => res(true) }); return true }
 
     tx(stores, mode = 'readonly') { return this.open().then(db => new TxWrap(db.transaction(toArr(stores), mode))) }
@@ -866,7 +866,7 @@ function makeLangLookup(db) {
         await tw.complete();
         return out;
       } catch (err) {
-        try { if (tw && tw.tx) tw.tx.abort() } catch (_) {}
+        try { if (tw && tw.tx) tw.tx.abort() } catch (_) { }
         throw wrapErr(err);
       }
     }
@@ -1035,7 +1035,7 @@ function makeLangLookup(db) {
 
     on(event, handler) { if (!this.listeners.has(event)) this.listeners.set(event, new Set()); this.listeners.get(event).add(handler); return () => this.off(event, handler) }
     off(event, handler) { const set = this.listeners.get(event); if (set) { set.delete(handler); if (!set.size) this.listeners.delete(event) } }
-    emit(event, detail) { const set = this.listeners.get(event); if (set) set.forEach(fn => { try { fn(detail) } catch (_) {} }); if (this.channel) { try { this.channel.postMessage({ t: event, d: detail }) } catch (_) {} } }
+    emit(event, detail) { const set = this.listeners.get(event); if (set) set.forEach(fn => { try { fn(detail) } catch (_) { } }); if (this.channel) { try { this.channel.postMessage({ t: event, d: detail }) } catch (_) { } } }
 
     async instrumentWrites() { if (this._instrumented) return; this._instrumented = true; const db = await this.open(); db.addEventListener && db.addEventListener('close', () => { this._instrumented = false }) }
 
@@ -1069,14 +1069,14 @@ function makeLangLookup(db) {
     constructor(message, code, hint, meta) { super(message); this.name = 'WSXError'; this.code = code || 'WSX_ERR'; this.hint = hint || ''; this.meta = meta || {}; }
   }
 
-  const uuid = () => (U.uuid ? U.uuid() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0, v = c==='x'? r : (r&0x3|0x8); return v.toString(16); }));
+  const uuid = () => (U.uuid ? U.uuid() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8); return v.toString(16); }));
   const now = () => Date.now();
 
   const defaultSerialize = {
     encode: (x) => (typeof x === 'string' || x instanceof ArrayBuffer || x instanceof Blob) ? x : JSON.stringify(x),
     decode: (x) => {
       if (x == null) return x;
-      if (typeof x === 'string') { try { return JSON.parse(x); } catch(_) { return x; } }
+      if (typeof x === 'string') { try { return JSON.parse(x); } catch (_) { return x; } }
       return x;
     }
   };
@@ -1148,7 +1148,7 @@ function makeLangLookup(db) {
 
     on(ev, fn) { (this.handlers[ev] || (this.handlers[ev] = [])).push(fn); return () => this.off(ev, fn); }
     off(ev, fn) { const a = this.handlers[ev]; if (!a) return; const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); }
-    _emit(ev, data) { const a = this.handlers[ev]; if (a) for (const fn of a.slice()) try { fn(data); } catch(e) {} }
+    _emit(ev, data) { const a = this.handlers[ev]; if (a) for (const fn of a.slice()) try { fn(data); } catch (e) { } }
 
     subscribe(topic, fn) { if (!this.topicHandlers.has(topic)) this.topicHandlers.set(topic, new Set()); this.topicHandlers.get(topic).add(fn); return () => this.unsubscribe(topic, fn); }
     unsubscribe(topic, fn) { const set = this.topicHandlers.get(topic); if (!set) return; set.delete(fn); if (!set.size) this.topicHandlers.delete(topic); }
@@ -1170,12 +1170,12 @@ function makeLangLookup(db) {
         const key = 'wsx_outbox_' + this.clientId;
         const cur = JSON.parse(localStorage.getItem(key) || '[]');
         cur.push(record);
-        const max = Math.max(1, this.queueMode.max|0);
+        const max = Math.max(1, this.queueMode.max | 0);
         while (cur.length > max) cur.shift();
-        try { localStorage.setItem(key, JSON.stringify(cur)); } catch(_) { while (cur.length > Math.floor(max*0.8)) cur.shift(); try { localStorage.setItem(key, JSON.stringify(cur)); } catch(_) {} }
+        try { localStorage.setItem(key, JSON.stringify(cur)); } catch (_) { while (cur.length > Math.floor(max * 0.8)) cur.shift(); try { localStorage.setItem(key, JSON.stringify(cur)); } catch (_) { } }
       } else {
         this._queue.push(record);
-        const max = Math.max(1, this.queueMode.max|0);
+        const max = Math.max(1, this.queueMode.max | 0);
         if (this._queue.length > max) this._queue.splice(0, this._queue.length - max);
       }
     }
@@ -1189,7 +1189,7 @@ function makeLangLookup(db) {
         const key = 'wsx_outbox_' + this.clientId;
         const cur = JSON.parse(localStorage.getItem(key) || '[]');
         for (const r of cur) await sendFn(r.payload);
-        try { localStorage.setItem(key, '[]'); } catch(_) {}
+        try { localStorage.setItem(key, '[]'); } catch (_) { }
       } else {
         while (this._queue.length) { const r = this._queue.shift(); await sendFn(r.payload); }
       }
@@ -1223,9 +1223,9 @@ function makeLangLookup(db) {
 
       try {
         if (this.auth && this.auth.getToken && !this.auth.token) {
-          try { this.auth.token = await this.auth.getToken(); } catch(_) {}
+          try { this.auth.token = await this.auth.getToken(); } catch (_) { }
         }
-      } catch(_) {}
+      } catch (_) { }
 
       let url = this._buildUrl();
       try { this.ws = this.protocols ? new WebSocket(url, this.protocols) : new WebSocket(url); }
@@ -1238,9 +1238,9 @@ function makeLangLookup(db) {
 
         this.ws.onopen = async (e) => {
           this.state = 'open'; this.lastOpenTs = now(); this._attempt = 0; this._emit('open', e); this._emit('state', { state: 'open' });
-          if (this.bc) { try { this.bc.postMessage({ __from: this.clientId, type: 'wsx:state', data: { state: 'open' } }); } catch(_) {} }
-          if (this.auth && this.auth.token && this.auth.sendOnUrl === false) { try { this._rawSend({ type: 'auth', token: this.auth.token, ts: now(), cid: this.clientId }); } catch(_) {} }
-          if (this.lastServerSeq) { try { this._rawSend({ type: 'resume', lastSeq: this.lastServerSeq, ts: now(), cid: this.clientId }); } catch(_) {} } else { try { this._rawSend({ type: 'hello', ts: now(), cid: this.clientId }); } catch(_) {} }
+          if (this.bc) { try { this.bc.postMessage({ __from: this.clientId, type: 'wsx:state', data: { state: 'open' } }); } catch (_) { } }
+          if (this.auth && this.auth.token && this.auth.sendOnUrl === false) { try { this._rawSend({ type: 'auth', token: this.auth.token, ts: now(), cid: this.clientId }); } catch (_) { } }
+          if (this.lastServerSeq) { try { this._rawSend({ type: 'resume', lastSeq: this.lastServerSeq, ts: now(), cid: this.clientId }); } catch (_) { } } else { try { this._rawSend({ type: 'hello', ts: now(), cid: this.clientId }); } catch (_) { } }
           await this._persistDrain(async (payload) => { this._rawSend(payload); });
           while (this._queue.length) { const r = this._queue.shift(); this._rawSend(r.payload); }
           this._startHeartbeat();
@@ -1250,7 +1250,7 @@ function makeLangLookup(db) {
         this.ws.onmessage = (e) => {
           const dataEvt = e.data;
           if (typeof dataEvt === 'string') { this._onIncoming(this.serializer.decode(dataEvt)); return; }
-          if (dataEvt instanceof Blob) { dataEvt.text().then(t => this._onIncoming(this.serializer.decode(t))).catch(()=>{}); return; }
+          if (dataEvt instanceof Blob) { dataEvt.text().then(t => this._onIncoming(this.serializer.decode(t))).catch(() => { }); return; }
           if (dataEvt instanceof ArrayBuffer) { const s = new TextDecoder().decode(new Uint8Array(dataEvt)); this._onIncoming(this.serializer.decode(s)); return; }
           this._onIncoming(this.serializer.decode(dataEvt));
         };
@@ -1286,8 +1286,8 @@ function makeLangLookup(db) {
           if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
           this._rawSend(this.ping.send);
           clearTimeout(this._pongTimer);
-          this._pongTimer = setTimeout(() => { try { this.ws && this.ws.close(); } catch(_) {} }, this.ping.timeout);
-        } catch(_) {}
+          this._pongTimer = setTimeout(() => { try { this.ws && this.ws.close(); } catch (_) { } }, this.ping.timeout);
+        } catch (_) { }
       }, this.ping.interval);
     }
 
@@ -1307,9 +1307,9 @@ function makeLangLookup(db) {
 
     async send(data) {
       const payload = (typeof data === 'string' || data instanceof ArrayBuffer || data instanceof Blob) ? data : Object.assign({ ts: now(), cid: this.clientId }, data);
-      for (const fn of this.interceptors.beforeSend) { try { const v = fn(payload); if (v && typeof v === 'object') Object.assign(payload, v); } catch(_) {} }
+      for (const fn of this.interceptors.beforeSend) { try { const v = fn(payload); if (v && typeof v === 'object') Object.assign(payload, v); } catch (_) { } }
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        try { this._rawSend(payload); } catch(_) { await this._enqueue({ payload }); }
+        try { this._rawSend(payload); } catch (_) { await this._enqueue({ payload }); }
       } else {
         await this._enqueue({ payload });
       }
@@ -1348,25 +1348,25 @@ function makeLangLookup(db) {
     status() { return { state: this.state, attempt: this._attempt, lastOpenTs: this.lastOpenTs }; }
 
     flush() { if (this.state === 'open') return this._persistDrain(async (payload) => { this._rawSend(payload); }); return Promise.resolve(false); }
-    reconnect() { try { this.close(); } catch(_) {} this.autoReconnect = true; return this.connect({ waitOpen: false }); }
+    reconnect() { try { this.close(); } catch (_) { } this.autoReconnect = true; return this.connect({ waitOpen: false }); }
 
     close(code, reason) {
       this.autoReconnect = false;
       this._stopHeartbeat();
-      try { this.ws && this.ws.close(code, reason); } catch(_) {}
+      try { this.ws && this.ws.close(code, reason); } catch (_) { }
     }
 
     _dispatchTopic(topic, msg) {
       const set = this.topicHandlers.get(topic);
-      if (set) for (const fn of set) try { fn(msg.payload, msg); } catch(e) {}
+      if (set) for (const fn of set) try { fn(msg.payload, msg); } catch (e) { }
       this._emit('event', msg);
     }
 
     _touchPong() { clearTimeout(this._pongTimer); }
 
     _onIncoming(msg) {
-      if (this.bc) { try { this.bc.postMessage({ __from: this.clientId, type: 'wsx:incoming', data: msg }); } catch(_) {} }
-      for (const fn of this.interceptors.onMessage) { try { const v = fn(msg); if (v && typeof v === 'object') Object.assign(msg, v); } catch(_) {} }
+      if (this.bc) { try { this.bc.postMessage({ __from: this.clientId, type: 'wsx:incoming', data: msg }); } catch (_) { } }
+      for (const fn of this.interceptors.onMessage) { try { const v = fn(msg); if (v && typeof v === 'object') Object.assign(msg, v); } catch (_) { } }
       if (msg === this.ping.expect || (msg && msg.type === this.ping.expect)) { this._touchPong(); return; }
       if (msg && msg.type) {
         if (msg.seq && Number.isFinite(msg.seq) && msg.seq > this.lastServerSeq) this.lastServerSeq = msg.seq;
@@ -1401,265 +1401,265 @@ function makeLangLookup(db) {
 
 // twcss.js — Tailwind CDN + CSS Variables + Auto Scaffold + Theme/Language Orders
 (function (w) {
-'use strict';
+  'use strict';
 
-const M = w.Mishkah = w.Mishkah || {};
-const U = M.utils = M.utils || {};
+  const M = w.Mishkah = w.Mishkah || {};
+  const U = M.utils = M.utils || {};
 
-// ========== Utils ==========
-const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
-const cx = (...xs)=> xs.flat(Infinity).filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+  // ========== Utils ==========
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  const cx = (...xs) => xs.flat(Infinity).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 
-const CSS_LIBRARY_ALIASES = {
-  tw: 'tw',
-  tailwind: 'tw',
-  'tailwindcss': 'tw',
-  'tailwind-css': 'tw',
-  mishkah: 'mi',
-  mi: 'mi',
-  mk: 'mi',
-  'mishkah-css': 'mi'
-};
+  const CSS_LIBRARY_ALIASES = {
+    tw: 'tw',
+    tailwind: 'tw',
+    'tailwindcss': 'tw',
+    'tailwind-css': 'tw',
+    mishkah: 'mi',
+    mi: 'mi',
+    mk: 'mi',
+    'mishkah-css': 'mi'
+  };
 
-let activeLibrary = 'tw';
-let defaultLibraryPromise = null;
-let cachedDefaultLibrary = null;
+  let activeLibrary = 'tw';
+  let defaultLibraryPromise = null;
+  let cachedDefaultLibrary = null;
 
-function normalizeLibrary(input) {
-  if (!input) return null;
-  const normalized = String(input).trim().toLowerCase();
-  return CSS_LIBRARY_ALIASES[normalized] || null;
-}
-
-function setLibrary(next) {
-  const normalized = normalizeLibrary(next) || 'tw';
-  activeLibrary = normalized;
-  cachedDefaultLibrary = normalized;
-  if (typeof document !== 'undefined' && document.documentElement) {
-    try {
-      document.documentElement.dataset.cssLibrary = normalized;
-    } catch (_err) { /* ignore */ }
+  function normalizeLibrary(input) {
+    if (!input) return null;
+    const normalized = String(input).trim().toLowerCase();
+    return CSS_LIBRARY_ALIASES[normalized] || null;
   }
-  if (typeof window !== 'undefined') {
-    window.__MISHKAH_ACTIVE_CSS__ = normalized;
-  }
-  return normalized;
-}
 
-function getLibrary() {
-  return activeLibrary;
-}
-
-function fetchDefaultLibrary(basePath) {
-  if (cachedDefaultLibrary) return Promise.resolve(cachedDefaultLibrary);
-  if (defaultLibraryPromise) return defaultLibraryPromise;
-  if (typeof fetch !== 'function') {
-    cachedDefaultLibrary = activeLibrary;
-    return Promise.resolve(activeLibrary);
-  }
-  const base = typeof window !== 'undefined' && window.__MISHKAH_BASE__ ? window.__MISHKAH_BASE__ : '';
-  const href = (basePath || base || '') + 'env.css.default';
-  defaultLibraryPromise = fetch(href, { cache: 'no-store' })
-    .then((res) => res.ok ? res.text() : '')
-    .then((text) => {
-      const normalized = normalizeLibrary(text);
-      cachedDefaultLibrary = normalized || activeLibrary || 'tw';
-      return cachedDefaultLibrary;
-    })
-    .catch(() => {
-      cachedDefaultLibrary = activeLibrary || 'tw';
-      return cachedDefaultLibrary;
-    });
-  return defaultLibraryPromise;
-}
-
-function normalizeClass(cls) {
-  if (!cls) return '';
-
-  let tokens = cls.split(/\s+/).filter(Boolean);
-
-const groups = {
-  display: /^flex$|^inline-flex$|^grid$|^block$|^inline-block$|^hidden$/,
-  justify: /^justify-(start|end|center|between|around|evenly)$/,
-  items: /^items-(start|end|center|baseline|stretch)$/,
-  content: /^content-(start|end|center|between|around|evenly)$/,
-  textAlign: /^text-(left|right|center|justify|start|end)$/,
-  textSize: /^text-(xs|sm|base|lg|xl|\d+xl)$/,
-  fontWeight: /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/,
-  rounded: /^rounded(-[trbl]{0,2}|-(sm|md|lg|xl|2xl|3xl|full))?$/,
-  shadow: /^shadow(-(sm|md|lg|xl|2xl|inner))?$/,
-  overflow: /^overflow-(auto|hidden|visible|scroll|clip)$/,
-  position: /^(static|fixed|absolute|relative|sticky)$/,
-  inset: /^inset(-[xytrbl])?-.+/,
-  w: /^w-(.+)/,
-  h: /^h-(.+)/,
-  gap: /^gap(-[xy])?-.+/,
-
-  // بدل جروب واحد لـ p… نفصلهم:
-  p:  /^p-(.+)/,
-  px: /^px-(.+)/,
-  py: /^py-(.+)/,
-  pt: /^pt-(.+)/,
-  pr: /^pr-(.+)/,
-  pb: /^pb-(.+)/,
-  pl: /^pl-(.+)/,
-
-  // نفس الفكرة للـ margin إن احتجتها:
-  m:  /^m-(.+)/,
-  mx: /^mx-(.+)/,
-  my: /^my-(.+)/,
-  mt: /^mt-(.+)/,
-  mr: /^mr-(.+)/,
-  mb: /^mb-(.+)/,
-  ml: /^ml-(.+)/,
-};
-
-
-  const lastSeen = {};
-  for (let tok of tokens) {
-    for (let key in groups) {
-      if (groups[key].test(tok)) lastSeen[key] = tok;
+  function setLibrary(next) {
+    const normalized = normalizeLibrary(next) || 'tw';
+    activeLibrary = normalized;
+    cachedDefaultLibrary = normalized;
+    if (typeof document !== 'undefined' && document.documentElement) {
+      try {
+        document.documentElement.dataset.cssLibrary = normalized;
+      } catch (_err) { /* ignore */ }
     }
+    if (typeof window !== 'undefined') {
+      window.__MISHKAH_ACTIVE_CSS__ = normalized;
+    }
+    return normalized;
   }
 
-  let filtered = [];
-  let used = new Set();
+  function getLibrary() {
+    return activeLibrary;
+  }
 
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    let tok = tokens[i];
-    let keep = true;
-    for (let key in groups) {
-      if (groups[key].test(tok)) {
-        if (used.has(key)) keep = false;
-        else used.add(key);
+  function fetchDefaultLibrary(basePath) {
+    if (cachedDefaultLibrary) return Promise.resolve(cachedDefaultLibrary);
+    if (defaultLibraryPromise) return defaultLibraryPromise;
+    if (typeof fetch !== 'function') {
+      cachedDefaultLibrary = activeLibrary;
+      return Promise.resolve(activeLibrary);
+    }
+    const base = typeof window !== 'undefined' && window.__MISHKAH_BASE__ ? window.__MISHKAH_BASE__ : '';
+    const href = (basePath || base || '') + 'env.css.default';
+    defaultLibraryPromise = fetch(href, { cache: 'no-store' })
+      .then((res) => res.ok ? res.text() : '')
+      .then((text) => {
+        const normalized = normalizeLibrary(text);
+        cachedDefaultLibrary = normalized || activeLibrary || 'tw';
+        return cachedDefaultLibrary;
+      })
+      .catch(() => {
+        cachedDefaultLibrary = activeLibrary || 'tw';
+        return cachedDefaultLibrary;
+      });
+    return defaultLibraryPromise;
+  }
+
+  function normalizeClass(cls) {
+    if (!cls) return '';
+
+    let tokens = cls.split(/\s+/).filter(Boolean);
+
+    const groups = {
+      display: /^flex$|^inline-flex$|^grid$|^block$|^inline-block$|^hidden$/,
+      justify: /^justify-(start|end|center|between|around|evenly)$/,
+      items: /^items-(start|end|center|baseline|stretch)$/,
+      content: /^content-(start|end|center|between|around|evenly)$/,
+      textAlign: /^text-(left|right|center|justify|start|end)$/,
+      textSize: /^text-(xs|sm|base|lg|xl|\d+xl)$/,
+      fontWeight: /^font-(thin|extralight|light|normal|medium|semibold|bold|extrabold|black)$/,
+      rounded: /^rounded(-[trbl]{0,2}|-(sm|md|lg|xl|2xl|3xl|full))?$/,
+      shadow: /^shadow(-(sm|md|lg|xl|2xl|inner))?$/,
+      overflow: /^overflow-(auto|hidden|visible|scroll|clip)$/,
+      position: /^(static|fixed|absolute|relative|sticky)$/,
+      inset: /^inset(-[xytrbl])?-.+/,
+      w: /^w-(.+)/,
+      h: /^h-(.+)/,
+      gap: /^gap(-[xy])?-.+/,
+
+      // بدل جروب واحد لـ p… نفصلهم:
+      p: /^p-(.+)/,
+      px: /^px-(.+)/,
+      py: /^py-(.+)/,
+      pt: /^pt-(.+)/,
+      pr: /^pr-(.+)/,
+      pb: /^pb-(.+)/,
+      pl: /^pl-(.+)/,
+
+      // نفس الفكرة للـ margin إن احتجتها:
+      m: /^m-(.+)/,
+      mx: /^mx-(.+)/,
+      my: /^my-(.+)/,
+      mt: /^mt-(.+)/,
+      mr: /^mr-(.+)/,
+      mb: /^mb-(.+)/,
+      ml: /^ml-(.+)/,
+    };
+
+
+    const lastSeen = {};
+    for (let tok of tokens) {
+      for (let key in groups) {
+        if (groups[key].test(tok)) lastSeen[key] = tok;
       }
     }
-    if (keep) filtered.unshift(tok);
-  }
 
-  return filtered.join(' ');
-}
+    let filtered = [];
+    let used = new Set();
 
-function flattenTokenValue(value) {
-  if (!value) return '';
-  if (Array.isArray(value)) return value.map(flattenTokenValue).filter(Boolean).join(' ');
-  if (isObj(value)) {
-    if (value.class) return flattenTokenValue(value.class);
-    if (value.classes) return flattenTokenValue(value.classes);
-    return '';
-  }
-  return String(value);
-}
-
-function expandTokenEntry(entry) {
-  if (!entry) return '';
-  const order = [activeLibrary];
-  if (typeof entry.default === 'string' && entry.default) order.push('__default__');
-  if (activeLibrary !== 'tw') order.push('tw');
-  if (activeLibrary !== 'mi') order.push('mi');
-  Object.keys(entry).forEach((key) => {
-    if (key === 'default') return;
-    if (!order.includes(key)) order.push(key);
-  });
-  for (const key of order) {
-    if (key === '__default__') {
-      const val = entry.default;
-      if (typeof val === 'string' && val) return val;
-      continue;
+    for (let i = tokens.length - 1; i >= 0; i--) {
+      let tok = tokens[i];
+      let keep = true;
+      for (let key in groups) {
+        if (groups[key].test(tok)) {
+          if (used.has(key)) keep = false;
+          else used.add(key);
+        }
+      }
+      if (keep) filtered.unshift(tok);
     }
-    const val = entry[key];
-    if (typeof val === 'string' && val) return val;
-  }
-  return '';
-}
 
-function expandTokenIdentifiers(cls) {
-  if (!cls) return '';
-  const parts = cls.split(/\s+/);
-  const expanded = [];
-  for (const part of parts) {
-    if (!part) continue;
-    const key = part.startsWith('@') ? part.slice(1) : part;
-    const entry = TOKENS[key];
-    if (entry) {
-      const value = expandTokenEntry(entry);
-      if (value) {
-        expanded.push(value);
+    return filtered.join(' ');
+  }
+
+  function flattenTokenValue(value) {
+    if (!value) return '';
+    if (Array.isArray(value)) return value.map(flattenTokenValue).filter(Boolean).join(' ');
+    if (isObj(value)) {
+      if (value.class) return flattenTokenValue(value.class);
+      if (value.classes) return flattenTokenValue(value.classes);
+      return '';
+    }
+    return String(value);
+  }
+
+  function expandTokenEntry(entry) {
+    if (!entry) return '';
+    const order = [activeLibrary];
+    if (typeof entry.default === 'string' && entry.default) order.push('__default__');
+    if (activeLibrary !== 'tw') order.push('tw');
+    if (activeLibrary !== 'mi') order.push('mi');
+    Object.keys(entry).forEach((key) => {
+      if (key === 'default') return;
+      if (!order.includes(key)) order.push(key);
+    });
+    for (const key of order) {
+      if (key === '__default__') {
+        const val = entry.default;
+        if (typeof val === 'string' && val) return val;
         continue;
       }
-      continue;
+      const val = entry[key];
+      if (typeof val === 'string' && val) return val;
     }
-    expanded.push(part);
+    return '';
   }
-  return expanded.join(' ');
-}
 
-function tw(strings,...vals){
-  const raw = Array.isArray(strings)? String.raw({raw:strings},...vals): strings;
-  let result =String(raw).trim().replace(/\s+/g,' ');
-  result = expandTokenIdentifiers(result);
-  return normalizeClass(result);
-}
-
-
-
-// ========== Modern Palette (light blues / dark deep-blues + layered surfaces) ==========
-const DEFAULT_PALETTE = {
-  light: {
-    background: 'hsl(214 45% 98%)',
-    foreground: 'hsl(222 47% 12%)',
-    card: 'hsl(0 0% 100%)',
-    'card-foreground': 'hsl(222 47% 12%)',
-    muted: 'hsl(213 32% 94%)',
-    'muted-foreground': 'hsl(215 20% 42%)',
-    primary: 'hsl(222 85% 55%)',
-    'primary-foreground': 'hsl(210 40% 98%)',
-    secondary: 'hsl(214 52% 94%)',
-    'secondary-foreground': 'hsl(222 47% 18%)',
-    accent: 'hsl(214 65% 95%)',
-    'accent-foreground': 'hsl(222 47% 20%)',
-    destructive: 'hsl(0 72% 47%)',
-    'destructive-foreground': 'hsl(0 0% 98%)',
-    border: 'hsl(215 26% 86%)',
-    input: 'hsl(215 26% 86%)',
-    ring: 'hsl(222 85% 55%)',
-    radius: '1rem',
-    shadow: '0 12px 36px rgba(15, 23, 42, 0.12)',
-    'surface-1': 'color-mix(in oklab, var(--background) 88%, white)',
-    'surface-2': 'color-mix(in oklab, var(--background) 82%, white)',
-    'surface-3': 'color-mix(in oklab, var(--background) 76%, white)',
-    'gradient-hero': 'linear-gradient(135deg, hsl(214 80% 97%) 0%, hsl(214 50% 90%) 100%)'
-  },
-  dark: {
-    background: 'hsl(222 47% 9%)',
-    foreground: 'hsl(214 32% 96%)',
-    card: 'hsl(222 42% 12%)',
-    'card-foreground': 'hsl(214 32% 96%)',
-    muted: 'hsl(222 34% 18%)',
-    'muted-foreground': 'hsl(215 18% 72%)',
-    primary: 'hsl(220 90% 66%)',
-    'primary-foreground': 'hsl(222 45% 12%)',
-    secondary: 'hsl(222 28% 20%)',
-    'secondary-foreground': 'hsl(214 32% 96%)',
-    accent: 'hsl(222 32% 24%)',
-    'accent-foreground': 'hsl(214 32% 96%)',
-    destructive: 'hsl(0 70% 52%)',
-    'destructive-foreground': 'hsl(0 0% 98%)',
-    border: 'hsl(217 24% 28%)',
-    input: 'hsl(217 24% 28%)',
-    ring: 'hsl(220 90% 66%)',
-    radius: '1rem',
-    shadow: '0 20px 48px rgba(2, 6, 23, 0.55)',
-    'surface-1': 'color-mix(in oklab, var(--background) 94%, black)',
-    'surface-2': 'color-mix(in oklab, var(--background) 88%, black)',
-    'surface-3': 'color-mix(in oklab, var(--background) 82%, black)',
-    'gradient-hero': 'linear-gradient(135deg, hsl(220 33% 16%) 0%, hsl(220 38% 12%) 100%)'
+  function expandTokenIdentifiers(cls) {
+    if (!cls) return '';
+    const parts = cls.split(/\s+/);
+    const expanded = [];
+    for (const part of parts) {
+      if (!part) continue;
+      const key = part.startsWith('@') ? part.slice(1) : part;
+      const entry = TOKENS[key];
+      if (entry) {
+        const value = expandTokenEntry(entry);
+        if (value) {
+          expanded.push(value);
+          continue;
+        }
+        continue;
+      }
+      expanded.push(part);
+    }
+    return expanded.join(' ');
   }
-};
 
-// ========== Theme injector ==========
-function ensureStyle(id){ let el=document.getElementById(id); if(!el){ el=document.createElement('style'); el.id=id; document.head.appendChild(el) } return el }
-const MARKDOWN_STYLES = `
+  function tw(strings, ...vals) {
+    const raw = Array.isArray(strings) ? String.raw({ raw: strings }, ...vals) : strings;
+    let result = String(raw).trim().replace(/\s+/g, ' ');
+    result = expandTokenIdentifiers(result);
+    return normalizeClass(result);
+  }
+
+
+
+  // ========== Modern Palette (light blues / dark deep-blues + layered surfaces) ==========
+  const DEFAULT_PALETTE = {
+    light: {
+      background: 'hsl(214 45% 98%)',
+      foreground: 'hsl(222 47% 12%)',
+      card: 'hsl(0 0% 100%)',
+      'card-foreground': 'hsl(222 47% 12%)',
+      muted: 'hsl(213 32% 94%)',
+      'muted-foreground': 'hsl(215 20% 42%)',
+      primary: 'hsl(222 85% 55%)',
+      'primary-foreground': 'hsl(210 40% 98%)',
+      secondary: 'hsl(214 52% 94%)',
+      'secondary-foreground': 'hsl(222 47% 18%)',
+      accent: 'hsl(214 65% 95%)',
+      'accent-foreground': 'hsl(222 47% 20%)',
+      destructive: 'hsl(0 72% 47%)',
+      'destructive-foreground': 'hsl(0 0% 98%)',
+      border: 'hsl(215 26% 86%)',
+      input: 'hsl(215 26% 86%)',
+      ring: 'hsl(222 85% 55%)',
+      radius: '1rem',
+      shadow: '0 12px 36px rgba(15, 23, 42, 0.12)',
+      'surface-1': 'color-mix(in oklab, var(--background) 88%, white)',
+      'surface-2': 'color-mix(in oklab, var(--background) 82%, white)',
+      'surface-3': 'color-mix(in oklab, var(--background) 76%, white)',
+      'gradient-hero': 'linear-gradient(135deg, hsl(214 80% 97%) 0%, hsl(214 50% 90%) 100%)'
+    },
+    dark: {
+      background: 'hsl(222 47% 9%)',
+      foreground: 'hsl(214 32% 96%)',
+      card: 'hsl(222 42% 12%)',
+      'card-foreground': 'hsl(214 32% 96%)',
+      muted: 'hsl(222 34% 18%)',
+      'muted-foreground': 'hsl(215 18% 72%)',
+      primary: 'hsl(220 90% 66%)',
+      'primary-foreground': 'hsl(222 45% 12%)',
+      secondary: 'hsl(222 28% 20%)',
+      'secondary-foreground': 'hsl(214 32% 96%)',
+      accent: 'hsl(222 32% 24%)',
+      'accent-foreground': 'hsl(214 32% 96%)',
+      destructive: 'hsl(0 70% 52%)',
+      'destructive-foreground': 'hsl(0 0% 98%)',
+      border: 'hsl(217 24% 28%)',
+      input: 'hsl(217 24% 28%)',
+      ring: 'hsl(220 90% 66%)',
+      radius: '1rem',
+      shadow: '0 20px 48px rgba(2, 6, 23, 0.55)',
+      'surface-1': 'color-mix(in oklab, var(--background) 94%, black)',
+      'surface-2': 'color-mix(in oklab, var(--background) 88%, black)',
+      'surface-3': 'color-mix(in oklab, var(--background) 82%, black)',
+      'gradient-hero': 'linear-gradient(135deg, hsl(220 33% 16%) 0%, hsl(220 38% 12%) 100%)'
+    }
+  };
+
+  // ========== Theme injector ==========
+  function ensureStyle(id) { let el = document.getElementById(id); if (!el) { el = document.createElement('style'); el.id = id; document.head.appendChild(el) } return el }
+  const MARKDOWN_STYLES = `
 :root {
   --md-prose-font-family: "Inter", "Cairo", "Noto Sans Arabic", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --md-prose-code-font: "Fira Code", "IBM Plex Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -1961,926 +1961,2070 @@ const MARKDOWN_STYLES = `
   margin-bottom: 0;
 }
 `;
-function ensureMarkdownStyles(){ const el = ensureStyle('twcss-markdown'); if(el.textContent!==MARKDOWN_STYLES) el.textContent = MARKDOWN_STYLES }
-function varBlock(selector, vars){ return selector+'{'+Object.entries(vars).map(([k,v])=>`--${k}:${v};`).join('')+'}' }
-function injectTheme(light, dark){ ensureStyle('twcss-theme').textContent = varBlock(':root', light)+'\n'+varBlock(':root.dark', dark) }
-function setTheme(mode){ document.documentElement.classList.toggle('dark', mode==='dark') }
-function setDir(dir){ document.documentElement.setAttribute('dir', dir||'ltr') }
+  function ensureMarkdownStyles() { const el = ensureStyle('twcss-markdown'); if (el.textContent !== MARKDOWN_STYLES) el.textContent = MARKDOWN_STYLES }
+  function varBlock(selector, vars) { return selector + '{' + Object.entries(vars).map(([k, v]) => `--${k}:${v};`).join('') + '}' }
+  function injectTheme(light, dark) { ensureStyle('twcss-theme').textContent = varBlock(':root', light) + '\n' + varBlock(':root.dark', dark) }
+  function setTheme(mode) { document.documentElement.classList.toggle('dark', mode === 'dark') }
+  function setDir(dir) { document.documentElement.setAttribute('dir', dir || 'ltr') }
 
-// ========== Tokens (aliases) ==========
-const TOKENS = Object.create(null);
-function miClassName(key){
-  const base = String(key || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\/]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-  return 'mi-' + base.replace(/\//g, '--');
-}
-function def(map){
-  if (!isObj(map)) return;
-  Object.keys(map).forEach((key) => {
-    const raw = map[key];
-    const entry = TOKENS[key] || (TOKENS[key] = {});
-    if (typeof raw === 'string' || Array.isArray(raw)) {
-      entry.tw = normalizeClass(flattenTokenValue(raw));
-      return;
+  // ========== Tokens (aliases) ==========
+  const TOKENS = Object.create(null);
+  function miClassName(key) {
+    const base = String(key || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\/]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    return 'mi-' + base.replace(/\//g, '--');
+  }
+  function def(map) {
+    if (!isObj(map)) return;
+    Object.keys(map).forEach((key) => {
+      const raw = map[key];
+      const entry = TOKENS[key] || (TOKENS[key] = {});
+      if (typeof raw === 'string' || Array.isArray(raw)) {
+        entry.tw = normalizeClass(flattenTokenValue(raw));
+        return;
+      }
+      if (isObj(raw)) {
+        Object.keys(raw).forEach((libKey) => {
+          const flattened = flattenTokenValue(raw[libKey]);
+          if (!flattened) return;
+          if (libKey === 'default') {
+            entry.default = normalizeClass(flattened);
+            return;
+          }
+          const normalized = normalizeLibrary(libKey) || libKey;
+          entry[normalized] = normalizeClass(flattened);
+        });
+      }
+      if (!Object.prototype.hasOwnProperty.call(entry, 'mi')) {
+        entry.mi = normalizeClass(miClassName(key));
+      }
+    });
+  }
+  function token(name) {
+    if (!name) return '';
+    const key = String(name).trim();
+    if (!key) return '';
+    const entry = TOKENS[key];
+    if (!entry) return '';
+    return normalizeClass(expandTokenEntry(entry));
+  }
+
+  // ========== Head helpers (Auto scaffold) ==========
+  function ensureRoot(id = 'app') {
+    let el = document.getElementById(id);
+    if (!el) { el = document.createElement('div'); el.id = id; document.body.appendChild(el); }
+    return el;
+  }
+  function ensureMetaViewport() {
+    if (!document.querySelector('meta[name="viewport"]')) {
+      const m = document.createElement('meta'); m.name = 'viewport'; m.content = 'width=device-width, initial-scale=1.0'; document.head.appendChild(m);
     }
-    if (isObj(raw)) {
-      Object.keys(raw).forEach((libKey) => {
-        const flattened = flattenTokenValue(raw[libKey]);
-        if (!flattened) return;
-        if (libKey === 'default') {
-          entry.default = normalizeClass(flattened);
-          return;
+  }
+  function ensurePreconnectFonts() {
+    if (!document.querySelector('link[rel="preconnect"][href="https://fonts.googleapis.com"]')) {
+      const l1 = document.createElement('link'); l1.rel = 'preconnect'; l1.href = 'https://fonts.googleapis.com'; document.head.appendChild(l1);
+    }
+    if (!document.querySelector('link[rel="preconnect"][href="https://fonts.gstatic.com"]')) {
+      const l2 = document.createElement('link'); l2.rel = 'preconnect'; l2.href = 'https://fonts.gstatic.com'; l2.crossOrigin = 'anonymous'; document.head.appendChild(l2);
+    }
+  }
+  function googleFontsURL(fonts) {
+    if (!Array.isArray(fonts) || !fonts.length) return null;
+    const families = fonts.map(f => {
+      const fam = encodeURIComponent(f.family || '');
+      const w = f.weights ? `:wght@${f.weights}` : '';
+      return `family=${fam}${w}`;
+    }).join('&');
+    return `https://fonts.googleapis.com/css2?${families}&display=swap`;
+  }
+  function ensureLink(href, rel = 'stylesheet', id) {
+    if (id && document.getElementById(id)) return;
+    if ([].some.call(document.querySelectorAll('link[rel]'), l => l.href === href && l.rel === rel)) return;
+    const el = document.createElement('link'); if (id) el.id = id; el.rel = rel; el.href = href; document.head.appendChild(el);
+  }
+  function ensureScript(src, id) {
+    return new Promise((resolve) => {
+      const byId = id && document.getElementById(id);
+      const finalize = ok => { try { resolve(ok); } catch (_) { } };
+      const attach = node => {
+        node.addEventListener('load', () => { node.dataset.ready = '1'; finalize(true); }, { once: true });
+        node.addEventListener('error', evt => {
+          node.dataset.ready = '0';
+          const auditor = window && window.Mishkah && window.Mishkah.Auditor;
+          if (auditor && typeof auditor.warn === 'function') {
+            auditor.warn('W-TWCSS', 'failed to load Tailwind CDN', { src, error: evt && (evt.error || evt.message || evt.type) });
+          } else if (typeof console !== 'undefined' && console.warn) {
+            console.warn('[Mishkah.twcss] Tailwind CDN failed to load:', src, evt && (evt.error || evt.message || evt.type));
+          }
+          finalize(false);
+        }, { once: true });
+      };
+      if (byId && byId.dataset.ready === '1') return finalize(true);
+      if (byId) { attach(byId); return; }
+      const el = document.createElement('script');
+      if (id) el.id = id;
+      el.src = src;
+      attach(el);
+      document.head.appendChild(el);
+    });
+  }
+  const DEFAULT_SCAFFOLD_FONTS = [
+    { family: 'Inter', weights: '400;600;800' },
+    { family: 'Scheherazade New', weights: '400;700' }
+  ];
+
+  function scaffold(opts = {}) {
+    const w = window;
+    const title = opts.title;
+    const rootId = opts.rootId || 'app';
+    const tailwind = typeof opts.tailwind === 'boolean' ? opts.tailwind : true;
+    const tailwindSrc = opts.tailwindSrc || 'https://cdn.tailwindcss.com';
+    const fonts = Array.isArray(opts.fonts)
+      ? opts.fonts
+      : (opts.fonts === null ? [] : DEFAULT_SCAFFOLD_FONTS);
+
+    if (title) document.title = title;
+    ensureMetaViewport();
+    ensurePreconnectFonts();
+    const href = googleFontsURL(fonts);
+    if (href) ensureLink(href, 'stylesheet', 'gfonts');
+
+    let ready = Promise.resolve(true);
+    if (tailwind) {
+      // Tailwind config BEFORE script
+      w.tailwind = w.tailwind || {};
+      w.tailwind.config = Object.assign({ darkMode: 'class' }, w.tailwind.config || {});
+      ready = ensureScript(tailwindSrc, 'twcdn');
+    }
+
+    const root = ensureRoot(rootId);
+    return { root, ready };
+  }
+
+  // ========== Auto ==========
+  function auto(db, app, opt = {}) {
+    // theme vars
+    const env = db.env || {};
+    const cssConfig = env.css;
+    const explicitOpt = opt && (opt.cssLibrary || opt.library || opt.cssEngine);
+    let requestedLibrary = explicitOpt || null;
+    if (!requestedLibrary) {
+      if (typeof cssConfig === 'string') requestedLibrary = cssConfig;
+      else if (isObj(cssConfig)) {
+        requestedLibrary = cssConfig.library || cssConfig.engine || cssConfig.type || cssConfig.name || cssConfig.mode || null;
+      }
+    }
+    if (!requestedLibrary && typeof window !== 'undefined') {
+      requestedLibrary = window.__MISHKAH_ACTIVE_CSS__ || window.__MISHKAH_DEFAULT_CSS__ || null;
+    }
+    const normalizedLibrary = normalizeLibrary(requestedLibrary);
+    const hasExplicitLibrary = !!normalizedLibrary;
+    if (normalizedLibrary) {
+      setLibrary(normalizedLibrary);
+      fetchDefaultLibrary(opt && opt.basePath).catch(() => { });
+    } else {
+      if (cachedDefaultLibrary) {
+        setLibrary(cachedDefaultLibrary);
+      } else if (typeof window !== 'undefined' && window.__MISHKAH_DEFAULT_CSS__) {
+        const fallbackFromWindow = normalizeLibrary(window.__MISHKAH_DEFAULT_CSS__);
+        if (fallbackFromWindow) setLibrary(fallbackFromWindow);
+      }
+      fetchDefaultLibrary(opt && opt.basePath).then((lib) => {
+        if (!hasExplicitLibrary) setLibrary(lib);
+      }).catch(() => { });
+    }
+    const autoConfig = (typeof window !== 'undefined' && window.MishkahAuto && window.MishkahAuto.config)
+      ? window.MishkahAuto.config
+      : {};
+    const tailwindPref = Object.prototype.hasOwnProperty.call(opt, 'tailwind') ? opt.tailwind : undefined;
+    const tailwindEnabled = typeof tailwindPref === 'boolean'
+      ? tailwindPref
+      : (typeof autoConfig.tailwind === 'boolean' ? autoConfig.tailwind : true);
+    let pwaOrders = {};
+    try {
+      if (U.pwa && typeof U.pwa.auto === 'function') {
+        const outcome = U.pwa.auto(db, app, opt && opt.pwa);
+        if (outcome && outcome.orders && typeof outcome.orders === 'object') {
+          pwaOrders = outcome.orders;
         }
-        const normalized = normalizeLibrary(libKey) || libKey;
-        entry[normalized] = normalizeClass(flattened);
+      }
+    } catch (err) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Mishkah.pwa.auto] failed to initialize PWA layer:', err);
+      }
+    }
+    const user = (env.palette && isObj(env.palette)) ? env.palette : {};
+    const light = Object.assign({}, DEFAULT_PALETTE.light, user.light || {});
+    const dark = Object.assign({}, DEFAULT_PALETTE.dark, user.dark || {});
+    injectTheme(light, dark);
+    ensureMarkdownStyles();
+    setTheme(env.theme === 'dark' ? 'dark' : 'light');
+    setDir(env.dir || (env.lang === 'ar' ? 'rtl' : 'ltr'));
+
+    // page scaffold (Auto by default)
+    const useScaffold = opt.pageScaffold !== false;
+    let gate = Promise.resolve(true);
+    if (useScaffold) {
+      const s = scaffold({
+        title: (db.head && db.head.title) || 'Mishkah App',
+        fonts: opt.fonts,
+        tailwind: tailwindEnabled,
+        tailwindSrc: opt.tailwindSrc
+      });
+      gate = s.ready;
+    }
+
+    // wrap mount to wait
+    if (app && app.mount && !app.mount.__twPatched) {
+      const _mount = app.mount;
+      app.mount = async function (sel) { await gate; _mount.call(app, sel); };
+      app.mount.__twPatched = true;
+    }
+
+    // orders
+    const orders = Object.assign({}, pwaOrders, {
+      'ui.theme.toggle': {
+        on: ['click'], gkeys: ['ui:theme-toggle'],
+        handler: (e, ctx) => {
+          const cur = ctx.getState();
+          const next = cur.env?.theme === 'dark' ? 'light' : 'dark';
+          setTheme(next);
+          ctx.setState(s => ({ ...s, env: { ...(s.env || {}), theme: next } }));
+        }
+      },
+      'ui.lang.ar': {
+        on: ['click'], gkeys: ['ui:lang-ar'],
+        handler: (e, ctx) => { setDir('rtl'); ctx.setState(s => ({ ...s, env: { ...(s.env || {}), lang: 'ar', dir: 'rtl' }, i18n: { ...(s.i18n || {}), lang: 'ar' } })); }
+      },
+      'ui.lang.en': {
+        on: ['click'], gkeys: ['ui:lang-en'],
+        handler: (e, ctx) => { setDir('ltr'); ctx.setState(s => ({ ...s, env: { ...(s.env || {}), lang: 'en', dir: 'ltr' }, i18n: { ...(s.i18n || {}), lang: 'en' } })); }
+      }
+    });
+    return { orders };
+  }
+
+  // ========== Export ==========
+  U.twcss = {
+    tw,
+    cx,
+    def,
+    token,
+    auto,
+    setTheme,
+    setDir,
+    setLibrary,
+    getLibrary,
+    ensureLibrary: fetchDefaultLibrary,
+    PALETTE: DEFAULT_PALETTE
+  };
+
+  // ========== PWA Auto ==========
+  const DEFAULT_PWA_CONFIG = {
+    enabled: false,
+    manifestUrl: './manifest.json',
+    manifest: null,
+    manifestInline: true,
+    icons: [],
+    themeColor: '#0f172a',
+    backgroundColor: '#ffffff',
+    display: 'standalone',
+    startUrl: './',
+    description: '',
+    lang: 'ar',
+    dir: 'auto',
+    scope: './',
+    assets: [],
+    offlineFallback: null,
+    runtimeCaching: [],
+    exposeEnv: true,
+    injectHead: true,
+    registerOnMount: true,
+    registerOnLoad: false,
+    registerDelay: 0,
+    cache: { prefix: 'mishkah-pwa', version: 'v1' },
+    sw: {
+      inline: true,
+      url: './service-worker.js',
+      strategy: 'networkFirst',
+      scope: './',
+      skipWaiting: true,
+      clientsClaim: true,
+      cleanupPrefix: 'mishkah-pwa',
+      networkTimeout: 8000,
+      registrationOptions: {}
+    }
+  };
+
+  function cloneConfig(source) {
+    if (!source) return {};
+    try { return U.JSON.clone(source); }
+    catch (_err) { return JSON.parse(JSON.stringify(source)); }
+  }
+
+  function normalizeIcon(icon) {
+    if (!icon) return null;
+    if (typeof icon === 'string') {
+      return { rel: 'icon', src: icon, href: icon };
+    }
+    if (!isObj(icon)) return null;
+    const rel = icon.rel || (icon.purpose === 'maskable' ? 'mask-icon' : 'icon');
+    const href = icon.href || icon.src || '';
+    if (!href) return null;
+    return {
+      rel,
+      href,
+      src: icon.src || href,
+      type: icon.type || (href.endsWith('.svg') ? 'image/svg+xml' : undefined),
+      sizes: icon.sizes || icon.size || undefined,
+      purpose: icon.purpose || undefined
+    };
+  }
+
+  function uniqueStrings(arr) {
+    const out = [];
+    const seen = new Set();
+    for (const item of arr) {
+      const val = typeof item === 'string' ? item : '';
+      if (!val || seen.has(val)) continue;
+      seen.add(val);
+      out.push(val);
+    }
+    return out;
+  }
+
+  function normalizeRuntimeRule(entry, fallbackStrategy, defaultCacheName) {
+    if (!entry) return null;
+    if (typeof entry === 'string') {
+      return { pattern: entry, strategy: fallbackStrategy, method: 'GET', sameOrigin: true };
+    }
+    if (!isObj(entry)) return null;
+    const pattern = entry.pattern || entry.url || entry.pathname || entry.route;
+    if (!pattern) return null;
+    const method = (entry.method || 'GET').toUpperCase();
+    const strategy = entry.strategy || fallbackStrategy;
+    return {
+      pattern: pattern,
+      strategy: strategy,
+      method: method,
+      sameOrigin: entry.sameOrigin !== false,
+      cacheName: entry.cacheName || defaultCacheName
+    };
+  }
+
+  function ensureArrayCompat(value) {
+    if (typeof ensureArray === 'function') return ensureArray(value);
+    if (U && U.Data && typeof U.Data.ensureArray === 'function') return U.Data.ensureArray(value);
+    return Array.isArray(value) ? value : value == null ? [] : [value];
+  }
+
+  function ensureMeta(name, content) {
+    if (typeof document === 'undefined' || !document.head) return;
+    if (!name) return;
+    let meta = document.head.querySelector(`meta[name="${name}"]`);
+    if (!meta) {
+      meta = document.createElement('meta');
+      meta.setAttribute('name', name);
+      document.head.appendChild(meta);
+    }
+    if (content != null) meta.setAttribute('content', content);
+  }
+
+  function ensureLinkElement(rel, href, attrs) {
+    if (typeof document === 'undefined' || !document.head) return null;
+    let selector = `link[rel="${rel}"]`;
+    if (attrs && attrs.sizes) selector += `[sizes="${attrs.sizes}"]`;
+    let link = document.head.querySelector(selector);
+    if (!link) {
+      link = document.createElement('link');
+      link.setAttribute('rel', rel);
+      document.head.appendChild(link);
+    }
+    if (href) link.setAttribute('href', href);
+    if (attrs) {
+      Object.keys(attrs).forEach((key) => {
+        if (key === 'href' || key === 'rel') return;
+        const val = attrs[key];
+        if (val == null) {
+          link.removeAttribute(key);
+        } else {
+          link.setAttribute(key, val);
+        }
       });
     }
-    if (!Object.prototype.hasOwnProperty.call(entry, 'mi')) {
-      entry.mi = normalizeClass(miClassName(key));
-    }
-  });
-}
-function token(name){
-  if (!name) return '';
-  const key = String(name).trim();
-  if (!key) return '';
-  const entry = TOKENS[key];
-  if (!entry) return '';
-  return normalizeClass(expandTokenEntry(entry));
-}
+    return link;
+  }
 
-// ========== Head helpers (Auto scaffold) ==========
-function ensureRoot(id='app'){
-  let el = document.getElementById(id);
-  if(!el){ el=document.createElement('div'); el.id=id; document.body.appendChild(el); }
-  return el;
-}
-function ensureMetaViewport(){
-  if(!document.querySelector('meta[name="viewport"]')){
-    const m=document.createElement('meta'); m.name='viewport'; m.content='width=device-width, initial-scale=1.0'; document.head.appendChild(m);
+  function toRegExpSource(value) {
+    if (value == null) return null;
+    try {
+      const reg = value instanceof RegExp ? value : new RegExp(String(value));
+      return reg.source;
+    } catch (_err) {
+      return null;
+    }
   }
-}
-function ensurePreconnectFonts(){
-  if(!document.querySelector('link[rel="preconnect"][href="https://fonts.googleapis.com"]')){
-    const l1=document.createElement('link'); l1.rel='preconnect'; l1.href='https://fonts.googleapis.com'; document.head.appendChild(l1);
-  }
-  if(!document.querySelector('link[rel="preconnect"][href="https://fonts.gstatic.com"]')){
-    const l2=document.createElement('link'); l2.rel='preconnect'; l2.href='https://fonts.gstatic.com'; l2.crossOrigin='anonymous'; document.head.appendChild(l2);
-  }
-}
-function googleFontsURL(fonts){
-  if(!Array.isArray(fonts)||!fonts.length) return null;
-  const families = fonts.map(f=>{
-    const fam = encodeURIComponent(f.family||'');
-    const w = f.weights? `:wght@${f.weights}`: '';
-    return `family=${fam}${w}`;
-  }).join('&');
-  return `https://fonts.googleapis.com/css2?${families}&display=swap`;
-}
-function ensureLink(href, rel='stylesheet', id){
-  if(id && document.getElementById(id)) return;
-  if([].some.call(document.querySelectorAll('link[rel]'), l=> l.href===href && l.rel===rel)) return;
-  const el=document.createElement('link'); if(id) el.id=id; el.rel=rel; el.href=href; document.head.appendChild(el);
-}
-function ensureScript(src, id){
-  return new Promise((resolve)=>{
-    const byId = id && document.getElementById(id);
-    const finalize = ok => { try { resolve(ok); } catch(_){} };
-    const attach = node => {
-      node.addEventListener('load', ()=>{ node.dataset.ready='1'; finalize(true); }, { once:true });
-      node.addEventListener('error', evt=>{
-        node.dataset.ready='0';
-        const auditor = window && window.Mishkah && window.Mishkah.Auditor;
-        if (auditor && typeof auditor.warn === 'function') {
-          auditor.warn('W-TWCSS', 'failed to load Tailwind CDN', { src, error: evt && (evt.error || evt.message || evt.type) });
-        } else if (typeof console !== 'undefined' && console.warn) {
-          console.warn('[Mishkah.twcss] Tailwind CDN failed to load:', src, evt && (evt.error || evt.message || evt.type));
-        }
-        finalize(false);
-      }, { once:true });
+
+  function normalizePwaConfig(db, envConfig, runtimeOpt) {
+    const env = (db && db.env) || {};
+    const base = cloneConfig(DEFAULT_PWA_CONFIG);
+    const merged = U.Data.deepMerge(base, cloneConfig(envConfig));
+    const overrides = runtimeOpt && isObj(runtimeOpt) ? cloneConfig(runtimeOpt) : {};
+    const config = U.Data.deepMerge(merged, overrides);
+
+    const explicitEnabled = overrides.enabled;
+    const envFlag = env.isPwa ?? env.isPWA;
+    const finalEnabled = explicitEnabled != null ? !!explicitEnabled : (config.enabled != null ? !!config.enabled : !!(envFlag || (env.pwa && env.pwa.enabled)));
+    config.enabled = finalEnabled;
+
+    const cache = config.cache || {};
+    const prefix = cache.prefix || (config.sw && config.sw.cleanupPrefix) || 'mishkah-pwa';
+    const version = (cache.version != null ? String(cache.version) : (config.sw && config.sw.version)) || 'v1';
+    const cacheName = config.cacheName || (config.sw && config.sw.cacheName) || `${prefix}-${version}`;
+    config.cache = Object.assign({}, cache, { prefix, version });
+    config.cacheName = cacheName;
+    config.cachePrefix = prefix;
+    config.cacheVersion = version;
+
+    const sw = config.sw = config.sw || {};
+    if (sw.inline == null) sw.inline = !sw.url;
+    sw.url = sw.url || './service-worker.js';
+    sw.scope = sw.scope || config.scope || './';
+    sw.strategy = sw.strategy || config.strategy || 'networkFirst';
+    sw.cleanupPrefix = sw.cleanupPrefix || prefix;
+    sw.cacheName = cacheName;
+    sw.networkTimeout = typeof sw.networkTimeout === 'number' ? sw.networkTimeout : 8000;
+
+    const manifestObj = isObj(config.manifest) ? cloneConfig(config.manifest) : null;
+    const icons = ensureArrayCompat(config.icons).map(normalizeIcon).filter(Boolean);
+    const manifestIcons = icons
+      .filter(icon => icon.rel === 'icon' || icon.rel === 'apple-touch-icon' || icon.rel === 'mask-icon')
+      .map(icon => ({
+        src: icon.src || icon.href,
+        sizes: icon.sizes,
+        type: icon.type,
+        purpose: icon.purpose
+      })).filter(icon => !!icon.src);
+
+    const head = db && db.head ? db.head : {};
+    const inferredName = (manifestObj && manifestObj.name) || head.title || 'Mishkah App';
+    const manifest = manifestObj || {
+      name: inferredName,
+      short_name: (manifestObj && manifestObj.short_name) || inferredName.slice(0, 12),
+      start_url: config.startUrl || './',
+      display: config.display || 'standalone',
+      background_color: config.backgroundColor,
+      theme_color: config.themeColor,
+      description: config.description || head.description || ''
     };
-    if(byId && byId.dataset.ready==='1') return finalize(true);
-    if(byId){ attach(byId); return; }
-    const el=document.createElement('script');
-    if(id) el.id=id;
-    el.src=src;
-    attach(el);
-    document.head.appendChild(el);
-  });
-}
-const DEFAULT_SCAFFOLD_FONTS = [
-  { family:'Inter', weights:'400;600;800' },
-  { family:'Scheherazade New', weights:'400;700' }
-];
-
-function scaffold(opts={}){
-  const w = window;
-  const title = opts.title;
-  const rootId = opts.rootId || 'app';
-  const tailwind = typeof opts.tailwind === 'boolean' ? opts.tailwind : true;
-  const tailwindSrc = opts.tailwindSrc || 'https://cdn.tailwindcss.com';
-  const fonts = Array.isArray(opts.fonts)
-    ? opts.fonts
-    : (opts.fonts === null ? [] : DEFAULT_SCAFFOLD_FONTS);
-
-  if(title) document.title=title;
-  ensureMetaViewport();
-  ensurePreconnectFonts();
-  const href = googleFontsURL(fonts);
-  if(href) ensureLink(href,'stylesheet','gfonts');
-
-  let ready = Promise.resolve(true);
-  if(tailwind){
-    // Tailwind config BEFORE script
-    w.tailwind = w.tailwind || {};
-    w.tailwind.config = Object.assign({ darkMode:'class' }, w.tailwind.config||{});
-    ready = ensureScript(tailwindSrc,'twcdn');
-  }
-
-  const root = ensureRoot(rootId);
-  return { root, ready };
-}
-
-// ========== Auto ==========
-function auto(db, app, opt={}){
-  // theme vars
-  const env = db.env||{};
-  const cssConfig = env.css;
-  const explicitOpt = opt && (opt.cssLibrary || opt.library || opt.cssEngine);
-  let requestedLibrary = explicitOpt || null;
-  if (!requestedLibrary) {
-    if (typeof cssConfig === 'string') requestedLibrary = cssConfig;
-    else if (isObj(cssConfig)) {
-      requestedLibrary = cssConfig.library || cssConfig.engine || cssConfig.type || cssConfig.name || cssConfig.mode || null;
+    if (!Array.isArray(manifest.icons) || !manifest.icons.length) {
+      manifest.icons = manifestIcons;
     }
-  }
-  if (!requestedLibrary && typeof window !== 'undefined') {
-    requestedLibrary = window.__MISHKAH_ACTIVE_CSS__ || window.__MISHKAH_DEFAULT_CSS__ || null;
-  }
-  const normalizedLibrary = normalizeLibrary(requestedLibrary);
-  const hasExplicitLibrary = !!normalizedLibrary;
-  if (normalizedLibrary) {
-    setLibrary(normalizedLibrary);
-    fetchDefaultLibrary(opt && opt.basePath).catch(() => {});
-  } else {
-    if (cachedDefaultLibrary) {
-      setLibrary(cachedDefaultLibrary);
-    } else if (typeof window !== 'undefined' && window.__MISHKAH_DEFAULT_CSS__) {
-      const fallbackFromWindow = normalizeLibrary(window.__MISHKAH_DEFAULT_CSS__);
-      if (fallbackFromWindow) setLibrary(fallbackFromWindow);
+    if (!manifest.start_url && config.startUrl) {
+      manifest.start_url = config.startUrl;
     }
-    fetchDefaultLibrary(opt && opt.basePath).then((lib) => {
-      if (!hasExplicitLibrary) setLibrary(lib);
-    }).catch(() => {});
-  }
-  const autoConfig = (typeof window !== 'undefined' && window.MishkahAuto && window.MishkahAuto.config)
-    ? window.MishkahAuto.config
-    : {};
-  const tailwindPref = Object.prototype.hasOwnProperty.call(opt, 'tailwind') ? opt.tailwind : undefined;
-  const tailwindEnabled = typeof tailwindPref === 'boolean'
-    ? tailwindPref
-    : (typeof autoConfig.tailwind === 'boolean' ? autoConfig.tailwind : true);
-  let pwaOrders = {};
-  try {
-    if (U.pwa && typeof U.pwa.auto === 'function') {
-      const outcome = U.pwa.auto(db, app, opt && opt.pwa);
-      if (outcome && outcome.orders && typeof outcome.orders === 'object') {
-        pwaOrders = outcome.orders;
-      }
+    if (!manifest.display && config.display) {
+      manifest.display = config.display;
     }
-  } catch (err) {
-    if (typeof console !== 'undefined' && console.warn) {
-      console.warn('[Mishkah.pwa.auto] failed to initialize PWA layer:', err);
-    }
-  }
-  const user = (env.palette && isObj(env.palette))? env.palette: {};
-  const light = Object.assign({}, DEFAULT_PALETTE.light, user.light||{});
-  const dark  = Object.assign({}, DEFAULT_PALETTE.dark , user.dark ||{});
-  injectTheme(light, dark);
-  ensureMarkdownStyles();
-  setTheme(env.theme==='dark'?'dark':'light');
-  setDir(env.dir || (env.lang==='ar'?'rtl':'ltr'));
+    if (config.lang && !manifest.lang) manifest.lang = config.lang;
+    if (config.dir && !manifest.dir) manifest.dir = config.dir;
 
-  // page scaffold (Auto by default)
-  const useScaffold = opt.pageScaffold!==false;
-  let gate = Promise.resolve(true);
-  if(useScaffold){
-    const s = scaffold({
-      title: (db.head&&db.head.title)||'Mishkah App',
-      fonts: opt.fonts,
-      tailwind: tailwindEnabled,
-      tailwindSrc: opt.tailwindSrc
+    config.manifestObject = manifest;
+    config.icons = icons;
+
+    const assets = ensureArrayCompat(config.assets);
+    const derivedAssets = [];
+    const manifestUrl = config.manifestUrl || './manifest.json';
+    if (manifestUrl) derivedAssets.push(manifestUrl);
+    if (config.startUrl) derivedAssets.push(config.startUrl);
+    icons.forEach(icon => {
+      const href = icon.href || icon.src;
+      if (href && !/^https?:/i.test(href)) derivedAssets.push(href);
     });
-    gate = s.ready;
-  }
+    if (config.offlineFallback && !/^https?:/i.test(config.offlineFallback)) derivedAssets.push(config.offlineFallback);
+    config.precacheAssets = uniqueStrings(assets.concat(derivedAssets));
 
-  // wrap mount to wait
-  if(app && app.mount && !app.mount.__twPatched){
-    const _mount = app.mount;
-    app.mount = async function(sel){ await gate; _mount.call(app, sel); };
-    app.mount.__twPatched = true;
-  }
+    const runtimeRules = ensureArrayCompat(config.runtimeCaching)
+      .map(entry => normalizeRuntimeRule(entry, sw.strategy, cacheName))
+      .filter(Boolean)
+      .map(rule => Object.assign({}, rule, { pattern: toRegExpSource(rule.pattern) || '.*' }));
+    config.runtimeCaching = runtimeRules;
 
-  // orders
-  const orders = Object.assign({}, pwaOrders, {
-    'ui.theme.toggle': {
-      on:['click'], gkeys:['ui:theme-toggle'],
-      handler:(e,ctx)=>{
-        const cur = ctx.getState();
-        const next = cur.env?.theme==='dark'?'light':'dark';
-        setTheme(next);
-        ctx.setState(s=> ({ ...s, env:{ ...(s.env||{}), theme: next } }));
-      }
-    },
-    'ui.lang.ar': {
-      on:['click'], gkeys:['ui:lang-ar'],
-      handler:(e,ctx)=>{ setDir('rtl'); ctx.setState(s=> ({ ...s, env:{...(s.env||{}), lang:'ar', dir:'rtl'}, i18n:{...(s.i18n||{}), lang:'ar'} })); }
-    },
-    'ui.lang.en': {
-      on:['click'], gkeys:['ui:lang-en'],
-      handler:(e,ctx)=>{ setDir('ltr'); ctx.setState(s=> ({ ...s, env:{...(s.env||{}), lang:'en', dir:'ltr'}, i18n:{...(s.i18n||{}), lang:'en'} })); }
+    if (config.offlineFallback && !config.precacheAssets.includes(config.offlineFallback)) {
+      config.precacheAssets.push(config.offlineFallback);
     }
-  });
-  return { orders };
-}
 
-// ========== Export ==========
-U.twcss = {
-  tw,
-  cx,
-  def,
-  token,
-  auto,
-  setTheme,
-  setDir,
-  setLibrary,
-  getLibrary,
-  ensureLibrary: fetchDefaultLibrary,
-  PALETTE: DEFAULT_PALETTE
-};
-
-// ========== PWA Auto ==========
-const DEFAULT_PWA_CONFIG = {
-  enabled: false,
-  manifestUrl: './manifest.json',
-  manifest: null,
-  manifestInline: true,
-  icons: [],
-  themeColor: '#0f172a',
-  backgroundColor: '#ffffff',
-  display: 'standalone',
-  startUrl: './',
-  description: '',
-  lang: 'ar',
-  dir: 'auto',
-  scope: './',
-  assets: [],
-  offlineFallback: null,
-  runtimeCaching: [],
-  exposeEnv: true,
-  injectHead: true,
-  registerOnMount: true,
-  registerOnLoad: false,
-  registerDelay: 0,
-  cache: { prefix: 'mishkah-pwa', version: 'v1' },
-  sw: {
-    inline: true,
-    url: './service-worker.js',
-    strategy: 'networkFirst',
-    scope: './',
-    skipWaiting: true,
-    clientsClaim: true,
-    cleanupPrefix: 'mishkah-pwa',
-    networkTimeout: 8000,
-    registrationOptions: {}
-  }
-};
-
-function cloneConfig(source){
-  if (!source) return {};
-  try { return U.JSON.clone(source); }
-  catch(_err){ return JSON.parse(JSON.stringify(source)); }
-}
-
-function normalizeIcon(icon){
-  if (!icon) return null;
-  if (typeof icon === 'string') {
-    return { rel: 'icon', src: icon, href: icon };
-  }
-  if (!isObj(icon)) return null;
-  const rel = icon.rel || (icon.purpose === 'maskable' ? 'mask-icon' : 'icon');
-  const href = icon.href || icon.src || '';
-  if (!href) return null;
-  return {
-    rel,
-    href,
-    src: icon.src || href,
-    type: icon.type || (href.endsWith('.svg') ? 'image/svg+xml' : undefined),
-    sizes: icon.sizes || icon.size || undefined,
-    purpose: icon.purpose || undefined
-  };
-}
-
-function uniqueStrings(arr){
-  const out = [];
-  const seen = new Set();
-  for (const item of arr) {
-    const val = typeof item === 'string' ? item : '';
-    if (!val || seen.has(val)) continue;
-    seen.add(val);
-    out.push(val);
-  }
-  return out;
-}
-
-function normalizeRuntimeRule(entry, fallbackStrategy, defaultCacheName){
-  if (!entry) return null;
-  if (typeof entry === 'string') {
-    return { pattern: entry, strategy: fallbackStrategy, method: 'GET', sameOrigin: true };
-  }
-  if (!isObj(entry)) return null;
-  const pattern = entry.pattern || entry.url || entry.pathname || entry.route;
-  if (!pattern) return null;
-  const method = (entry.method || 'GET').toUpperCase();
-  const strategy = entry.strategy || fallbackStrategy;
-  return {
-    pattern: pattern,
-    strategy: strategy,
-    method: method,
-    sameOrigin: entry.sameOrigin !== false,
-    cacheName: entry.cacheName || defaultCacheName
-  };
-}
-
-function ensureArrayCompat(value){
-  if (typeof ensureArray === 'function') return ensureArray(value);
-  if (U && U.Data && typeof U.Data.ensureArray === 'function') return U.Data.ensureArray(value);
-  return Array.isArray(value) ? value : value == null ? [] : [value];
-}
-
-function ensureMeta(name, content){
-  if (typeof document === 'undefined' || !document.head) return;
-  if (!name) return;
-  let meta = document.head.querySelector(`meta[name="${name}"]`);
-  if (!meta) {
-    meta = document.createElement('meta');
-    meta.setAttribute('name', name);
-    document.head.appendChild(meta);
-  }
-  if (content != null) meta.setAttribute('content', content);
-}
-
-function ensureLinkElement(rel, href, attrs){
-  if (typeof document === 'undefined' || !document.head) return null;
-  let selector = `link[rel="${rel}"]`;
-  if (attrs && attrs.sizes) selector += `[sizes="${attrs.sizes}"]`;
-  let link = document.head.querySelector(selector);
-  if (!link) {
-    link = document.createElement('link');
-    link.setAttribute('rel', rel);
-    document.head.appendChild(link);
-  }
-  if (href) link.setAttribute('href', href);
-  if (attrs) {
-    Object.keys(attrs).forEach((key)=>{
-      if (key === 'href' || key === 'rel') return;
-      const val = attrs[key];
-      if (val == null) {
-        link.removeAttribute(key);
-      } else {
-        link.setAttribute(key, val);
-      }
-    });
-  }
-  return link;
-}
-
-function toRegExpSource(value){
-  if (value == null) return null;
-  try {
-    const reg = value instanceof RegExp ? value : new RegExp(String(value));
-    return reg.source;
-  } catch (_err) {
-    return null;
-  }
-}
-
-function normalizePwaConfig(db, envConfig, runtimeOpt){
-  const env = (db && db.env) || {};
-  const base = cloneConfig(DEFAULT_PWA_CONFIG);
-  const merged = U.Data.deepMerge(base, cloneConfig(envConfig));
-  const overrides = runtimeOpt && isObj(runtimeOpt) ? cloneConfig(runtimeOpt) : {};
-  const config = U.Data.deepMerge(merged, overrides);
-
-  const explicitEnabled = overrides.enabled;
-  const envFlag = env.isPwa ?? env.isPWA;
-  const finalEnabled = explicitEnabled != null ? !!explicitEnabled : (config.enabled != null ? !!config.enabled : !!(envFlag || (env.pwa && env.pwa.enabled)));
-  config.enabled = finalEnabled;
-
-  const cache = config.cache || {};
-  const prefix = cache.prefix || (config.sw && config.sw.cleanupPrefix) || 'mishkah-pwa';
-  const version = (cache.version != null ? String(cache.version) : (config.sw && config.sw.version)) || 'v1';
-  const cacheName = config.cacheName || (config.sw && config.sw.cacheName) || `${prefix}-${version}`;
-  config.cache = Object.assign({}, cache, { prefix, version });
-  config.cacheName = cacheName;
-  config.cachePrefix = prefix;
-  config.cacheVersion = version;
-
-  const sw = config.sw = config.sw || {};
-  if (sw.inline == null) sw.inline = !sw.url;
-  sw.url = sw.url || './service-worker.js';
-  sw.scope = sw.scope || config.scope || './';
-  sw.strategy = sw.strategy || config.strategy || 'networkFirst';
-  sw.cleanupPrefix = sw.cleanupPrefix || prefix;
-  sw.cacheName = cacheName;
-  sw.networkTimeout = typeof sw.networkTimeout === 'number' ? sw.networkTimeout : 8000;
-
-  const manifestObj = isObj(config.manifest) ? cloneConfig(config.manifest) : null;
-  const icons = ensureArrayCompat(config.icons).map(normalizeIcon).filter(Boolean);
-  const manifestIcons = icons
-    .filter(icon => icon.rel === 'icon' || icon.rel === 'apple-touch-icon' || icon.rel === 'mask-icon')
-    .map(icon => ({
-      src: icon.src || icon.href,
-      sizes: icon.sizes,
-      type: icon.type,
-      purpose: icon.purpose
-    })).filter(icon => !!icon.src);
-
-  const head = db && db.head ? db.head : {};
-  const inferredName = (manifestObj && manifestObj.name) || head.title || 'Mishkah App';
-  const manifest = manifestObj || {
-    name: inferredName,
-    short_name: (manifestObj && manifestObj.short_name) || inferredName.slice(0, 12),
-    start_url: config.startUrl || './',
-    display: config.display || 'standalone',
-    background_color: config.backgroundColor,
-    theme_color: config.themeColor,
-    description: config.description || head.description || ''
-  };
-  if (!Array.isArray(manifest.icons) || !manifest.icons.length) {
-    manifest.icons = manifestIcons;
-  }
-  if (!manifest.start_url && config.startUrl) {
-    manifest.start_url = config.startUrl;
-  }
-  if (!manifest.display && config.display) {
-    manifest.display = config.display;
-  }
-  if (config.lang && !manifest.lang) manifest.lang = config.lang;
-  if (config.dir && !manifest.dir) manifest.dir = config.dir;
-
-  config.manifestObject = manifest;
-  config.icons = icons;
-
-  const assets = ensureArrayCompat(config.assets);
-  const derivedAssets = [];
-  const manifestUrl = config.manifestUrl || './manifest.json';
-  if (manifestUrl) derivedAssets.push(manifestUrl);
-  if (config.startUrl) derivedAssets.push(config.startUrl);
-  icons.forEach(icon => {
-    const href = icon.href || icon.src;
-    if (href && !/^https?:/i.test(href)) derivedAssets.push(href);
-  });
-  if (config.offlineFallback && !/^https?:/i.test(config.offlineFallback)) derivedAssets.push(config.offlineFallback);
-  config.precacheAssets = uniqueStrings(assets.concat(derivedAssets));
-
-  const runtimeRules = ensureArrayCompat(config.runtimeCaching)
-    .map(entry => normalizeRuntimeRule(entry, sw.strategy, cacheName))
-    .filter(Boolean)
-    .map(rule => Object.assign({}, rule, { pattern: toRegExpSource(rule.pattern) || '.*' }));
-  config.runtimeCaching = runtimeRules;
-
-  if (config.offlineFallback && !config.precacheAssets.includes(config.offlineFallback)) {
-    config.precacheAssets.push(config.offlineFallback);
-  }
-
-  if (env.pwa == null || typeof env.pwa !== 'object') env.pwa = {};
-  env.pwa = U.Data.deepMerge(env.pwa, {
-    enabled: config.enabled,
-    manifestUrl: manifestUrl,
-    cacheName: cacheName,
-    assets: config.precacheAssets.slice(),
-    sw: Object.assign({}, env.pwa.sw || {}, {
+    if (env.pwa == null || typeof env.pwa !== 'object') env.pwa = {};
+    env.pwa = U.Data.deepMerge(env.pwa, {
+      enabled: config.enabled,
+      manifestUrl: manifestUrl,
       cacheName: cacheName,
-      version: version,
-      strategy: sw.strategy,
-      scope: sw.scope,
-      inline: !!sw.inline,
-      url: sw.url
-    })
-  });
+      assets: config.precacheAssets.slice(),
+      sw: Object.assign({}, env.pwa.sw || {}, {
+        cacheName: cacheName,
+        version: version,
+        strategy: sw.strategy,
+        scope: sw.scope,
+        inline: !!sw.inline,
+        url: sw.url
+      })
+    });
 
-  config.manifestUrl = manifestUrl;
-  config.state = env.pwa;
+    config.manifestUrl = manifestUrl;
+    config.state = env.pwa;
 
-  return config;
-}
+    return config;
+  }
 
-function ensureManifestLink(config){
-  if (typeof document === 'undefined' || !document.head) return;
-  if (!config.enabled || config.injectHead === false) return;
-  let href = config.manifestUrl;
-  if (config.manifestInline !== false && config.manifestObject) {
-    if (!config.__manifestObjectUrl) {
-      const json = JSON.stringify(config.manifestObject, null, 2);
-      const blob = new Blob([json], { type: 'application/manifest+json' });
-      config.__manifestObjectUrl = URL.createObjectURL(blob);
+  function ensureManifestLink(config) {
+    if (typeof document === 'undefined' || !document.head) return;
+    if (!config.enabled || config.injectHead === false) return;
+    let href = config.manifestUrl;
+    if (config.manifestInline !== false && config.manifestObject) {
+      if (!config.__manifestObjectUrl) {
+        const json = JSON.stringify(config.manifestObject, null, 2);
+        const blob = new Blob([json], { type: 'application/manifest+json' });
+        config.__manifestObjectUrl = URL.createObjectURL(blob);
+      }
+      href = config.__manifestObjectUrl;
     }
-    href = config.__manifestObjectUrl;
+    ensureLinkElement('manifest', href);
   }
-  ensureLinkElement('manifest', href);
-}
 
-function ensureIconsLinks(config){
-  if (!config.enabled || !config.icons || typeof document === 'undefined') return;
-  config.icons.forEach(icon => {
-    const attrs = {};
-    if (icon.type) attrs.type = icon.type;
-    if (icon.sizes) attrs.sizes = icon.sizes;
-    if (icon.purpose) attrs.purpose = icon.purpose;
-    ensureLinkElement(icon.rel || 'icon', icon.href || icon.src, attrs);
-  });
-}
-
-function attachAfterMount(app, fn){
-  if (!app || typeof app.mount !== 'function' || typeof fn !== 'function') return;
-  const current = app.mount;
-  if (current.__mishkahAfterHooks) {
-    current.__mishkahAfterHooks.push(fn);
-    return;
+  function ensureIconsLinks(config) {
+    if (!config.enabled || !config.icons || typeof document === 'undefined') return;
+    config.icons.forEach(icon => {
+      const attrs = {};
+      if (icon.type) attrs.type = icon.type;
+      if (icon.sizes) attrs.sizes = icon.sizes;
+      if (icon.purpose) attrs.purpose = icon.purpose;
+      ensureLinkElement(icon.rel || 'icon', icon.href || icon.src, attrs);
+    });
   }
-  function patched(selector){
-    const result = current.call(app, selector);
-    const run = ()=>{ try { fn(); } catch(err){ if (console && console.error) console.error('[Mishkah.pwa] hook error', err); } };
-    if (result && typeof result.then === 'function') {
-      result.then(run).catch(err=>{ if (console && console.error) console.error('[Mishkah.pwa] mount promise rejected', err); run(); });
-    } else {
-      run();
+
+  function attachAfterMount(app, fn) {
+    if (!app || typeof app.mount !== 'function' || typeof fn !== 'function') return;
+    const current = app.mount;
+    if (current.__mishkahAfterHooks) {
+      current.__mishkahAfterHooks.push(fn);
+      return;
     }
-    return result;
-  }
-  Object.keys(current).forEach(key=>{ patched[key] = current[key]; });
-  if (current.__twPatched) patched.__twPatched = current.__twPatched;
-  patched.__mishkahAfterHooks = [fn];
-  app.mount = patched;
-}
-
-function buildServiceWorkerSource(config){
-  const payload = {
-    cacheName: config.cacheName,
-    precache: config.precacheAssets,
-    runtime: config.runtimeCaching,
-    cleanupPrefix: config.sw.cleanupPrefix || config.cachePrefix,
-    offlineFallback: config.offlineFallback || null,
-    skipWaiting: config.sw.skipWaiting !== false,
-    clientsClaim: config.sw.clientsClaim !== false,
-    defaultStrategy: (config.sw.strategy || 'networkFirst'),
-    networkTimeout: config.sw.networkTimeout || 0
-  };
-
-  return `'use strict';\n` +
-`const CONFIG = ${JSON.stringify(payload)};\n` +
-`const toRegExp = (pattern) => { try { return pattern ? new RegExp(pattern) : null; } catch (_err) { return null; } };\n` +
-`const RUNTIME_RULES = (CONFIG.runtime || []).map(rule => ({\n` +
-`  pattern: toRegExp(rule.pattern),\n` +
-`  strategy: (rule.strategy || CONFIG.defaultStrategy || 'networkFirst').toLowerCase(),\n` +
-`  method: (rule.method || 'GET').toUpperCase(),\n` +
-`  sameOrigin: rule.sameOrigin !== false,\n` +
-`  cacheName: rule.cacheName || CONFIG.cacheName\n` +
-`}));\n` +
-`const PRECACHE = Array.isArray(CONFIG.precache) ? CONFIG.precache : [];\n` +
-`const CLEANUP_PREFIX = CONFIG.cleanupPrefix || CONFIG.cacheName;\n` +
-`const NETWORK_TIMEOUT = CONFIG.networkTimeout || 0;\n` +
-`function timeoutPromise(ms){ return new Promise((_, reject)=> setTimeout(()=> reject(new Error('timeout')), ms)); }\n` +
-`async function precacheAll(){\n` +
-`  const cache = await caches.open(CONFIG.cacheName);\n` +
-`  await cache.addAll(PRECACHE);\n` +
-`}\n` +
-`function cleanupOldCaches(){\n` +
-`  return caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith(CLEANUP_PREFIX) && key !== CONFIG.cacheName).map(key => caches.delete(key))));\n` +
-`}\n` +
-`self.addEventListener('install', event => {\n` +
-`  event.waitUntil(precacheAll().then(()=>{ if (CONFIG.skipWaiting !== false && self.skipWaiting) return self.skipWaiting(); }));\n` +
-`});\n` +
-`self.addEventListener('activate', event => {\n` +
-`  event.waitUntil(cleanupOldCaches().then(()=>{ if (CONFIG.clientsClaim !== false && self.clients && self.clients.claim) return self.clients.claim(); }));\n` +
-`});\n` +
-`const STRATEGIES = {\n` +
-`  'cachefirst': async (request, cacheName) => {\n` +
-`    const cache = await caches.open(cacheName);\n` +
-`    const cached = await cache.match(request);\n` +
-`    if (cached) return cached;\n` +
-`    const response = await fetch(request);\n` +
-`    if (response && response.ok) cache.put(request, response.clone());\n` +
-`    return response;\n` +
-`  },\n` +
-`  'networkfirst': async (request, cacheName) => {\n` +
-`    const cache = await caches.open(cacheName);\n` +
-`    try {\n` +
-`      const network = fetch(request);\n` +
-`      const response = NETWORK_TIMEOUT > 0 ? await Promise.race([network, timeoutPromise(NETWORK_TIMEOUT)]) : await network;\n` +
-`      if (response && response.ok) cache.put(request, response.clone());\n` +
-`      return response;\n` +
-`    } catch (err) {\n` +
-`      const cached = await cache.match(request);\n` +
-`      if (cached) return cached;\n` +
-`      throw err;\n` +
-`    }\n` +
-`  },\n` +
-`  'stalewhilerevalidate': async (request, cacheName) => {\n` +
-`    const cache = await caches.open(cacheName);\n` +
-`    const cached = await cache.match(request);\n` +
-`    const network = fetch(request).then(response => { if (response && response.ok) cache.put(request, response.clone()); return response; }).catch(()=>null);\n` +
-`    return cached || network.then(res => res || cached);\n` +
-`  }\n` +
-`};\n` +
-`function pickStrategy(name){\n` +
-`  const key = (name || CONFIG.defaultStrategy || 'networkFirst').toLowerCase().replace(/\s+/g, '');\n` +
-`  return STRATEGIES[key] || STRATEGIES.networkfirst;\n` +
-`}\n` +
-`function matchRule(url, method){\n` +
-`  return RUNTIME_RULES.find(rule => {\n` +
-`    if (rule.method && rule.method !== method) return false;\n` +
-`    if (rule.sameOrigin && url.origin !== self.location.origin) return false;\n` +
-`    if (rule.pattern && !rule.pattern.test(url.href)) return false;\n` +
-`    return true;\n` +
-`  }) || null;\n` +
-`}\n` +
-`self.addEventListener('fetch', event => {\n` +
-`  const request = event.request;\n` +
-`  if (!request || request.method !== 'GET') return;\n` +
-`  const url = new URL(request.url);\n` +
-`  const rule = matchRule(url, request.method);\n` +
-`  const strategy = pickStrategy(rule && rule.strategy);\n` +
-`  const cacheName = rule && rule.cacheName ? rule.cacheName : CONFIG.cacheName;\n` +
-`  const responder = strategy(request, cacheName, url);\n` +
-`  event.respondWith(responder.catch(err => {\n` +
-`    if (CONFIG.offlineFallback && url.origin === self.location.origin) {\n` +
-`      return caches.match(CONFIG.offlineFallback).then(res => res || Promise.reject(err));\n` +
-`    }\n` +
-`    throw err;\n` +
-`  }));\n` +
-`});\n`;
-}
-
-function ensureServiceWorkerUrl(config){
-  if (!config.enabled) return null;
-  if (!config.sw.inline) return config.sw.url;
-  if (!config.__swObjectUrl) {
-    const source = buildServiceWorkerSource(config);
-    config.__swObjectUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
-  }
-  return config.__swObjectUrl;
-}
-
-function registerServiceWorker(config){
-  if (typeof navigator === 'undefined' || !navigator.serviceWorker) return Promise.resolve(null);
-  if (!config || !config.enabled) return Promise.resolve(null);
-  const url = ensureServiceWorkerUrl(config);
-  if (!url) return Promise.resolve(null);
-  const opts = Object.assign({}, config.sw.registrationOptions || {});
-  if (config.sw.scope) opts.scope = config.sw.scope;
-  return navigator.serviceWorker.register(url, opts).then(reg => {
-    return reg;
-  });
-}
-
-function clearCaches(config){
-  if (typeof caches === 'undefined') return Promise.resolve(false);
-  if (!config) return Promise.resolve(false);
-  const prefix = config.cachePrefix || config.cacheName;
-  return caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith(prefix)).map(key => caches.delete(key))))
-    .then(results => results.some(Boolean));
-}
-
-function exposeEnv(config){
-  if (!config || config.exposeEnv === false) return;
-  if (typeof window === 'undefined') return;
-  const root = window.Mishkah = window.Mishkah || {};
-  const env = root.env = root.env || {};
-  env.PWA = {
-    ENABLED: !!config.enabled,
-    CACHE_NAME: config.cacheName,
-    PRECACHE_ASSETS: config.precacheAssets.slice(),
-    RUNTIME_CACHING: config.runtimeCaching.map(rule => Object.assign({}, rule)),
-    OFFLINE_FALLBACK: config.offlineFallback || null,
-    STRATEGY: config.sw.strategy,
-    SCOPE: config.sw.scope,
-    MANIFEST_URL: config.manifestUrl,
-    REGISTER_ON_MOUNT: config.registerOnMount !== false,
-    VERSION: config.cacheVersion
-  };
-}
-
-function scheduleRegistration(config){
-  if (!config || !config.enabled) return Promise.resolve(null);
-  if (typeof window === 'undefined') return Promise.resolve(null);
-  if (!window.__mishkahPwaRegisterQueue) window.__mishkahPwaRegisterQueue = new Map();
-  if (window.__mishkahPwaRegisterQueue.has(config.cacheName)) {
-    return window.__mishkahPwaRegisterQueue.get(config.cacheName);
-  }
-  const exec = () => registerServiceWorker(config).finally(() => {
-    window.__mishkahPwaRegisterQueue.delete(config.cacheName);
-  });
-  const promise = new Promise((resolve) => {
-    const launch = () => exec().then(resolve).catch(err => { if (console && console.error) console.error('[Mishkah.pwa] registration failed', err); resolve(null); });
-    if (config.registerDelay && config.registerDelay > 0) {
-      setTimeout(launch, config.registerDelay);
-    } else {
-      launch();
+    function patched(selector) {
+      const result = current.call(app, selector);
+      const run = () => { try { fn(); } catch (err) { if (console && console.error) console.error('[Mishkah.pwa] hook error', err); } };
+      if (result && typeof result.then === 'function') {
+        result.then(run).catch(err => { if (console && console.error) console.error('[Mishkah.pwa] mount promise rejected', err); run(); });
+      } else {
+        run();
+      }
+      return result;
     }
-  });
-  window.__mishkahPwaRegisterQueue.set(config.cacheName, promise);
-  return promise;
-}
-
-function autoPwa(db, app, options){
-  const env = (db && db.env) || {};
-  const raw = env.pwa || env.PWA || {};
-  const config = normalizePwaConfig(db || {}, raw, options || {});
-
-  if (config.exposeEnv !== false) exposeEnv(config);
-
-  if (!config.enabled) {
-    return { config, orders: {} };
+    Object.keys(current).forEach(key => { patched[key] = current[key]; });
+    if (current.__twPatched) patched.__twPatched = current.__twPatched;
+    patched.__mishkahAfterHooks = [fn];
+    app.mount = patched;
   }
 
-  if (config.injectHead !== false) {
-    ensureMeta('theme-color', config.themeColor);
-    ensureManifestLink(config);
-    ensureIconsLinks(config);
+  function buildServiceWorkerSource(config) {
+    const payload = {
+      cacheName: config.cacheName,
+      precache: config.precacheAssets,
+      runtime: config.runtimeCaching,
+      cleanupPrefix: config.sw.cleanupPrefix || config.cachePrefix,
+      offlineFallback: config.offlineFallback || null,
+      skipWaiting: config.sw.skipWaiting !== false,
+      clientsClaim: config.sw.clientsClaim !== false,
+      defaultStrategy: (config.sw.strategy || 'networkFirst'),
+      networkTimeout: config.sw.networkTimeout || 0
+    };
+
+    return `'use strict';\n` +
+      `const CONFIG = ${JSON.stringify(payload)};\n` +
+      `const toRegExp = (pattern) => { try { return pattern ? new RegExp(pattern) : null; } catch (_err) { return null; } };\n` +
+      `const RUNTIME_RULES = (CONFIG.runtime || []).map(rule => ({\n` +
+      `  pattern: toRegExp(rule.pattern),\n` +
+      `  strategy: (rule.strategy || CONFIG.defaultStrategy || 'networkFirst').toLowerCase(),\n` +
+      `  method: (rule.method || 'GET').toUpperCase(),\n` +
+      `  sameOrigin: rule.sameOrigin !== false,\n` +
+      `  cacheName: rule.cacheName || CONFIG.cacheName\n` +
+      `}));\n` +
+      `const PRECACHE = Array.isArray(CONFIG.precache) ? CONFIG.precache : [];\n` +
+      `const CLEANUP_PREFIX = CONFIG.cleanupPrefix || CONFIG.cacheName;\n` +
+      `const NETWORK_TIMEOUT = CONFIG.networkTimeout || 0;\n` +
+      `function timeoutPromise(ms){ return new Promise((_, reject)=> setTimeout(()=> reject(new Error('timeout')), ms)); }\n` +
+      `async function precacheAll(){\n` +
+      `  const cache = await caches.open(CONFIG.cacheName);\n` +
+      `  await cache.addAll(PRECACHE);\n` +
+      `}\n` +
+      `function cleanupOldCaches(){\n` +
+      `  return caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith(CLEANUP_PREFIX) && key !== CONFIG.cacheName).map(key => caches.delete(key))));\n` +
+      `}\n` +
+      `self.addEventListener('install', event => {\n` +
+      `  event.waitUntil(precacheAll().then(()=>{ if (CONFIG.skipWaiting !== false && self.skipWaiting) return self.skipWaiting(); }));\n` +
+      `});\n` +
+      `self.addEventListener('activate', event => {\n` +
+      `  event.waitUntil(cleanupOldCaches().then(()=>{ if (CONFIG.clientsClaim !== false && self.clients && self.clients.claim) return self.clients.claim(); }));\n` +
+      `});\n` +
+      `const STRATEGIES = {\n` +
+      `  'cachefirst': async (request, cacheName) => {\n` +
+      `    const cache = await caches.open(cacheName);\n` +
+      `    const cached = await cache.match(request);\n` +
+      `    if (cached) return cached;\n` +
+      `    const response = await fetch(request);\n` +
+      `    if (response && response.ok) cache.put(request, response.clone());\n` +
+      `    return response;\n` +
+      `  },\n` +
+      `  'networkfirst': async (request, cacheName) => {\n` +
+      `    const cache = await caches.open(cacheName);\n` +
+      `    try {\n` +
+      `      const network = fetch(request);\n` +
+      `      const response = NETWORK_TIMEOUT > 0 ? await Promise.race([network, timeoutPromise(NETWORK_TIMEOUT)]) : await network;\n` +
+      `      if (response && response.ok) cache.put(request, response.clone());\n` +
+      `      return response;\n` +
+      `    } catch (err) {\n` +
+      `      const cached = await cache.match(request);\n` +
+      `      if (cached) return cached;\n` +
+      `      throw err;\n` +
+      `    }\n` +
+      `  },\n` +
+      `  'stalewhilerevalidate': async (request, cacheName) => {\n` +
+      `    const cache = await caches.open(cacheName);\n` +
+      `    const cached = await cache.match(request);\n` +
+      `    const network = fetch(request).then(response => { if (response && response.ok) cache.put(request, response.clone()); return response; }).catch(()=>null);\n` +
+      `    return cached || network.then(res => res || cached);\n` +
+      `  }\n` +
+      `};\n` +
+      `function pickStrategy(name){\n` +
+      `  const key = (name || CONFIG.defaultStrategy || 'networkFirst').toLowerCase().replace(/\s+/g, '');\n` +
+      `  return STRATEGIES[key] || STRATEGIES.networkfirst;\n` +
+      `}\n` +
+      `function matchRule(url, method){\n` +
+      `  return RUNTIME_RULES.find(rule => {\n` +
+      `    if (rule.method && rule.method !== method) return false;\n` +
+      `    if (rule.sameOrigin && url.origin !== self.location.origin) return false;\n` +
+      `    if (rule.pattern && !rule.pattern.test(url.href)) return false;\n` +
+      `    return true;\n` +
+      `  }) || null;\n` +
+      `}\n` +
+      `self.addEventListener('fetch', event => {\n` +
+      `  const request = event.request;\n` +
+      `  if (!request || request.method !== 'GET') return;\n` +
+      `  const url = new URL(request.url);\n` +
+      `  const rule = matchRule(url, request.method);\n` +
+      `  const strategy = pickStrategy(rule && rule.strategy);\n` +
+      `  const cacheName = rule && rule.cacheName ? rule.cacheName : CONFIG.cacheName;\n` +
+      `  const responder = strategy(request, cacheName, url);\n` +
+      `  event.respondWith(responder.catch(err => {\n` +
+      `    if (CONFIG.offlineFallback && url.origin === self.location.origin) {\n` +
+      `      return caches.match(CONFIG.offlineFallback).then(res => res || Promise.reject(err));\n` +
+      `    }\n` +
+      `    throw err;\n` +
+      `  }));\n` +
+      `});\n`;
   }
 
-  const doRegister = () => scheduleRegistration(config);
+  function ensureServiceWorkerUrl(config) {
+    if (!config.enabled) return null;
+    if (!config.sw.inline) return config.sw.url;
+    if (!config.__swObjectUrl) {
+      const source = buildServiceWorkerSource(config);
+      config.__swObjectUrl = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+    }
+    return config.__swObjectUrl;
+  }
 
-  if (config.registerOnMount !== false) {
-    attachAfterMount(app, () => {
-      if (typeof window !== 'undefined') {
-        if (document && document.readyState === 'complete') {
-          doRegister();
-        } else {
-          window.addEventListener('load', () => doRegister(), { once: true });
-        }
+  function registerServiceWorker(config) {
+    if (typeof navigator === 'undefined' || !navigator.serviceWorker) return Promise.resolve(null);
+    if (!config || !config.enabled) return Promise.resolve(null);
+    const url = ensureServiceWorkerUrl(config);
+    if (!url) return Promise.resolve(null);
+    const opts = Object.assign({}, config.sw.registrationOptions || {});
+    if (config.sw.scope) opts.scope = config.sw.scope;
+    return navigator.serviceWorker.register(url, opts).then(reg => {
+      return reg;
+    });
+  }
+
+  function clearCaches(config) {
+    if (typeof caches === 'undefined') return Promise.resolve(false);
+    if (!config) return Promise.resolve(false);
+    const prefix = config.cachePrefix || config.cacheName;
+    return caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith(prefix)).map(key => caches.delete(key))))
+      .then(results => results.some(Boolean));
+  }
+
+  function exposeEnv(config) {
+    if (!config || config.exposeEnv === false) return;
+    if (typeof window === 'undefined') return;
+    const root = window.Mishkah = window.Mishkah || {};
+    const env = root.env = root.env || {};
+    env.PWA = {
+      ENABLED: !!config.enabled,
+      CACHE_NAME: config.cacheName,
+      PRECACHE_ASSETS: config.precacheAssets.slice(),
+      RUNTIME_CACHING: config.runtimeCaching.map(rule => Object.assign({}, rule)),
+      OFFLINE_FALLBACK: config.offlineFallback || null,
+      STRATEGY: config.sw.strategy,
+      SCOPE: config.sw.scope,
+      MANIFEST_URL: config.manifestUrl,
+      REGISTER_ON_MOUNT: config.registerOnMount !== false,
+      VERSION: config.cacheVersion
+    };
+  }
+
+  function scheduleRegistration(config) {
+    if (!config || !config.enabled) return Promise.resolve(null);
+    if (typeof window === 'undefined') return Promise.resolve(null);
+    if (!window.__mishkahPwaRegisterQueue) window.__mishkahPwaRegisterQueue = new Map();
+    if (window.__mishkahPwaRegisterQueue.has(config.cacheName)) {
+      return window.__mishkahPwaRegisterQueue.get(config.cacheName);
+    }
+    const exec = () => registerServiceWorker(config).finally(() => {
+      window.__mishkahPwaRegisterQueue.delete(config.cacheName);
+    });
+    const promise = new Promise((resolve) => {
+      const launch = () => exec().then(resolve).catch(err => { if (console && console.error) console.error('[Mishkah.pwa] registration failed', err); resolve(null); });
+      if (config.registerDelay && config.registerDelay > 0) {
+        setTimeout(launch, config.registerDelay);
+      } else {
+        launch();
       }
     });
-  } else if (config.registerOnLoad) {
-    window.addEventListener('load', () => doRegister(), { once: true });
+    window.__mishkahPwaRegisterQueue.set(config.cacheName, promise);
+    return promise;
   }
 
-  const orders = {
-    'pwa.sw.refresh': {
-      on: ['click'],
-      gkeys: ['pwa:sw:refresh'],
-      handler: () => { doRegister(); }
-    },
-    'pwa.cache.clear': {
-      on: ['click'],
-      gkeys: ['pwa:cache:clear'],
-      handler: () => { clearCaches(config); }
+  function autoPwa(db, app, options) {
+    const env = (db && db.env) || {};
+    const raw = env.pwa || env.PWA || {};
+    const config = normalizePwaConfig(db || {}, raw, options || {});
+
+    if (config.exposeEnv !== false) exposeEnv(config);
+
+    if (!config.enabled) {
+      return { config, orders: {} };
     }
+
+    if (config.injectHead !== false) {
+      ensureMeta('theme-color', config.themeColor);
+      ensureManifestLink(config);
+      ensureIconsLinks(config);
+    }
+
+    const doRegister = () => scheduleRegistration(config);
+
+    if (config.registerOnMount !== false) {
+      attachAfterMount(app, () => {
+        if (typeof window !== 'undefined') {
+          if (document && document.readyState === 'complete') {
+            doRegister();
+          } else {
+            window.addEventListener('load', () => doRegister(), { once: true });
+          }
+        }
+      });
+    } else if (config.registerOnLoad) {
+      window.addEventListener('load', () => doRegister(), { once: true });
+    }
+
+    const orders = {
+      'pwa.sw.refresh': {
+        on: ['click'],
+        gkeys: ['pwa:sw:refresh'],
+        handler: () => { doRegister(); }
+      },
+      'pwa.cache.clear': {
+        on: ['click'],
+        gkeys: ['pwa:cache:clear'],
+        handler: () => { clearCaches(config); }
+      }
+    };
+
+    return { config, orders };
+  }
+
+  U.pwa = {
+    auto: autoPwa,
+    normalizeConfig: normalizePwaConfig,
+    ensureManifestLink,
+    buildServiceWorkerSource,
+    register: registerServiceWorker,
+    clearCaches
   };
-
-  return { config, orders };
-}
-
-U.pwa = {
-  auto: autoPwa,
-  normalizeConfig: normalizePwaConfig,
-  ensureManifestLink,
-  buildServiceWorkerSource,
-  register: registerServiceWorker,
-  clearCaches
-};
 
 })(window);
 
 
 
-(function(window){
+(function (window) {
   'use strict';
   const M = window.Mishkah = window.Mishkah || {};
   const U = M.utils = M.utils || {};
-  
-function getPureJson(data) {
-  if (typeof data !== 'object' || data === null) {
-    console.error("المدخل ليس كائنًا صالحًا.");
-    return null;
-  }
 
-  function looksLikeKeyValue(str){
-    return /^\s*[A-Za-z_\u0600-\u06FF][\w\u0600-\u06FF]*\s*:/.test(str);
-  }
-
-  function isLikelyUrlString(str) {
-    // نتحقّق من أشكال URL شائعة، مع أو بدون escaping لـ '/'
-    // أي نص يحتوي http:// أو https:// (مؤقتًا قد يحتوي على \/ المسلوكة)
-    return /https?:\\?\/\\?\/|ftp:\\?\/\\?\/|^["']?https?:\\?\/\\?\/.*\.(jpg|jpeg|png|gif|svg)(\\n)?["']?$/i.test(str);
-  }
-
-  function normalizeLooseJson(input) {
-    let s = String(input).trim();
-
-    // لو يبدأ بمفتاح وليس { أو [ ، لفه داخل {}
-    if (!s.startsWith('{') && !s.startsWith('[') && looksLikeKeyValue(s)) {
-      s = '{' + s + '}';
+  function getPureJson(data) {
+    if (typeof data !== 'object' || data === null) {
+      console.error("المدخل ليس كائنًا صالحًا.");
+      return null;
     }
 
-    // بدّل الاقتباس الأحادي في القيم إلى مزدوج
-    s = s.replace(/'/g, '"');
-
-    // قبل اقتباس المفاتيح، نحمى سلاسل URL قصيرة (نستبدل :// ب placeholder) لكي لا تعتبر ":" مفتاحاً
-    const PLACEHOLDER = '__COLON_SLASH_SLASH__';
-    s = s.replace(/:\s*\\?\/\\?\/+/g, ':' + PLACEHOLDER); // يحمي حالات :// و :\/\
-
-    // اقتباس المفاتيح غير المُقتبسة (عربية/لاتينية) قبل النقطتين
-    s = s.replace(/([{,\s])([A-Za-z_\u0600-\u06FF][\w\u0600-\u06FF]*)\s*:/g, '$1"$2":');
-
-    // إعادة الـ placeholder إلى // بعد الاقتباس
-    s = s.replace(new RegExp(PLACEHOLDER, 'g'), '\\/\\/');
-
-    // إزالة الفواصل الزائدة قبل الأقواس
-    s = s.replace(/,\s*([}\]])/g, '$1');
-
-    // تطييب الـ backslashes الشاردة فقط حين تسبق علامات خاصة JSON
-    s = s.replace(/\\(?=["\\/bfnrtu])/g, '\\\\');
-
-    return s;
-  }
-
-  function tryParseLoose(str){
-    // المحاولة الأولى مباشرة
-    try { return JSON.parse(str); } catch (_) {}
-
-    // إذا النص يبدو كـ URL مشفّر، لا نحاول تحويله إلى كائن — أعده كنص
-    const trimmed = String(str).trim();
-    if (isLikelyUrlString(trimmed)) {
-      // نظيف قليلًا: نزيل الـ wrapping quotes المزدوجة/الهارب إذا وجدت ونفك الـ \/ إلى /
-      let inner = trimmed.replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1');
-      inner = inner.replace(/\\\//g, '/').replace(/\\n/g, '').replace(/\\"/g, '"');
-      return inner; // نُعيد السلسلة كـ string مُنقَّحة
+    function looksLikeKeyValue(str) {
+      return /^\s*[A-Za-z_\u0600-\u06FF][\w\u0600-\u06FF]*\s*:/.test(str);
     }
 
-    // طبّع ثم جرّب ثانية
-    const normalized = normalizeLooseJson(str);
-    try { return JSON.parse(normalized); }
-    catch (e) {
-      // فشل نهائي
-      throw e;
+    function isLikelyUrlString(str) {
+      // نتحقّق من أشكال URL شائعة، مع أو بدون escaping لـ '/'
+      // أي نص يحتوي http:// أو https:// (مؤقتًا قد يحتوي على \/ المسلوكة)
+      return /https?:\\?\/\\?\/|ftp:\\?\/\\?\/|^["']?https?:\\?\/\\?\/.*\.(jpg|jpeg|png|gif|svg)(\\n)?["']?$/i.test(str);
     }
-  }
 
-  function traverse(obj) {
-    if (Array.isArray(obj)) {
-      for (let i = 0; i < obj.length; i++) obj[i] = traverse(obj[i]);
+    function normalizeLooseJson(input) {
+      let s = String(input).trim();
+
+      // لو يبدأ بمفتاح وليس { أو [ ، لفه داخل {}
+      if (!s.startsWith('{') && !s.startsWith('[') && looksLikeKeyValue(s)) {
+        s = '{' + s + '}';
+      }
+
+      // بدّل الاقتباس الأحادي في القيم إلى مزدوج
+      s = s.replace(/'/g, '"');
+
+      // قبل اقتباس المفاتيح، نحمى سلاسل URL قصيرة (نستبدل :// ب placeholder) لكي لا تعتبر ":" مفتاحاً
+      const PLACEHOLDER = '__COLON_SLASH_SLASH__';
+      s = s.replace(/:\s*\\?\/\\?\/+/g, ':' + PLACEHOLDER); // يحمي حالات :// و :\/\
+
+      // اقتباس المفاتيح غير المُقتبسة (عربية/لاتينية) قبل النقطتين
+      s = s.replace(/([{,\s])([A-Za-z_\u0600-\u06FF][\w\u0600-\u06FF]*)\s*:/g, '$1"$2":');
+
+      // إعادة الـ placeholder إلى // بعد الاقتباس
+      s = s.replace(new RegExp(PLACEHOLDER, 'g'), '\\/\\/');
+
+      // إزالة الفواصل الزائدة قبل الأقواس
+      s = s.replace(/,\s*([}\]])/g, '$1');
+
+      // تطييب الـ backslashes الشاردة فقط حين تسبق علامات خاصة JSON
+      s = s.replace(/\\(?=["\\/bfnrtu])/g, '\\\\');
+
+      return s;
+    }
+
+    function tryParseLoose(str) {
+      // المحاولة الأولى مباشرة
+      try { return JSON.parse(str); } catch (_) { }
+
+      // إذا النص يبدو كـ URL مشفّر، لا نحاول تحويله إلى كائن — أعده كنص
+      const trimmed = String(str).trim();
+      if (isLikelyUrlString(trimmed)) {
+        // نظيف قليلًا: نزيل الـ wrapping quotes المزدوجة/الهارب إذا وجدت ونفك الـ \/ إلى /
+        let inner = trimmed.replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1');
+        inner = inner.replace(/\\\//g, '/').replace(/\\n/g, '').replace(/\\"/g, '"');
+        return inner; // نُعيد السلسلة كـ string مُنقَّحة
+      }
+
+      // طبّع ثم جرّب ثانية
+      const normalized = normalizeLooseJson(str);
+      try { return JSON.parse(normalized); }
+      catch (e) {
+        // فشل نهائي
+        throw e;
+      }
+    }
+
+    function traverse(obj) {
+      if (Array.isArray(obj)) {
+        for (let i = 0; i < obj.length; i++) obj[i] = traverse(obj[i]);
+        return obj;
+      }
+
+      for (let key in obj) {
+        const v = obj[key];
+        if (typeof v === 'string') {
+          const str = v.trim();
+
+          // إذا النص يبدو كـ URL مُهَجَّن، لا نحاول تحليله كـ JSON
+          if (isLikelyUrlString(str)) {
+            // نفك بعض الـ escaping الشائع داخل URL
+            obj[key] = str.replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1')
+              .replace(/\\\//g, '/').replace(/\\n/g, '').replace(/\\"/g, '"');
+            continue;
+          }
+
+          // فقط لو يبدو JSON/JS-Object داخل نص
+          if (
+            (str.startsWith('{') && str.endsWith('}')) ||
+            (str.startsWith('[') && str.endsWith(']')) ||
+            looksLikeKeyValue(str) // مثل: en:"x", ar:"y"
+          ) {
+            try {
+              obj[key] = traverse(tryParseLoose(str));
+            } catch (e) {
+              // اترك النص كما هو في حالة الفشل
+            }
+          } else {
+            obj[key] = v; // اترك النص العادي
+          }
+        } else if (v && typeof v === 'object') {
+          obj[key] = traverse(v);
+        }
+      }
       return obj;
     }
 
-    for (let key in obj) {
-      const v = obj[key];
-      if (typeof v === 'string') {
-        const str = v.trim();
-
-        // إذا النص يبدو كـ URL مُهَجَّن، لا نحاول تحليله كـ JSON
-        if (isLikelyUrlString(str)) {
-          // نفك بعض الـ escaping الشائع داخل URL
-          obj[key] = str.replace(/^"(.*)"$/s, '$1').replace(/^'(.*)'$/s, '$1')
-                        .replace(/\\\//g, '/').replace(/\\n/g, '').replace(/\\"/g, '"');
-          continue;
-        }
-
-        // فقط لو يبدو JSON/JS-Object داخل نص
-        if (
-          (str.startsWith('{') && str.endsWith('}')) ||
-          (str.startsWith('[') && str.endsWith(']')) ||
-          looksLikeKeyValue(str) // مثل: en:"x", ar:"y"
-        ) {
-          try {
-            obj[key] = traverse(tryParseLoose(str));
-          } catch (e) {
-            // اترك النص كما هو في حالة الفشل
-          }
-        } else {
-          obj[key] = v; // اترك النص العادي
-        }
-      } else if (v && typeof v === 'object') {
-        obj[key] = traverse(v);
-      }
-    }
-    return obj;
+    const cloned = JSON.parse(JSON.stringify(data));
+    return traverse(cloned);
   }
 
-  const cloned = JSON.parse(JSON.stringify(data));
-  return traverse(cloned);
-}
+
+  U.helpers = { getPureJson: getPureJson };
+
+  // ===========================================================================
+  // Router — React Router Style API (BrowserRouter, Route, Link, useNavigate, etc.)
+  // ===========================================================================
+  const Router = (function () {
+    'use strict';
+
+    // Internal state
+    let currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+    let currentParams = {};
+    let currentQuery = {};
+    let routeListeners = new Set();
+    let routes = [];
+    let notFoundHandler = null;
+    let baseURL = '';
+    let routerInitialized = false;
+
+    // Parse query string
+    function parseQuery(search) {
+      const params = {};
+      if (!search) return params;
+      const query = search.startsWith('?') ? search.slice(1) : search;
+      query.split('&').forEach(pair => {
+        const [key, value] = pair.split('=');
+        if (key) params[decodeURIComponent(key)] = decodeURIComponent(value || '');
+      });
+      return params;
+    }
+
+    // Parse route params from path pattern
+    function matchRoute(pattern, path) {
+      const patternParts = pattern.split('/').filter(Boolean);
+      const pathParts = path.split('/').filter(Boolean);
+
+      // Handle exact match requirement
+      if (patternParts.length !== pathParts.length) {
+        // Allow partial match if pattern ends with *
+        if (!pattern.endsWith('*')) return null;
+        patternParts.pop(); // Remove the *
+        if (pathParts.length < patternParts.length) return null;
+      }
+
+      const params = {};
+      for (let i = 0; i < patternParts.length; i++) {
+        const patternPart = patternParts[i];
+        const pathPart = pathParts[i];
+
+        if (patternPart.startsWith(':')) {
+          // Dynamic param
+          const paramName = patternPart.slice(1);
+          params[paramName] = pathPart;
+        } else if (patternPart !== pathPart) {
+          return null; // No match
+        }
+      }
+
+      return params;
+    }
+
+    // Notify all route listeners
+    function notifyListeners() {
+      currentQuery = parseQuery(window.location.search);
+      routeListeners.forEach(listener => {
+        try {
+          listener({
+            path: currentPath,
+            params: currentParams,
+            query: currentQuery,
+            hash: window.location.hash
+          });
+        } catch (e) {
+          console.error('[Router] Listener error:', e);
+        }
+      });
+    }
+
+    // Find matching route
+    function findMatchingRoute(path) {
+      for (const route of routes) {
+        const params = matchRoute(route.path, path);
+        if (params !== null) {
+          return { route, params };
+        }
+      }
+      return null;
+    }
+
+    // Navigate to a path
+    function navigate(to, options = {}) {
+      const { replace = false, state = null } = options;
+      const fullPath = baseURL + to;
+
+      if (replace) {
+        window.history.replaceState(state, '', fullPath);
+      } else {
+        window.history.pushState(state, '', fullPath);
+      }
+
+      currentPath = to;
+      const match = findMatchingRoute(to);
+      currentParams = match ? match.params : {};
+
+      notifyListeners();
+
+      // Trigger route component if exists
+      if (match && match.route.handler) {
+        match.route.handler(currentParams);
+      } else if (notFoundHandler) {
+        notFoundHandler(to);
+      }
+    }
+
+    // Go back
+    function goBack() {
+      window.history.back();
+    }
+
+    // Go forward
+    function goForward() {
+      window.history.forward();
+    }
+
+    // Go to specific history index
+    function go(delta) {
+      window.history.go(delta);
+    }
+
+    // Register a route
+    function registerRoute(path, handler, options = {}) {
+      routes.push({
+        path,
+        handler,
+        exact: options.exact !== false,
+        ...options
+      });
+    }
+
+    // Clear all routes
+    function clearRoutes() {
+      routes = [];
+    }
+
+    // Set 404 handler
+    function setNotFound(handler) {
+      notFoundHandler = handler;
+    }
+
+    // Initialize router
+    function init(config = {}) {
+      if (routerInitialized) return;
+
+      baseURL = config.baseURL || '';
+
+      // Listen for popstate (browser back/forward)
+      window.addEventListener('popstate', (event) => {
+        currentPath = window.location.pathname.replace(baseURL, '') || '/';
+        const match = findMatchingRoute(currentPath);
+        currentParams = match ? match.params : {};
+        notifyListeners();
+
+        if (match && match.route.handler) {
+          match.route.handler(currentParams);
+        } else if (notFoundHandler) {
+          notFoundHandler(currentPath);
+        }
+      });
+
+      // Initial path
+      currentPath = window.location.pathname.replace(baseURL, '') || '/';
+      currentQuery = parseQuery(window.location.search);
+
+      routerInitialized = true;
+    }
+
+    // Subscribe to route changes
+    function subscribe(listener) {
+      routeListeners.add(listener);
+      return () => routeListeners.delete(listener);
+    }
+
+    // BrowserRouter component (for React-style usage)
+    function BrowserRouter(props) {
+      init({ baseURL: props?.basename || '' });
+      return props?.children || null;
+    }
+
+    // Route component
+    function Route(props) {
+      const { path, element, component: Component, children, exact = true } = props;
+
+      registerRoute(path, (params) => {
+        currentParams = params;
+      }, { exact });
+
+      // Check if current path matches
+      const match = matchRoute(path, currentPath);
+      if (!match) return null;
+
+      currentParams = match;
+
+      if (element) return element;
+      if (Component) {
+        if (typeof Component === 'function') {
+          return Component({ params: match });
+        }
+        return Component;
+      }
+      return children || null;
+    }
+
+    // Link component
+    function Link(props) {
+      const { to, children, className, style, replace = false, onClick, ...rest } = props || {};
+
+      const handleClick = (e) => {
+        e.preventDefault();
+        if (onClick) onClick(e);
+        navigate(to, { replace });
+      };
+
+      // Return Mishkah VDOM element
+      const M = window.Mishkah;
+      if (M && M.React && M.React.createElement) {
+        return M.React.createElement('a', {
+          href: to,
+          className,
+          style,
+          onClick: handleClick,
+          ...rest
+        }, children);
+      }
+
+      // Fallback for non-React context
+      return {
+        tag: 'a',
+        props: { href: to, class: className, style, ...rest },
+        _onClick: handleClick,
+        children: Array.isArray(children) ? children : [children]
+      };
+    }
+
+    // NavLink component (Link with active state)
+    function NavLink(props) {
+      const { to, children, className, activeClassName = 'active', style, activeStyle, ...rest } = props || {};
+
+      const isActive = currentPath === to || currentPath.startsWith(to + '/');
+      const finalClassName = isActive
+        ? (className ? `${className} ${activeClassName}` : activeClassName)
+        : className;
+      const finalStyle = isActive ? { ...style, ...activeStyle } : style;
+
+      return Link({ to, children, className: finalClassName, style: finalStyle, ...rest });
+    }
+
+    // Redirect component
+    function Redirect(props) {
+      const { to, replace = true } = props || {};
+      navigate(to, { replace });
+      return null;
+    }
+
+    // Hooks (for React-style usage)
+    function useNavigate() {
+      return navigate;
+    }
+
+    function useParams() {
+      return { ...currentParams };
+    }
+
+    function useLocation() {
+      return {
+        pathname: currentPath,
+        search: window.location.search,
+        hash: window.location.hash,
+        state: window.history.state,
+        query: currentQuery
+      };
+    }
+
+    function useSearchParams() {
+      const setSearchParams = (params) => {
+        const search = new URLSearchParams(params).toString();
+        const newPath = currentPath + (search ? '?' + search : '');
+        navigate(newPath, { replace: true });
+      };
+      return [currentQuery, setSearchParams];
+    }
+
+    function useMatch(pattern) {
+      return matchRoute(pattern, currentPath);
+    }
+
+    // Routes wrapper
+    function Routes(props) {
+      const { children } = props || {};
+
+      // Find first matching route
+      const childArray = Array.isArray(children) ? children : [children];
+      for (const child of childArray) {
+        if (child && child.props && child.props.path) {
+          const match = matchRoute(child.props.path, currentPath);
+          if (match) {
+            currentParams = match;
+            if (child.props.element) return child.props.element;
+            if (child.props.component) {
+              const Comp = child.props.component;
+              return typeof Comp === 'function' ? Comp({ params: match }) : Comp;
+            }
+            return child.props.children || null;
+          }
+        }
+      }
+      return null;
+    }
+
+    return {
+      // Components
+      BrowserRouter,
+      Route,
+      Routes,
+      Link,
+      NavLink,
+      Redirect,
+
+      // Hooks
+      useNavigate,
+      useParams,
+      useLocation,
+      useSearchParams,
+      useMatch,
+
+      // Utilities
+      navigate,
+      goBack,
+      goForward,
+      go,
+      subscribe,
+      init,
+      registerRoute,
+      clearRoutes,
+      setNotFound,
+      matchRoute,
+      parseQuery,
+
+      // Current state getters
+      get currentPath() { return currentPath; },
+      get currentParams() { return currentParams; },
+      get currentQuery() { return currentQuery; }
+    };
+  })();
+
+  U.Router = Router;
+
+  // ===========================================================================
+  // Store — Redux/Zustand Style State Management
+  // ===========================================================================
+  const Store = (function () {
+    'use strict';
+
+    const stores = new Map();
+
+    /**
+     * Create a store similar to Zustand/Redux
+     * @param {Function|Object} initializer - Initial state or state creator function
+     * @param {Object} options - Store options
+     * @returns {Object} Store with getState, setState, subscribe, actions
+     */
+    function createStore(initializer, options = {}) {
+      const {
+        name = 'store-' + Math.random().toString(36).slice(2, 8),
+        persist = false,
+        persistKey = null,
+        middleware = [],
+        devtools = false
+      } = options;
+
+      let state;
+      let listeners = new Set();
+      let isDispatching = false;
+
+      // Initialize state
+      if (typeof initializer === 'function') {
+        // Zustand-style: function receives set, get
+        const set = (partial, replace = false) => setState(partial, replace);
+        const get = () => state;
+        state = initializer(set, get);
+      } else {
+        state = initializer || {};
+      }
+
+      // Load persisted state
+      if (persist) {
+        const key = persistKey || `mishkah-store:${name}`;
+        try {
+          const saved = localStorage.getItem(key);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            state = { ...state, ...parsed };
+          }
+        } catch (e) {
+          console.warn('[Store] Failed to load persisted state:', e);
+        }
+      }
+
+      // Get current state
+      function getState() {
+        return state;
+      }
+
+      // Set state (partial or full replacement)
+      function setState(partial, replace = false) {
+        if (isDispatching) {
+          console.warn('[Store] Cannot dispatch while dispatching');
+          return;
+        }
+
+        isDispatching = true;
+        const prevState = state;
+
+        try {
+          // Apply middleware
+          let nextPartial = partial;
+          for (const mw of middleware) {
+            if (typeof mw === 'function') {
+              nextPartial = mw(nextPartial, prevState) || nextPartial;
+            }
+          }
+
+          // Calculate next state
+          const nextState = typeof nextPartial === 'function'
+            ? nextPartial(prevState)
+            : nextPartial;
+
+          // Update state
+          if (replace) {
+            state = nextState;
+          } else {
+            state = { ...prevState, ...nextState };
+          }
+
+          // Persist if enabled
+          if (persist) {
+            const key = persistKey || `mishkah-store:${name}`;
+            try {
+              localStorage.setItem(key, JSON.stringify(state));
+            } catch (e) {
+              console.warn('[Store] Failed to persist state:', e);
+            }
+          }
+
+          // Notify listeners
+          listeners.forEach(listener => {
+            try {
+              listener(state, prevState);
+            } catch (e) {
+              console.error('[Store] Listener error:', e);
+            }
+          });
+
+          // DevTools logging
+          if (devtools && typeof console.groupCollapsed === 'function') {
+            console.groupCollapsed(`[Store:${name}] State Update`);
+            console.log('Prev:', prevState);
+            console.log('Next:', state);
+            console.log('Diff:', nextPartial);
+            console.groupEnd();
+          }
+
+        } finally {
+          isDispatching = false;
+        }
+      }
+
+      // Subscribe to state changes
+      function subscribe(listener, selector) {
+        if (selector) {
+          // Selector-based subscription (only notify when selected value changes)
+          let prevSelected = selector(state);
+          const wrappedListener = (newState, oldState) => {
+            const newSelected = selector(newState);
+            if (newSelected !== prevSelected) {
+              listener(newSelected, prevSelected);
+              prevSelected = newSelected;
+            }
+          };
+          listeners.add(wrappedListener);
+          return () => listeners.delete(wrappedListener);
+        }
+
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }
+
+      // Reset store to initial state
+      function reset() {
+        if (typeof initializer === 'function') {
+          const set = (partial) => setState(partial);
+          const get = () => state;
+          setState(initializer(set, get), true);
+        } else {
+          setState(initializer || {}, true);
+        }
+      }
+
+      // Destroy store
+      function destroy() {
+        listeners.clear();
+        stores.delete(name);
+        if (persist) {
+          const key = persistKey || `mishkah-store:${name}`;
+          try { localStorage.removeItem(key); } catch (_) { }
+        }
+      }
+
+      // Create actions wrapper
+      function createActions(actionsMap) {
+        const boundActions = {};
+        for (const [actionName, actionFn] of Object.entries(actionsMap)) {
+          boundActions[actionName] = (...args) => {
+            return actionFn(getState, setState, ...args);
+          };
+        }
+        return boundActions;
+      }
+
+      const store = {
+        name,
+        getState,
+        setState,
+        subscribe,
+        reset,
+        destroy,
+        createActions,
+        // Zustand-style selector hook simulation
+        get: (selector) => selector ? selector(state) : state
+      };
+
+      stores.set(name, store);
+      return store;
+    }
+
+    /**
+     * Hook-like function for using store in components
+     * Must be called within Mishkah.React context
+     */
+    function useStore(store, selector) {
+      const M = window.Mishkah;
+      if (!M || !M.React) {
+        // Fallback: return current state
+        return selector ? selector(store.getState()) : store.getState();
+      }
+
+      const { useState, useEffect, useRef } = M.React;
+
+      // Get initial state
+      const initialValue = selector ? selector(store.getState()) : store.getState();
+      const [state, setState] = useState(initialValue);
+      const selectorRef = useRef(selector);
+      selectorRef.current = selector;
+
+      useEffect(() => {
+        // Subscribe to store changes
+        const unsubscribe = store.subscribe((newState) => {
+          const value = selectorRef.current ? selectorRef.current(newState) : newState;
+          setState(value);
+        });
+
+        return unsubscribe;
+      }, [store]);
+
+      return state;
+    }
+
+    /**
+     * Create a simple reactive atom (like Jotai)
+     */
+    function atom(initialValue) {
+      const store = createStore({ value: initialValue });
+
+      return {
+        get: () => store.getState().value,
+        set: (newValue) => {
+          const value = typeof newValue === 'function'
+            ? newValue(store.getState().value)
+            : newValue;
+          store.setState({ value });
+        },
+        subscribe: (listener) => store.subscribe(
+          (state) => listener(state.value),
+          (state) => state.value
+        )
+      };
+    }
+
+    /**
+     * Combine multiple stores
+     */
+    function combineStores(storesMap) {
+      const combined = {};
+      const subscriptions = [];
+
+      for (const [key, store] of Object.entries(storesMap)) {
+        Object.defineProperty(combined, key, {
+          get: () => store.getState(),
+          enumerable: true
+        });
+      }
+
+      return {
+        getState: () => {
+          const state = {};
+          for (const [key, store] of Object.entries(storesMap)) {
+            state[key] = store.getState();
+          }
+          return state;
+        },
+        subscribe: (listener) => {
+          const unsubs = Object.values(storesMap).map(store =>
+            store.subscribe(() => listener(combined.getState()))
+          );
+          return () => unsubs.forEach(fn => fn());
+        }
+      };
+    }
+
+    // Get store by name
+    function getStore(name) {
+      return stores.get(name);
+    }
+
+    // Get all stores
+    function getAllStores() {
+      return Array.from(stores.values());
+    }
+
+    return {
+      createStore,
+      useStore,
+      atom,
+      combineStores,
+      getStore,
+      getAllStores
+    };
+  })();
+
+  U.Store = Store;
+
+  // ===========================================================================
+  // Query — React Query/SWR Style Data Fetching
+  // ===========================================================================
+  const Query = (function () {
+    'use strict';
+
+    // Query cache
+    const queryCache = new Map();
+    const mutationCache = new Map();
+    const queryListeners = new Map();
+
+    // Default options
+    const defaultQueryOptions = {
+      staleTime: 0,              // Time in ms before data is considered stale
+      cacheTime: 5 * 60 * 1000,  // Time to keep unused cache (5 minutes)
+      refetchOnMount: true,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      refetchInterval: null,     // Auto refetch interval in ms
+      retry: 3,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30000),
+      enabled: true
+    };
+
+    // Query states
+    const QueryStatus = {
+      IDLE: 'idle',
+      LOADING: 'loading',
+      SUCCESS: 'success',
+      ERROR: 'error'
+    };
+
+    /**
+     * Generate cache key from query key
+     */
+    function hashQueryKey(queryKey) {
+      if (typeof queryKey === 'string') return queryKey;
+      if (Array.isArray(queryKey)) return JSON.stringify(queryKey);
+      return JSON.stringify(queryKey);
+    }
+
+    /**
+     * Create a query observer
+     */
+    function createQueryObserver(queryKey, queryFn, options = {}) {
+      const key = hashQueryKey(queryKey);
+      const opts = { ...defaultQueryOptions, ...options };
+
+      let cached = queryCache.get(key);
+
+      if (!cached) {
+        cached = {
+          key,
+          data: undefined,
+          error: null,
+          status: QueryStatus.IDLE,
+          dataUpdatedAt: 0,
+          errorUpdatedAt: 0,
+          fetchCount: 0,
+          isFetching: false,
+          isStale: true
+        };
+        queryCache.set(key, cached);
+      }
+
+      // Check if data is stale
+      const isStale = () => {
+        if (!cached.dataUpdatedAt) return true;
+        return Date.now() - cached.dataUpdatedAt > opts.staleTime;
+      };
+
+      // Notify listeners
+      const notify = () => {
+        const listeners = queryListeners.get(key);
+        if (listeners) {
+          listeners.forEach(listener => {
+            try { listener(cached); } catch (e) { console.error('[Query] Listener error:', e); }
+          });
+        }
+      };
+
+      // Fetch data
+      const fetch = async () => {
+        if (!opts.enabled || cached.isFetching) return;
+
+        cached.isFetching = true;
+        cached.status = cached.data !== undefined ? QueryStatus.SUCCESS : QueryStatus.LOADING;
+        notify();
+
+        let lastError = null;
+        let attempt = 0;
+
+        while (attempt <= opts.retry) {
+          try {
+            const data = await queryFn();
+
+            cached.data = data;
+            cached.error = null;
+            cached.status = QueryStatus.SUCCESS;
+            cached.dataUpdatedAt = Date.now();
+            cached.fetchCount++;
+            cached.isFetching = false;
+            cached.isStale = false;
+
+            notify();
+            return data;
+
+          } catch (error) {
+            lastError = error;
+            attempt++;
+
+            if (attempt <= opts.retry) {
+              const delay = typeof opts.retryDelay === 'function'
+                ? opts.retryDelay(attempt)
+                : opts.retryDelay;
+              await new Promise(r => setTimeout(r, delay));
+            }
+          }
+        }
+
+        // All retries failed
+        cached.error = lastError;
+        cached.status = QueryStatus.ERROR;
+        cached.errorUpdatedAt = Date.now();
+        cached.isFetching = false;
+        notify();
+
+        throw lastError;
+      };
+
+      // Refetch
+      const refetch = () => {
+        cached.isStale = true;
+        return fetch();
+      };
+
+      // Invalidate
+      const invalidate = () => {
+        cached.isStale = true;
+        cached.dataUpdatedAt = 0;
+        notify();
+      };
+
+      // Subscribe
+      const subscribe = (listener) => {
+        if (!queryListeners.has(key)) {
+          queryListeners.set(key, new Set());
+        }
+        queryListeners.get(key).add(listener);
+        return () => queryListeners.get(key).delete(listener);
+      };
+
+      return {
+        key,
+        fetch,
+        refetch,
+        invalidate,
+        subscribe,
+        isStale,
+        getState: () => cached
+      };
+    }
+
+    /**
+     * useQuery hook - React Query style
+     */
+    function useQuery(queryKey, queryFn, options = {}) {
+      const M = window.Mishkah;
+      if (!M || !M.React) {
+        // Fallback: return sync result
+        const observer = createQueryObserver(queryKey, queryFn, options);
+        observer.fetch().catch(() => { });
+        return observer.getState();
+      }
+
+      const { useState, useEffect, useRef, useMemo } = M.React;
+      const opts = { ...defaultQueryOptions, ...options };
+
+      const observer = useMemo(
+        () => createQueryObserver(queryKey, queryFn, opts),
+        [hashQueryKey(queryKey)]
+      );
+
+      const [state, setState] = useState(observer.getState());
+      const mountedRef = useRef(true);
+
+      useEffect(() => {
+        mountedRef.current = true;
+
+        // Subscribe to updates
+        const unsubscribe = observer.subscribe((newState) => {
+          if (mountedRef.current) {
+            setState({ ...newState });
+          }
+        });
+
+        // Initial fetch if enabled and (stale or refetchOnMount)
+        if (opts.enabled && (observer.isStale() || opts.refetchOnMount)) {
+          observer.fetch().catch(() => { });
+        }
+
+        // Refetch interval
+        let intervalId;
+        if (opts.refetchInterval && opts.refetchInterval > 0) {
+          intervalId = setInterval(() => {
+            if (mountedRef.current) {
+              observer.refetch().catch(() => { });
+            }
+          }, opts.refetchInterval);
+        }
+
+        // Window focus refetch
+        const handleFocus = () => {
+          if (opts.refetchOnWindowFocus && mountedRef.current) {
+            observer.refetch().catch(() => { });
+          }
+        };
+        if (opts.refetchOnWindowFocus) {
+          window.addEventListener('focus', handleFocus);
+        }
+
+        // Online refetch
+        const handleOnline = () => {
+          if (opts.refetchOnReconnect && mountedRef.current) {
+            observer.refetch().catch(() => { });
+          }
+        };
+        if (opts.refetchOnReconnect) {
+          window.addEventListener('online', handleOnline);
+        }
+
+        return () => {
+          mountedRef.current = false;
+          unsubscribe();
+          if (intervalId) clearInterval(intervalId);
+          if (opts.refetchOnWindowFocus) window.removeEventListener('focus', handleFocus);
+          if (opts.refetchOnReconnect) window.removeEventListener('online', handleOnline);
+        };
+      }, [observer, opts.enabled, opts.refetchInterval]);
+
+      return {
+        data: state.data,
+        error: state.error,
+        status: state.status,
+        isLoading: state.status === QueryStatus.LOADING,
+        isSuccess: state.status === QueryStatus.SUCCESS,
+        isError: state.status === QueryStatus.ERROR,
+        isFetching: state.isFetching,
+        isStale: state.isStale,
+        refetch: observer.refetch,
+        invalidate: observer.invalidate
+      };
+    }
+
+    /**
+     * useMutation hook - React Query style
+     */
+    function useMutation(mutationFn, options = {}) {
+      const M = window.Mishkah;
+      const defaultState = {
+        data: undefined,
+        error: null,
+        status: QueryStatus.IDLE,
+        isLoading: false,
+        isSuccess: false,
+        isError: false,
+        variables: undefined
+      };
+
+      if (!M || !M.React) {
+        // Fallback: return basic mutation
+        return {
+          ...defaultState,
+          mutate: async (variables) => mutationFn(variables),
+          mutateAsync: (variables) => mutationFn(variables),
+          reset: () => { }
+        };
+      }
+
+      const { useState, useCallback, useRef } = M.React;
+      const [state, setState] = useState(defaultState);
+      const mountedRef = useRef(true);
+
+      const {
+        onSuccess,
+        onError,
+        onSettled,
+        onMutate
+      } = options;
+
+      const mutateAsync = useCallback(async (variables) => {
+        setState(prev => ({
+          ...prev,
+          status: QueryStatus.LOADING,
+          isLoading: true,
+          isSuccess: false,
+          isError: false,
+          variables
+        }));
+
+        let context;
+        try {
+          // onMutate callback (optimistic update)
+          if (onMutate) {
+            context = await onMutate(variables);
+          }
+
+          const data = await mutationFn(variables);
+
+          if (mountedRef.current) {
+            setState({
+              data,
+              error: null,
+              status: QueryStatus.SUCCESS,
+              isLoading: false,
+              isSuccess: true,
+              isError: false,
+              variables
+            });
+          }
+
+          // onSuccess callback
+          if (onSuccess) {
+            onSuccess(data, variables, context);
+          }
+
+          // onSettled callback
+          if (onSettled) {
+            onSettled(data, null, variables, context);
+          }
+
+          return data;
+
+        } catch (error) {
+          if (mountedRef.current) {
+            setState({
+              data: undefined,
+              error,
+              status: QueryStatus.ERROR,
+              isLoading: false,
+              isSuccess: false,
+              isError: true,
+              variables
+            });
+          }
+
+          // onError callback
+          if (onError) {
+            onError(error, variables, context);
+          }
+
+          // onSettled callback
+          if (onSettled) {
+            onSettled(undefined, error, variables, context);
+          }
+
+          throw error;
+        }
+      }, [mutationFn, onSuccess, onError, onSettled, onMutate]);
+
+      const mutate = useCallback((variables, mutateOptions = {}) => {
+        mutateAsync(variables).then(
+          (data) => mutateOptions.onSuccess?.(data, variables),
+          (error) => mutateOptions.onError?.(error, variables)
+        );
+      }, [mutateAsync]);
+
+      const reset = useCallback(() => {
+        setState(defaultState);
+      }, []);
+
+      return {
+        ...state,
+        mutate,
+        mutateAsync,
+        reset
+      };
+    }
+
+    /**
+     * Invalidate queries by key
+     */
+    function invalidateQueries(queryKey) {
+      const key = hashQueryKey(queryKey);
+      const cached = queryCache.get(key);
+      if (cached) {
+        cached.isStale = true;
+        cached.dataUpdatedAt = 0;
+        const listeners = queryListeners.get(key);
+        if (listeners) {
+          listeners.forEach(l => l(cached));
+        }
+      }
+    }
+
+    /**
+     * Prefetch query
+     */
+    async function prefetchQuery(queryKey, queryFn, options = {}) {
+      const observer = createQueryObserver(queryKey, queryFn, options);
+      return observer.fetch();
+    }
+
+    /**
+     * Set query data directly
+     */
+    function setQueryData(queryKey, data) {
+      const key = hashQueryKey(queryKey);
+      let cached = queryCache.get(key);
+
+      if (!cached) {
+        cached = {
+          key,
+          data: undefined,
+          error: null,
+          status: QueryStatus.IDLE,
+          dataUpdatedAt: 0,
+          errorUpdatedAt: 0,
+          fetchCount: 0,
+          isFetching: false,
+          isStale: false
+        };
+        queryCache.set(key, cached);
+      }
+
+      const newData = typeof data === 'function' ? data(cached.data) : data;
+      cached.data = newData;
+      cached.status = QueryStatus.SUCCESS;
+      cached.dataUpdatedAt = Date.now();
+      cached.isStale = false;
+
+      const listeners = queryListeners.get(key);
+      if (listeners) {
+        listeners.forEach(l => l(cached));
+      }
+
+      return newData;
+    }
+
+    /**
+     * Get query data
+     */
+    function getQueryData(queryKey) {
+      const key = hashQueryKey(queryKey);
+      const cached = queryCache.get(key);
+      return cached ? cached.data : undefined;
+    }
+
+    /**
+     * Clear all cache
+     */
+    function clearCache() {
+      queryCache.clear();
+      mutationCache.clear();
+    }
+
+    return {
+      useQuery,
+      useMutation,
+      invalidateQueries,
+      prefetchQuery,
+      setQueryData,
+      getQueryData,
+      clearCache,
+      QueryStatus,
+
+      // Advanced
+      createQueryObserver,
+      hashQueryKey,
+
+      // Cache access
+      get cache() { return queryCache; }
+    };
+  })();
+
+  U.Query = Query;
+
+  // ===========================================================================
+  // Re-export Router hooks as React-compatible aliases
+  // ===========================================================================
+  if (typeof window !== 'undefined' && window.Mishkah && window.Mishkah.React) {
+    const MReact = window.Mishkah.React;
+
+    // Add router hooks to React
+    MReact.useNavigate = Router.useNavigate;
+    MReact.useParams = Router.useParams;
+    MReact.useLocation = Router.useLocation;
+    MReact.useSearchParams = Router.useSearchParams;
+
+    // Add store hook to React
+    MReact.useStore = Store.useStore;
+
+    // Add query hooks to React
+    MReact.useQuery = Query.useQuery;
+    MReact.useMutation = Query.useMutation;
+  }
 
 
-  U.helpers = {getPureJson:getPureJson};
-  
-  
 })(window);
 
 

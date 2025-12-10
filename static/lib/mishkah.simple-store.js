@@ -122,7 +122,9 @@ function createContext(store, config) {
     historyLimit: Number.isFinite(options.historyLimit) ? options.historyLimit : 50,
     autoConnect: options.autoConnect !== false,
     logger: options.logger || console,
-    lang: options.lang || null
+    lang: options.lang || null,
+    // Smart REST bootstrap: disable when the host app performs its own REST seeding
+    smartFetch: options.smartFetch !== false
   };
 
   const store = createStore({
@@ -342,7 +344,7 @@ function createContext(store, config) {
       }
 
       // Smart Store: Trigger fetch on first watch() call
-      if (!initialFetchTriggered) {
+      if (config.smartFetch && !initialFetchTriggered) {
         fetchInitialSnapshot(); // Background fetch
       }
 

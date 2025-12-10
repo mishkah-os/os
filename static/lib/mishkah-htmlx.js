@@ -77,6 +77,7 @@
     if (!tag) return null;
 
     var tagLower = tag.toLowerCase();
+    if (tagLower === 'button') return null;
 
     // 1. Legacy support: comp-Modal → Modal
     if (tagLower.indexOf('comp-') === 0) {
@@ -93,13 +94,21 @@
     var componentName = pascalCase(tag);
 
     // تحقق من وجود المكون في Mishkah.UI
-    if (Mishkah && Mishkah.UI && typeof Mishkah.UI[componentName] === 'function') {
-      return componentName;
-    }
+    if (Mishkah && Mishkah.UI) {
+      // 1. Exact match (e.g. "Button")
+      if (typeof Mishkah.UI[componentName] === 'function') {
+        return componentName;
+      }
 
-    // تحقق إذا كان الوسم نفسه موجود (حالة PascalCase مباشرة)
-    if (tag !== tagLower && Mishkah && Mishkah.UI && typeof Mishkah.UI[tag] === 'function') {
-      return tag;
+      // 2. Case-insensitive search (e.g. "THEMETOGGLEICON" -> "ThemeToggleIcon")
+      // هذا يحل مشكلة تحويل المتصفح للأسماء إلى أحرف كبيرة
+      var uiKeys = Object.keys(Mishkah.UI);
+      var tagUpper = tag.toUpperCase();
+      for (var i = 0; i < uiKeys.length; i++) {
+        if (uiKeys[i].toUpperCase() === tagUpper) {
+          return uiKeys[i];
+        }
+      }
     }
 
     return null;
@@ -780,21 +789,21 @@
     var build = U.lang && typeof U.lang.buildLangTables === 'function'
       ? U.lang.buildLangTables
       : function (dict) {
-          var t = {};
-          if (!dict || typeof dict !== 'object') return t;
-          var keys = Object.keys(dict);
-          for (var i = 0; i < keys.length; i += 1) {
-            var k = keys[i];
-            var row = dict[k];
-            if (!row || typeof row !== 'object') continue;
-            var Ls = Object.keys(row);
-            for (var j = 0; j < Ls.length; j += 1) {
-              var L = Ls[j];
-              (t[L] || (t[L] = {}))[k] = row[L];
-            }
+        var t = {};
+        if (!dict || typeof dict !== 'object') return t;
+        var keys = Object.keys(dict);
+        for (var i = 0; i < keys.length; i += 1) {
+          var k = keys[i];
+          var row = dict[k];
+          if (!row || typeof row !== 'object') continue;
+          var Ls = Object.keys(row);
+          for (var j = 0; j < Ls.length; j += 1) {
+            var L = Ls[j];
+            (t[L] || (t[L] = {}))[k] = row[L];
           }
-          return t;
-        };
+        }
+        return t;
+      };
 
     var raw = (db && db.i18n && (db.i18n.dict || db.i18n.strings || db.i18n)) || {};
     var dict = raw && raw.dict ? raw.dict : raw;
@@ -1603,6 +1612,13 @@
       };
     }
     if (Array.isArray(value)) {
+      // Optimization: Single expression segment -> return raw value (preserves booleans)
+      if (value.length === 1 && value[0].type === 'expr') {
+        var singleCode = value[0].code;
+        return function (scope) {
+          return evaluateExpression(singleCode, scope);
+        };
+      }
       var segments = value.map(function (token) {
         if (token.type === 'text') {
           var text = token.value;
@@ -1845,18 +1861,34 @@
       }
       var result;
       if (node.type === 'component') {
+        console.log('[HTMLx COMPILE] Component:', node.component);
+        console.log('[HTMLx COMPILE] activeScope.UI?', !!activeScope.UI, 'Keys:', activeScope.UI ? Object.keys(activeScope.UI).slice(0, 10) : []);
+
         var componentFactory = activeScope.UI[node.component];
+        console.log('[HTMLx COMPILE] Factory type:', typeof componentFactory);
+
         if (typeof componentFactory !== 'function') {
-          console.warn('E_COMPONENT_NOT_FOUND: component', node.component, 'غير متوفر.');
+          console.warn('[HTMLx COMPILE] ✗ Component not found:', node.component);
+          console.warn('[HTMLx COMPILE] Available:', Object.keys(activeScope.UI || {}));
           return null;
         }
+
+        console.log('[HTMLx COMPILE] ✓ Rendering component:', node.component);
         var props = { attrs: attrs };
         if (kids.length === 1) {
           props.content = kids[0];
         } else if (kids.length > 1) {
           props.content = kids;
         }
-        result = componentFactory(props);
+        var result_component = componentFactory(props);
+        console.log('[HTMLx COMPILE] Component rendered:', !!result_component);
+
+        // ✨ الحل: لو في children ولم تستخدم، هويستهم كـ siblings
+        if (kids && kids.length > 0) {
+          result = [result_component].concat(kids);
+        } else {
+          result = result_component;
+        }
       } else if (node.type === 'element') {
         var hFactory = (activeScope.D && typeof activeScope.D.h === 'function') ? activeScope.D.h
           : (Mishkah && Mishkah.DSL && typeof Mishkah.DSL.h === 'function' ? Mishkah.DSL.h : null);
@@ -1864,7 +1896,13 @@
           console.warn('E_ELEMENT_UNSUPPORTED: لا يمكن إنشاء العنصر', node.tag, 'لأن DSL.h غير متوفر.');
           return null;
         }
+        if (node.tag === 'button') {
+          console.log('DEBUG: compileNode element button kids:', kids.length, kids);
+        }
         result = hFactory(node.tag, 'Custom', { attrs: attrs }, kids);
+        if (node.tag === 'button') {
+          console.log('DEBUG: compileNode element button result children:', result.children.length);
+        }
       } else {
         var family = node.family;
         var atom = node.atom;
@@ -2463,6 +2501,25 @@
       for (var i = 0; i < scripts.length; i += 1) {
         var scriptEl = scripts[i];
         if (!scriptEl) continue;
+
+        // Handle data-m-path (generic data feed)
+        // This replaces explicit data-m-env and data-m-data checks
+        if (scriptEl.hasAttribute('data-m-path')) {
+          var dataResult = parseDataScriptElement(scriptEl, templateEl);
+          if (dataResult && dataResult.data != null) {
+            bundle.data.push(dataResult);
+            if (dataResult.warnings && dataResult.warnings.length) {
+              bundle.warnings = bundle.warnings.concat(dataResult.warnings);
+            }
+          } else if (dataResult && dataResult.error) {
+            bundle.warnings.push(dataResult.error);
+          }
+          if (scriptEl.parentNode) {
+            scriptEl.parentNode.removeChild(scriptEl);
+          }
+          continue;
+        }
+
         if (scriptEl.hasAttribute('data-m-env')) {
           var envResult = parseEnvScriptElement(scriptEl, templateEl);
           if (envResult && envResult.data && Object.keys(envResult.data).length) {
@@ -2559,12 +2616,12 @@
     }
     body.push(
       'return {' +
-        names
-          .map(function (name) {
-            return '\'' + name.replace(/'/g, "\\'") + '\': ' + name;
-          })
-          .join(', ') +
-        '};'
+      names
+        .map(function (name) {
+          return '\'' + name.replace(/'/g, "\\'") + '\': ' + name;
+        })
+        .join(', ') +
+      '};'
     );
     try {
       return new Function(body.join('\n'))();
@@ -2684,9 +2741,9 @@
   function createWebSocketRuntime() {
     if (typeof Map !== 'function' || typeof WeakMap !== 'function') {
       return {
-        attach: function () {},
-        detach: function () {},
-        handleEmitEvent: function () {}
+        attach: function () { },
+        detach: function () { },
+        handleEmitEvent: function () { }
       };
     }
 
@@ -2733,7 +2790,7 @@
         var current = stack.pop();
         try {
           cb(current);
-        } catch (_err) {}
+        } catch (_err) { }
         var child = current.lastElementChild;
         while (child) {
           stack.push(child);
@@ -2758,7 +2815,7 @@
       for (var i = list.length - 1; i >= 0; i -= 1) {
         try {
           cb(list[i]);
-        } catch (_err) {}
+        } catch (_err) { }
       }
     }
 
@@ -2805,7 +2862,7 @@
           if (global && global.document && typeof global.document.querySelectorAll === 'function') return global.document.querySelectorAll(selector);
           return [];
         },
-        stop: function () {},
+        stop: function () { },
         root: rootNode || (global && global.document ? global.document.body : null)
       };
       return ContextAdapter(ctxObj);
@@ -2836,9 +2893,9 @@
           detail: { payload: payload, topic: topic, connectionId: connInfo.id, raw: raw },
           target: element,
           currentTarget: element,
-          preventDefault: function () {},
-          stopPropagation: function () {},
-          stopImmediatePropagation: function () {}
+          preventDefault: function () { },
+          stopPropagation: function () { },
+          stopImmediatePropagation: function () { }
         };
         var runtimeLocals = resolveRuntimeLocals(element);
         var localsBag = mergeRuntimeLocals(runtimeLocals, eventObject, ctx);
@@ -2858,9 +2915,9 @@
           console.warn('HTMLx WS: فشل تشغيل m-ws-on:' + topic + ' —', error);
         }
         if (appInstance && typeof appInstance.flush === 'function') {
-          try { appInstance.flush(); } catch (_f) {}
+          try { appInstance.flush(); } catch (_f) { }
         } else if (appInstance && typeof appInstance.rebuild === 'function') {
-          try { appInstance.rebuild(); } catch (_r) {}
+          try { appInstance.rebuild(); } catch (_r) { }
         }
       };
 
@@ -2871,7 +2928,7 @@
         } else if (typeof socket.on === 'function') {
           socket.on(topic, handler);
           if (typeof socket.off === 'function') {
-            unsubscribeRaw = function () { try { socket.off(topic, handler); } catch (_err) {} };
+            unsubscribeRaw = function () { try { socket.off(topic, handler); } catch (_err) { } };
           }
         }
       } catch (error) {
@@ -2887,7 +2944,7 @@
       }
 
       var wrapper = function () {
-        try { unsubscribeRaw(); } catch (_err) {}
+        try { unsubscribeRaw(); } catch (_err) { }
         if (registry[topic] === wrapper) {
           delete registry[topic];
         }
@@ -2940,7 +2997,7 @@
             teardownConnection(previous.element);
           } else {
             if (previous.socket && typeof previous.socket.close === 'function') {
-              try { previous.socket.close(); } catch (_err) {}
+              try { previous.socket.close(); } catch (_err) { }
             }
             connections.delete(connId);
           }
@@ -2957,7 +3014,7 @@
         return null;
       }
       if (socketInstance && typeof socketInstance.connect === 'function') {
-        try { socketInstance.connect({ waitOpen: false }); } catch (_connectErr) {}
+        try { socketInstance.connect({ waitOpen: false }); } catch (_connectErr) { }
       }
       var entry = { id: connId, element: element, socket: socketInstance, options: options || {}, subscriptions: new Map() };
       connections.set(connId, entry);
@@ -2993,7 +3050,7 @@
       if (registry) {
         for (var key in registry) {
           if (!Object.prototype.hasOwnProperty.call(registry, key)) continue;
-          try { registry[key](); } catch (_err) {}
+          try { registry[key](); } catch (_err) { }
         }
         subscriptionRegistry.delete(element);
       }
@@ -3009,14 +3066,14 @@
           entry.subscriptions.forEach(function (wrappers) {
             if (Array.isArray(wrappers)) {
               for (var i = wrappers.length - 1; i >= 0; i -= 1) {
-                try { wrappers[i](); } catch (_err) {}
+                try { wrappers[i](); } catch (_err) { }
               }
             }
           });
           entry.subscriptions.clear();
         }
         if (entry.socket && typeof entry.socket.close === 'function') {
-          try { entry.socket.close(); } catch (_err) {}
+          try { entry.socket.close(); } catch (_err) { }
         }
         connections.delete(connId);
       }
@@ -3067,14 +3124,14 @@
           entry.subscriptions.forEach(function (wrappers) {
             if (Array.isArray(wrappers)) {
               for (var i = wrappers.length - 1; i >= 0; i -= 1) {
-                try { wrappers[i](); } catch (_err) {}
+                try { wrappers[i](); } catch (_err) { }
               }
             }
           });
           entry.subscriptions.clear();
         }
         if (entry.socket && typeof entry.socket.close === 'function') {
-          try { entry.socket.close(); } catch (_err) {}
+          try { entry.socket.close(); } catch (_err) { }
         }
       });
       connections.clear();
@@ -3248,7 +3305,7 @@
     return orders;
   }
 
-  var AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  var AsyncFunction = Object.getPrototypeOf(async function () { }).constructor;
 
   function createOrderHandler(parsed, handlerDef, runtimeFn) {
     var compiledFn = null;
