@@ -55,8 +55,31 @@
       }
     }
 
+    function resolveGkeyTarget(event) {
+      if (!event) return null;
+      var target = (event.currentTarget && event.currentTarget.getAttribute)
+        ? event.currentTarget
+        : null;
+      if (target && target.getAttribute('data-m-gkey')) return target;
+      var node = event.target || null;
+      while (node) {
+        if (node.getAttribute && node.getAttribute('data-m-gkey')) {
+          return node;
+        }
+        node = node.parentElement;
+      }
+      return target || null;
+    }
+
     function logGkeyEvent(name, event) {
-      var target = (event && (event.currentTarget || event.target)) || null;
+      var target = resolveGkeyTarget(event);
+      if (target && (!event.currentTarget || event.currentTarget === document)) {
+        try {
+          event.currentTarget = target;
+        } catch (_err) {
+          event._gkeyTarget = target;
+        }
+      }
       var dataset = target && target.dataset ? Object.assign({}, target.dataset) : {};
       var gkey = target && target.getAttribute ? target.getAttribute('data-m-gkey') : null;
       try {
@@ -69,6 +92,20 @@
       } catch (_err) {
         /* ignore logging issues */
       }
+    }
+
+    function getGkeyTarget(event) {
+      return resolveGkeyTarget(event) || (event && event._gkeyTarget) || null;
+    }
+
+    function getGkeyAttr(event, attrName) {
+      var target = getGkeyTarget(event);
+      if (!target || !attrName) return null;
+      var fromAttr = target.getAttribute ? target.getAttribute(attrName) : null;
+      if (fromAttr) return fromAttr;
+      if (!target.dataset) return null;
+      var camelKey = attrName.replace(/^data-/, '').replace(/-([a-z])/g, function(_m, c) { return c ? c.toUpperCase() : ''; });
+      return target.dataset[camelKey] || null;
     }
   global.SBN_PWA_SET_DEBUG = function(next) {
     DEBUG = Boolean(next);
@@ -3921,225 +3958,6 @@
     ]);
   }
 
-  function renderClassifiedDashboard(db) {
-    var user = getActiveUser(db);
-    if (!user) return null;
-    var dashboardState = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
-    var tab = dashboardState.tab || 'live';
-    var leadFilter = dashboardState.leadFilter || 'open';
-    var myClassifieds = (db.data.classifieds || []).filter(function(item) { return isClassifiedOwner(db, item); });
-    if (!myClassifieds.length) {
-      return D.Containers.Div({ attrs: { class: 'section-card dashboard-card' } }, [
-        D.Containers.Div({ attrs: { class: 'section-header' } }, [
-          D.Text.H3({}, [t('classifieds.dashboard.title', 'لوحة متابعة الإعلانات')]),
-          D.Text.P({ attrs: { class: 'text-muted' } }, [t('classifieds.dashboard.empty', 'أضف أول إعلان لك لتبدأ المتابعة.')])
-        ]),
-        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [
-          t('composer.type.classified', 'إعلان مستعمل'),
-          ' + '
-        ])
-      ]);
-    }
-
-    var stats = buildClassifiedStats(myClassifieds);
-    var tabs = [
-      { key: 'live', label: t('classifieds.status.live', 'نشط') + ' (' + (stats.live || 0) + ')' },
-      { key: 'pending', label: t('classifieds.status.pending', 'قيد المراجعة') + ' (' + (stats.pending || 0) + ')' },
-      { key: 'closed', label: t('classifieds.status.closed', 'مغلق') + ' (' + (stats.closed || 0) + ')' },
-      { key: 'archived', label: t('classifieds.status.archived', 'مؤرشف') + ' (' + (stats.archived || 0) + ')' },
-      { key: 'draft', label: t('classifieds.status.draft', 'مسودة') + ' (' + (stats.draft || 0) + ')' },
-      { key: 'all', label: t('filter.all', 'الكل') + ' (' + myClassifieds.length + ')' }
-    ];
-
-    var filtered = tab === 'all'
-      ? myClassifieds
-      : myClassifieds.filter(function(item) { return resolveClassifiedStatus(item) === tab; });
-
-    var leads = resolveClassifiedLeads(db, myClassifieds);
-    var filteredLeads = leadFilter === 'all'
-      ? leads
-      : leads.filter(function(lead) { return (lead.status || 'open') === leadFilter; });
-
-    function renderDashboardRow(item) {
-      var status = resolveClassifiedStatus(item);
-      var statusLabel = status === 'archived'
-        ? t('classifieds.status.archived', 'مؤرشف')
-        : status === 'closed'
-          ? t('classifieds.status.closed', 'مغلق')
-          : status === 'pending'
-            ? t('classifieds.status.pending', 'قيد المراجعة')
-            : status === 'draft'
-              ? t('classifieds.status.draft', 'مسودة')
-              : t('classifieds.status.live', 'نشط');
-      return D.Containers.Div({ attrs: { class: 'dashboard-row', key: item.id || item.classified_id } }, [
-        D.Containers.Div({ attrs: { class: 'dashboard-row-main' } }, [
-          D.Text.H4({ attrs: { class: 'dashboard-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
-          D.Text.P({ attrs: { class: 'dashboard-meta' } }, [
-            statusLabel,
-            ' · ',
-            item.location_city || t('classifieds.location.unknown', 'دون موقع'),
-            item.price != null ? ' · ' + formatCurrencyValue(item.price, item.currency) : ''
-          ])
-        ]),
-        D.Containers.Div({ attrs: { class: 'dashboard-actions' } }, [
-          D.Forms.Button({
-            attrs: {
-              class: 'chip ghost',
-              'data-m-gkey': 'open-contact',
-              'data-kind': 'classified',
-              'data-target-id': item.id || item.classified_id,
-              'data-phone': item.contact_phone || user.phone || ''
-            }
-          }, [t('classifieds.dashboard.reply', 'رد سريع')]),
-          D.Forms.Button({
-            attrs: {
-              class: 'chip ghost',
-              'data-m-gkey': 'open-inbox'
-            }
-          }, [t('notifications.inbox.title', 'صندوق الوارد')]),
-          D.Forms.Button({
-            attrs: {
-              class: 'chip ghost',
-              'data-m-gkey': 'classified-edit',
-              'data-target-id': item.id || item.classified_id
-            }
-          }, [t('classifieds.edit', 'تعديل الإعلان')]),
-          status !== 'archived'
-            ? D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost',
-                  'data-m-gkey': 'classified-status',
-                  'data-target-id': item.id || item.classified_id,
-                  'data-status': 'archived'
-                }
-              }, [t('classifieds.dashboard.archive', 'أرشفة')])
-            : null,
-          status !== 'closed'
-            ? D.Forms.Button({
-                attrs: {
-                  class: 'chip ghost danger',
-                  'data-m-gkey': 'classified-status',
-                  'data-target-id': item.id || item.classified_id,
-                  'data-status': 'closed'
-                }
-              }, [t('classifieds.dashboard.close', 'إغلاق')])
-            : null,
-          status !== 'live'
-            ? D.Forms.Button({
-                attrs: {
-                  class: 'chip',
-                  'data-m-gkey': 'classified-status',
-                  'data-target-id': item.id || item.classified_id,
-                  'data-status': 'live'
-                }
-              }, [t('classifieds.dashboard.reopen', 'إعادة التفعيل')])
-            : null
-        ].filter(Boolean))
-      ]);
-    }
-
-    return D.Containers.Div({ attrs: { class: 'section-card dashboard-card' } }, [
-      D.Containers.Div({ attrs: { class: 'section-header' } }, [
-        D.Containers.Div({ attrs: { class: 'section-titles' } }, [
-          D.Text.H3({}, [t('classifieds.dashboard.title', 'لوحة متابعة الإعلانات')]),
-          D.Text.P({ attrs: { class: 'text-muted' } }, [t('classifieds.dashboard.subtitle', 'تابع الحالات والطلبات ورد فوراً')])
-        ]),
-        D.Containers.Div({ attrs: { class: 'header-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'composer-open' } }, [t('classifieds.add', '＋ إعلان جديد')]),
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'open-inbox' } }, [t('notifications.inbox.title', 'الوارد')])
-        ])
-      ]),
-
-      D.Containers.Div({ attrs: { class: 'stats-grid' } }, tabs.slice(0, 5).map(function(stat) {
-        return D.Containers.Div({ attrs: { class: 'stat-card' } }, [
-          D.Text.Span({ attrs: { class: 'stat-label' } }, [stat.label.split('(')[0].trim()]),
-          D.Text.Span({ attrs: { class: 'stat-value' } }, [stat.label.match(/\((\d+)\)/) ? stat.label.match(/\((\d+)\)/)[1] : '0'])
-        ]);
-      })),
-
-      D.Containers.Div({ attrs: { class: 'tab-switcher' } }, [
-        D.Containers.Div({ attrs: { class: 'tab-row' } }, tabs.map(function(entry) {
-          var active = tab === entry.key;
-          return D.Forms.Button({
-            attrs: {
-              class: 'tab-btn' + (active ? ' active' : ''),
-              'data-m-gkey': 'classified-dashboard-tab',
-              'data-value': entry.key
-            }
-          }, [entry.label]);
-        }))
-      ]),
-
-      filtered.length
-        ? D.Containers.Div({ attrs: { class: 'dashboard-list' } }, filtered.map(renderDashboardRow))
-        : D.Text.P({}, [t('classifieds.dashboard.emptyTab', 'لا توجد إعلانات في هذه الحالة')]),
-
-      D.Containers.Div({ attrs: { class: 'lead-panel' } }, [
-        D.Containers.Div({ attrs: { class: 'lead-header' } }, [
-          D.Text.H4({}, [t('classifieds.leads.title', 'طلبات العملاء')]),
-          D.Containers.Div({ attrs: { class: 'chips-row' } }, [
-            ['open', 'responded', 'closed', 'all'].map(function(filter) {
-              var labels = {
-                open: t('leads.open', 'بانتظار الرد'),
-                responded: t('leads.responded', 'تم الرد'),
-                closed: t('leads.closed', 'مغلق'),
-                all: t('filter.all', 'الكل')
-              };
-              var active = leadFilter === filter;
-              return D.Forms.Button({
-                attrs: {
-                  class: 'chip' + (active ? ' chip-active' : ''),
-                  'data-m-gkey': 'classified-lead-filter',
-                  'data-value': filter
-                }
-              }, [labels[filter]]);
-            })
-          ])
-        ]),
-        filteredLeads.length
-          ? D.Containers.Div({ attrs: { class: 'lead-list' } }, filteredLeads.map(function(lead) {
-              var statusLabel = lead.status === 'responded'
-                ? t('leads.responded', 'تم الرد')
-                : lead.status === 'closed'
-                  ? t('leads.closed', 'مغلق')
-                  : t('leads.open', 'بانتظار الرد');
-              return D.Containers.Div({ attrs: { class: 'lead-item', key: lead.id } }, [
-                D.Containers.Div({ attrs: { class: 'lead-body' } }, [
-                  D.Text.Span({ attrs: { class: 'lead-title' } }, [lead.title || t('classifieds.lead', 'طلب تواصل')]),
-                  D.Text.P({ attrs: { class: 'lead-snippet' } }, [lead.snippet || t('classifieds.lead.snippet', 'عميل جديد بانتظارك')]),
-                  D.Text.Small({ attrs: { class: 'lead-meta' } }, [statusLabel])
-                ]),
-                D.Containers.Div({ attrs: { class: 'lead-actions' } }, [
-                  D.Forms.Button({
-                    attrs: {
-                      class: 'chip ghost',
-                      'data-m-gkey': 'open-inbox'
-                    }
-                  }, [t('classifieds.dashboard.reply', 'رد سريع')]),
-                  D.Forms.Button({
-                    attrs: {
-                      class: 'chip ghost',
-                      'data-m-gkey': 'classified-lead-status',
-                      'data-lead-id': lead.id,
-                      'data-status': 'responded'
-                    }
-                  }, [t('leads.responded', 'تم الرد')]),
-                  D.Forms.Button({
-                    attrs: {
-                      class: 'chip ghost danger',
-                      'data-m-gkey': 'classified-lead-status',
-                      'data-lead-id': lead.id,
-                      'data-status': 'closed'
-                    }
-                  }, [t('leads.closed', 'إغلاق')])
-                ])
-              ]);
-            }))
-          : D.Text.P({ attrs: { class: 'lead-empty' } }, [t('classifieds.leads.empty', 'لا توجد طلبات حالياً')])
-      ])
-    ]);
-  }
-
   function getComposerCategoryGroups(categories) {
     var hierarchy = buildCategoryHierarchy(categories || []);
     return hierarchy.map(function(node) {
@@ -5203,6 +5021,34 @@
     ]);
   }
 
+  function renderInboxPanel(db) {
+    if (!db.state.inboxOpen) return null;
+    var threads = resolveInboxThreads(db);
+    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
+        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
+        ])
+      ]),
+      !prefs.inboxEnabled
+        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
+        : null,
+      threads && threads.length
+        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
+            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
+            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
+              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
+              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
+              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
+            ]);
+          }))
+        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
+    ]);
+  }
+
   function markNotificationsAsRead() {
     if (!app || !app.database) return;
     var db = app.database;
@@ -5498,7 +5344,11 @@
       on: ['click'],
       gkeys: ['nav-commerce', 'nav-marketplace', 'nav-services'],
       handler: function(event, ctx) {
+        event.preventDefault();
+        var filter = event.currentTarget && event.currentTarget.getAttribute('data-value');
         ctx.setState(function(db) {
+          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+          var next = Object.assign({}, current, { leadFilter: filter || 'open' });
           return {
             env: db.env,
             meta: db.meta,
@@ -5529,7 +5379,7 @@
       gkeys: ['classified-dashboard-tab'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var tab = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        var tab = getGkeyAttr(event, 'data-value');
         if (!tab) return;
         ctx.setState(function(db) {
           var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
@@ -5549,7 +5399,7 @@
       gkeys: ['classified-lead-filter'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var filter = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        var filter = getGkeyAttr(event, 'data-value');
         ctx.setState(function(db) {
           var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
           var next = Object.assign({}, current, { leadFilter: filter || 'open' });
@@ -5568,9 +5418,8 @@
       gkeys: ['classified-lead-status'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var leadId = target && target.getAttribute('data-lead-id');
-        var status = target && target.getAttribute('data-status');
+        var leadId = getGkeyAttr(event, 'data-lead-id');
+        var status = getGkeyAttr(event, 'data-status');
         updateLeadStatus(ctx, leadId, status);
       }
     },
@@ -5580,52 +5429,8 @@
       gkeys: ['classified-status'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var status = target && target.getAttribute('data-status');
-        var id = target && target.getAttribute('data-target-id');
-        updateClassifiedStatus(ctx, id, status);
-      }
-    },
-
-    'open.product.form': {
-      on: ['click'],
-      gkeys: ['open-product-form'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        showNotice(ctx, t('marketplace.add.product.notice', 'انتقل للمتجر لإضافة منتج جديد ثم شاركه'));
-        ctx.setState(function(db) {
-          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
-          var next = Object.assign({}, current, { leadFilter: filter || 'open' });
-          return {
-            env: db.env,
-            meta: db.meta,
-            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
-            data: db.data
-          };
-        });
-      }
-    },
-
-    'classified.lead.status': {
-      on: ['click'],
-      gkeys: ['classified-lead-status'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var leadId = target && target.getAttribute('data-lead-id');
-        var status = target && target.getAttribute('data-status');
-        updateLeadStatus(ctx, leadId, status);
-      }
-    },
-
-    'classified.status': {
-      on: ['click'],
-      gkeys: ['classified-status'],
-      handler: function(event, ctx) {
-        event.preventDefault();
-        var target = event.currentTarget || event.target;
-        var status = target && target.getAttribute('data-status');
-        var id = target && target.getAttribute('data-target-id');
+        var status = getGkeyAttr(event, 'data-status');
+        var id = getGkeyAttr(event, 'data-target-id');
         updateClassifiedStatus(ctx, id, status);
       }
     },
@@ -5718,7 +5523,7 @@
       gkeys: ['classified-edit'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var targetId = event.currentTarget && event.currentTarget.getAttribute('data-target-id');
+        var targetId = getGkeyAttr(event, 'data-target-id');
         if (!targetId || !app || !app.database) return;
         var db = app.database;
         var match = findById(db.data.classifieds || [], 'id', targetId) || findById(db.data.classifieds || [], 'classified_id', targetId);
@@ -5746,7 +5551,7 @@
       gkeys: ['classified-delete'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var targetId = event.currentTarget && event.currentTarget.getAttribute('data-target-id');
+        var targetId = getGkeyAttr(event, 'data-target-id');
         if (!targetId) return;
         var confirmed = true;
         try {
@@ -5887,7 +5692,7 @@
       gkeys: ['reader-font'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var size = event.currentTarget && event.currentTarget.getAttribute('data-size');
+        var size = getGkeyAttr(event, 'data-size');
         if (!size) return;
         setReaderOverlay(ctx, function(current) {
           return Object.assign({}, current, { fontSize: size });
@@ -5900,7 +5705,7 @@
       gkeys: ['reader-open-related'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var id = event.currentTarget && event.currentTarget.getAttribute('data-article-id');
+        var id = getGkeyAttr(event, 'data-article-id');
         if (!id) return;
         setReaderOverlay(ctx, { open: true, articleId: id });
       }
@@ -5918,7 +5723,7 @@
       on: ['click'],
       gkeys: ['detail-gallery-thumb'],
       handler: function(event, ctx) {
-        var indexAttr = event.currentTarget && event.currentTarget.getAttribute('data-index');
+        var indexAttr = getGkeyAttr(event, 'data-index');
         var nextIndex = indexAttr ? Number(indexAttr) : 0;
         setDetailOverlay(ctx, { activeIndex: nextIndex });
       }
@@ -5975,7 +5780,7 @@
       on: ['click'],
       gkeys: ['home-tab'],
       handler: function(event, ctx) {
-        var value = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        var value = getGkeyAttr(event, 'data-value');
         ctx.setState(function(db) {
           return {
             env: db.env,
@@ -6061,7 +5866,7 @@
       gkeys: ['notifications-toggle-channel'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var channel = event.currentTarget && event.currentTarget.getAttribute('data-channel');
+        var channel = getGkeyAttr(event, 'data-channel');
         if (!channel) return;
         updateNotificationPreferences(ctx, function(current) {
           var channels = Object.assign({}, current.channels || {});
@@ -6140,7 +5945,7 @@
       gkeys: ['compliance-toggle'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var key = event.currentTarget && event.currentTarget.getAttribute('data-key');
+        var key = getGkeyAttr(event, 'data-key');
         if (!key) return;
         updateComplianceState(ctx, function(current) {
           var next = Object.assign({}, current);
@@ -6220,7 +6025,7 @@
       gkeys: ['auth-switch'],
       handler: function(event) {
         event.preventDefault();
-        var step = event.currentTarget && event.currentTarget.getAttribute('data-step');
+        var step = getGkeyAttr(event, 'data-step');
         if (!step) return;
         updateAuthState(function(current) {
           return Object.assign({}, current, {
@@ -6328,14 +6133,6 @@
             updateAuthState({ error: t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), loginAttempts: auth.loginAttempts || 0 });
             showNotice(ctx, t('auth.blocked.retry', 'حاول مرة أخرى بعد ') + remaining + ' ' + t('auth.minutes', 'دقائق'));
             return;
-        }
-        var now = Date.now();
-        var blockedUntil = auth.blockedUntil || 0;
-        if (step === 'login' && blockedUntil > now) {
-          var remaining = Math.ceil((blockedUntil - now) / 60000);
-          updateAuthState({ error: t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), loginAttempts: auth.loginAttempts || 0 });
-          showNotice(ctx, t('auth.blocked.retry', 'حاول مرة أخرى بعد ') + remaining + ' ' + t('auth.minutes', 'دقائق'));
-          return;
         }
         if (step === 'login') {
           var phoneDigits = normalizePhoneDigits(phone);
@@ -6596,7 +6393,7 @@
       on: ['click'],
       gkeys: ['category-chip'],
       handler: function(event, ctx) {
-        var categoryValue = event.currentTarget && event.currentTarget.getAttribute('data-value') || '';
+        var categoryValue = getGkeyAttr(event, 'data-value') || '';
         ctx.setState(function(db) {
           return {
             env: db.env,
@@ -6614,7 +6411,7 @@
       on: ['click'],
       gkeys: ['hashtag-chip'],
       handler: function(event, ctx) {
-        var tagValue = event.currentTarget && event.currentTarget.getAttribute('data-tag') || '';
+        var tagValue = getGkeyAttr(event, 'data-tag') || '';
         ctx.setState(function(db) {
           return {
             env: db.env,
@@ -6669,7 +6466,7 @@
       on: ['click'],
       gkeys: ['condition-chip'],
       handler: function(event, ctx) {
-        var conditionValue = event.currentTarget && event.currentTarget.getAttribute('data-value') || '';
+        var conditionValue = getGkeyAttr(event, 'data-value') || '';
         ctx.setState(function(db) {
           return {
             env: db.env,
@@ -6845,7 +6642,7 @@
       on: ['click'],
       gkeys: ['composer-media-remove'],
       handler: function(event, ctx) {
-        var url = event.currentTarget && event.currentTarget.getAttribute('data-url');
+        var url = getGkeyAttr(event, 'data-url');
         removeComposerMedia(ctx, url);
       }
     },
@@ -6942,7 +6739,7 @@
       gkeys: ['comment-submit'],
       handler: function(event, ctx) {
         event.preventDefault();
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        var postId = getGkeyAttr(event, 'data-post-id');
         if (!postId) return;
         var db = app ? app.database : null;
         var draft = (db && db.state && db.state.commentDraft) || '';
@@ -6987,7 +6784,7 @@
       on: ['click'],
       gkeys: ['profile-tab'],
       handler: function(event, ctx) {
-        var value = event.currentTarget && event.currentTarget.getAttribute('data-value');
+        var value = getGkeyAttr(event, 'data-value');
         ctx.setState(function(db) {
           return {
             env: db.env,
@@ -7002,7 +6799,7 @@
       on: ['click'],
       gkeys: ['profile-select'],
       handler: function(event, ctx) {
-        var userId = event.currentTarget && event.currentTarget.getAttribute('data-user-id');
+        var userId = getGkeyAttr(event, 'data-user-id');
         ctx.setState(function(db) {
           return {
             env: db.env,
@@ -7077,7 +6874,7 @@
       on: ['input'],
       gkeys: ['profile-edit-input'],
       handler: function(event, ctx) {
-        var field = event.currentTarget && event.currentTarget.getAttribute('data-field');
+        var field = getGkeyAttr(event, 'data-field');
         var value = event.target ? event.target.value : '';
         if (!field) return;
         ctx.setState(function(db) {
@@ -7155,7 +6952,7 @@
       on: ['click'],
       gkeys: ['post-open'],
       handler: function(event, ctx) {
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        var postId = getGkeyAttr(event, 'data-post-id');
         if (!postId) return;
         setPostOverlay(ctx, { open: true, postId });
       }
@@ -7183,7 +6980,7 @@
       gkeys: ['post-like'],
       handler: function(event, ctx) {
         event.stopPropagation();
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        var postId = getGkeyAttr(event, 'data-post-id');
         bumpPostStat(postId, 'likes_count');
         showNotice(ctx, t('post.action.like') + ' ✓');
       }
@@ -7193,7 +6990,7 @@
       on: ['click'],
       gkeys: ['onboarding-complete'],
       handler: function(event, ctx) {
-        var taskKey = event.currentTarget && event.currentTarget.getAttribute('data-task');
+        var taskKey = getGkeyAttr(event, 'data-task');
         if (!taskKey) return;
         updateOnboardingState(ctx, function(current) {
           var nextCompleted = Object.assign({}, current.completed || {}, {});
@@ -7216,7 +7013,7 @@
       on: ['click'],
       gkeys: ['launch-toggle'],
       handler: function(event, ctx) {
-        var key = event.currentTarget && event.currentTarget.getAttribute('data-key');
+        var key = getGkeyAttr(event, 'data-key');
         if (!key) return;
         updateLaunchChecklist(ctx, function(current) {
           var next = Object.assign({}, current);
@@ -7278,7 +7075,7 @@
       gkeys: ['post-share'],
       handler: function(event, ctx) {
         event.stopPropagation();
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        var postId = getGkeyAttr(event, 'data-post-id');
         bumpPostStat(postId, 'shares_count');
         showNotice(ctx, t('post.action.share') + ' ✓');
       }
@@ -7289,7 +7086,7 @@
       gkeys: ['post-subscribe'],
       handler: function(event, ctx) {
         event.stopPropagation();
-        var postId = event.currentTarget && event.currentTarget.getAttribute('data-post-id');
+        var postId = getGkeyAttr(event, 'data-post-id');
         bumpPostStat(postId, 'saves_count');
         showNotice(ctx, t('post.action.subscribe') + ' ✓');
       }
