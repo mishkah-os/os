@@ -41,19 +41,35 @@
       /* ignore */
     }
   }
-  var initialDebug = typeof global.SBN_PWA_DEBUG === 'boolean'
-    ? global.SBN_PWA_DEBUG
-    : (readStoredDebugFlag());
-  var DEBUG = Boolean(initialDebug);
-  function debugLog() {
-    if (!DEBUG) return;
-    var args = Array.prototype.slice.call(arguments);
-    try {
-      console.log.apply(console, args);
-    } catch (_err) {
-      /* ignore logging issues */
+    var initialDebug = typeof global.SBN_PWA_DEBUG === 'boolean'
+      ? global.SBN_PWA_DEBUG
+      : (readStoredDebugFlag());
+    var DEBUG = Boolean(initialDebug);
+    function debugLog() {
+      if (!DEBUG) return;
+      var args = Array.prototype.slice.call(arguments);
+      try {
+        console.log.apply(console, args);
+      } catch (_err) {
+        /* ignore logging issues */
+      }
     }
-  }
+
+    function logGkeyEvent(name, event) {
+      var target = (event && (event.currentTarget || event.target)) || null;
+      var dataset = target && target.dataset ? Object.assign({}, target.dataset) : {};
+      var gkey = target && target.getAttribute ? target.getAttribute('data-m-gkey') : null;
+      try {
+        console.log('[SBN PWA][gkey]', name, {
+          type: event && event.type,
+          gkey: gkey,
+          dataset: dataset,
+          tag: target && target.tagName
+        });
+      } catch (_err) {
+        /* ignore logging issues */
+      }
+    }
   global.SBN_PWA_SET_DEBUG = function(next) {
     DEBUG = Boolean(next);
     persistDebugFlag(DEBUG);
@@ -3905,6 +3921,225 @@
     ]);
   }
 
+  function renderClassifiedDashboard(db) {
+    var user = getActiveUser(db);
+    if (!user) return null;
+    var dashboardState = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+    var tab = dashboardState.tab || 'live';
+    var leadFilter = dashboardState.leadFilter || 'open';
+    var myClassifieds = (db.data.classifieds || []).filter(function(item) { return isClassifiedOwner(db, item); });
+    if (!myClassifieds.length) {
+      return D.Containers.Div({ attrs: { class: 'section-card dashboard-card' } }, [
+        D.Containers.Div({ attrs: { class: 'section-header' } }, [
+          D.Text.H3({}, [t('classifieds.dashboard.title', 'لوحة متابعة الإعلانات')]),
+          D.Text.P({ attrs: { class: 'text-muted' } }, [t('classifieds.dashboard.empty', 'أضف أول إعلان لك لتبدأ المتابعة.')])
+        ]),
+        D.Forms.Button({ attrs: { class: 'hero-cta', 'data-m-gkey': 'composer-open' } }, [
+          t('composer.type.classified', 'إعلان مستعمل'),
+          ' + '
+        ])
+      ]);
+    }
+
+    var stats = buildClassifiedStats(myClassifieds);
+    var tabs = [
+      { key: 'live', label: t('classifieds.status.live', 'نشط') + ' (' + (stats.live || 0) + ')' },
+      { key: 'pending', label: t('classifieds.status.pending', 'قيد المراجعة') + ' (' + (stats.pending || 0) + ')' },
+      { key: 'closed', label: t('classifieds.status.closed', 'مغلق') + ' (' + (stats.closed || 0) + ')' },
+      { key: 'archived', label: t('classifieds.status.archived', 'مؤرشف') + ' (' + (stats.archived || 0) + ')' },
+      { key: 'draft', label: t('classifieds.status.draft', 'مسودة') + ' (' + (stats.draft || 0) + ')' },
+      { key: 'all', label: t('filter.all', 'الكل') + ' (' + myClassifieds.length + ')' }
+    ];
+
+    var filtered = tab === 'all'
+      ? myClassifieds
+      : myClassifieds.filter(function(item) { return resolveClassifiedStatus(item) === tab; });
+
+    var leads = resolveClassifiedLeads(db, myClassifieds);
+    var filteredLeads = leadFilter === 'all'
+      ? leads
+      : leads.filter(function(lead) { return (lead.status || 'open') === leadFilter; });
+
+    function renderDashboardRow(item) {
+      var status = resolveClassifiedStatus(item);
+      var statusLabel = status === 'archived'
+        ? t('classifieds.status.archived', 'مؤرشف')
+        : status === 'closed'
+          ? t('classifieds.status.closed', 'مغلق')
+          : status === 'pending'
+            ? t('classifieds.status.pending', 'قيد المراجعة')
+            : status === 'draft'
+              ? t('classifieds.status.draft', 'مسودة')
+              : t('classifieds.status.live', 'نشط');
+      return D.Containers.Div({ attrs: { class: 'dashboard-row', key: item.id || item.classified_id } }, [
+        D.Containers.Div({ attrs: { class: 'dashboard-row-main' } }, [
+          D.Text.H4({ attrs: { class: 'dashboard-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
+          D.Text.P({ attrs: { class: 'dashboard-meta' } }, [
+            statusLabel,
+            ' · ',
+            item.location_city || t('classifieds.location.unknown', 'دون موقع'),
+            item.price != null ? ' · ' + formatCurrencyValue(item.price, item.currency) : ''
+          ])
+        ]),
+        D.Containers.Div({ attrs: { class: 'dashboard-actions' } }, [
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-contact',
+              'data-kind': 'classified',
+              'data-target-id': item.id || item.classified_id,
+              'data-phone': item.contact_phone || user.phone || ''
+            }
+          }, [t('classifieds.dashboard.reply', 'رد سريع')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-inbox'
+            }
+          }, [t('notifications.inbox.title', 'صندوق الوارد')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'classified-edit',
+              'data-target-id': item.id || item.classified_id
+            }
+          }, [t('classifieds.edit', 'تعديل الإعلان')]),
+          status !== 'archived'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'archived'
+                }
+              }, [t('classifieds.dashboard.archive', 'أرشفة')])
+            : null,
+          status !== 'closed'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost danger',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'closed'
+                }
+              }, [t('classifieds.dashboard.close', 'إغلاق')])
+            : null,
+          status !== 'live'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'live'
+                }
+              }, [t('classifieds.dashboard.reopen', 'إعادة التفعيل')])
+            : null
+        ].filter(Boolean))
+      ]);
+    }
+
+    return D.Containers.Div({ attrs: { class: 'section-card dashboard-card' } }, [
+      D.Containers.Div({ attrs: { class: 'section-header' } }, [
+        D.Containers.Div({ attrs: { class: 'section-titles' } }, [
+          D.Text.H3({}, [t('classifieds.dashboard.title', 'لوحة متابعة الإعلانات')]),
+          D.Text.P({ attrs: { class: 'text-muted' } }, [t('classifieds.dashboard.subtitle', 'تابع الحالات والطلبات ورد فوراً')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'header-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'composer-open' } }, [t('classifieds.add', '＋ إعلان جديد')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'open-inbox' } }, [t('notifications.inbox.title', 'الوارد')])
+        ])
+      ]),
+
+      D.Containers.Div({ attrs: { class: 'stats-grid' } }, tabs.slice(0, 5).map(function(stat) {
+        return D.Containers.Div({ attrs: { class: 'stat-card' } }, [
+          D.Text.Span({ attrs: { class: 'stat-label' } }, [stat.label.split('(')[0].trim()]),
+          D.Text.Span({ attrs: { class: 'stat-value' } }, [stat.label.match(/\((\d+)\)/) ? stat.label.match(/\((\d+)\)/)[1] : '0'])
+        ]);
+      })),
+
+      D.Containers.Div({ attrs: { class: 'tab-switcher' } }, [
+        D.Containers.Div({ attrs: { class: 'tab-row' } }, tabs.map(function(entry) {
+          var active = tab === entry.key;
+          return D.Forms.Button({
+            attrs: {
+              class: 'tab-btn' + (active ? ' active' : ''),
+              'data-m-gkey': 'classified-dashboard-tab',
+              'data-value': entry.key
+            }
+          }, [entry.label]);
+        }))
+      ]),
+
+      filtered.length
+        ? D.Containers.Div({ attrs: { class: 'dashboard-list' } }, filtered.map(renderDashboardRow))
+        : D.Text.P({}, [t('classifieds.dashboard.emptyTab', 'لا توجد إعلانات في هذه الحالة')]),
+
+      D.Containers.Div({ attrs: { class: 'lead-panel' } }, [
+        D.Containers.Div({ attrs: { class: 'lead-header' } }, [
+          D.Text.H4({}, [t('classifieds.leads.title', 'طلبات العملاء')]),
+          D.Containers.Div({ attrs: { class: 'chips-row' } }, [
+            ['open', 'responded', 'closed', 'all'].map(function(filter) {
+              var labels = {
+                open: t('leads.open', 'بانتظار الرد'),
+                responded: t('leads.responded', 'تم الرد'),
+                closed: t('leads.closed', 'مغلق'),
+                all: t('filter.all', 'الكل')
+              };
+              var active = leadFilter === filter;
+              return D.Forms.Button({
+                attrs: {
+                  class: 'chip' + (active ? ' chip-active' : ''),
+                  'data-m-gkey': 'classified-lead-filter',
+                  'data-value': filter
+                }
+              }, [labels[filter]]);
+            })
+          ])
+        ]),
+        filteredLeads.length
+          ? D.Containers.Div({ attrs: { class: 'lead-list' } }, filteredLeads.map(function(lead) {
+              var statusLabel = lead.status === 'responded'
+                ? t('leads.responded', 'تم الرد')
+                : lead.status === 'closed'
+                  ? t('leads.closed', 'مغلق')
+                  : t('leads.open', 'بانتظار الرد');
+              return D.Containers.Div({ attrs: { class: 'lead-item', key: lead.id } }, [
+                D.Containers.Div({ attrs: { class: 'lead-body' } }, [
+                  D.Text.Span({ attrs: { class: 'lead-title' } }, [lead.title || t('classifieds.lead', 'طلب تواصل')]),
+                  D.Text.P({ attrs: { class: 'lead-snippet' } }, [lead.snippet || t('classifieds.lead.snippet', 'عميل جديد بانتظارك')]),
+                  D.Text.Small({ attrs: { class: 'lead-meta' } }, [statusLabel])
+                ]),
+                D.Containers.Div({ attrs: { class: 'lead-actions' } }, [
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'open-inbox'
+                    }
+                  }, [t('classifieds.dashboard.reply', 'رد سريع')]),
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'classified-lead-status',
+                      'data-lead-id': lead.id,
+                      'data-status': 'responded'
+                    }
+                  }, [t('leads.responded', 'تم الرد')]),
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost danger',
+                      'data-m-gkey': 'classified-lead-status',
+                      'data-lead-id': lead.id,
+                      'data-status': 'closed'
+                    }
+                  }, [t('leads.closed', 'إغلاق')])
+                ])
+              ]);
+            }))
+          : D.Text.P({ attrs: { class: 'lead-empty' } }, [t('classifieds.leads.empty', 'لا توجد طلبات حالياً')])
+      ])
+    ]);
+  }
+
   function getComposerCategoryGroups(categories) {
     var hierarchy = buildCategoryHierarchy(categories || []);
     return hierarchy.map(function(node) {
@@ -4940,6 +5175,34 @@
     ]);
   }
 
+  function renderInboxPanel(db) {
+    if (!db.state.inboxOpen) return null;
+    var threads = resolveInboxThreads(db);
+    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
+        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
+        ])
+      ]),
+      !prefs.inboxEnabled
+        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
+        : null,
+      threads && threads.length
+        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
+            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
+            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
+              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
+              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
+              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
+            ]);
+          }))
+        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
+    ]);
+  }
+
   function markNotificationsAsRead() {
     if (!app || !app.database) return;
     var db = app.database;
@@ -5294,6 +5557,49 @@
             env: db.env,
             meta: db.meta,
             state: Object.assign({}, db.state, { classifiedDashboard: next }),
+            data: db.data
+          };
+        });
+      }
+    },
+
+    'classified.lead.status': {
+      on: ['click'],
+      gkeys: ['classified-lead-status'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var leadId = target && target.getAttribute('data-lead-id');
+        var status = target && target.getAttribute('data-status');
+        updateLeadStatus(ctx, leadId, status);
+      }
+    },
+
+    'classified.status': {
+      on: ['click'],
+      gkeys: ['classified-status'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        var target = event.currentTarget || event.target;
+        var status = target && target.getAttribute('data-status');
+        var id = target && target.getAttribute('data-target-id');
+        updateClassifiedStatus(ctx, id, status);
+      }
+    },
+
+    'open.product.form': {
+      on: ['click'],
+      gkeys: ['open-product-form'],
+      handler: function(event, ctx) {
+        event.preventDefault();
+        showNotice(ctx, t('marketplace.add.product.notice', 'انتقل للمتجر لإضافة منتج جديد ثم شاركه'));
+        ctx.setState(function(db) {
+          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+          var next = Object.assign({}, current, { leadFilter: filter || 'open' });
+          return {
+            env: db.env,
+            meta: db.meta,
+            state: Object.assign({}, db.state, { currentSection: 'commerce' }),
             data: db.data
           };
         });
@@ -6003,13 +6309,25 @@
         var step = auth.step || 'login';
         var email = (auth.email || '').trim().toLowerCase();
         var phone = (auth.phone || '').trim();
-        var password = (auth.password || '').trim();
-        if (!password && formEl && typeof formEl.querySelector === 'function') {
-          var passwordInput = formEl.querySelector('input[name="password"]');
-          if (passwordInput && passwordInput.value) {
-            password = passwordInput.value;
-            updateAuthState({ password: password });
+          var password = (auth.password || '').trim();
+          if (!password && formEl && typeof formEl.querySelector === 'function') {
+            var passwordInput = formEl.querySelector('input[name="password"]');
+            if (passwordInput && passwordInput.value) {
+              password = passwordInput.value;
+              updateAuthState({ password: password });
+            }
           }
+          var now = Date.now();
+          var blockedUntil = auth.blockedUntil || 0;
+          if (step === 'login' && blockedUntil && blockedUntil <= now) {
+            blockedUntil = 0;
+            updateAuthState({ blockedUntil: 0, loginAttempts: 0, error: null });
+          }
+          if (step === 'login' && blockedUntil > now) {
+            var remaining = Math.ceil((blockedUntil - now) / 60000);
+            updateAuthState({ error: t('auth.blocked', 'تم حظر المحاولات مؤقتاً.'), loginAttempts: auth.loginAttempts || 0 });
+            showNotice(ctx, t('auth.blocked.retry', 'حاول مرة أخرى بعد ') + remaining + ' ' + t('auth.minutes', 'دقائق'));
+            return;
         }
         var now = Date.now();
         var blockedUntil = auth.blockedUntil || 0;
@@ -6977,6 +7295,16 @@
       }
     }
   };
+
+  Object.keys(orders).forEach(function(orderName) {
+    var order = orders[orderName];
+    if (!order || typeof order.handler !== 'function') return;
+    var original = order.handler;
+    order.handler = function(event, ctx) {
+      logGkeyEvent(orderName, event);
+      return original(event, ctx);
+    };
+  });
 
   // ================== INITIALIZATION ==================
   var app = null;
