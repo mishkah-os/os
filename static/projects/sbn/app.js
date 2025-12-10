@@ -3883,6 +3883,221 @@
     });
   }
 
+    var stats = buildClassifiedStats(myClassifieds);
+    var tabs = [
+      { key: 'live', label: t('classifieds.status.live', 'نشط') + ' (' + (stats.live || 0) + ')' },
+      { key: 'pending', label: t('classifieds.status.pending', 'قيد المراجعة') + ' (' + (stats.pending || 0) + ')' },
+      { key: 'closed', label: t('classifieds.status.closed', 'مغلق') + ' (' + (stats.closed || 0) + ')' },
+      { key: 'archived', label: t('classifieds.status.archived', 'مؤرشف') + ' (' + (stats.archived || 0) + ')' },
+      { key: 'draft', label: t('classifieds.status.draft', 'مسودة') + ' (' + (stats.draft || 0) + ')' },
+      { key: 'all', label: t('filter.all', 'الكل') + ' (' + myClassifieds.length + ')' }
+    ];
+
+    var filtered = tab === 'all'
+      ? myClassifieds
+      : myClassifieds.filter(function(item) { return resolveClassifiedStatus(item) === tab; });
+
+    var leads = resolveClassifiedLeads(db, myClassifieds);
+    var filteredLeads = leadFilter === 'all'
+      ? leads
+      : leads.filter(function(lead) { return (lead.status || 'open') === leadFilter; });
+
+    function renderDashboardRow(item) {
+      var status = resolveClassifiedStatus(item);
+      var statusLabel = status === 'archived'
+        ? t('classifieds.status.archived', 'مؤرشف')
+        : status === 'closed'
+          ? t('classifieds.status.closed', 'مغلق')
+          : status === 'pending'
+            ? t('classifieds.status.pending', 'قيد المراجعة')
+            : status === 'draft'
+              ? t('classifieds.status.draft', 'مسودة')
+              : t('classifieds.status.live', 'نشط');
+      return D.Containers.Div({ attrs: { class: 'dashboard-row', key: item.id || item.classified_id } }, [
+        D.Containers.Div({ attrs: { class: 'dashboard-row-main' } }, [
+          D.Text.H4({ attrs: { class: 'dashboard-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
+          D.Text.P({ attrs: { class: 'dashboard-meta' } }, [
+            statusLabel,
+            ' · ',
+            item.location_city || t('classifieds.location.unknown', 'دون موقع'),
+            item.price != null ? ' · ' + formatCurrencyValue(item.price, item.currency) : ''
+          ])
+        ]),
+        D.Containers.Div({ attrs: { class: 'dashboard-actions' } }, [
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-contact',
+              'data-kind': 'classified',
+              'data-target-id': item.id || item.classified_id,
+              'data-phone': item.contact_phone || user.phone || ''
+            }
+          }, [t('classifieds.dashboard.reply', 'رد سريع')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-inbox'
+            }
+          }, [t('notifications.inbox.title', 'صندوق الوارد')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'classified-edit',
+              'data-target-id': item.id || item.classified_id
+            }
+          }, [t('classifieds.edit', 'تعديل الإعلان')]),
+          status !== 'archived'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'archived'
+                }
+              }, [t('classifieds.dashboard.archive', 'أرشفة')])
+            : null,
+          status !== 'closed'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost danger',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'closed'
+                }
+              }, [t('classifieds.dashboard.close', 'إغلاق')])
+            : null,
+          status !== 'live'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'live'
+                }
+              }, [t('classifieds.dashboard.reopen', 'إعادة التفعيل')])
+            : null
+        ].filter(Boolean))
+      ]);
+    }
+
+    return D.Containers.Div({ attrs: { class: 'section-card dashboard-card' } }, [
+      D.Containers.Div({ attrs: { class: 'section-header' } }, [
+        D.Containers.Div({ attrs: { class: 'section-titles' } }, [
+          D.Text.H3({}, [t('classifieds.dashboard.title', 'لوحة متابعة الإعلانات')]),
+          D.Text.P({ attrs: { class: 'text-muted' } }, [t('classifieds.dashboard.subtitle', 'تابع الحالات والطلبات ورد فوراً')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'header-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'composer-open' } }, [t('classifieds.add', '＋ إعلان جديد')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'open-inbox' } }, [t('notifications.inbox.title', 'الوارد')])
+        ])
+      ]),
+
+      D.Containers.Div({ attrs: { class: 'stats-grid' } }, tabs.slice(0, 5).map(function(stat) {
+        return D.Containers.Div({ attrs: { class: 'stat-card' } }, [
+          D.Text.Span({ attrs: { class: 'stat-label' } }, [stat.label.split('(')[0].trim()]),
+          D.Text.Span({ attrs: { class: 'stat-value' } }, [stat.label.match(/\((\d+)\)/) ? stat.label.match(/\((\d+)\)/)[1] : '0'])
+        ]);
+      })),
+
+      D.Containers.Div({ attrs: { class: 'tab-switcher' } }, [
+        D.Containers.Div({ attrs: { class: 'tab-row' } }, tabs.map(function(entry) {
+          var active = tab === entry.key;
+          return D.Forms.Button({
+            attrs: {
+              class: 'tab-btn' + (active ? ' active' : ''),
+              'data-m-gkey': 'classified-dashboard-tab',
+              'data-value': entry.key
+            }
+          }, [entry.label]);
+        }))
+      ]),
+
+      filtered.length
+        ? D.Containers.Div({ attrs: { class: 'dashboard-list' } }, filtered.map(renderDashboardRow))
+        : D.Text.P({}, [t('classifieds.dashboard.emptyTab', 'لا توجد إعلانات في هذه الحالة')]),
+
+      D.Containers.Div({ attrs: { class: 'lead-panel' } }, [
+        D.Containers.Div({ attrs: { class: 'lead-header' } }, [
+          D.Text.H4({}, [t('classifieds.leads.title', 'طلبات العملاء')]),
+          D.Containers.Div({ attrs: { class: 'chips-row' } }, [
+            ['open', 'responded', 'closed', 'all'].map(function(filter) {
+              var labels = {
+                open: t('leads.open', 'بانتظار الرد'),
+                responded: t('leads.responded', 'تم الرد'),
+                closed: t('leads.closed', 'مغلق'),
+                all: t('filter.all', 'الكل')
+              };
+              var active = leadFilter === filter;
+              return D.Forms.Button({
+                attrs: {
+                  class: 'chip' + (active ? ' chip-active' : ''),
+                  'data-m-gkey': 'classified-lead-filter',
+                  'data-value': filter
+                }
+              }, [labels[filter]]);
+            })
+          ])
+        ]),
+        filteredLeads.length
+          ? D.Containers.Div({ attrs: { class: 'lead-list' } }, filteredLeads.map(function(lead) {
+              var statusLabel = lead.status === 'responded'
+                ? t('leads.responded', 'تم الرد')
+                : lead.status === 'closed'
+                  ? t('leads.closed', 'مغلق')
+                  : t('leads.open', 'بانتظار الرد');
+              return D.Containers.Div({ attrs: { class: 'lead-item', key: lead.id } }, [
+                D.Containers.Div({ attrs: { class: 'lead-body' } }, [
+                  D.Text.Span({ attrs: { class: 'lead-title' } }, [lead.title || t('classifieds.lead', 'طلب تواصل')]),
+                  D.Text.P({ attrs: { class: 'lead-snippet' } }, [lead.snippet || t('classifieds.lead.snippet', 'عميل جديد بانتظارك')]),
+                  D.Text.Small({ attrs: { class: 'lead-meta' } }, [statusLabel])
+                ]),
+                D.Containers.Div({ attrs: { class: 'lead-actions' } }, [
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'open-inbox'
+                    }
+                  }, [t('classifieds.dashboard.reply', 'رد سريع')]),
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'classified-lead-status',
+                      'data-lead-id': lead.id,
+                      'data-status': 'responded'
+                    }
+                  }, [t('leads.responded', 'تم الرد')]),
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost danger',
+                      'data-m-gkey': 'classified-lead-status',
+                      'data-lead-id': lead.id,
+                      'data-status': 'closed'
+                    }
+                  }, [t('leads.closed', 'إغلاق')])
+                ])
+              ]);
+            }))
+          : D.Text.P({ attrs: { class: 'lead-empty' } }, [t('classifieds.leads.empty', 'لا توجد طلبات حالياً')])
+      ])
+    ]);
+  }
+
+  function getComposerCategoryGroups(categories) {
+    var hierarchy = buildCategoryHierarchy(categories || []);
+    return hierarchy.map(function(node) {
+      return {
+        id: node.data.category_id,
+        label: getCategoryDisplayName(node.data),
+        children: (node.children || []).map(function(child) {
+          return {
+            id: child.data.category_id,
+            label: getCategoryDisplayName(child.data)
+          };
+        })
+      };
+    });
+  }
+
   function getComposerCategoryGroupsByType(db, kind) {
     var sourceKey = COMPOSER_CATEGORY_SOURCES[kind];
     if (!sourceKey) return [];
