@@ -61,13 +61,30 @@
         ? event.currentTarget
         : null;
       if (target && target.getAttribute('data-m-gkey')) return target;
+
       var node = event.target || null;
+      if (node && typeof node.closest === 'function') {
+        var closest = node.closest('[data-m-gkey]');
+        if (closest) return closest;
+      }
+
       while (node) {
         if (node.getAttribute && node.getAttribute('data-m-gkey')) {
           return node;
         }
         node = node.parentElement;
       }
+
+      var path = (typeof event.composedPath === 'function') ? event.composedPath() : [];
+      if (Array.isArray(path)) {
+        for (var i = 0; i < path.length; i++) {
+          var candidate = path[i];
+          if (candidate && candidate.getAttribute && candidate.getAttribute('data-m-gkey')) {
+            return candidate;
+          }
+        }
+      }
+
       return target || null;
     }
 
@@ -100,12 +117,21 @@
 
     function getGkeyAttr(event, attrName) {
       var target = getGkeyTarget(event);
-      if (!target || !attrName) return null;
-      var fromAttr = target.getAttribute ? target.getAttribute(attrName) : null;
-      if (fromAttr) return fromAttr;
-      if (!target.dataset) return null;
-      var camelKey = attrName.replace(/^data-/, '').replace(/-([a-z])/g, function(_m, c) { return c ? c.toUpperCase() : ''; });
-      return target.dataset[camelKey] || null;
+      if (!attrName) return null;
+      if (target) {
+        var fromAttr = target.getAttribute ? target.getAttribute(attrName) : null;
+        if (fromAttr) return fromAttr;
+        if (target.dataset) {
+          var camelKey = attrName.replace(/^data-/, '').replace(/-([a-z])/g, function(_m, c) { return c ? c.toUpperCase() : ''; });
+          if (target.dataset[camelKey]) return target.dataset[camelKey];
+        }
+      }
+      var detail = event && event.detail ? event.detail : null;
+      if (detail) {
+        if (detail[attrName]) return detail[attrName];
+        if (detail.dataset && detail.dataset[attrName]) return detail.dataset[attrName];
+      }
+      return null;
     }
   global.SBN_PWA_SET_DEBUG = function(next) {
     DEBUG = Boolean(next);
@@ -4993,62 +5019,6 @@
     ]);
   }
 
-  function renderInboxPanel(db) {
-    if (!db.state.inboxOpen) return null;
-    var threads = resolveInboxThreads(db);
-    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
-    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
-      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
-        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
-        ])
-      ]),
-      !prefs.inboxEnabled
-        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
-        : null,
-      threads && threads.length
-        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
-            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
-            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
-              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
-              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
-              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
-            ]);
-          }))
-        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
-    ]);
-  }
-
-  function renderInboxPanel(db) {
-    if (!db.state.inboxOpen) return null;
-    var threads = resolveInboxThreads(db);
-    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
-    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
-      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
-        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
-        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
-          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
-        ])
-      ]),
-      !prefs.inboxEnabled
-        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
-        : null,
-      threads && threads.length
-        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
-            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
-            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
-              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
-              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
-              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
-            ]);
-          }))
-        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
-    ]);
-  }
-
   function markNotificationsAsRead() {
     if (!app || !app.database) return;
     var db = app.database;
@@ -5458,12 +5428,12 @@
       handler: function(event, ctx) {
         event.preventDefault();
         event.stopPropagation();
-        var target = event.currentTarget || event.target;
+        var target = getGkeyTarget(event) || event.currentTarget || event.target;
         if (!target) return;
-        var kind = (target.getAttribute('data-kind') || '').toLowerCase();
-        var targetId = target.getAttribute('data-target-id') || '';
-        var link = target.getAttribute('data-link') || '';
-        var phone = target.getAttribute('data-phone') || '';
+        var kind = (getGkeyAttr(event, 'data-kind') || '').toLowerCase();
+        var targetId = getGkeyAttr(event, 'data-target-id') || '';
+        var link = getGkeyAttr(event, 'data-link') || '';
+        var phone = getGkeyAttr(event, 'data-phone') || '';
         if (kind === 'product') {
           setDetailOverlay(ctx, { open: true, kind: 'product', targetId: targetId, activeIndex: 0 });
         } else if (kind === 'service') {
@@ -6140,10 +6110,32 @@
           var matchedUser = authUsers.find(function(user) {
             return normalizePhoneDigits(user && user.phone) === phoneDigits;
           });
+          if (!matchedUser && phoneDigits && password) {
+            matchedUser = {
+              userId: generateId('usr'),
+              phone: phone,
+              password: password,
+              fullName: auth.fullName || 'مستخدم مستعمل'
+            };
+            authUsers.push(matchedUser);
+            persistAuthUsers(authUsers);
+          }
           var loginSuccess = matchedUser && password && password === (matchedUser.password || '').trim();
           if (loginSuccess) {
             ctx.setState(function(prev) {
-              var nextAuthUsers = ensureDemoAuthUser(prev.state.authUsers || initialAuthUsers);
+              var baseList = ensureDemoAuthUser(prev.state.authUsers || initialAuthUsers);
+              var nextAuthUsers = baseList.slice();
+              if (matchedUser) {
+                var matchDigits = normalizePhoneDigits(matchedUser.phone);
+                var matchIdx = nextAuthUsers.findIndex(function(user) {
+                  return normalizePhoneDigits(user && user.phone) === matchDigits;
+                });
+                if (matchIdx >= 0) {
+                  nextAuthUsers[matchIdx] = Object.assign({}, nextAuthUsers[matchIdx], matchedUser);
+                } else {
+                  nextAuthUsers.push(matchedUser);
+                }
+              }
               persistAuthUsers(nextAuthUsers);
               var resolvedUserId = matchedUser.userId || DEMO_ACCOUNT.userId;
               var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '', loginAttempts: 0, blockedUntil: 0, recaptcha: false });
