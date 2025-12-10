@@ -5314,7 +5314,11 @@
       on: ['click'],
       gkeys: ['nav-commerce', 'nav-marketplace', 'nav-services'],
       handler: function(event, ctx) {
+        event.preventDefault();
+        var filter = event.currentTarget && event.currentTarget.getAttribute('data-value');
         ctx.setState(function(db) {
+          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+          var next = Object.assign({}, current, { leadFilter: filter || 'open' });
           return {
             env: db.env,
             meta: db.meta,
