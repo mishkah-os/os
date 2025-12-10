@@ -4993,6 +4993,62 @@
     ]);
   }
 
+  function renderInboxPanel(db) {
+    if (!db.state.inboxOpen) return null;
+    var threads = resolveInboxThreads(db);
+    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
+        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
+        ])
+      ]),
+      !prefs.inboxEnabled
+        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
+        : null,
+      threads && threads.length
+        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
+            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
+            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
+              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
+              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
+              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
+            ]);
+          }))
+        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
+    ]);
+  }
+
+  function renderInboxPanel(db) {
+    if (!db.state.inboxOpen) return null;
+    var threads = resolveInboxThreads(db);
+    var prefs = db.state.notificationPrefs || initialDatabase.state.notificationPrefs;
+    return D.Containers.Div({ attrs: { class: 'section-card notification-panel inbox-panel' } }, [
+      D.Containers.Div({ attrs: { class: 'panel-header' } }, [
+        D.Text.H4({}, [t('notifications.inbox.title', 'صندوق الوارد')]),
+        D.Containers.Div({ attrs: { class: 'panel-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'mark-inbox-read' } }, [t('notifications.inbox.read', 'تمييز كمقروء')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'close-inbox' } }, ['✕'])
+        ])
+      ]),
+      !prefs.inboxEnabled
+        ? D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.disabled', 'قم بتفعيل Inbox من البطاقة أعلاه')])
+        : null,
+      threads && threads.length
+        ? D.Containers.Div({ attrs: { class: 'notification-list' } }, threads.map(function(thread) {
+            var badge = thread.type === 'comment' ? '💬' : thread.type === 'save' ? '⭐' : '✉️';
+            return D.Containers.Div({ attrs: { class: 'notification-item' + (thread.unread ? ' unread' : ''), key: thread.thread_id } }, [
+              D.Containers.Div({ attrs: { class: 'notification-title' } }, [badge + ' ' + (thread.title || '')]),
+              D.Text.P({ attrs: { class: 'notification-body' } }, [thread.snippet || '']),
+              D.Text.Small({ attrs: { class: 'notification-meta' } }, [thread.counterpart || '', ' • ', formatRelativeTime(thread.updated_at)])
+            ]);
+          }))
+        : D.Text.P({ attrs: { class: 'notification-empty' } }, [t('notifications.inbox.empty', 'لا توجد رسائل حالياً')])
+    ]);
+  }
+
   function markNotificationsAsRead() {
     if (!app || !app.database) return;
     var db = app.database;
@@ -5288,7 +5344,11 @@
       on: ['click'],
       gkeys: ['nav-commerce', 'nav-marketplace', 'nav-services'],
       handler: function(event, ctx) {
+        event.preventDefault();
+        var filter = event.currentTarget && event.currentTarget.getAttribute('data-value');
         ctx.setState(function(db) {
+          var current = db.state.classifiedDashboard || initialDatabase.state.classifiedDashboard || {};
+          var next = Object.assign({}, current, { leadFilter: filter || 'open' });
           return {
             env: db.env,
             meta: db.meta,

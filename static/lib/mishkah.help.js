@@ -35,7 +35,7 @@
   var HelpSystem = {
 
     // التعليمات الرئيسية
-    main: function() {
+    main: function () {
       console.log('%c🌙 Mishkah Developer Help', 'font-size: 18px; font-weight: bold; color: #4A90E2;');
       console.log('\n📚 الأوامر المتاحة:\n');
       console.log('  M.help()                    - هذه التعليمات');
@@ -46,15 +46,17 @@
       console.log('  M.help.inspect(element)     - فحص عنصر');
       console.log('  M.help.templates()         - قوالب جاهزة');
       console.log('  M.help.naming()            - أنماط التسمية');
+      console.log('  M.help.config()            - إعدادات السقالات');
+      console.log('  M.help.scaffold()          - حالة التحميل');
       console.log('\n💡 للبدء السريع: M.help.examples()');
     },
 
     // قائمة المكونات المتاحة
-    components: function() {
+    components: function () {
       console.log('%c📦 المكونات المتاحة', 'font-size: 16px; font-weight: bold;');
 
       var ui = Mishkah.UI || {};
-      var components = Object.keys(ui).filter(function(key) {
+      var components = Object.keys(ui).filter(function (key) {
         return typeof ui[key] === 'function';
       });
 
@@ -64,7 +66,7 @@
       }
 
       console.log('\n✅ المكونات المسجلة (' + components.length + '):\n');
-      components.forEach(function(name) {
+      components.forEach(function (name) {
         console.log('  • ' + name + ' → استخدمها: <Modal>, <modal>, <m-modal>');
       });
 
@@ -72,7 +74,7 @@
     },
 
     // تفاصيل مكون محدد
-    component: function(name) {
+    component: function (name) {
       if (!name) {
         console.error('❌ يجب تحديد اسم المكون. مثال: M.help.component("Modal")');
         return;
@@ -105,7 +107,7 @@
     },
 
     // تعليمات HTMLx
-    htmlx: function() {
+    htmlx: function () {
       console.log('%c🎨 HTMLx - دليل سريع', 'font-size: 16px; font-weight: bold;');
       console.log('\n📝 القوالب (Templates):\n');
       console.log('  <template id="my-component">');
@@ -136,7 +138,7 @@
     },
 
     // أمثلة شائعة
-    examples: function() {
+    examples: function () {
       console.log('%c💡 أمثلة شائعة', 'font-size: 16px; font-weight: bold;');
 
       console.log('\n1️⃣ مكون بسيط:\n');
@@ -181,7 +183,7 @@
     },
 
     // فحص عنصر
-    inspect: function(element) {
+    inspect: function (element) {
       if (!element) {
         console.error('❌ يجب تمرير عنصر للفحص');
         console.log('💡 مثال: M.help.inspect(document.querySelector("#my-element"))');
@@ -193,7 +195,7 @@
       console.log('  Tag:', element.tagName);
       console.log('  ID:', element.id || 'N/A');
       console.log('  Classes:', element.className || 'N/A');
-      console.log('  Attributes:', Array.from(element.attributes).map(function(a) {
+      console.log('  Attributes:', Array.from(element.attributes).map(function (a) {
         return a.name + '="' + a.value + '"';
       }).join(', '));
 
@@ -208,7 +210,7 @@
     },
 
     // قوالب جاهزة
-    templates: function() {
+    templates: function () {
       console.log('%c📋 قوالب جاهزة', 'font-size: 16px; font-weight: bold;');
       console.log('\n💾 نسخ القالب المطلوب:\n');
 
@@ -219,7 +221,7 @@
         'conditional-content': '<template id="status-display">\n  <div x-if="data.loading">جاري التحميل...</div>\n  <div x-else-if="data.error">خطأ: {{data.error}}</div>\n  <div x-else>{{data.content}}</div>\n</template>'
       };
 
-      Object.keys(templates).forEach(function(name) {
+      Object.keys(templates).forEach(function (name) {
         console.log('📄 ' + name + ':');
         console.log('   Copy to clipboard: copy(M.help.getTemplate("' + name + '"))');
       });
@@ -228,7 +230,7 @@
     },
 
     // الحصول على قالب محدد
-    getTemplate: function(name) {
+    getTemplate: function (name) {
       var templates = {
         'basic-component': '<template id="my-component">\n  <style>\n    /* CSS هنا */\n  </style>\n  <div>{{data.message}}</div>\n</template>',
         'list-with-actions': '<template id="item-list">\n  <ul>\n    <li x-for="item in data.items" :key="item.id">\n      {{item.name}}\n      <button @click="edit(item)">تعديل</button>\n      <button @click="delete(item)">حذف</button>\n    </li>\n  </ul>\n</template>',
@@ -246,8 +248,72 @@
       return templates[name];
     },
 
+    // معلومات الإعدادات والسقالات
+    config: function () {
+      console.log('%c⚙️  إعدادات Mishkah', 'font-size: 16px; font-weight: bold;');
+
+      var scaffold = global.__MISHKAH_SCAFFOLD__;
+      if (!scaffold) {
+        console.warn('⚠️  نظام السقالات غير نشط. تأكد من تحميل mishkah.scaffold.js');
+        return;
+      }
+
+      var config = scaffold.config;
+      console.log('\n🔧 الوضع الحالي: %c' + config.mode, 'font-weight: bold; color: #E74C3C;');
+      console.log('\n📦 المكتبات المحمّلة:');
+      console.log('  Core:', config.features.core ? '✅' : '❌');
+      console.log('  Utils:', config.features.utils ? '✅' : '❌');
+      console.log('  UI:', config.features.ui ? '✅' : '❌');
+      console.log('  HTMLx:', config.features.htmlx ? '✅' : '❌');
+      console.log('  Store:', config.features.store ? '✅' : '❌');
+      console.log('  CRUD:', config.features.crud ? '✅' : '❌');
+      console.log('  Pages:', config.features.pages ? '✅' : '❌');
+
+      console.log('\n🔍 الطبقات التشخيصية:');
+      console.log('  Div (Rules):', config.diagnostics.div ? '✅' : '❌');
+      console.log('  Help:', config.diagnostics.help ? '✅' : '❌');
+      console.log('  Performance:', config.diagnostics.performance ? '✅' : '❌');
+      console.log('  Security:', config.diagnostics.security ? '✅' : '❌');
+
+      console.log('\n📊 الإحصائيات:');
+      console.log('  المحمّل:', scaffold.loaded.length, 'وحدة');
+      console.log('  الفاشل:', scaffold.failed.length, 'وحدة');
+      console.log('  التوقيت:', scaffold.timestamp);
+
+      console.log('\n💡 لتغيير الإعدادات، استخدم: window.__MISHKAH_CONFIG__');
+    },
+
+    // حالة نظام السقالات
+    scaffold: function () {
+      console.log('%c🏗️  حالة السقالات', 'font-size: 16px; font-weight: bold;');
+
+      var scaffold = global.__MISHKAH_SCAFFOLD__;
+      if (!scaffold) {
+        console.warn('⚠️  نظام السقالات غير نشط.');
+        console.log('\n📝 للتفعيل، أضف إلى صفحتك:');
+        console.log('  <script src="/static/lib/mishkah.scaffold.js"></script>');
+        return;
+      }
+
+      console.log('\n✅ المكتبات المحمّلة بنجاح:\n');
+      scaffold.loaded.forEach(function (item) {
+        var icon = item.diagnostic ? '🔍' : '📦';
+        console.log('  ' + icon + ' ' + item.name + ' (' + item.path + ')');
+      });
+
+      if (scaffold.failed.length > 0) {
+        console.log('\n❌ فشل التحميل:\n');
+        scaffold.failed.forEach(function (f) {
+          console.log('  ⚠️  ' + f.item.name + ' - ' + f.error);
+        });
+      }
+
+      console.log('\n⏰ وقت التحميل:', scaffold.timestamp);
+      console.log('\n💡 لعرض الإعدادات: M.help.config()');
+    },
+
     // أنماط التسمية المدعومة
-    naming: function() {
+    naming: function () {
       console.log('%c🏷️  أنماط التسمية المدعومة', 'font-size: 16px; font-weight: bold;');
       console.log('\n✅ HTMLx يدعم جميع الأنماط التالية:\n');
 
@@ -288,6 +354,8 @@
   help.templates = HelpSystem.templates;
   help.getTemplate = HelpSystem.getTemplate;
   help.naming = HelpSystem.naming;
+  help.config = HelpSystem.config;
+  help.scaffold = HelpSystem.scaffold;
 
   // تسجيل في Mishkah
   Mishkah.help = help;
