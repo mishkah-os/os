@@ -173,13 +173,15 @@
   var installPromptInitialized = false;
   var SESSION_PWA_KEY = 'sbn:pwa:dismissed';
   var SESSION_STORAGE_KEY = 'sbn:pwa:session';
+  var AUTH_USERS_KEY = 'sbn:auth:users:v1';
   var notificationsUnsubscribe = null;
   var DEMO_ACCOUNT = {
     email: 'demo@mostamal.eg',
     phone: '+201000000000',
     password: 'demo123',
     otp: STATIC_OTP,
-    userId: 'usr_001'
+    userId: 'usr_001',
+    fullName: 'Demo User'
   };
 
   function registerRealtimeStoreInstance(rt) {
@@ -271,12 +273,31 @@
     'sbn_knowledge_categories': 'knowledgeCategories',
     'sbn_notifications': 'notifications'
   };
+  var LANG_TABLE_CONFIG = {
+    'sbn_products_lang': { dataKey: 'products', parentKey: 'product_id' },
+    'sbn_services_lang': { dataKey: 'services', parentKey: 'service_id' },
+    'sbn_wiki_articles_lang': { dataKey: 'articles', parentKey: 'article_id' },
+    'sbn_posts_lang': { dataKey: 'posts', parentKey: 'post_id' },
+    'sbn_comments_lang': { dataKey: 'comments', parentKey: 'comment_id' },
+    'sbn_reviews_lang': { dataKey: 'reviews', parentKey: 'review_id' },
+    'sbn_users_lang': { dataKey: 'users', parentKey: 'user_id' },
+    'sbn_categories_lang': { dataKey: null, parentKey: 'category_id' }
+  };
   var CATEGORY_TABLES = [
     'sbn_classified_categories',
     'sbn_marketplace_categories',
     'sbn_service_categories',
     'sbn_knowledge_categories'
   ];
+  var BASE_TO_LANG_TABLES = Object.keys(LANG_TABLE_CONFIG).reduce(function(acc, langTable) {
+    var conf = LANG_TABLE_CONFIG[langTable];
+    var base = langTable.replace(/_lang$/, '');
+    if (!conf || !conf.dataKey) return acc;
+    if (!acc[base]) acc[base] = [];
+    acc[base].push(langTable);
+    return acc;
+  }, {});
+  var pendingLangRows = {};
   var pendingCategoryFetches = {};
   var COMPOSER_CATEGORY_SOURCES = {
     classified: 'classifiedCategories'
@@ -378,6 +399,61 @@
     coerceLabelRows(incomingRows).forEach(register);
     return Object.keys(registry).map(function(id) {
       return registry[id];
+    });
+  }
+
+  function mergeLangCache(tableName, rows) {
+    var normalized = coerceTableRows(rows);
+    if (!normalized.length) return [];
+    var existing = pendingLangRows[tableName] || [];
+    var registry = {};
+    existing.concat(normalized).forEach(function(row) {
+      if (!row || typeof row !== 'object') return;
+      var key = row.id || row.uuid || row._id;
+      if (!key) {
+        // fallback to parent + lang combo
+        var conf = LANG_TABLE_CONFIG[tableName] || {};
+        var parentId = row[conf.parentKey];
+        var lang = row.lang || row.language || row.locale;
+        key = parentId && lang ? String(parentId) + '::' + String(lang) : null;
+      }
+      if (!key) return;
+      registry[key] = row;
+    });
+    var merged = Object.keys(registry).map(function(key) { return registry[key]; });
+    pendingLangRows[tableName] = merged;
+    return merged;
+  }
+
+  function applyLangRowsToRecords(records, langRows, conf) {
+    if (!Array.isArray(records) || !records.length || !conf || !langRows || !langRows.length) return records || [];
+    var byParent = langRows.reduce(function(acc, row) {
+      if (!row || typeof row !== 'object') return acc;
+      var parentId = row[conf.parentKey];
+      var langCode = normalizeLocale(row.lang || row.language || row.locale);
+      if (!parentId || !langCode) return acc;
+      if (!acc[parentId]) acc[parentId] = {};
+      var clone = Object.assign({}, row);
+      delete clone.id;
+      delete clone.lang;
+      delete clone.language;
+      delete clone.locale;
+      delete clone[conf.parentKey];
+      acc[parentId][langCode] = Object.assign({}, acc[parentId][langCode], clone);
+      return acc;
+    }, {});
+
+    return records.map(function(entry) {
+      if (!entry) return entry;
+      var parentId = entry[conf.parentKey];
+      if (!parentId || !byParent[parentId]) return entry;
+      var i18n = Object.assign({}, entry.i18n || {});
+      var langObj = Object.assign({}, i18n.lang || {});
+      Object.keys(byParent[parentId]).forEach(function(lang) {
+        langObj[lang] = Object.assign({}, langObj[lang], byParent[parentId][lang]);
+      });
+      i18n.lang = langObj;
+      return Object.assign({}, entry, { i18n: i18n });
     });
   }
 
@@ -553,6 +629,29 @@
     }
   }
 
+  function loadAuthUsers() {
+    if (!global.localStorage) return null;
+    try {
+      var raw = global.localStorage.getItem(AUTH_USERS_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistAuthUsers(users) {
+    if (!global.localStorage) return;
+    try {
+      if (!users || !users.length) {
+        global.localStorage.removeItem(AUTH_USERS_KEY);
+        return;
+      }
+      global.localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
+    } catch (_err) {
+      /* noop */
+    }
+  }
+
   function persistLaunchChecklistState(progress) {
     if (!global.localStorage) return;
     try {
@@ -603,6 +702,30 @@
     } catch (_err) {
       /* noop */
     }
+  }
+
+  function normalizePhoneDigits(value) {
+    return (value || '').replace(/\D/g, '');
+  }
+
+  function ensureDemoAuthUser(users) {
+    var list = Array.isArray(users) ? users.slice() : [];
+    var demoDigits = normalizePhoneDigits(DEMO_ACCOUNT.phone);
+    var demoRecord = {
+      userId: DEMO_ACCOUNT.userId,
+      phone: DEMO_ACCOUNT.phone,
+      password: DEMO_ACCOUNT.password,
+      fullName: 'Demo User'
+    };
+    var existingIndex = list.findIndex(function(user) {
+      return normalizePhoneDigits(user && user.phone) === demoDigits;
+    });
+    if (existingIndex >= 0) {
+      list[existingIndex] = Object.assign({}, demoRecord, list[existingIndex]);
+    } else {
+      list.unshift(demoRecord);
+    }
+    return list;
   }
 
   /**
@@ -739,6 +862,8 @@
   var persistedLaunchChecklist = loadLaunchChecklistState();
   var persistedNotificationPrefs = loadNotificationPrefs();
   var persistedCompliancePrefs = loadCompliancePrefs();
+  var persistedAuthUsers = loadAuthUsers();
+  var initialAuthUsers = ensureDemoAuthUser(persistedAuthUsers || []);
 
   var initialDatabase = {
     env: {
@@ -757,6 +882,7 @@
       notice: null,
       currentSection: 'timeline',
       activeUserId: persistedSession && persistedSession.userId ? persistedSession.userId : null,
+      authUsers: initialAuthUsers,
       postOverlay: {
         open: false,
         postId: null
@@ -1223,6 +1349,25 @@
    * Commit table data to app state
    */
   function commitTable(app, tableName, rows) {
+    if (LANG_TABLE_CONFIG[tableName]) {
+      var langConf = LANG_TABLE_CONFIG[tableName];
+      var langRows = mergeLangCache(tableName, rows);
+      var targetKey = langConf.dataKey;
+      if (!targetKey) return;
+      app.setState(function(db) {
+        var existing = db.data[targetKey] || [];
+        var merged = applyLangRowsToRecords(existing, langRows, langConf);
+        var patch = {};
+        patch[targetKey] = merged;
+        return {
+          env: db.env,
+          meta: db.meta,
+          state: db.state,
+          data: Object.assign({}, db.data, patch)
+        };
+      });
+      return;
+    }
     var dataKey = TABLE_TO_DATA_KEY[tableName];
     if (!dataKey) return;
 
@@ -1231,6 +1376,14 @@
       var normalizedRows = tableName === 'sbn_notifications'
         ? mergeNotificationRows(db.data.notifications || [], rows)
         : coerceTableRows(rows);
+      var langTables = BASE_TO_LANG_TABLES[tableName] || [];
+      langTables.forEach(function(langTable) {
+        var conf = LANG_TABLE_CONFIG[langTable];
+        var pending = pendingLangRows[langTable];
+        if (pending && pending.length) {
+          normalizedRows = applyLangRowsToRecords(normalizedRows, pending, conf);
+        }
+      });
       debugLog('[SBN PWA][data]', tableName, 'incoming sample:', Array.isArray(normalizedRows) ? normalizedRows.slice(0, 3) : normalizedRows, 'count:', Array.isArray(normalizedRows) ? normalizedRows.length : 0);
       newData[dataKey] = normalizedRows;
 
@@ -3221,6 +3374,20 @@
         D.Text.Span({}, ['💬 ', String(post.comments_count || 0)]),
         D.Text.Span({}, ['❤️ ', String(post.likes_count || 0)]),
         D.Text.Span({}, ['🔁 ', String(post.shares_count || 0)])
+      ]),
+      D.Containers.Div({ attrs: { class: 'feed-actions' } }, [
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'post-like', 'data-post-id': post.post_id }
+        }, ['❤️ ', t('post.action.like', 'إعجاب')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'post-open', 'data-post-id': post.post_id }
+        }, ['💬 ', t('post.action.comment', 'تعليقات')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'post-share', 'data-post-id': post.post_id }
+        }, ['🔁 ', t('post.action.share', 'مشاركة')]),
+        D.Forms.Button({
+          attrs: { class: 'chip ghost', 'data-m-gkey': 'post-subscribe', 'data-post-id': post.post_id }
+        }, ['🔔 ', t('post.action.subscribe', 'متابعة')])
       ])
     ]);
   }
@@ -3376,7 +3543,15 @@
           : status === 'draft'
             ? t('classifieds.status.draft', 'مسودة')
             : t('classifieds.status.live', 'نشط');
-    return D.Containers.Div({ attrs: { class: 'classified-card', key: item.id } }, [
+    return D.Containers.Div({
+      attrs: {
+        class: 'classified-card',
+        key: item.id,
+        'data-m-gkey': 'attachment-action',
+        'data-kind': 'classified',
+        'data-target-id': classifiedId
+      }
+    }, [
       D.Media.Img({ attrs: { src: pickClassifiedImage(item), alt: item.title || '', class: 'classified-cover' } }, []),
       D.Containers.Div({ attrs: { class: 'classified-body' } }, [
         D.Text.H4({ attrs: { class: 'classified-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
@@ -3708,6 +3883,221 @@
     });
   }
 
+    var stats = buildClassifiedStats(myClassifieds);
+    var tabs = [
+      { key: 'live', label: t('classifieds.status.live', 'نشط') + ' (' + (stats.live || 0) + ')' },
+      { key: 'pending', label: t('classifieds.status.pending', 'قيد المراجعة') + ' (' + (stats.pending || 0) + ')' },
+      { key: 'closed', label: t('classifieds.status.closed', 'مغلق') + ' (' + (stats.closed || 0) + ')' },
+      { key: 'archived', label: t('classifieds.status.archived', 'مؤرشف') + ' (' + (stats.archived || 0) + ')' },
+      { key: 'draft', label: t('classifieds.status.draft', 'مسودة') + ' (' + (stats.draft || 0) + ')' },
+      { key: 'all', label: t('filter.all', 'الكل') + ' (' + myClassifieds.length + ')' }
+    ];
+
+    var filtered = tab === 'all'
+      ? myClassifieds
+      : myClassifieds.filter(function(item) { return resolveClassifiedStatus(item) === tab; });
+
+    var leads = resolveClassifiedLeads(db, myClassifieds);
+    var filteredLeads = leadFilter === 'all'
+      ? leads
+      : leads.filter(function(lead) { return (lead.status || 'open') === leadFilter; });
+
+    function renderDashboardRow(item) {
+      var status = resolveClassifiedStatus(item);
+      var statusLabel = status === 'archived'
+        ? t('classifieds.status.archived', 'مؤرشف')
+        : status === 'closed'
+          ? t('classifieds.status.closed', 'مغلق')
+          : status === 'pending'
+            ? t('classifieds.status.pending', 'قيد المراجعة')
+            : status === 'draft'
+              ? t('classifieds.status.draft', 'مسودة')
+              : t('classifieds.status.live', 'نشط');
+      return D.Containers.Div({ attrs: { class: 'dashboard-row', key: item.id || item.classified_id } }, [
+        D.Containers.Div({ attrs: { class: 'dashboard-row-main' } }, [
+          D.Text.H4({ attrs: { class: 'dashboard-title' } }, [item.title || t('classifieds.untitled', 'إعلان بدون عنوان')]),
+          D.Text.P({ attrs: { class: 'dashboard-meta' } }, [
+            statusLabel,
+            ' · ',
+            item.location_city || t('classifieds.location.unknown', 'دون موقع'),
+            item.price != null ? ' · ' + formatCurrencyValue(item.price, item.currency) : ''
+          ])
+        ]),
+        D.Containers.Div({ attrs: { class: 'dashboard-actions' } }, [
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-contact',
+              'data-kind': 'classified',
+              'data-target-id': item.id || item.classified_id,
+              'data-phone': item.contact_phone || user.phone || ''
+            }
+          }, [t('classifieds.dashboard.reply', 'رد سريع')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'open-inbox'
+            }
+          }, [t('notifications.inbox.title', 'صندوق الوارد')]),
+          D.Forms.Button({
+            attrs: {
+              class: 'chip ghost',
+              'data-m-gkey': 'classified-edit',
+              'data-target-id': item.id || item.classified_id
+            }
+          }, [t('classifieds.edit', 'تعديل الإعلان')]),
+          status !== 'archived'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'archived'
+                }
+              }, [t('classifieds.dashboard.archive', 'أرشفة')])
+            : null,
+          status !== 'closed'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip ghost danger',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'closed'
+                }
+              }, [t('classifieds.dashboard.close', 'إغلاق')])
+            : null,
+          status !== 'live'
+            ? D.Forms.Button({
+                attrs: {
+                  class: 'chip',
+                  'data-m-gkey': 'classified-status',
+                  'data-target-id': item.id || item.classified_id,
+                  'data-status': 'live'
+                }
+              }, [t('classifieds.dashboard.reopen', 'إعادة التفعيل')])
+            : null
+        ].filter(Boolean))
+      ]);
+    }
+
+    return D.Containers.Div({ attrs: { class: 'section-card dashboard-card' } }, [
+      D.Containers.Div({ attrs: { class: 'section-header' } }, [
+        D.Containers.Div({ attrs: { class: 'section-titles' } }, [
+          D.Text.H3({}, [t('classifieds.dashboard.title', 'لوحة متابعة الإعلانات')]),
+          D.Text.P({ attrs: { class: 'text-muted' } }, [t('classifieds.dashboard.subtitle', 'تابع الحالات والطلبات ورد فوراً')])
+        ]),
+        D.Containers.Div({ attrs: { class: 'header-actions' } }, [
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'composer-open' } }, [t('classifieds.add', '＋ إعلان جديد')]),
+          D.Forms.Button({ attrs: { class: 'chip ghost', 'data-m-gkey': 'open-inbox' } }, [t('notifications.inbox.title', 'الوارد')])
+        ])
+      ]),
+
+      D.Containers.Div({ attrs: { class: 'stats-grid' } }, tabs.slice(0, 5).map(function(stat) {
+        return D.Containers.Div({ attrs: { class: 'stat-card' } }, [
+          D.Text.Span({ attrs: { class: 'stat-label' } }, [stat.label.split('(')[0].trim()]),
+          D.Text.Span({ attrs: { class: 'stat-value' } }, [stat.label.match(/\((\d+)\)/) ? stat.label.match(/\((\d+)\)/)[1] : '0'])
+        ]);
+      })),
+
+      D.Containers.Div({ attrs: { class: 'tab-switcher' } }, [
+        D.Containers.Div({ attrs: { class: 'tab-row' } }, tabs.map(function(entry) {
+          var active = tab === entry.key;
+          return D.Forms.Button({
+            attrs: {
+              class: 'tab-btn' + (active ? ' active' : ''),
+              'data-m-gkey': 'classified-dashboard-tab',
+              'data-value': entry.key
+            }
+          }, [entry.label]);
+        }))
+      ]),
+
+      filtered.length
+        ? D.Containers.Div({ attrs: { class: 'dashboard-list' } }, filtered.map(renderDashboardRow))
+        : D.Text.P({}, [t('classifieds.dashboard.emptyTab', 'لا توجد إعلانات في هذه الحالة')]),
+
+      D.Containers.Div({ attrs: { class: 'lead-panel' } }, [
+        D.Containers.Div({ attrs: { class: 'lead-header' } }, [
+          D.Text.H4({}, [t('classifieds.leads.title', 'طلبات العملاء')]),
+          D.Containers.Div({ attrs: { class: 'chips-row' } }, [
+            ['open', 'responded', 'closed', 'all'].map(function(filter) {
+              var labels = {
+                open: t('leads.open', 'بانتظار الرد'),
+                responded: t('leads.responded', 'تم الرد'),
+                closed: t('leads.closed', 'مغلق'),
+                all: t('filter.all', 'الكل')
+              };
+              var active = leadFilter === filter;
+              return D.Forms.Button({
+                attrs: {
+                  class: 'chip' + (active ? ' chip-active' : ''),
+                  'data-m-gkey': 'classified-lead-filter',
+                  'data-value': filter
+                }
+              }, [labels[filter]]);
+            })
+          ])
+        ]),
+        filteredLeads.length
+          ? D.Containers.Div({ attrs: { class: 'lead-list' } }, filteredLeads.map(function(lead) {
+              var statusLabel = lead.status === 'responded'
+                ? t('leads.responded', 'تم الرد')
+                : lead.status === 'closed'
+                  ? t('leads.closed', 'مغلق')
+                  : t('leads.open', 'بانتظار الرد');
+              return D.Containers.Div({ attrs: { class: 'lead-item', key: lead.id } }, [
+                D.Containers.Div({ attrs: { class: 'lead-body' } }, [
+                  D.Text.Span({ attrs: { class: 'lead-title' } }, [lead.title || t('classifieds.lead', 'طلب تواصل')]),
+                  D.Text.P({ attrs: { class: 'lead-snippet' } }, [lead.snippet || t('classifieds.lead.snippet', 'عميل جديد بانتظارك')]),
+                  D.Text.Small({ attrs: { class: 'lead-meta' } }, [statusLabel])
+                ]),
+                D.Containers.Div({ attrs: { class: 'lead-actions' } }, [
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'open-inbox'
+                    }
+                  }, [t('classifieds.dashboard.reply', 'رد سريع')]),
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost',
+                      'data-m-gkey': 'classified-lead-status',
+                      'data-lead-id': lead.id,
+                      'data-status': 'responded'
+                    }
+                  }, [t('leads.responded', 'تم الرد')]),
+                  D.Forms.Button({
+                    attrs: {
+                      class: 'chip ghost danger',
+                      'data-m-gkey': 'classified-lead-status',
+                      'data-lead-id': lead.id,
+                      'data-status': 'closed'
+                    }
+                  }, [t('leads.closed', 'إغلاق')])
+                ])
+              ]);
+            }))
+          : D.Text.P({ attrs: { class: 'lead-empty' } }, [t('classifieds.leads.empty', 'لا توجد طلبات حالياً')])
+      ])
+    ]);
+  }
+
+  function getComposerCategoryGroups(categories) {
+    var hierarchy = buildCategoryHierarchy(categories || []);
+    return hierarchy.map(function(node) {
+      return {
+        id: node.data.category_id,
+        label: getCategoryDisplayName(node.data),
+        children: (node.children || []).map(function(child) {
+          return {
+            id: child.data.category_id,
+            label: getCategoryDisplayName(child.data)
+          };
+        })
+      };
+    });
+  }
+
   function getComposerCategoryGroupsByType(db, kind) {
     var sourceKey = COMPOSER_CATEGORY_SOURCES[kind];
     if (!sourceKey) return [];
@@ -3810,6 +4200,9 @@
     var city = resolveCityName(product) || t('product.location.unknown');
     var priceValue = product.price != null ? product.price : (product.price_min != null ? product.price_min : product.price_max);
     var priceText = priceValue != null ? String(priceValue) + ' ' + t('currency.egp') : t('product.price.request');
+    var seller = findById(db.data.users || [], 'user_id', product.seller_id || product.owner_id || product.user_id);
+    var sellerName = resolveUserName(seller);
+    var badge = renderTrustBadge(seller);
     var cardClass = 'product-card';
     if (options && options.compact) {
       cardClass += ' carousel-card';
@@ -3818,12 +4211,21 @@
       attrs: {
         class: cardClass,
         key: product.product_id,
-        'data-m-key': 'product-' + product.product_id
+        'data-m-key': 'product-' + product.product_id,
+        'data-m-gkey': 'attachment-action',
+        'data-kind': 'product',
+        'data-target-id': product.product_id
       }
     }, [
       D.Containers.Div({ attrs: { class: 'product-media' } }, [
         D.Media.Img({
-          attrs: { src: imageSrc, alt: title }
+          attrs: {
+            src: imageSrc,
+            alt: title,
+            'data-m-gkey': 'attachment-action',
+            'data-kind': 'product',
+            'data-target-id': product.product_id
+          }
         }, [])
       ]),
       D.Containers.Div({ attrs: { class: 'product-body' } }, [
@@ -3837,6 +4239,12 @@
           ]),
           D.Text.Span({}, [city])
         ]),
+        sellerName || badge
+          ? D.Containers.Div({ attrs: { class: 'seller-inline' } }, [
+              sellerName ? D.Text.Span({ attrs: { class: 'seller-inline-name' } }, [sellerName]) : null,
+              badge
+            ].filter(Boolean))
+          : null,
         renderAttachmentAction('product', t('product.view', 'عرض المنتج'), product.product_id)
       ])
     ]);
@@ -4040,11 +4448,17 @@
       ? priceRange + ' ' + t('currency.egp')
       : (service.price ? String(service.price) + ' ' + t('currency.egp') : t('services.price.request'));
     var serviceCity = resolveCityName(service) || t('services.location.unknown');
+    var provider = findById(db.data.users || [], 'user_id', service.provider_id || service.user_id);
+    var providerName = resolveUserName(provider);
+    var badge = renderTrustBadge(provider);
     return D.Containers.Div({
       attrs: {
         class: 'service-card',
         key: service.service_id,
-        'data-m-key': 'service-' + service.service_id
+        'data-m-key': 'service-' + service.service_id,
+        'data-m-gkey': 'attachment-action',
+        'data-kind': 'service',
+        'data-target-id': service.service_id
       }
     }, [
       D.Text.H4({ attrs: { class: 'service-title' } }, [getLocalizedField(service, 'title', t('services.default'))]),
@@ -4053,6 +4467,12 @@
         D.Text.Span({ attrs: { class: 'service-price' } }, [priceLabel]),
         D.Text.Span({ attrs: { class: 'service-location' } }, [serviceCity])
       ]),
+      providerName || badge
+        ? D.Containers.Div({ attrs: { class: 'seller-inline' } }, [
+            providerName ? D.Text.Span({ attrs: { class: 'seller-inline-name' } }, [providerName]) : null,
+            badge
+          ].filter(Boolean))
+        : null,
       renderAttachmentAction('service', t('services.cta.book', 'احجز الخدمة'), service.service_id)
     ]);
   }
@@ -4103,7 +4523,10 @@
       attrs: {
         class: 'article-card',
         key: article.article_id,
-        'data-m-key': 'article-' + article.article_id
+        'data-m-key': 'article-' + article.article_id,
+        'data-m-gkey': 'attachment-action',
+        'data-kind': 'wiki',
+        'data-target-id': article.article_id
       }
     }, [
       cover
@@ -5757,7 +6180,7 @@
         var step = auth.step || 'login';
         var email = (auth.email || '').trim().toLowerCase();
         var phone = (auth.phone || '').trim();
-        var password = auth.password || '';
+        var password = (auth.password || '').trim();
         if (!password && formEl && typeof formEl.querySelector === 'function') {
           var passwordInput = formEl.querySelector('input[name="password"]');
           if (passwordInput && passwordInput.value) {
@@ -5774,20 +6197,26 @@
           return;
         }
         if (step === 'login') {
-          var phoneDigits = phone.replace(/\D/g, '');
-          var demoPhoneDigits = (DEMO_ACCOUNT.phone || '').replace(/\D/g, '');
-          var loginSuccess = phoneDigits && phoneDigits === demoPhoneDigits && password === DEMO_ACCOUNT.password;
+          var phoneDigits = normalizePhoneDigits(phone);
+          var authUsers = ensureDemoAuthUser((db && db.state && db.state.authUsers) || initialAuthUsers);
+          var matchedUser = authUsers.find(function(user) {
+            return normalizePhoneDigits(user && user.phone) === phoneDigits;
+          });
+          var loginSuccess = matchedUser && password && password === (matchedUser.password || '').trim();
           if (loginSuccess) {
             ctx.setState(function(prev) {
+              var nextAuthUsers = ensureDemoAuthUser(prev.state.authUsers || initialAuthUsers);
+              persistAuthUsers(nextAuthUsers);
+              var resolvedUserId = matchedUser.userId || DEMO_ACCOUNT.userId;
               var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '', loginAttempts: 0, blockedUntil: 0, recaptcha: false });
               return {
                 env: prev.env,
                 meta: prev.meta,
-                state: Object.assign({}, prev.state, { activeUserId: DEMO_ACCOUNT.userId, auth: nextAuth }),
+                state: Object.assign({}, prev.state, { activeUserId: resolvedUserId, auth: nextAuth, authUsers: nextAuthUsers }),
                 data: prev.data
               };
             });
-            persistSession({ userId: DEMO_ACCOUNT.userId, email: email || DEMO_ACCOUNT.email, phone: phone });
+            persistSession({ userId: matchedUser.userId || DEMO_ACCOUNT.userId, email: email || matchedUser.email || DEMO_ACCOUNT.email, phone: phone });
             showNotice(ctx, t('auth.success.login', 'تم تسجيل الدخول بنجاح'));
           } else {
             var attempts = (auth.loginAttempts || 0) + 1;
@@ -5850,6 +6279,24 @@
           }
           ctx.setState(function(prev) {
             var pending = (prev.state.auth && prev.state.auth.pendingUser) || pendingUser;
+            var nextAuthUsers = ensureDemoAuthUser(prev.state.authUsers || initialAuthUsers);
+            var normalizedPhone = normalizePhoneDigits(pending.phone || phone);
+            var authRecord = {
+              userId: pending.user_id || DEMO_ACCOUNT.userId,
+              phone: pending.phone || phone,
+              password: (pending.newPassword || auth.newPassword || auth.password || DEMO_ACCOUNT.password || '').trim(),
+              email: pending.email || auth.email || DEMO_ACCOUNT.email,
+              fullName: pending.full_name || pending.fullName || DEMO_ACCOUNT.fullName || 'مستخدم مستعمل'
+            };
+            var existingIndex = nextAuthUsers.findIndex(function(user) {
+              return normalizePhoneDigits(user && user.phone) === normalizedPhone;
+            });
+            if (existingIndex >= 0) {
+              nextAuthUsers[existingIndex] = Object.assign({}, nextAuthUsers[existingIndex], authRecord);
+            } else if (normalizedPhone) {
+              nextAuthUsers.push(authRecord);
+            }
+            persistAuthUsers(nextAuthUsers);
             var nextAuth = Object.assign({}, prev.state.auth, {
               open: false,
               error: null,
@@ -5886,7 +6333,7 @@
             return {
               env: prev.env,
               meta: prev.meta,
-              state: Object.assign({}, prev.state, { activeUserId: newUserId, auth: nextAuth }),
+              state: Object.assign({}, prev.state, { activeUserId: newUserId, auth: nextAuth, authUsers: nextAuthUsers }),
               data: nextData
             };
           });
@@ -6775,10 +7222,12 @@
           return acc;
         }, {});
 
-        var tablesToWatch = Object.keys(TABLE_TO_DATA_KEY).filter(function(tableName) {
+        var baseTables = Object.keys(TABLE_TO_DATA_KEY);
+        var langTables = Object.keys(LANG_TABLE_CONFIG);
+        var tablesToWatch = baseTables.concat(langTables).filter(function(tableName) {
           return !!schemaTableSet[tableName];
         });
-        var missingTables = Object.keys(TABLE_TO_DATA_KEY).filter(function(tableName) {
+        var missingTables = baseTables.concat(langTables).filter(function(tableName) {
           return !schemaTableSet[tableName];
         });
 
