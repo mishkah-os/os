@@ -1175,7 +1175,7 @@
   
             basebrnamedomain ='https://gremal.mas.com.eg'
             branch_id='2C58FF2F-8025-43F1-982C-9B9BD202ED67';
-            company_id='2C58FF2F-8025-43F1-982C-9B9BD202ED67';
+            company_id='840D022C-27B4-4C94-96F5-B1B554CA4886';
             user_insert='961B7E8A-35BE-42BD-A1CC-5B83CD8E28C6';
         }
 
