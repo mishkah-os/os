@@ -707,15 +707,15 @@
         case 'success':
           return lang === 'en'
             ? 'Closing submitted successfully (demo).'
-            : 'تم إرسال الإغلاق بنجاح (تجريبي).';
+            : 'تم إرسال الإغلاق بنجاح .';
         case 'failure':
           return lang === 'en'
             ? 'Demo closing submission failed.'
-            : 'فشل إرسال الإغلاق التجريبي.';
+            : 'فشل إرسال الإغلاق .';
         case 'network':
           return lang === 'en'
             ? 'Could not reach the demo closing endpoint.'
-            : 'تعذر الوصول إلى نقطة الإغلاق التجريبية.';
+            : 'تعذر الوصول إلى نقطة الإغلاق .';
         default:
           return '';
       }
@@ -1174,9 +1174,9 @@
         {
   
             basebrnamedomain ='https://gremal.mas.com.eg'
-            branch_id='';
-            company_id='';
-            user_insert='';
+            branch_id='2C58FF2F-8025-43F1-982C-9B9BD202ED67';
+            company_id='2C58FF2F-8025-43F1-982C-9B9BD202ED67';
+            user_insert='961B7E8A-35BE-42BD-A1CC-5B83CD8E28C6';
         }
 
         console.log('[POS Finance Diagnostic] basebrnamedomain set to:', basebrnamedomain);
@@ -1186,13 +1186,7 @@
             
             const sqlCommand = `Insert_From_JSON_payments N'${jsonString}', '${branch_id}', '${company_id}', '${user_insert}'`;
 
-            await fetch(basebrnamedomain+"/erp/procedq", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
-                body: "id=" + encodeURIComponent(sqlCommand)
-            }).then(response => response.text()) // Proced returns text usually
-            .then(data => console.log(data))
-            .catch(error => console.error('Error:', error));
+
           
             let tryfetsh =`      fetch("${basebrnamedomain}/erp/procedq", {
                 method: "POST",
@@ -1205,13 +1199,10 @@
          console.log(tryfetsh)
           
           console.log(`exec Insert_From_JSON_payments N'${ "`" }${JSON.stringify(fullobject).replace(/'/g, "''")}${ "'"}`);
-          
-        }
-  
-        const response = await fetch(window.basedomain +'/api/closepos', {
+          const response = await fetch(basebrnamedomain+"/erp/procedq", {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dataClose)
+          headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+          body: "id=" + encodeURIComponent(sqlCommand)
         });
         const body = await response.json().catch(() => null);
         responsePayload = {
@@ -1226,6 +1217,10 @@
             : translateCloseMessage('failure'),
           lastClosingResponse: responsePayload
         });
+          
+        }
+  
+        
       } catch (error) {
         responsePayload = { ok: false, status: 'network-error', error: error?.message };
         setUiState({
