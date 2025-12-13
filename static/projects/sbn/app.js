@@ -342,6 +342,7 @@
     'sbn_products': 'products',
     'sbn_services': 'services',
     'sbn_wiki_articles': 'articles',
+    'sbn_classifieds': 'classifieds',
     'sbn_users': 'users',
     'sbn_posts': 'posts',
     'sbn_comments': 'comments',
@@ -351,15 +352,23 @@
     'sbn_marketplace_categories': 'marketplaceCategories',
     'sbn_service_categories': 'serviceCategories',
     'sbn_knowledge_categories': 'knowledgeCategories',
-    'sbn_notifications': 'notifications'
+    'sbn_notifications': 'notifications',
+    'sbn_user_roles': 'userRoles'
   };
   var LANG_TABLE_CONFIG = {
     'sbn_products_lang': { dataKey: 'products', parentKey: 'product_id' },
     'sbn_services_lang': { dataKey: 'services', parentKey: 'service_id' },
     'sbn_wiki_articles_lang': { dataKey: 'articles', parentKey: 'article_id' },
+    'sbn_classifieds_lang': { dataKey: 'classifieds', parentKey: 'classified_id' },
     'sbn_posts_lang': { dataKey: 'posts', parentKey: 'post_id' },
     'sbn_comments_lang': { dataKey: 'comments', parentKey: 'comment_id' },
     'sbn_reviews_lang': { dataKey: 'reviews', parentKey: 'review_id' },
+    'sbn_classified_categories_lang': { dataKey: 'classifiedCategories', parentKey: 'category_id' },
+    'sbn_marketplace_categories_lang': { dataKey: 'marketplaceCategories', parentKey: 'category_id' },
+    'sbn_service_categories_lang': { dataKey: 'serviceCategories', parentKey: 'category_id' },
+    'sbn_knowledge_categories_lang': { dataKey: 'knowledgeCategories', parentKey: 'category_id' },
+    'sbn_hashtags_lang': { dataKey: 'hashtags', parentKey: 'hashtag_id' },
+    'sbn_user_roles_lang': { dataKey: 'userRoles', parentKey: 'role_id' },
     'sbn_users_lang': { dataKey: 'users', parentKey: 'user_id' },
     'sbn_categories_lang': { dataKey: null, parentKey: 'category_id' }
   };
@@ -1177,6 +1186,7 @@
       hashtags: [],
       reviews: [],
       classifieds: [],
+      userRoles: [],
       notifications: [],
       inboxThreads: []
     }
