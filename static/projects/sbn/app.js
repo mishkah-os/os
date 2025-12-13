@@ -802,13 +802,30 @@
   }
 
   function generateCaptchaText(length) {
+    if (length <= 0) {
+      return '';
+    }
     var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
     var result = '';
     for (var i = 0; i < length; i++) {
-      var idx = Math.floor(Math.random() * chars.length);
+      var idx = selectSecureIndex(chars.length);
       result += chars.charAt(idx);
     }
-    return result || String(Date.now()).slice(-length);
+    return result;
+  }
+
+  function selectSecureIndex(max) {
+    if (max <= 1) return 0;
+    try {
+      if (global.crypto && typeof global.crypto.getRandomValues === 'function') {
+        var array = new Uint32Array(1);
+        global.crypto.getRandomValues(array);
+        return array[0] % max;
+      }
+    } catch (_err) {
+      /* fallback to Math.random below */
+    }
+    return Math.floor(Math.random() * max);
   }
 
   function renderCaptchaImage(text) {
@@ -6142,12 +6159,12 @@
         var value = (event && event.target && event.target.value) || '';
         updateAuthState(function(current) {
           var next = Object.assign({}, current, { identifier: value });
-          var digits = normalizePhoneDigits(value);
-          if (digits) {
-            next.phone = value;
-          }
           if (value.indexOf('@') !== -1) {
             next.email = value;
+            next.phone = '';
+          } else {
+            next.phone = value;
+            next.email = '';
           }
           return next;
         });
