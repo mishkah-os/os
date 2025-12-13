@@ -4,6 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mishkah POS — الإغلاق المالي</title>
+
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const brname = params.get('brname');
+
+if (!brname || brname === 'dar') {
+    window.location.replace('https://darwish.mas.com.eg');
+}
+</script>
   <style>
     :root {
       color-scheme: dark;
