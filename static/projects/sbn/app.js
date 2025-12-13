@@ -243,6 +243,7 @@
   var OTP_COOLDOWN_MS = 10 * 60 * 1000;
   var OTP_BLOCK_MS = 30 * 60 * 1000;
   var STATIC_OTP = '123456';
+  var RECAPTCHA_LENGTH = 6;
 
   var BASE_I18N = {};
   var realtime = null;
@@ -341,6 +342,7 @@
     'sbn_products': 'products',
     'sbn_services': 'services',
     'sbn_wiki_articles': 'articles',
+    'sbn_classifieds': 'classifieds',
     'sbn_users': 'users',
     'sbn_posts': 'posts',
     'sbn_comments': 'comments',
@@ -350,15 +352,23 @@
     'sbn_marketplace_categories': 'marketplaceCategories',
     'sbn_service_categories': 'serviceCategories',
     'sbn_knowledge_categories': 'knowledgeCategories',
-    'sbn_notifications': 'notifications'
+    'sbn_notifications': 'notifications',
+    'sbn_user_roles': 'userRoles'
   };
   var LANG_TABLE_CONFIG = {
     'sbn_products_lang': { dataKey: 'products', parentKey: 'product_id' },
     'sbn_services_lang': { dataKey: 'services', parentKey: 'service_id' },
     'sbn_wiki_articles_lang': { dataKey: 'articles', parentKey: 'article_id' },
+    'sbn_classifieds_lang': { dataKey: 'classifieds', parentKey: 'classified_id' },
     'sbn_posts_lang': { dataKey: 'posts', parentKey: 'post_id' },
     'sbn_comments_lang': { dataKey: 'comments', parentKey: 'comment_id' },
     'sbn_reviews_lang': { dataKey: 'reviews', parentKey: 'review_id' },
+    'sbn_classified_categories_lang': { dataKey: 'classifiedCategories', parentKey: 'category_id' },
+    'sbn_marketplace_categories_lang': { dataKey: 'marketplaceCategories', parentKey: 'category_id' },
+    'sbn_service_categories_lang': { dataKey: 'serviceCategories', parentKey: 'category_id' },
+    'sbn_knowledge_categories_lang': { dataKey: 'knowledgeCategories', parentKey: 'category_id' },
+    'sbn_hashtags_lang': { dataKey: 'hashtags', parentKey: 'hashtag_id' },
+    'sbn_user_roles_lang': { dataKey: 'userRoles', parentKey: 'role_id' },
     'sbn_users_lang': { dataKey: 'users', parentKey: 'user_id' },
     'sbn_categories_lang': { dataKey: null, parentKey: 'category_id' }
   };
@@ -787,12 +797,88 @@
     return (value || '').replace(/\D/g, '');
   }
 
+  function normalizeEmail(value) {
+    return typeof value === 'string' ? value.trim().toLowerCase() : '';
+  }
+
+  function generateCaptchaText(length) {
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    var result = '';
+    for (var i = 0; i < length; i++) {
+      var idx = Math.floor(Math.random() * chars.length);
+      result += chars.charAt(idx);
+    }
+    return result || String(Date.now()).slice(-length);
+  }
+
+  function renderCaptchaImage(text) {
+    try {
+      if (!global.document || !global.document.createElement) return '';
+      var canvas = global.document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 60;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.font = 'bold 28px monospace';
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.setTransform(1, Math.random() * 0.1, Math.random() * 0.1, 1, 0, 0);
+      ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+      for (var i = 0; i < 4; i++) {
+        ctx.strokeStyle = 'rgba(99,102,241,0.4)';
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * canvas.width, Math.random() * canvas.height);
+        ctx.lineTo(Math.random() * canvas.width, Math.random() * canvas.height);
+        ctx.stroke();
+      }
+      return canvas.toDataURL('image/png');
+    } catch (err) {
+      debugLog('[SBN PWA][captcha] failed to render image', err);
+      return '';
+    }
+  }
+
+  function createRecaptchaChallenge() {
+    var code = generateCaptchaText(RECAPTCHA_LENGTH);
+    return {
+      code: code,
+      image: renderCaptchaImage(code),
+      input: ''
+    };
+  }
+
+  function stepRequiresRecaptcha(step) {
+    return step === 'register' || step === 'forgot';
+  }
+
+  function attachRecaptcha(auth, step) {
+    if (!stepRequiresRecaptcha(step)) {
+      return Object.assign({}, auth, { recaptchaCode: '', recaptchaImage: '', recaptchaInput: '' });
+    }
+    var challenge = createRecaptchaChallenge();
+    return Object.assign({}, auth, {
+      recaptchaCode: challenge.code,
+      recaptchaImage: challenge.image,
+      recaptchaInput: ''
+    });
+  }
+
+  function validateRecaptchaInput(auth) {
+    if (!auth || !stepRequiresRecaptcha(auth.step)) return true;
+    var expected = (auth.recaptchaCode || '').trim().toLowerCase();
+    var provided = (auth.recaptchaInput || '').trim().toLowerCase();
+    return !!(expected && provided && expected === provided);
+  }
+
   function ensureDemoAuthUser(users) {
     var list = Array.isArray(users) ? users.slice() : [];
     var demoDigits = normalizePhoneDigits(DEMO_ACCOUNT.phone);
     var demoRecord = {
       userId: DEMO_ACCOUNT.userId,
       phone: DEMO_ACCOUNT.phone,
+      email: DEMO_ACCOUNT.email,
       password: DEMO_ACCOUNT.password,
       fullName: 'Demo User'
     };
@@ -1069,6 +1155,7 @@
         open: false,
         step: 'login',
         fullName: '',
+        identifier: (persistedSession && (persistedSession.email || persistedSession.phone)) || '',
         phone: (persistedSession && persistedSession.phone) || '+201',
         email: (persistedSession && persistedSession.email) || 'demo@mostamal.eg',
         password: '',
@@ -1076,7 +1163,9 @@
         otpRequestedAt: 0,
         blockedUntil: 0,
         loginAttempts: 0,
-        recaptcha: false,
+        recaptchaCode: '',
+        recaptchaImage: '',
+        recaptchaInput: '',
         newPassword: '',
         error: null,
         pendingUser: null
@@ -1097,6 +1186,7 @@
       hashtags: [],
       reviews: [],
       classifieds: [],
+      userRoles: [],
       notifications: [],
       inboxThreads: []
     }
@@ -2772,6 +2862,7 @@
           step: mode,
           error: null
         });
+        nextAuth = attachRecaptcha(nextAuth, mode);
         return {
           env: db.env,
           meta: db.meta,
@@ -2780,11 +2871,14 @@
         };
       });
     } else {
-      initialDatabase.state.auth = Object.assign({}, initialDatabase.state.auth, {
-        open: true,
-        step: mode,
-        error: null
-      });
+      initialDatabase.state.auth = attachRecaptcha(
+        Object.assign({}, initialDatabase.state.auth, {
+          open: true,
+          step: mode,
+          error: null
+        }),
+        mode
+      );
     }
   }
 
@@ -2796,7 +2890,10 @@
           error: null,
           step: 'login',
           password: '',
-          otp: ''
+          otp: '',
+          recaptchaCode: '',
+          recaptchaImage: '',
+          recaptchaInput: ''
         });
         return {
           env: db.env,
@@ -5062,44 +5159,70 @@
    var fields = [];
    var demoHint = null;
    var recaptchaBox = null;
-   if (step === 'register') {
-     title = t('auth.register.title', 'إنشاء حساب جديد');
-     subtitle = t('auth.register.subtitle', 'شارك أعمالك وخدماتك فوراً');
-     fields = [
-       { name: 'fullName', type: 'text', label: t('auth.fullName', 'الاسم الكامل'), value: auth.fullName || '' },
+  if (step === 'register') {
+    title = t('auth.register.title', 'إنشاء حساب جديد');
+    subtitle = t('auth.register.subtitle', 'شارك أعمالك وخدماتك فوراً');
+    fields = [
+      { name: 'fullName', type: 'text', label: t('auth.fullName', 'الاسم الكامل'), value: auth.fullName || '' },
+       { name: 'email', type: 'email', label: t('auth.email', 'البريد الإلكتروني'), value: auth.email || '' },
        { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
        { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
      ];
-     recaptchaBox = D.Forms.Label({ attrs: { class: 'auth-recaptcha' } }, [
-       D.Inputs.Input({ attrs: { type: 'checkbox', checked: !!auth.recaptcha, 'data-m-gkey': 'auth-recaptcha' } }, []),
-       D.Text.Span({ attrs: { class: 'auth-recaptcha-label' } }, [t('auth.recaptcha', 'أنا لست روبوتاً')])
-     ]);
-   } else if (step === 'otp') {
+  } else if (step === 'otp') {
      title = t('auth.otp.title', 'أدخل رمز التحقق');
      subtitle = t('auth.otp.subtitle', 'استخدم الرمز 123456 لإكمال التفعيل');
      fields = [
        { name: 'otp', type: 'text', label: t('auth.otp', 'رمز التحقق'), value: auth.otp || '' }
      ];
-   } else if (step === 'forgot') {
-     title = t('auth.forgot.title', 'استعادة كلمة المرور');
-     subtitle = t('auth.forgot.subtitle', 'سوف نرسل لك رمز تفعيل لتغيير كلمة المرور');
-     fields = [
-       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
+  } else if (step === 'forgot') {
+    title = t('auth.forgot.title', 'استعادة كلمة المرور');
+    subtitle = t('auth.forgot.subtitle', 'سوف نرسل لك رمز تفعيل لتغيير كلمة المرور');
+    fields = [
+       {
+         name: 'identifier',
+         type: 'text',
+         label: t('auth.identifier', 'البريد الإلكتروني أو رقم الهاتف'),
+         value: auth.identifier || auth.phone || auth.email || ''
+       },
        { name: 'newPassword', type: 'password', label: t('auth.password.new', 'كلمة المرور الجديدة'), value: auth.newPassword || '' }
      ];
-     recaptchaBox = D.Forms.Label({ attrs: { class: 'auth-recaptcha' } }, [
-       D.Inputs.Input({ attrs: { type: 'checkbox', checked: !!auth.recaptcha, 'data-m-gkey': 'auth-recaptcha' } }, []),
-       D.Text.Span({ attrs: { class: 'auth-recaptcha-label' } }, [t('auth.recaptcha', 'أنا لست روبوتاً')])
-     ]);
-   } else {
-     fields = [
-       { name: 'phone', type: 'tel', label: t('auth.phone', 'رقم الجوال'), value: auth.phone || '' },
+  } else {
+    fields = [
+       {
+         name: 'identifier',
+         type: 'text',
+         label: t('auth.identifier', 'البريد الإلكتروني أو رقم الهاتف'),
+         value: auth.identifier || auth.phone || auth.email || ''
+       },
        { name: 'password', type: 'password', label: t('auth.password', 'كلمة المرور'), value: auth.password || '' }
      ];
-     demoHint = D.Text.Small({ attrs: { class: 'auth-note' } }, [
-       t('auth.demo.hint', 'بيانات العرض: +201000000000 / demo123')
-     ]);
-   }
+    demoHint = D.Text.Small({ attrs: { class: 'auth-note' } }, [
+      t('auth.demo.hint', 'بيانات العرض: +201000000000 / demo123')
+    ]);
+  }
+  if (stepRequiresRecaptcha(step)) {
+    recaptchaBox = D.Containers.Div({ attrs: { class: 'auth-recaptcha' } }, [
+      D.Containers.Div({ attrs: { class: 'recaptcha-visual' } }, [
+        auth.recaptchaImage
+          ? D.Media.Img({ attrs: { src: auth.recaptchaImage, alt: t('auth.recaptcha.alt', 'رمز التحقق'), class: 'recaptcha-img' } }, [])
+          : D.Containers.Div({ attrs: { class: 'recaptcha-fallback' } }, [auth.recaptchaCode || t('auth.recaptcha', 'رمز التحقق')]),
+        D.Forms.Button({
+          attrs: { type: 'button', class: 'link-btn', 'data-m-gkey': 'auth-recaptcha-refresh' }
+        }, [t('auth.recaptcha.refresh', 'تحديث الرمز')])
+      ]),
+      D.Inputs.Input({
+        attrs: {
+          type: 'text',
+          value: auth.recaptchaInput || '',
+          placeholder: t('auth.recaptcha.prompt', 'أدخل الرمز الظاهر'),
+          class: 'auth-input',
+          name: 'recaptcha',
+          autocomplete: 'off',
+          'data-m-gkey': 'auth-input-recaptcha'
+        }
+      }, [])
+    ]);
+  }
   var now = Date.now();
   var cooldownRemaining = Math.max(0, (auth.otpRequestedAt || 0) + OTP_COOLDOWN_MS - now);
   var blockedRemaining = Math.max(0, (auth.blockedUntil || 0) - now);
@@ -5114,6 +5237,7 @@
       ])
     : null;
   var autocompleteMap = {
+    identifier: 'username',
     email: 'email',
     phone: 'tel',
     password: step === 'login' ? 'current-password' : 'new-password',
@@ -5998,15 +6122,34 @@
         var step = getGkeyAttr(event, 'data-step');
         if (!step) return;
         updateAuthState(function(current) {
-          return Object.assign({}, current, {
+          var next = Object.assign({}, current, {
             step: step,
             error: null,
             otp: '',
             fullName: step === 'register' ? current.fullName : '',
             pendingUser: step === 'otp' ? current.pendingUser : null,
-            password: step === 'login' ? '' : current.password,
-            recaptcha: false
+            password: step === 'login' ? '' : current.password
           });
+          return attachRecaptcha(next, step);
+        });
+      }
+    },
+
+    'auth-input-identifier': {
+      on: ['input'],
+      gkeys: ['auth-input-identifier'],
+      handler: function(event) {
+        var value = (event && event.target && event.target.value) || '';
+        updateAuthState(function(current) {
+          var next = Object.assign({}, current, { identifier: value });
+          var digits = normalizePhoneDigits(value);
+          if (digits) {
+            next.phone = value;
+          }
+          if (value.indexOf('@') !== -1) {
+            next.email = value;
+          }
+          return next;
         });
       }
     },
@@ -6015,7 +6158,14 @@
       on: ['input'],
       gkeys: ['auth-input-email'],
       handler: function(event) {
-        updateAuthState({ email: event.target.value });
+        var value = (event && event.target && event.target.value) || '';
+        updateAuthState(function(current) {
+          var next = Object.assign({}, current, { email: value });
+          if (!current.identifier) {
+            next.identifier = value;
+          }
+          return next;
+        });
       }
     },
 
@@ -6023,7 +6173,14 @@
       on: ['input'],
       gkeys: ['auth-input-phone'],
       handler: function(event) {
-        updateAuthState({ phone: event.target.value });
+        var value = (event && event.target && event.target.value) || '';
+        updateAuthState(function(current) {
+          var next = Object.assign({}, current, { phone: value });
+          if (!current.identifier) {
+            next.identifier = value;
+          }
+          return next;
+        });
       }
     },
 
@@ -6061,11 +6218,25 @@
       }
     },
 
-    'auth-recaptcha': {
-      on: ['change'],
-      gkeys: ['auth-recaptcha'],
+    'auth-input-recaptcha': {
+      on: ['input'],
+      gkeys: ['auth-input-recaptcha'],
       handler: function(event) {
-        updateAuthState({ recaptcha: !!(event && event.target && event.target.checked) });
+        updateAuthState({ recaptchaInput: event.target.value });
+      }
+    },
+
+    'auth-recaptcha-refresh': {
+      on: ['click'],
+      gkeys: ['auth-recaptcha-refresh'],
+      handler: function(event) {
+        event.preventDefault();
+        var db = app ? app.database : null;
+        var auth = (db && db.state && db.state.auth) || initialDatabase.state.auth;
+        var step = auth.step || 'login';
+        updateAuthState(function(current) {
+          return attachRecaptcha(current, step);
+        });
       }
     },
 
@@ -6082,8 +6253,9 @@
         var auth = (db && db.state && db.state.auth) || initialDatabase.state.auth;
         var formEl = event && event.target;
         var step = auth.step || 'login';
-        var email = (auth.email || '').trim().toLowerCase();
-        var phone = (auth.phone || '').trim();
+        var identifier = (auth.identifier || auth.phone || auth.email || '').trim();
+        var email = normalizeEmail(auth.email || (identifier.indexOf('@') !== -1 ? identifier : ''));
+        var phone = (auth.phone || identifier).trim();
           var password = (auth.password || '').trim();
           if (!password && formEl && typeof formEl.querySelector === 'function') {
             var passwordInput = formEl.querySelector('input[name="password"]');
@@ -6105,15 +6277,19 @@
             return;
         }
         if (step === 'login') {
-          var phoneDigits = normalizePhoneDigits(phone);
+          var phoneDigits = normalizePhoneDigits(identifier || phone);
+          var emailLogin = normalizeEmail(identifier) || email;
           var authUsers = ensureDemoAuthUser((db && db.state && db.state.authUsers) || initialAuthUsers);
           var matchedUser = authUsers.find(function(user) {
-            return normalizePhoneDigits(user && user.phone) === phoneDigits;
+            var phoneMatch = phoneDigits && normalizePhoneDigits(user && user.phone) === phoneDigits;
+            var emailMatch = emailLogin && normalizeEmail(user && user.email) === emailLogin;
+            return phoneMatch || emailMatch;
           });
-          if (!matchedUser && phoneDigits && password) {
+          if (!matchedUser && (phoneDigits || emailLogin) && password) {
             matchedUser = {
               userId: generateId('usr'),
-              phone: phone,
+              phone: phoneDigits ? phone : '',
+              email: emailLogin || auth.email || '',
               password: password,
               fullName: auth.fullName || 'مستخدم مستعمل'
             };
@@ -6127,8 +6303,11 @@
               var nextAuthUsers = baseList.slice();
               if (matchedUser) {
                 var matchDigits = normalizePhoneDigits(matchedUser.phone);
+                var matchEmail = normalizeEmail(matchedUser.email);
                 var matchIdx = nextAuthUsers.findIndex(function(user) {
-                  return normalizePhoneDigits(user && user.phone) === matchDigits;
+                  var phoneMatch = matchDigits && normalizePhoneDigits(user && user.phone) === matchDigits;
+                  var emailMatch = matchEmail && normalizeEmail(user && user.email) === matchEmail;
+                  return phoneMatch || emailMatch;
                 });
                 if (matchIdx >= 0) {
                   nextAuthUsers[matchIdx] = Object.assign({}, nextAuthUsers[matchIdx], matchedUser);
@@ -6138,7 +6317,17 @@
               }
               persistAuthUsers(nextAuthUsers);
               var resolvedUserId = matchedUser.userId || DEMO_ACCOUNT.userId;
-              var nextAuth = Object.assign({}, prev.state.auth, { open: false, error: null, password: '', otp: '', loginAttempts: 0, blockedUntil: 0, recaptcha: false });
+              var nextAuth = Object.assign({}, prev.state.auth, {
+                open: false,
+                error: null,
+                password: '',
+                otp: '',
+                loginAttempts: 0,
+                blockedUntil: 0,
+                recaptchaCode: '',
+                recaptchaImage: '',
+                recaptchaInput: ''
+              });
               return {
                 env: prev.env,
                 meta: prev.meta,
@@ -6146,7 +6335,11 @@
                 data: prev.data
               };
             });
-            persistSession({ userId: matchedUser.userId || DEMO_ACCOUNT.userId, email: email || matchedUser.email || DEMO_ACCOUNT.email, phone: phone });
+            persistSession({
+              userId: matchedUser.userId || DEMO_ACCOUNT.userId,
+              email: emailLogin || matchedUser.email || DEMO_ACCOUNT.email,
+              phone: matchedUser.phone || phone || ''
+            });
             showNotice(ctx, t('auth.success.login', 'تم تسجيل الدخول بنجاح'));
           } else {
             var attempts = (auth.loginAttempts || 0) + 1;
@@ -6160,9 +6353,18 @@
           return;
         }
         if (step === 'register') {
-          var phoneDigitsRegister = phone.replace(/\D/g, '');
-          if (!auth.fullName || !auth.fullName.trim() || !phoneDigitsRegister || !auth.password || !auth.recaptcha) {
+          var phoneDigitsRegister = normalizePhoneDigits(auth.phone || identifier);
+          var emailRegister = normalizeEmail(auth.email || identifier);
+          if (!auth.fullName || !auth.fullName.trim() || (!phoneDigitsRegister && !emailRegister) || !auth.password) {
             updateAuthState({ error: t('auth.error.fields', 'يرجى تعبئة جميع الحقول وتأكيد أنك لست روبوتاً') });
+            return;
+          }
+          if (!validateRecaptchaInput(auth)) {
+            updateAuthState(function(current) {
+              var next = attachRecaptcha(current, 'register');
+              next.error = t('auth.error.recaptcha', 'رمز التحقق غير صحيح');
+              return next;
+            });
             return;
           }
           if (auth.otpRequestedAt && now - auth.otpRequestedAt < OTP_COOLDOWN_MS) {
@@ -6173,27 +6375,61 @@
             user_id: generateId('usr'),
             full_name: auth.fullName.trim(),
             username: auth.fullName.trim().split(/\s+/).join('_'),
-            email: email || (phoneDigitsRegister + '@mostamal.eg'),
-            phone: phone,
+            email: emailRegister || (phoneDigitsRegister ? phoneDigitsRegister + '@mostamal.eg' : ''),
+            phone: phone || auth.phone,
             newPassword: auth.password,
             flow: 'register',
             avatar_url: 'https://i.pravatar.cc/120?img=28'
           };
-          updateAuthState({ pendingUser: pendingUser, step: 'otp', error: null, otp: '', otpRequestedAt: now });
+          updateAuthState({
+            pendingUser: pendingUser,
+            step: 'otp',
+            error: null,
+            otp: '',
+            otpRequestedAt: now,
+            recaptchaCode: '',
+            recaptchaImage: '',
+            recaptchaInput: ''
+          });
           showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
           return;
         }
         if (step === 'forgot') {
-          var phoneDigitsForgot = phone.replace(/\D/g, '');
-          if (!phoneDigitsForgot || !auth.newPassword || !auth.recaptcha) {
-            updateAuthState({ error: t('auth.error.fields', 'أدخل رقم الهاتف وكلمة المرور الجديدة وأكّد أنك لست روبوتاً') });
+          var contactValue = identifier || auth.phone || auth.email;
+          var phoneDigitsForgot = normalizePhoneDigits(contactValue);
+          var emailForgot = normalizeEmail(contactValue || auth.email);
+          if ((!phoneDigitsForgot && !emailForgot) || !auth.newPassword) {
+            updateAuthState({ error: t('auth.error.fields', 'أدخل بيانات التواصل وكلمة المرور الجديدة وأكّد أنك لست روبوتاً') });
+            return;
+          }
+          if (!validateRecaptchaInput(auth)) {
+            updateAuthState(function(current) {
+              var next = attachRecaptcha(current, 'forgot');
+              next.error = t('auth.error.recaptcha', 'رمز التحقق غير صحيح');
+              return next;
+            });
             return;
           }
           if (auth.otpRequestedAt && now - auth.otpRequestedAt < OTP_COOLDOWN_MS) {
             updateAuthState({ error: t('auth.otp.cooldown', 'يمكن طلب رمز جديد بعد مرور فترة التهدئة') });
             return;
           }
-          updateAuthState({ pendingUser: { user_id: DEMO_ACCOUNT.userId, phone: phone, newPassword: auth.newPassword, flow: 'forgot' }, step: 'otp', error: null, otp: '', otpRequestedAt: now });
+          updateAuthState({
+            pendingUser: {
+              user_id: DEMO_ACCOUNT.userId,
+              phone: contactValue,
+              email: emailForgot,
+              newPassword: auth.newPassword,
+              flow: 'forgot'
+            },
+            step: 'otp',
+            error: null,
+            otp: '',
+            otpRequestedAt: now,
+            recaptchaCode: '',
+            recaptchaImage: '',
+            recaptchaInput: ''
+          });
           showNotice(ctx, t('auth.otp.sent', 'تم إرسال رمز التفعيل (123456)'));
           return;
         }
@@ -6211,6 +6447,7 @@
             var pending = (prev.state.auth && prev.state.auth.pendingUser) || pendingUser;
             var nextAuthUsers = ensureDemoAuthUser(prev.state.authUsers || initialAuthUsers);
             var normalizedPhone = normalizePhoneDigits(pending.phone || phone);
+            var normalizedEmail = normalizeEmail(pending.email || auth.email);
             var authRecord = {
               userId: pending.user_id || DEMO_ACCOUNT.userId,
               phone: pending.phone || phone,
@@ -6219,11 +6456,13 @@
               fullName: pending.full_name || pending.fullName || DEMO_ACCOUNT.fullName || 'مستخدم مستعمل'
             };
             var existingIndex = nextAuthUsers.findIndex(function(user) {
-              return normalizePhoneDigits(user && user.phone) === normalizedPhone;
+              var phoneMatch = normalizedPhone && normalizePhoneDigits(user && user.phone) === normalizedPhone;
+              var emailMatch = normalizedEmail && normalizeEmail(user && user.email) === normalizedEmail;
+              return phoneMatch || emailMatch;
             });
             if (existingIndex >= 0) {
               nextAuthUsers[existingIndex] = Object.assign({}, nextAuthUsers[existingIndex], authRecord);
-            } else if (normalizedPhone) {
+            } else if (normalizedPhone || normalizedEmail) {
               nextAuthUsers.push(authRecord);
             }
             persistAuthUsers(nextAuthUsers);
@@ -6233,7 +6472,9 @@
               otp: '',
               password: '',
               newPassword: '',
-              recaptcha: false,
+              recaptchaCode: '',
+              recaptchaImage: '',
+              recaptchaInput: '',
               otpRequestedAt: 0,
               pendingUser: null,
               loginAttempts: 0,
