@@ -5680,6 +5680,9 @@
       gkeys: ['contact-close'],
       handler: function(event, ctx) {
         event.preventDefault();
+        var target = getGkeyTarget(event);
+        var gkey = target && target.getAttribute ? target.getAttribute('data-m-gkey') : null;
+        if (gkey && gkey !== 'contact-close') return;
         setContactOverlay(ctx, { open: false, targetId: null, kind: null, message: '' });
       }
     },
@@ -5690,6 +5693,14 @@
       handler: function(event, ctx) {
         var value = event.target && event.target.value ? event.target.value : '';
         setContactOverlay(ctx, { message: value });
+      }
+    },
+
+    'contact.modal': {
+      on: ['click'],
+      gkeys: ['contact-modal'],
+      handler: function(event) {
+        event.stopPropagation();
       }
     },
 
@@ -5727,7 +5738,18 @@
       gkeys: ['report-close'],
       handler: function(event, ctx) {
         event.preventDefault();
+        var target = getGkeyTarget(event);
+        var gkey = target && target.getAttribute ? target.getAttribute('data-m-gkey') : null;
+        if (gkey && gkey !== 'report-close') return;
         setReportOverlay(ctx, { open: false, targetId: null, targetType: null, reason: '', notes: '' });
+      }
+    },
+
+    'report.modal': {
+      on: ['click'],
+      gkeys: ['report-modal'],
+      handler: function(event) {
+        event.stopPropagation();
       }
     },
 
@@ -5769,6 +5791,9 @@
       gkeys: ['detail-close'],
       handler: function(event, ctx) {
         event.preventDefault();
+        var target = getGkeyTarget(event);
+        var gkey = target && target.getAttribute ? target.getAttribute('data-m-gkey') : null;
+        if (gkey && gkey !== 'detail-close') return;
         setDetailOverlay(ctx, { open: false, targetId: null, kind: null, activeIndex: 0 });
       }
     },
@@ -5778,6 +5803,9 @@
       gkeys: ['reader-close'],
       handler: function(event, ctx) {
         event.preventDefault();
+        var target = getGkeyTarget(event);
+        var gkey = target && target.getAttribute ? target.getAttribute('data-m-gkey') : null;
+        if (gkey && gkey !== 'reader-close') return;
         ctx.setState(function(db) {
           if (!db.state.readerOverlay.open) return db;
           return {
@@ -7103,6 +7131,9 @@
       gkeys: ['profile-edit-close'],
       handler: function(event, ctx) {
         event.preventDefault();
+        var target = getGkeyTarget(event);
+        var gkey = target && target.getAttribute ? target.getAttribute('data-m-gkey') : null;
+        if (gkey && gkey !== 'profile-edit-close') return;
         ctx.setState(function(db) {
           return {
             env: db.env,
@@ -7213,6 +7244,9 @@
       gkeys: ['post-close'],
       handler: function(event, ctx) {
         event.stopPropagation();
+        var target = getGkeyTarget(event);
+        var gkey = target && target.getAttribute ? target.getAttribute('data-m-gkey') : null;
+        if (gkey && gkey !== 'post-close') return;
         setPostOverlay(ctx, { open: false, postId: null });
       }
     },
